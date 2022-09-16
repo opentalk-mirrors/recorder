@@ -1,0 +1,59 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Compositor",
+            "relativePathBase": "compositor",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=compositor",
+                    "--package=compositor",
+                    "--manifest-path=${workspaceFolder}/compositor/Cargo.toml"
+                ],
+                "filter": {
+                    "name": "compositor",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/compositor"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Compositor Display",
+            "relativePathBase": "compositor",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=compositor",
+                    "--package=compositor",
+                    "--manifest-path=${workspaceFolder}/compositor/Cargo.toml"
+                ],
+                "filter": {
+                    "name": "compositor",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "-v",
+                "-D",
+                "-d",
+                "--viewers",
+                "5"
+            ],
+            "environment": [
+                {
+                    "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor"
+                }
+            ],
+            "cwd": "${workspaceFolder}/compositor"
+        }
+    ]
+}

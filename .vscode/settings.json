@@ -1,0 +1,29 @@
+{
+    "cSpell.words": [
+        "audiomixer",
+        "autoaudiosink",
+        "autovideosink",
+        "avenc",
+        "capssetter",
+        "clockoverlay",
+        "dashsink",
+        "deltax",
+        "deltay",
+        "gstreamer",
+        "halignment",
+        "Konstantin",
+        "Markus",
+        "mplayer",
+        "muxer",
+        "smpte",
+        "textoverlay",
+        "valignment",
+        "videotestsrc",
+        "webrtc",
+        "webrtcbin",
+        "xpad",
+        "xpos",
+        "ypad",
+        "ypos"
+    ]
+}

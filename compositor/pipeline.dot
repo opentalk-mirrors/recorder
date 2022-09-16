@@ -1,0 +1,860 @@
+digraph pipeline {
+  rankdir=LR;
+  fontname="sans";
+  fontsize="10";
+  labelloc=t;
+  nodesep=.1;
+  ranksep=.2;
+  label="<GstPipeline>\nMixer\n[=] -> [>]";
+  node [style="filled,rounded", shape=box, fontsize="9", fontname="sans", margin="0.0,0.0"];
+  edge [labelfontsize="6", fontsize="9", fontname="monospace"];
+  
+  legend [
+    pos="0,0!",
+    margin="0.05,0.05",
+    style="filled",
+    label="Legend\lElement-States: [~] void-pending, [0] null, [-] ready, [=] paused, [>] playing\lPad-Activation: [-] none, [>] push, [<] pull\lPad-Flags: [b]locked, [f]lushing, [b]locking, [E]OS; upper-case is set\lPad-Task: [T] has started task, [t] has paused task\l",
+  ];
+  subgraph cluster_bin8_0x55ffc38d4dc0 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin8\n[>]";
+    subgraph cluster_bin8_0x55ffc38d4dc0_src {
+      label="";
+      style="invis";
+      _proxypad28_0x55ffc394e5f0 [color=black, fillcolor="#ffdddd", label="proxypad28\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad28_0x55ffc394e5f0 -> bin8_0x55ffc38d4dc0_ghostpad26_0x55ffc394c530 [style=dashed, minlen=0]
+      bin8_0x55ffc38d4dc0_ghostpad26_0x55ffc394c530 [color=black, fillcolor="#ffdddd", label="ghostpad26\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad29_0x55ffc394e850 [color=black, fillcolor="#ffdddd", label="proxypad29\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad29_0x55ffc394e850 -> bin8_0x55ffc38d4dc0_ghostpad27_0x55ffc394c7a0 [style=dashed, minlen=0]
+      bin8_0x55ffc38d4dc0_ghostpad27_0x55ffc394c7a0 [color=black, fillcolor="#ffdddd", label="ghostpad27\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    fillcolor="#ffffff";
+    subgraph cluster_video_source_viewer5_audio_0x55ffc39580e0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAudioTestSrc\nvideo-source-viewer5-audio\n[>]";
+      subgraph cluster_video_source_viewer5_audio_0x55ffc39580e0_src {
+        label="";
+        style="invis";
+        video_source_viewer5_audio_0x55ffc39580e0_src_0x55ffc3956100 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    video_source_viewer5_audio_0x55ffc39580e0_src_0x55ffc3956100 -> _proxypad29_0x55ffc394e850
+    subgraph cluster_video_source_viewer5_video_0x55ffc39330c0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCapsSetter\nvideo-source-viewer5-video\n[>]";
+      subgraph cluster_video_source_viewer5_video_0x55ffc39330c0_sink {
+        label="";
+        style="invis";
+        video_source_viewer5_video_0x55ffc39330c0_sink_0x55ffc39459e0 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_video_source_viewer5_video_0x55ffc39330c0_src {
+        label="";
+        style="invis";
+        video_source_viewer5_video_0x55ffc39330c0_src_0x55ffc3945c30 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      video_source_viewer5_video_0x55ffc39330c0_sink_0x55ffc39459e0 -> video_source_viewer5_video_0x55ffc39330c0_src_0x55ffc3945c30 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_source_viewer5_video_0x55ffc39330c0_src_0x55ffc3945c30 -> _proxypad28_0x55ffc394e5f0
+    subgraph cluster_videotestsrc5_0x55ffc3940700 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstVideoTestSrc\nvideotestsrc5\n[>]";
+      subgraph cluster_videotestsrc5_0x55ffc3940700_src {
+        label="";
+        style="invis";
+        videotestsrc5_0x55ffc3940700_src_0x55ffc3945790 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    videotestsrc5_0x55ffc3940700_src_0x55ffc3945790 -> video_source_viewer5_video_0x55ffc39330c0_sink_0x55ffc39459e0
+  }
+
+  bin8_0x55ffc38d4dc0_ghostpad26_0x55ffc394c530 -> bin1_0x55ffc38d4260_ghostpad8_0x55ffc38c98b0
+  bin8_0x55ffc38d4dc0_ghostpad27_0x55ffc394c7a0 -> bin2_0x55ffc38d4400_ghostpad15_0x55ffc3922a10
+  subgraph cluster_bin7_0x55ffc38d4c20 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin7\n[>]";
+    subgraph cluster_bin7_0x55ffc38d4c20_src {
+      label="";
+      style="invis";
+      _proxypad26_0x55ffc394e130 [color=black, fillcolor="#ffdddd", label="proxypad26\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad26_0x55ffc394e130 -> bin7_0x55ffc38d4c20_ghostpad24_0x55ffc394c050 [style=dashed, minlen=0]
+      bin7_0x55ffc38d4c20_ghostpad24_0x55ffc394c050 [color=black, fillcolor="#ffdddd", label="ghostpad24\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad27_0x55ffc394e390 [color=black, fillcolor="#ffdddd", label="proxypad27\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad27_0x55ffc394e390 -> bin7_0x55ffc38d4c20_ghostpad25_0x55ffc394c2c0 [style=dashed, minlen=0]
+      bin7_0x55ffc38d4c20_ghostpad25_0x55ffc394c2c0 [color=black, fillcolor="#ffdddd", label="ghostpad25\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    fillcolor="#ffffff";
+    subgraph cluster_video_source_viewer4_audio_0x55ffc39536e0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAudioTestSrc\nvideo-source-viewer4-audio\n[>]";
+      subgraph cluster_video_source_viewer4_audio_0x55ffc39536e0_src {
+        label="";
+        style="invis";
+        video_source_viewer4_audio_0x55ffc39536e0_src_0x55ffc3945540 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    video_source_viewer4_audio_0x55ffc39536e0_src_0x55ffc3945540 -> _proxypad27_0x55ffc394e390
+    subgraph cluster_video_source_viewer4_video_0x55ffc3932da0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCapsSetter\nvideo-source-viewer4-video\n[>]";
+      subgraph cluster_video_source_viewer4_video_0x55ffc3932da0_sink {
+        label="";
+        style="invis";
+        video_source_viewer4_video_0x55ffc3932da0_sink_0x55ffc39450a0 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_video_source_viewer4_video_0x55ffc3932da0_src {
+        label="";
+        style="invis";
+        video_source_viewer4_video_0x55ffc3932da0_src_0x55ffc39452f0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      video_source_viewer4_video_0x55ffc3932da0_sink_0x55ffc39450a0 -> video_source_viewer4_video_0x55ffc3932da0_src_0x55ffc39452f0 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_source_viewer4_video_0x55ffc3932da0_src_0x55ffc39452f0 -> _proxypad26_0x55ffc394e130
+    subgraph cluster_videotestsrc4_0x55ffc393bf70 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstVideoTestSrc\nvideotestsrc4\n[>]";
+      subgraph cluster_videotestsrc4_0x55ffc393bf70_src {
+        label="";
+        style="invis";
+        videotestsrc4_0x55ffc393bf70_src_0x55ffc3944e50 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    videotestsrc4_0x55ffc393bf70_src_0x55ffc3944e50 -> video_source_viewer4_video_0x55ffc3932da0_sink_0x55ffc39450a0
+  }
+
+  bin7_0x55ffc38d4c20_ghostpad24_0x55ffc394c050 -> bin1_0x55ffc38d4260_ghostpad7_0x55ffc38c9640
+  bin7_0x55ffc38d4c20_ghostpad25_0x55ffc394c2c0 -> bin2_0x55ffc38d4400_ghostpad14_0x55ffc39227a0
+  subgraph cluster_bin6_0x55ffc38d4a80 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin6\n[>]";
+    subgraph cluster_bin6_0x55ffc38d4a80_src {
+      label="";
+      style="invis";
+      _proxypad24_0x55ffc3925ae0 [color=black, fillcolor="#ffdddd", label="proxypad24\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad24_0x55ffc3925ae0 -> bin6_0x55ffc38d4a80_ghostpad22_0x55ffc3923b20 [style=dashed, minlen=0]
+      bin6_0x55ffc38d4a80_ghostpad22_0x55ffc3923b20 [color=black, fillcolor="#ffdddd", label="ghostpad22\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad25_0x55ffc3925d40 [color=black, fillcolor="#ffdddd", label="proxypad25\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad25_0x55ffc3925d40 -> bin6_0x55ffc38d4a80_ghostpad23_0x55ffc3923d90 [style=dashed, minlen=0]
+      bin6_0x55ffc38d4a80_ghostpad23_0x55ffc3923d90 [color=black, fillcolor="#ffdddd", label="ghostpad23\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    fillcolor="#ffffff";
+    subgraph cluster_video_source_viewer3_audio_0x55ffc3949470 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAudioTestSrc\nvideo-source-viewer3-audio\n[>]";
+      subgraph cluster_video_source_viewer3_audio_0x55ffc3949470_src {
+        label="";
+        style="invis";
+        video_source_viewer3_audio_0x55ffc3949470_src_0x55ffc3944c00 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    video_source_viewer3_audio_0x55ffc3949470_src_0x55ffc3944c00 -> _proxypad25_0x55ffc3925d40
+    subgraph cluster_video_source_viewer3_video_0x55ffc3932a80 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCapsSetter\nvideo-source-viewer3-video\n[>]";
+      subgraph cluster_video_source_viewer3_video_0x55ffc3932a80_sink {
+        label="";
+        style="invis";
+        video_source_viewer3_video_0x55ffc3932a80_sink_0x55ffc3944760 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_video_source_viewer3_video_0x55ffc3932a80_src {
+        label="";
+        style="invis";
+        video_source_viewer3_video_0x55ffc3932a80_src_0x55ffc39449b0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      video_source_viewer3_video_0x55ffc3932a80_sink_0x55ffc3944760 -> video_source_viewer3_video_0x55ffc3932a80_src_0x55ffc39449b0 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_source_viewer3_video_0x55ffc3932a80_src_0x55ffc39449b0 -> _proxypad24_0x55ffc3925ae0
+    subgraph cluster_videotestsrc3_0x55ffc393f7f0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstVideoTestSrc\nvideotestsrc3\n[>]";
+      subgraph cluster_videotestsrc3_0x55ffc393f7f0_src {
+        label="";
+        style="invis";
+        videotestsrc3_0x55ffc393f7f0_src_0x55ffc3944510 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    videotestsrc3_0x55ffc393f7f0_src_0x55ffc3944510 -> video_source_viewer3_video_0x55ffc3932a80_sink_0x55ffc3944760
+  }
+
+  bin6_0x55ffc38d4a80_ghostpad22_0x55ffc3923b20 -> bin1_0x55ffc38d4260_ghostpad6_0x55ffc38c93d0
+  bin6_0x55ffc38d4a80_ghostpad23_0x55ffc3923d90 -> bin2_0x55ffc38d4400_ghostpad13_0x55ffc3922530
+  subgraph cluster_bin5_0x55ffc38d48e0 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin5\n[>]";
+    subgraph cluster_bin5_0x55ffc38d48e0_src {
+      label="";
+      style="invis";
+      _proxypad22_0x55ffc3925620 [color=black, fillcolor="#ffdddd", label="proxypad22\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad22_0x55ffc3925620 -> bin5_0x55ffc38d48e0_ghostpad20_0x55ffc3923640 [style=dashed, minlen=0]
+      bin5_0x55ffc38d48e0_ghostpad20_0x55ffc3923640 [color=black, fillcolor="#ffdddd", label="ghostpad20\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad23_0x55ffc3925880 [color=black, fillcolor="#ffdddd", label="proxypad23\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad23_0x55ffc3925880 -> bin5_0x55ffc38d48e0_ghostpad21_0x55ffc39238b0 [style=dashed, minlen=0]
+      bin5_0x55ffc38d48e0_ghostpad21_0x55ffc39238b0 [color=black, fillcolor="#ffdddd", label="ghostpad21\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    fillcolor="#ffffff";
+    subgraph cluster_video_source_viewer2_audio_0x55ffc39460e0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAudioTestSrc\nvideo-source-viewer2-audio\n[>]";
+      subgraph cluster_video_source_viewer2_audio_0x55ffc39460e0_src {
+        label="";
+        style="invis";
+        video_source_viewer2_audio_0x55ffc39460e0_src_0x55ffc39442c0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    video_source_viewer2_audio_0x55ffc39460e0_src_0x55ffc39442c0 -> _proxypad23_0x55ffc3925880
+    subgraph cluster_video_source_viewer2_video_0x55ffc3932760 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCapsSetter\nvideo-source-viewer2-video\n[>]";
+      subgraph cluster_video_source_viewer2_video_0x55ffc3932760_sink {
+        label="";
+        style="invis";
+        video_source_viewer2_video_0x55ffc3932760_sink_0x55ffc3913da0 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_video_source_viewer2_video_0x55ffc3932760_src {
+        label="";
+        style="invis";
+        video_source_viewer2_video_0x55ffc3932760_src_0x55ffc3944070 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      video_source_viewer2_video_0x55ffc3932760_sink_0x55ffc3913da0 -> video_source_viewer2_video_0x55ffc3932760_src_0x55ffc3944070 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_source_viewer2_video_0x55ffc3932760_src_0x55ffc3944070 -> _proxypad22_0x55ffc3925620
+    subgraph cluster_videotestsrc2_0x55ffc393e260 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstVideoTestSrc\nvideotestsrc2\n[>]";
+      subgraph cluster_videotestsrc2_0x55ffc393e260_src {
+        label="";
+        style="invis";
+        videotestsrc2_0x55ffc393e260_src_0x55ffc3913b50 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    videotestsrc2_0x55ffc393e260_src_0x55ffc3913b50 -> video_source_viewer2_video_0x55ffc3932760_sink_0x55ffc3913da0
+  }
+
+  bin5_0x55ffc38d48e0_ghostpad20_0x55ffc3923640 -> bin1_0x55ffc38d4260_ghostpad5_0x55ffc38c9160
+  bin5_0x55ffc38d48e0_ghostpad21_0x55ffc39238b0 -> bin2_0x55ffc38d4400_ghostpad12_0x55ffc39222c0
+  subgraph cluster_bin4_0x55ffc38d4740 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin4\n[>]";
+    subgraph cluster_bin4_0x55ffc38d4740_src {
+      label="";
+      style="invis";
+      _proxypad20_0x55ffc3925160 [color=black, fillcolor="#ffdddd", label="proxypad20\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad20_0x55ffc3925160 -> bin4_0x55ffc38d4740_ghostpad18_0x55ffc3923160 [style=dashed, minlen=0]
+      bin4_0x55ffc38d4740_ghostpad18_0x55ffc3923160 [color=black, fillcolor="#ffdddd", label="ghostpad18\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad21_0x55ffc39253c0 [color=black, fillcolor="#ffdddd", label="proxypad21\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad21_0x55ffc39253c0 -> bin4_0x55ffc38d4740_ghostpad19_0x55ffc39233d0 [style=dashed, minlen=0]
+      bin4_0x55ffc38d4740_ghostpad19_0x55ffc39233d0 [color=black, fillcolor="#ffdddd", label="ghostpad19\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    fillcolor="#ffffff";
+    subgraph cluster_video_source_viewer1_audio_0x55ffc39414e0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAudioTestSrc\nvideo-source-viewer1-audio\n[>]";
+      subgraph cluster_video_source_viewer1_audio_0x55ffc39414e0_src {
+        label="";
+        style="invis";
+        video_source_viewer1_audio_0x55ffc39414e0_src_0x55ffc3913900 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    video_source_viewer1_audio_0x55ffc39414e0_src_0x55ffc3913900 -> _proxypad21_0x55ffc39253c0
+    subgraph cluster_video_source_viewer1_video_0x55ffc3932440 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCapsSetter\nvideo-source-viewer1-video\n[>]";
+      subgraph cluster_video_source_viewer1_video_0x55ffc3932440_sink {
+        label="";
+        style="invis";
+        video_source_viewer1_video_0x55ffc3932440_sink_0x55ffc3913460 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_video_source_viewer1_video_0x55ffc3932440_src {
+        label="";
+        style="invis";
+        video_source_viewer1_video_0x55ffc3932440_src_0x55ffc39136b0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      video_source_viewer1_video_0x55ffc3932440_sink_0x55ffc3913460 -> video_source_viewer1_video_0x55ffc3932440_src_0x55ffc39136b0 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_source_viewer1_video_0x55ffc3932440_src_0x55ffc39136b0 -> _proxypad20_0x55ffc3925160
+    subgraph cluster_videotestsrc1_0x55ffc393dae0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstVideoTestSrc\nvideotestsrc1\n[>]";
+      subgraph cluster_videotestsrc1_0x55ffc393dae0_src {
+        label="";
+        style="invis";
+        videotestsrc1_0x55ffc393dae0_src_0x55ffc3913210 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    videotestsrc1_0x55ffc393dae0_src_0x55ffc3913210 -> video_source_viewer1_video_0x55ffc3932440_sink_0x55ffc3913460
+  }
+
+  bin4_0x55ffc38d4740_ghostpad18_0x55ffc3923160 -> bin1_0x55ffc38d4260_ghostpad4_0x55ffc38c8ef0
+  bin4_0x55ffc38d4740_ghostpad19_0x55ffc39233d0 -> bin2_0x55ffc38d4400_ghostpad11_0x55ffc3922050
+  subgraph cluster_bin3_0x55ffc38d45a0 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin3\n[>]";
+    subgraph cluster_bin3_0x55ffc38d45a0_src {
+      label="";
+      style="invis";
+      _proxypad18_0x55ffc3924ca0 [color=black, fillcolor="#ffdddd", label="proxypad18\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad18_0x55ffc3924ca0 -> bin3_0x55ffc38d45a0_ghostpad16_0x55ffc3922c80 [style=dashed, minlen=0]
+      bin3_0x55ffc38d45a0_ghostpad16_0x55ffc3922c80 [color=black, fillcolor="#ffdddd", label="ghostpad16\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad19_0x55ffc3924f00 [color=black, fillcolor="#ffdddd", label="proxypad19\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad19_0x55ffc3924f00 -> bin3_0x55ffc38d45a0_ghostpad17_0x55ffc3922ef0 [style=dashed, minlen=0]
+      bin3_0x55ffc38d45a0_ghostpad17_0x55ffc3922ef0 [color=black, fillcolor="#ffdddd", label="ghostpad17\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    fillcolor="#ffffff";
+    subgraph cluster_video_source_speaker_audio_0x55ffc3935c40 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAudioTestSrc\nvideo-source-speaker-audio\n[>]";
+      subgraph cluster_video_source_speaker_audio_0x55ffc3935c40_src {
+        label="";
+        style="invis";
+        video_source_speaker_audio_0x55ffc3935c40_src_0x55ffc3912fc0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    video_source_speaker_audio_0x55ffc3935c40_src_0x55ffc3912fc0 -> _proxypad19_0x55ffc3924f00
+    subgraph cluster_video_source_speaker_video_0x55ffc3932120 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCapsSetter\nvideo-source-speaker-video\n[>]";
+      subgraph cluster_video_source_speaker_video_0x55ffc3932120_sink {
+        label="";
+        style="invis";
+        video_source_speaker_video_0x55ffc3932120_sink_0x55ffc3912b20 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_video_source_speaker_video_0x55ffc3932120_src {
+        label="";
+        style="invis";
+        video_source_speaker_video_0x55ffc3932120_src_0x55ffc3912d70 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      video_source_speaker_video_0x55ffc3932120_sink_0x55ffc3912b20 -> video_source_speaker_video_0x55ffc3932120_src_0x55ffc3912d70 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_source_speaker_video_0x55ffc3932120_src_0x55ffc3912d70 -> _proxypad18_0x55ffc3924ca0
+    subgraph cluster_videotestsrc0_0x55ffc392fbf0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstVideoTestSrc\nvideotestsrc0\n[>]";
+      subgraph cluster_videotestsrc0_0x55ffc392fbf0_src {
+        label="";
+        style="invis";
+        videotestsrc0_0x55ffc392fbf0_src_0x55ffc39128d0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffaaaa";
+    }
+
+    videotestsrc0_0x55ffc392fbf0_src_0x55ffc39128d0 -> video_source_speaker_video_0x55ffc3932120_sink_0x55ffc3912b20
+  }
+
+  bin3_0x55ffc38d45a0_ghostpad16_0x55ffc3922c80 -> bin1_0x55ffc38d4260_ghostpad3_0x55ffc38c8c80
+  bin3_0x55ffc38d45a0_ghostpad17_0x55ffc3922ef0 -> bin2_0x55ffc38d4400_ghostpad10_0x55ffc38c9d90
+  subgraph cluster_bin2_0x55ffc38d4400 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin2\n[>]";
+    subgraph cluster_bin2_0x55ffc38d4400_sink {
+      label="";
+      style="invis";
+      _proxypad12_0x55ffc38cbcf0 [color=black, fillcolor="#ddddff", label="proxypad12\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin2_0x55ffc38d4400_ghostpad10_0x55ffc38c9d90 -> _proxypad12_0x55ffc38cbcf0 [style=dashed, minlen=0]
+      bin2_0x55ffc38d4400_ghostpad10_0x55ffc38c9d90 [color=black, fillcolor="#ddddff", label="ghostpad10\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad13_0x55ffc39240c0 [color=black, fillcolor="#ddddff", label="proxypad13\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin2_0x55ffc38d4400_ghostpad11_0x55ffc3922050 -> _proxypad13_0x55ffc39240c0 [style=dashed, minlen=0]
+      bin2_0x55ffc38d4400_ghostpad11_0x55ffc3922050 [color=black, fillcolor="#ddddff", label="ghostpad11\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad14_0x55ffc3924320 [color=black, fillcolor="#ddddff", label="proxypad14\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin2_0x55ffc38d4400_ghostpad12_0x55ffc39222c0 -> _proxypad14_0x55ffc3924320 [style=dashed, minlen=0]
+      bin2_0x55ffc38d4400_ghostpad12_0x55ffc39222c0 [color=black, fillcolor="#ddddff", label="ghostpad12\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad15_0x55ffc3924580 [color=black, fillcolor="#ddddff", label="proxypad15\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin2_0x55ffc38d4400_ghostpad13_0x55ffc3922530 -> _proxypad15_0x55ffc3924580 [style=dashed, minlen=0]
+      bin2_0x55ffc38d4400_ghostpad13_0x55ffc3922530 [color=black, fillcolor="#ddddff", label="ghostpad13\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad16_0x55ffc39247e0 [color=black, fillcolor="#ddddff", label="proxypad16\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin2_0x55ffc38d4400_ghostpad14_0x55ffc39227a0 -> _proxypad16_0x55ffc39247e0 [style=dashed, minlen=0]
+      bin2_0x55ffc38d4400_ghostpad14_0x55ffc39227a0 [color=black, fillcolor="#ddddff", label="ghostpad14\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad17_0x55ffc3924a40 [color=black, fillcolor="#ddddff", label="proxypad17\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin2_0x55ffc38d4400_ghostpad15_0x55ffc3922a10 -> _proxypad17_0x55ffc3924a40 [style=dashed, minlen=0]
+      bin2_0x55ffc38d4400_ghostpad15_0x55ffc3922a10 [color=black, fillcolor="#ddddff", label="ghostpad15\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    subgraph cluster_bin2_0x55ffc38d4400_src {
+      label="";
+      style="invis";
+      _proxypad11_0x55ffc38cba90 [color=black, fillcolor="#ffdddd", label="proxypad11\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad11_0x55ffc38cba90 -> bin2_0x55ffc38d4400_ghostpad9_0x55ffc38c9b20 [style=dashed, minlen=0]
+      bin2_0x55ffc38d4400_ghostpad9_0x55ffc38c9b20 [color=black, fillcolor="#ffdddd", label="ghostpad9\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    bin2_0x55ffc38d4400_ghostpad10_0x55ffc38c9d90 -> bin2_0x55ffc38d4400_ghostpad9_0x55ffc38c9b20 [style="invis"];
+    fillcolor="#ffffff";
+    subgraph cluster_audio_mixer_output_0x55ffc3908440 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstQueue\naudio-mixer-output\n[>]";
+      subgraph cluster_audio_mixer_output_0x55ffc3908440_sink {
+        label="";
+        style="invis";
+        audio_mixer_output_0x55ffc3908440_sink_0x55ffc3912430 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_audio_mixer_output_0x55ffc3908440_src {
+        label="";
+        style="invis";
+        audio_mixer_output_0x55ffc3908440_src_0x55ffc3912680 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      audio_mixer_output_0x55ffc3908440_sink_0x55ffc3912430 -> audio_mixer_output_0x55ffc3908440_src_0x55ffc3912680 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    audio_mixer_output_0x55ffc3908440_src_0x55ffc3912680 -> _proxypad11_0x55ffc38cba90
+    subgraph cluster_audio_mixer_0x55ffc391c1b0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAudioMixer\naudio-mixer\n[>]";
+      subgraph cluster_audio_mixer_0x55ffc391c1b0_sink {
+        label="";
+        style="invis";
+        audio_mixer_0x55ffc391c1b0_sink_0_0x55ffc3920bb0 [color=black, fillcolor="#aaaaff", label="sink_0\n[>][bfb]", height="0.2", style="filled,dashed"];
+        audio_mixer_0x55ffc391c1b0_sink_1_0x55ffc39261d0 [color=black, fillcolor="#aaaaff", label="sink_1\n[>][bfb]", height="0.2", style="filled,dashed"];
+        audio_mixer_0x55ffc391c1b0_sink_2_0x55ffc3926a20 [color=black, fillcolor="#aaaaff", label="sink_2\n[>][bfb]", height="0.2", style="filled,dashed"];
+        audio_mixer_0x55ffc391c1b0_sink_3_0x55ffc3927400 [color=black, fillcolor="#aaaaff", label="sink_3\n[>][bfb]", height="0.2", style="filled,dashed"];
+        audio_mixer_0x55ffc391c1b0_sink_4_0x55ffc3927e90 [color=black, fillcolor="#aaaaff", label="sink_4\n[>][bfb]", height="0.2", style="filled,dashed"];
+        audio_mixer_0x55ffc391c1b0_sink_5_0x55ffc3928920 [color=black, fillcolor="#aaaaff", label="sink_5\n[>][bfb]", height="0.2", style="filled,dashed"];
+      }
+
+      subgraph cluster_audio_mixer_0x55ffc391c1b0_src {
+        label="";
+        style="invis";
+        audio_mixer_0x55ffc391c1b0_src_0x55ffc391e1d0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      audio_mixer_0x55ffc391c1b0_sink_0_0x55ffc3920bb0 -> audio_mixer_0x55ffc391c1b0_src_0x55ffc391e1d0 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    audio_mixer_0x55ffc391c1b0_src_0x55ffc391e1d0 -> audio_mixer_output_0x55ffc3908440_sink_0x55ffc3912430
+    _proxypad12_0x55ffc38cbcf0 -> audio_mixer_0x55ffc391c1b0_sink_0_0x55ffc3920bb0
+    _proxypad13_0x55ffc39240c0 -> audio_mixer_0x55ffc391c1b0_sink_1_0x55ffc39261d0
+    _proxypad14_0x55ffc3924320 -> audio_mixer_0x55ffc391c1b0_sink_2_0x55ffc3926a20
+    _proxypad15_0x55ffc3924580 -> audio_mixer_0x55ffc391c1b0_sink_3_0x55ffc3927400
+    _proxypad16_0x55ffc39247e0 -> audio_mixer_0x55ffc391c1b0_sink_4_0x55ffc3927e90
+    _proxypad17_0x55ffc3924a40 -> audio_mixer_0x55ffc391c1b0_sink_5_0x55ffc3928920
+  }
+
+  bin2_0x55ffc38d4400_ghostpad9_0x55ffc38c9b20 -> bin0_0x55ffc38d40c0_ghostpad1_0x55ffc38c87a0
+  subgraph cluster_bin1_0x55ffc38d4260 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin1\n[>]";
+    subgraph cluster_bin1_0x55ffc38d4260_sink {
+      label="";
+      style="invis";
+      _proxypad5_0x55ffc38cac50 [color=black, fillcolor="#ddddff", label="proxypad5\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin1_0x55ffc38d4260_ghostpad3_0x55ffc38c8c80 -> _proxypad5_0x55ffc38cac50 [style=dashed, minlen=0]
+      bin1_0x55ffc38d4260_ghostpad3_0x55ffc38c8c80 [color=black, fillcolor="#ddddff", label="ghostpad3\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad6_0x55ffc38caeb0 [color=black, fillcolor="#ddddff", label="proxypad6\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin1_0x55ffc38d4260_ghostpad4_0x55ffc38c8ef0 -> _proxypad6_0x55ffc38caeb0 [style=dashed, minlen=0]
+      bin1_0x55ffc38d4260_ghostpad4_0x55ffc38c8ef0 [color=black, fillcolor="#ddddff", label="ghostpad4\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad7_0x55ffc38cb110 [color=black, fillcolor="#ddddff", label="proxypad7\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin1_0x55ffc38d4260_ghostpad5_0x55ffc38c9160 -> _proxypad7_0x55ffc38cb110 [style=dashed, minlen=0]
+      bin1_0x55ffc38d4260_ghostpad5_0x55ffc38c9160 [color=black, fillcolor="#ddddff", label="ghostpad5\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad8_0x55ffc38cb370 [color=black, fillcolor="#ddddff", label="proxypad8\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin1_0x55ffc38d4260_ghostpad6_0x55ffc38c93d0 -> _proxypad8_0x55ffc38cb370 [style=dashed, minlen=0]
+      bin1_0x55ffc38d4260_ghostpad6_0x55ffc38c93d0 [color=black, fillcolor="#ddddff", label="ghostpad6\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad9_0x55ffc38cb5d0 [color=black, fillcolor="#ddddff", label="proxypad9\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin1_0x55ffc38d4260_ghostpad7_0x55ffc38c9640 -> _proxypad9_0x55ffc38cb5d0 [style=dashed, minlen=0]
+      bin1_0x55ffc38d4260_ghostpad7_0x55ffc38c9640 [color=black, fillcolor="#ddddff", label="ghostpad7\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad10_0x55ffc38cb830 [color=black, fillcolor="#ddddff", label="proxypad10\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin1_0x55ffc38d4260_ghostpad8_0x55ffc38c98b0 -> _proxypad10_0x55ffc38cb830 [style=dashed, minlen=0]
+      bin1_0x55ffc38d4260_ghostpad8_0x55ffc38c98b0 [color=black, fillcolor="#ddddff", label="ghostpad8\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    subgraph cluster_bin1_0x55ffc38d4260_src {
+      label="";
+      style="invis";
+      _proxypad4_0x55ffc38ca9f0 [color=black, fillcolor="#ffdddd", label="proxypad4\n[>][bfb]", height="0.2", style="filled,solid"];
+    _proxypad4_0x55ffc38ca9f0 -> bin1_0x55ffc38d4260_ghostpad2_0x55ffc38c8a10 [style=dashed, minlen=0]
+      bin1_0x55ffc38d4260_ghostpad2_0x55ffc38c8a10 [color=black, fillcolor="#ffdddd", label="ghostpad2\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    bin1_0x55ffc38d4260_ghostpad3_0x55ffc38c8c80 -> bin1_0x55ffc38d4260_ghostpad2_0x55ffc38c8a10 [style="invis"];
+    fillcolor="#ffffff";
+    subgraph cluster_capsfilter0_0x55ffc39102d0 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCapsFilter\ncapsfilter0\n[>]";
+      subgraph cluster_capsfilter0_0x55ffc39102d0_sink {
+        label="";
+        style="invis";
+        capsfilter0_0x55ffc39102d0_sink_0x55ffc38d3d50 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_capsfilter0_0x55ffc39102d0_src {
+        label="";
+        style="invis";
+        capsfilter0_0x55ffc39102d0_src_0x55ffc39121e0 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      capsfilter0_0x55ffc39102d0_sink_0x55ffc38d3d50 -> capsfilter0_0x55ffc39102d0_src_0x55ffc39121e0 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    capsfilter0_0x55ffc39102d0_src_0x55ffc39121e0 -> video_mixer_output_0x55ffc3908140_sink_0x55ffc38d38b0
+    subgraph cluster_video_mixer_output_0x55ffc3908140 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstQueue\nvideo-mixer-output\n[>]";
+      subgraph cluster_video_mixer_output_0x55ffc3908140_sink {
+        label="";
+        style="invis";
+        video_mixer_output_0x55ffc3908140_sink_0x55ffc38d38b0 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_video_mixer_output_0x55ffc3908140_src {
+        label="";
+        style="invis";
+        video_mixer_output_0x55ffc3908140_src_0x55ffc38d3b00 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      video_mixer_output_0x55ffc3908140_sink_0x55ffc38d38b0 -> video_mixer_output_0x55ffc3908140_src_0x55ffc38d3b00 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_mixer_output_0x55ffc3908140_src_0x55ffc38d3b00 -> _proxypad4_0x55ffc38ca9f0
+    subgraph cluster_speaking_0x55ffc3902430 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstTextOverlay\nspeaking\n[>]";
+      subgraph cluster_speaking_0x55ffc3902430_sink {
+        label="";
+        style="invis";
+        speaking_0x55ffc3902430_video_sink_0x55ffc38d31c0 [color=black, fillcolor="#aaaaff", label="video_sink\n[>][bfb]", height="0.2", style="filled,solid"];
+        speaking_0x55ffc3902430_text_sink_0x55ffc38d3410 [color=black, fillcolor="#aaaaff", label="text_sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_speaking_0x55ffc3902430_src {
+        label="";
+        style="invis";
+        speaking_0x55ffc3902430_src_0x55ffc38d3660 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      speaking_0x55ffc3902430_video_sink_0x55ffc38d31c0 -> speaking_0x55ffc3902430_src_0x55ffc38d3660 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    speaking_0x55ffc3902430_src_0x55ffc38d3660 -> capsfilter0_0x55ffc39102d0_sink_0x55ffc38d3d50
+    subgraph cluster_title_0x55ffc3902040 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstTextOverlay\ntitle\n[>]";
+      subgraph cluster_title_0x55ffc3902040_sink {
+        label="";
+        style="invis";
+        title_0x55ffc3902040_video_sink_0x55ffc38d2ad0 [color=black, fillcolor="#aaaaff", label="video_sink\n[>][bfb]", height="0.2", style="filled,solid"];
+        title_0x55ffc3902040_text_sink_0x55ffc38d2d20 [color=black, fillcolor="#aaaaff", label="text_sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_title_0x55ffc3902040_src {
+        label="";
+        style="invis";
+        title_0x55ffc3902040_src_0x55ffc38d2f70 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      title_0x55ffc3902040_video_sink_0x55ffc38d2ad0 -> title_0x55ffc3902040_src_0x55ffc38d2f70 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    title_0x55ffc3902040_src_0x55ffc38d2f70 -> speaking_0x55ffc3902430_video_sink_0x55ffc38d31c0
+    subgraph cluster_clock_0x55ffc3634390 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstClockOverlay\nclock\n[>]";
+      subgraph cluster_clock_0x55ffc3634390_sink {
+        label="";
+        style="invis";
+        clock_0x55ffc3634390_video_sink_0x55ffc38d2630 [color=black, fillcolor="#aaaaff", label="video_sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      subgraph cluster_clock_0x55ffc3634390_src {
+        label="";
+        style="invis";
+        clock_0x55ffc3634390_src_0x55ffc38d2880 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      clock_0x55ffc3634390_video_sink_0x55ffc38d2630 -> clock_0x55ffc3634390_src_0x55ffc38d2880 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    clock_0x55ffc3634390_src_0x55ffc38d2880 -> title_0x55ffc3902040_video_sink_0x55ffc38d2ad0
+    subgraph cluster_video_mixer_0x55ffc38e1580 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstCompositor\nvideo-mixer\n[>]";
+      subgraph cluster_video_mixer_0x55ffc38e1580_sink {
+        label="";
+        style="invis";
+        video_mixer_0x55ffc38e1580_sink_0_0x55ffc3915030 [color=black, fillcolor="#aaaaff", label="sink_0\nzorder=1\nypos=96\nwidth=512\nheight=384\n[>][bfb]", height="0.2", style="filled,dashed"];
+        video_mixer_0x55ffc38e1580_sink_1_0x55ffc3915c20 [color=black, fillcolor="#aaaaff", label="sink_1\nzorder=2\nxpos=512\nwidth=128\nheight=96\n[>][bfb]", height="0.2", style="filled,dashed"];
+        video_mixer_0x55ffc38e1580_sink_2_0x55ffc3916810 [color=black, fillcolor="#aaaaff", label="sink_2\nzorder=3\nxpos=512\nypos=96\nwidth=128\nheight=96\n[>][bfb]", height="0.2", style="filled,dashed"];
+        video_mixer_0x55ffc38e1580_sink_3_0x55ffc3917400 [color=black, fillcolor="#aaaaff", label="sink_3\nzorder=4\nxpos=512\nypos=192\nwidth=128\nheight=96\n[>][bfb]", height="0.2", style="filled,dashed"];
+        video_mixer_0x55ffc38e1580_sink_4_0x55ffc3917ff0 [color=black, fillcolor="#aaaaff", label="sink_4\nzorder=5\nxpos=512\nypos=288\nwidth=128\nheight=96\n[>][bfb]", height="0.2", style="filled,dashed"];
+        video_mixer_0x55ffc38e1580_sink_5_0x55ffc3918be0 [color=black, fillcolor="#aaaaff", label="sink_5\nzorder=6\nxpos=512\nypos=384\nwidth=128\nheight=96\n[>][bfb]", height="0.2", style="filled,dashed"];
+      }
+
+      subgraph cluster_video_mixer_0x55ffc38e1580_src {
+        label="";
+        style="invis";
+        video_mixer_0x55ffc38e1580_src_0x55ffc368ed50 [color=black, fillcolor="#ffaaaa", label="src\n[>][bfb][T]", height="0.2", style="filled,solid"];
+      }
+
+      video_mixer_0x55ffc38e1580_sink_0_0x55ffc3915030 -> video_mixer_0x55ffc38e1580_src_0x55ffc368ed50 [style="invis"];
+      fillcolor="#aaffaa";
+    }
+
+    video_mixer_0x55ffc38e1580_src_0x55ffc368ed50 -> clock_0x55ffc3634390_video_sink_0x55ffc38d2630
+    _proxypad5_0x55ffc38cac50 -> video_mixer_0x55ffc38e1580_sink_0_0x55ffc3915030
+    _proxypad6_0x55ffc38caeb0 -> video_mixer_0x55ffc38e1580_sink_1_0x55ffc3915c20
+    _proxypad7_0x55ffc38cb110 -> video_mixer_0x55ffc38e1580_sink_2_0x55ffc3916810
+    _proxypad8_0x55ffc38cb370 -> video_mixer_0x55ffc38e1580_sink_3_0x55ffc3917400
+    _proxypad9_0x55ffc38cb5d0 -> video_mixer_0x55ffc38e1580_sink_4_0x55ffc3917ff0
+    _proxypad10_0x55ffc38cb830 -> video_mixer_0x55ffc38e1580_sink_5_0x55ffc3918be0
+  }
+
+  bin1_0x55ffc38d4260_ghostpad2_0x55ffc38c8a10 -> bin0_0x55ffc38d40c0_ghostpad0_0x55ffc38c8530
+  subgraph cluster_bin0_0x55ffc38d40c0 {
+    fontname="Bitstream Vera Sans";
+    fontsize="8";
+    style="filled,rounded";
+    color=black;
+    label="GstBin\nbin0\n[-] -> [=]";
+    subgraph cluster_bin0_0x55ffc38d40c0_sink {
+      label="";
+      style="invis";
+      _proxypad2_0x55ffc38ca530 [color=black, fillcolor="#ddddff", label="proxypad2\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin0_0x55ffc38d40c0_ghostpad0_0x55ffc38c8530 -> _proxypad2_0x55ffc38ca530 [style=dashed, minlen=0]
+      bin0_0x55ffc38d40c0_ghostpad0_0x55ffc38c8530 [color=black, fillcolor="#ddddff", label="ghostpad0\n[>][bfb]", height="0.2", style="filled,solid"];
+      _proxypad3_0x55ffc38ca790 [color=black, fillcolor="#ddddff", label="proxypad3\n[>][bfb]", height="0.2", style="filled,solid"];
+    bin0_0x55ffc38d40c0_ghostpad1_0x55ffc38c87a0 -> _proxypad3_0x55ffc38ca790 [style=dashed, minlen=0]
+      bin0_0x55ffc38d40c0_ghostpad1_0x55ffc38c87a0 [color=black, fillcolor="#ddddff", label="ghostpad1\n[>][bfb]", height="0.2", style="filled,solid"];
+    }
+
+    fillcolor="#ffffff";
+    subgraph cluster_output_audio_sink_0x55ffc38c5210 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAutoAudioSink\noutput-audio-sink\n[-] -> [=]";
+      subgraph cluster_output_audio_sink_0x55ffc38c5210_sink {
+        label="";
+        style="invis";
+        _proxypad1_0x55ffc38ca2d0 [color=black, fillcolor="#ddddff", label="proxypad1\n[>][bfb]", height="0.2", style="filled,solid"];
+      output_audio_sink_0x55ffc38c5210_sink_0x55ffc38c82c0 -> _proxypad1_0x55ffc38ca2d0 [style=dashed, minlen=0]
+        output_audio_sink_0x55ffc38c5210_sink_0x55ffc38c82c0 [color=black, fillcolor="#ddddff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffffff";
+      subgraph cluster_output_audio_sink_actual_sink_pulse_0x55ffc3964b30 {
+        fontname="Bitstream Vera Sans";
+        fontsize="8";
+        style="filled,rounded";
+        color=black;
+        label="GstPulseSink\noutput-audio-sink-actual-sink-pulse\n[-] -> [=]";
+        subgraph cluster_output_audio_sink_actual_sink_pulse_0x55ffc3964b30_sink {
+          label="";
+          style="invis";
+          output_audio_sink_actual_sink_pulse_0x55ffc3964b30_sink_0x55ffc38d23e0 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+        }
+
+        fillcolor="#aaaaff";
+      }
+
+      _proxypad1_0x55ffc38ca2d0 -> output_audio_sink_actual_sink_pulse_0x55ffc3964b30_sink_0x55ffc38d23e0
+    }
+
+    _proxypad3_0x55ffc38ca790 -> output_audio_sink_0x55ffc38c5210_sink_0x55ffc38c82c0
+    subgraph cluster_output_video_sink_0x55ffc38c5020 {
+      fontname="Bitstream Vera Sans";
+      fontsize="8";
+      style="filled,rounded";
+      color=black;
+      label="GstAutoVideoSink\noutput-video-sink\n[-] -> [=]";
+      subgraph cluster_output_video_sink_0x55ffc38c5020_sink {
+        label="";
+        style="invis";
+        _proxypad0_0x55ffc38ca070 [color=black, fillcolor="#ddddff", label="proxypad0\n[>][bfb]", height="0.2", style="filled,solid"];
+      output_video_sink_0x55ffc38c5020_sink_0x55ffc38c8050 -> _proxypad0_0x55ffc38ca070 [style=dashed, minlen=0]
+        output_video_sink_0x55ffc38c5020_sink_0x55ffc38c8050 [color=black, fillcolor="#ddddff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+      }
+
+      fillcolor="#ffffff";
+      subgraph cluster_output_video_sink_actual_sink_xvimage_0x55ffc3972e40 {
+        fontname="Bitstream Vera Sans";
+        fontsize="8";
+        style="filled,rounded";
+        color=black;
+        label="GstXvImageSink\noutput-video-sink-actual-sink-xvimage\n[-] -> [=]";
+        subgraph cluster_output_video_sink_actual_sink_xvimage_0x55ffc3972e40_sink {
+          label="";
+          style="invis";
+          output_video_sink_actual_sink_xvimage_0x55ffc3972e40_sink_0x55ffc38d2190 [color=black, fillcolor="#aaaaff", label="sink\n[>][bfb]", height="0.2", style="filled,solid"];
+        }
+
+        fillcolor="#aaaaff";
+      }
+
+      _proxypad0_0x55ffc38ca070 -> output_video_sink_actual_sink_xvimage_0x55ffc3972e40_sink_0x55ffc38d2190
+    }
+
+    _proxypad2_0x55ffc38ca530 -> output_video_sink_0x55ffc38c5020_sink_0x55ffc38c8050
+  }
+
+}
