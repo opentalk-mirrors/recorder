@@ -53,7 +53,9 @@ fn main() {
     };
 
     // create a mixer for audio and video
-    let mixer = Mixer::new(args.viewers, resolution, args.display, args.test);
+    let mut mixer = Mixer::new(args.viewers, resolution, args.display, args.test);
+
+    mixer.add_test_source("pat");
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
@@ -78,10 +80,10 @@ fn main() {
         let names = ["Peer", "Markus", "Konstantin", "Pat", "Stefan", "Michael"];
         loop {
             // continuously set who's speaking
-            thread_mixer.set_speaking(&format!("{}", names[i]));
+            thread_mixer.set_speaking(&format!("{}", names[i % names.len()]));
             // and switch who's speaking
             i += 1;
-            if i > names.len() {
+            if i >= names.len() {
                 i = 0;
             }
             // take time

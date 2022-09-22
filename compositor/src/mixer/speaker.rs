@@ -5,8 +5,6 @@ use gstreamer as gst;
 use layout::*;
 use mixer::*;
 
-pub type SourceFactory = fn(&gst::Pipeline, &str, &Size) -> (gst::GhostPad, gst::GhostPad);
-
 impl Layout {
     /// create a layout where the viewers are vertically distributed at the right side
     /// of the speaker and remaining space is used to display a title and 'who's speaking'
@@ -152,47 +150,33 @@ impl Mixer {
     pub fn new_speaker(
         pipeline: &gst::Pipeline,
         layout: &Layout,
-        factory: SourceFactory,
-    ) -> (gst::GhostPad, gst::GhostPad) {
+    ) -> (
+        gst::GhostPad,
+        Vec<gst::GhostPad>,
+        gst::Bin,
+        gst::Element,
+        gst::GhostPad,
+    ) {
         // create and link video mixer
         let (video_mixer_pad, video_participants_pads) = Self::create_video(&pipeline, &layout);
-
         // create and link audio mixer
-        let (audio_mixer_pad, audio_participants_pads) = Self::create_audio(&pipeline, &layout);
+        let (audio_mixer_bin, audio_mixer, audio_mixer_pad) =
+            Self::create_audio(&pipeline, &layout);
 
-        // create and link speaker's source
-        let (video_source_speaker, audio_source_speaker) =
-            factory(&pipeline, "video-source-speaker", &layout.speaker_size);
+        // link to audiomixer example:
+        // let pad =
+        //     gst::GhostPad::with_target(None, &audio_mixer.request_pad_simple("sink_%").unwrap());
+        // audio_mixer_bin.add_pad(&pad);
+        // src.link(&pad);
 
-        // link video to mixer
-        video_source_speaker
-            .link(&video_participants_pads[0])
-            .unwrap();
-
-        // link audio to mixer
-        audio_source_speaker
-            .link(&audio_participants_pads[0])
-            .unwrap();
-
-        // create and link viewers' sources
-        for n in 1..video_participants_pads.len() {
-            // create speaker source
-            let (video_source_viewer, audio_source_viewer) = factory(
-                &pipeline,
-                &format!("video-source-viewer{n}"),
-                &layout.viewers_size,
-            );
-            // link video to video mixer
-            video_source_viewer
-                .link(&video_participants_pads[n])
-                .unwrap();
-            // link audio to audio mixer
-            audio_source_viewer
-                .link(&audio_participants_pads[n])
-                .unwrap();
-        }
         // link to mixer
-        (video_mixer_pad, audio_mixer_pad)
+        (
+            video_mixer_pad,
+            video_participants_pads,
+            audio_mixer_bin,
+            audio_mixer,
+            audio_mixer_pad,
+        )
     }
 
     /// create an video mixer from a given layout
@@ -211,10 +195,10 @@ impl Mixer {
             .into_iter()
             .map(|n| {
                 format!(
-                    "\n            sink_{n}::xpos={xpos}
-                    sink_{n}::ypos={ypos}
-                    sink_{n}::width={width}
-                    sink_{n}::height={height}",
+                    "\n        sink_{n}::xpos={xpos}
+        sink_{n}::ypos={ypos}
+        sink_{n}::width={width}
+        sink_{n}::height={height}",
                     xpos = layout.viewers_positions[n].x,
                     ypos = layout.viewers_positions[n].y,
                     width = layout.viewers_size.width,
@@ -228,50 +212,52 @@ impl Mixer {
         // prepare a bin with the compositor
         let bin = format!(
             r#"
-                compositor
-                    name=video-mixer
-                    background=black
-                    sink_0::xpos={speaker_x}
-                    sink_0::ypos={speaker_y}
-                    sink_0::width={speaker_width}
-                    sink_0::height={speaker_height}{sink_pads}
-                ! clockoverlay
-                    name=clock
-                    font-desc="Sans, 14"
-                    time-format="%x %X %Z"
-                    halignment={clock_align_h}
-                    valignment={clock_align_v}
-                    line-alignment={clock_align_h}
-                    deltax={clock_x}
-                    deltay={clock_y}
-                    xpad=10
-                    ypad=2
-                    color=0xffffffff
-                ! textoverlay
-                    name=title
-                    font-desc="Sans, 16"
-                    halignment={title_align_h}
-                    valignment={title_align_v}
-                    line-alignment={title_align_h}
-                    deltax={title_x}
-                    deltay={title_y}
-                    xpad=10
-                    ypad=2
-                    color=0xffffffff
-                ! textoverlay
-                    name=speaking
-                    font-desc="Sans, 16"
-                    halignment={speaking_align_h}
-                    valignment={speaking_align_v}
-                    line-alignment={speaking_align_h}
-                    deltax={speaking_x}
-                    deltay={speaking_y}
-                    xpad=10
-                    ypad=2
-                    color=0xffffffff
-                ! video/x-raw,width={width},height={height}
-                ! queue
-                    name=video-mixer-output
+    
+    videotestsrc
+    ! compositor
+        name=video-mixer
+        background=black
+        sink_0::xpos={speaker_x}
+        sink_0::ypos={speaker_y}
+        sink_0::width={speaker_width}
+        sink_0::height={speaker_height}{sink_pads}
+    ! clockoverlay
+        name=clock
+        font-desc="Sans, 14"
+        time-format="%x %X %Z"
+        halignment={clock_align_h}
+        valignment={clock_align_v}
+        line-alignment={clock_align_h}
+        deltax={clock_x}
+        deltay={clock_y}
+        xpad=10
+        ypad=2
+        color=0xffffffff
+    ! textoverlay
+        name=title
+        font-desc="Sans, 16"
+        halignment={title_align_h}
+        valignment={title_align_v}
+        line-alignment={title_align_h}
+        deltax={title_x}
+        deltay={title_y}
+        xpad=10
+        ypad=2
+        color=0xffffffff
+    ! textoverlay
+        name=speaking
+        font-desc="Sans, 16"
+        halignment={speaking_align_h}
+        valignment={speaking_align_v}
+        line-alignment={speaking_align_h}
+        deltax={speaking_x}
+        deltay={speaking_y}
+        xpad=10
+        ypad=2
+        color=0xffffffff
+    ! video/x-raw,width={width},height={height}
+    ! queue
+        name=video-mixer-output
                 "#,
             width = layout.size.width,
             height = layout.size.height,
@@ -300,11 +286,11 @@ impl Mixer {
 
         // link our internal sink to a ghost pad at the bin's outside
         let mixer_pad = link_bin_ghost_pad(&bin, "video-mixer-output", "src");
-        let participants_pads: Vec<gst::GhostPad> = (0..layout.num_viewers() + 1)
-            .into_iter()
-            .map(|n| link_bin_add_ghost_pad(&bin, "video-mixer", &format!("sink_{n}")))
-            .collect();
-
+        // let participants_pads: Vec<gst::GhostPad> = (0..layout.num_viewers() + 1)
+        //     .into_iter()
+        //     .map(|n| link_bin_add_ghost_pad(&bin, "video-mixer", &format!("sink_{n}")))
+        //     .collect();
+        let participants_pads = vec![];
         // return pads of interest
         (mixer_pad, participants_pads)
     }
@@ -318,15 +304,17 @@ impl Mixer {
     fn create_audio(
         pipeline: &gst::Pipeline,
         layout: &Layout,
-    ) -> (gst::GhostPad, Vec<gst::GhostPad>) {
+    ) -> (gst::Bin, gst::Element, gst::GhostPad) {
         // prepare a bin with the compositor
         let bin = format!(
             r#"
-                audiomixer
-                    name=audio-mixer
-                ! queue
-                    name=audio-mixer-output
-                "#,
+    audiotestsrc 
+        wave=silence
+    ! audiomixer
+        name=audio-mixer
+    ! queue
+        name=audio-mixer-output
+    "#,
         );
 
         // parse bin and add it to the pipeline
@@ -336,12 +324,10 @@ impl Mixer {
         pipeline.add(&bin).unwrap();
 
         // link our internal sink to a ghost pad at the bin's outside
-        let mixer_pad = link_bin_ghost_pad(&bin, "audio-mixer-output", "src");
-        let participants_pads: Vec<gst::GhostPad> = (0..layout.num_viewers() + 1)
-            .into_iter()
-            .map(|n| link_bin_add_ghost_pad(&bin, "audio-mixer", &format!("sink_{n}")))
-            .collect();
-
-        (mixer_pad, participants_pads)
+        (
+            bin.clone(),
+            pipeline.by_name("audio-mixer").unwrap(),
+            link_bin_ghost_pad(&bin, "audio-mixer-output", "src"),
+        )
     }
 }

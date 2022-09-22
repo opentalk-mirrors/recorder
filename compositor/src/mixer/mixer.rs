@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::*;
 use gst::prelude::*;
 use gstreamer as gst;
@@ -8,11 +10,16 @@ use gstreamer as gst;
 /// from multiple participants (sources).
 #[derive(Clone)]
 pub struct Mixer {
-    pipeline: gst::Pipeline,
+    pub resolution: Size,
+    pub pipeline: gst::Pipeline,
     /// access the 'who's speaking?' text within the mixer view if provided
     speaking: Option<gst::Element>,
     /// access the title text within the mixer view if provided
     title: Option<gst::Element>,
+    pub video_pads: Vec<gst::GhostPad>,
+    pub video_sources: HashMap<String, gst::GhostPad>,
+    pub audio_mixer_bin: gst::Bin,
+    pub audio_mixer: gst::Element,
 }
 
 #[allow(dead_code)]
@@ -40,16 +47,9 @@ impl Mixer {
         // create layout
         let layout = Layout::new_speaker_vertical(&resolution, num_viewers);
         // add composite view to pipeline
-        let (video_src, audio_src) = Mixer::new_speaker(
-            &pipeline,
-            &layout,
-            if test_src {
-                create_test_source
-            } else {
-                create_web_rtc_bin
-            },
-        );
-        // link sources to sinks
+        let (video_src, video_pads, audio_mixer_bin, audio_mixer, audio_src) =
+            Mixer::new_speaker(&pipeline, &layout);
+        // link srcs to sinks
         video_src.link(&video_sink).unwrap();
         audio_src.link(&audio_sink).unwrap();
 
@@ -61,10 +61,15 @@ impl Mixer {
         info!("pipeline running (press Ctrl+C to stop)...");
 
         Self {
+            resolution,
             // get elements of interest from pipeline
             title: pipeline.by_name("title"),
             speaking: pipeline.by_name("speaking"),
             pipeline,
+            video_pads,
+            video_sources: HashMap::new(),
+            audio_mixer_bin,
+            audio_mixer,
         }
     }
 
@@ -83,6 +88,7 @@ impl Mixer {
                         err.error()
                     );
                     eprintln!("Debugging information: {:?}", err.debug());
+                    self.generate_dot_file("error.dot");
                     break;
                 }
                 MessageView::Eos(..) => break,
@@ -108,6 +114,58 @@ impl Mixer {
         if let Some(speaking) = &self.speaking {
             speaking.set_property("text", text);
         }
+    }
+
+    pub fn add_test_source(&mut self, name: &str) {
+        self.pipeline.set_state(gst::State::Paused).unwrap();
+        let (bin, video_source, audio_source) = create_test_source(
+            &self.pipeline,
+            name,
+            &Size {
+                width: 1920,
+                height: 1080,
+            },
+        );
+        let audio_pad = gst::GhostPad::with_target(
+            None,
+            &self.audio_mixer.request_pad_simple("sink_%").unwrap(),
+        )
+        .unwrap();
+        self.audio_mixer_bin.add_pad(&audio_pad).unwrap();
+        audio_source.link(&audio_pad).unwrap();
+        self.video_sources.insert(name.to_string(), video_source);
+        // bin.set_state(gst::State::Playing).unwrap();
+        self.pipeline.set_state(gst::State::Playing).unwrap();
+    }
+
+    pub async fn add_stream(&mut self, name: &str, sdp_offer: &str) -> String {
+        // create and link speaker's source
+        let (webrtcbin, answer) =
+            web_rtc_bin::create_web_rtc_bin(&self.pipeline, "video-source-{name}", sdp_offer).await;
+
+        let audio_pad = gst::GhostPad::with_target(
+            None,
+            &self.audio_mixer.request_pad_simple("sink_%").unwrap(),
+        )
+        .unwrap();
+        self.audio_mixer_bin.add_pad(&audio_pad).unwrap();
+        webrtcbin.audio_src.link(&audio_pad).unwrap();
+        self.video_sources
+            .insert(name.to_string(), webrtcbin.video_src);
+
+        answer
+    }
+
+    pub fn set_viewable(&self, names: &[&str]) {
+        self.pipeline.set_state(gst::State::Paused).unwrap();
+        for (i, &name) in names.iter().enumerate() {
+            self.video_sources
+                .get(name)
+                .unwrap()
+                .link(&self.video_pads[i])
+                .unwrap();
+        }
+        self.pipeline.set_state(gst::State::Playing).unwrap();
     }
 
     /// generate a DOT file describing the current pipeline in a graph (for debugging)

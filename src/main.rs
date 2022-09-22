@@ -101,6 +101,18 @@ async fn record(
         .await
         .unwrap();
 
+    use compositor::{Mixer, Size};
+
+    let mixer = Mixer::new(
+        5,
+        Size {
+            width: 1920,
+            height: 1080,
+        },
+        false,
+        false,
+    );
+
     loop {
         let event = match signaling.run().await {
             Ok(event) => event,
@@ -111,12 +123,12 @@ async fn record(
         };
 
         match event {
-            signaling::Event::ParticipantJoined(id) => todo!(),
+            signaling::Event::ParticipantJoined(id) => {}
             signaling::Event::ParticipantUpdated(id) => todo!(),
             signaling::Event::ParticipantLeft(id) => todo!(),
-            signaling::Event::SdpOffer(id, typ, offer) => todo!(),
+            signaling::Event::SdpOffer(id, typ, offer) => {}
             signaling::Event::SdpCandidate(id, typ, candidate) => todo!(),
-            signaling::Event::SdpEndOfCandidates(id, typ) => todo!(),
+            signaling::Event::SdpEndOfCandidates(id, typ) => {}
         }
     }
 }
