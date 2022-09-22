@@ -16,8 +16,12 @@ pub struct Mixer {
     speaking: Option<gst::Element>,
     /// access the title text within the mixer view if provided
     title: Option<gst::Element>,
+
+    pub video_mixer_bin: gst::Bin,
+    pub video_mixer: gst::Element,
     pub video_pads: Vec<gst::GhostPad>,
     pub video_sources: HashMap<String, gst::GhostPad>,
+
     pub audio_mixer_bin: gst::Bin,
     pub audio_mixer: gst::Element,
 }
@@ -31,7 +35,7 @@ impl Mixer {
     /// - `resolution`: target resolution of the output image
     /// - `test_src`: Use test sources (generate test content instead of using webrtc)
     /// - `test_sink`: Use test sinks (video display and audio output on your device)
-    pub fn new(num_viewers: usize, resolution: Size, test_src: bool, test_sink: bool) -> Self {
+    pub fn new(num_viewers: usize, resolution: Size, test_sink: bool) -> Self {
         // print pipeline in verbose mode
         info!("parsing pipeline...");
 
@@ -47,8 +51,15 @@ impl Mixer {
         // create layout
         let layout = Layout::new_speaker_vertical(&resolution, num_viewers);
         // add composite view to pipeline
-        let (video_src, video_pads, audio_mixer_bin, audio_mixer, audio_src) =
-            Mixer::new_speaker(&pipeline, &layout);
+        let (
+            video_mixer_bin,
+            video_mixer,
+            video_src,
+            video_pads,
+            audio_mixer_bin,
+            audio_mixer,
+            audio_src,
+        ) = Mixer::new_speaker(&pipeline, &layout);
         // link srcs to sinks
         video_src.link(&video_sink).unwrap();
         audio_src.link(&audio_sink).unwrap();
@@ -66,6 +77,8 @@ impl Mixer {
             title: pipeline.by_name("title"),
             speaking: pipeline.by_name("speaking"),
             pipeline,
+            video_mixer_bin,
+            video_mixer,
             video_pads,
             video_sources: HashMap::new(),
             audio_mixer_bin,
@@ -117,7 +130,7 @@ impl Mixer {
 
     pub fn add_test_source(&mut self, name: &str) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
-        let (bin, video_source, audio_source) = create_test_source(
+        let (_bin, video_source, audio_source) = create_test_source(
             &self.pipeline,
             name,
             &Size {
@@ -132,7 +145,16 @@ impl Mixer {
         .unwrap();
         self.audio_mixer_bin.add_pad(&audio_pad).unwrap();
         audio_source.link(&audio_pad).unwrap();
+
+        let video_pad = gst::GhostPad::with_target(
+            None,
+            &self.video_mixer.request_pad_simple("sink_%").unwrap(),
+        )
+        .unwrap();
+        self.video_mixer_bin.add_pad(&video_pad).unwrap();
+        self.video_pads.push(video_pad);
         self.video_sources.insert(name.to_string(), video_source);
+
         self.pipeline.set_state(gst::State::Playing).unwrap();
     }
 
@@ -168,6 +190,36 @@ impl Mixer {
 
     /// generate a DOT file describing the current pipeline in a graph (for debugging)
     pub fn generate_dot_file(&self, file_name: &str) {
-        gst::debug_bin_to_dot_file(&self.pipeline, gst::DebugGraphDetails::STATES, file_name);
+        gst::debug_bin_to_dot_file(&self.pipeline, gst::DebugGraphDetails::ALL, file_name);
+    }
+}
+
+pub(crate) fn on_linked(
+    orig_src: gst::Element,
+    fake_sink: gst::Element,
+    ghost_pad: gst::GhostPad,
+) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
+    move |_| {
+        fake_sink.set_state(gst::State::Ready).unwrap();
+        orig_src.unlink(&fake_sink);
+        ghost_pad
+            .set_target(Some(&orig_src.static_pad("src").unwrap()))
+            .unwrap();
+        orig_src.set_state(gst::State::Playing).unwrap();
+        None
+    }
+}
+
+pub(crate) fn on_unlinked(
+    orig_src: gst::Element,
+    fake_sink: gst::Element,
+    ghost_pad: gst::GhostPad,
+) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
+    move |_| {
+        orig_src.set_state(gst::State::Ready).unwrap();
+        ghost_pad.set_target(None::<&gst::Pad>).unwrap();
+        orig_src.link(&fake_sink).unwrap();
+        fake_sink.set_state(gst::State::Playing).unwrap();
+        None
     }
 }

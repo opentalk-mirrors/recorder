@@ -19,7 +19,8 @@ pub fn link_bin_ghost_pad(bin: &gst::Bin, element_name: &str, pad_name: &str) ->
 /// # Arguments
 /// - `bin`: the bin where to find the element
 /// - `element_name`: name of the element
-/// - `pad_name`:
+/// - `pad_name`: name of the pad
+#[allow(dead_code)]
 pub fn link_bin_add_ghost_pad(bin: &gst::Bin, element_name: &str, pad_name: &str) -> gst::GhostPad {
     let element = bin.by_name(element_name).unwrap();
     let pad = element.request_pad_simple(pad_name).unwrap();

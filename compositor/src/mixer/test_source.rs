@@ -1,6 +1,6 @@
-use super::helpers::*;
+use crate::mixer::mixer::*;
+
 use super::layout::*;
-use super::*;
 use gst::prelude::*;
 use gstreamer as gst;
 
@@ -57,7 +57,7 @@ pub fn create_test_source_with_pattern(
         pattern={pattern}
         is_live=true
     ! capssetter 
-        caps=video/x-raw,width={width},height={height}
+        caps=video/x-raw,format=RGB,width={width},height={height}
         name={name}-video
     ! fakesink
         name=video-fakesink
@@ -103,7 +103,7 @@ pub fn create_test_source_with_pattern(
     audio_ghost_pad.connect(
         "unlinked",
         true,
-        on_unlinked(
+        on_linked(
             audio_source.clone(),
             audio_fakesink.clone(),
             audio_ghost_pad.clone(),

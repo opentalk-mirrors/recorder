@@ -110,7 +110,6 @@ async fn record(
             height: 1080,
         },
         false,
-        false,
     );
 
     loop {

@@ -151,6 +151,8 @@ impl Mixer {
         pipeline: &gst::Pipeline,
         layout: &Layout,
     ) -> (
+        gst::Bin,
+        gst::Element,
         gst::GhostPad,
         Vec<gst::GhostPad>,
         gst::Bin,
@@ -158,10 +160,10 @@ impl Mixer {
         gst::GhostPad,
     ) {
         // create and link video mixer
-        let (video_mixer_pad, video_participants_pads) = Self::create_video(&pipeline, &layout);
+        let (video_mixer_bin, video_mixer, video_mixer_pad, video_participants_pads) =
+            Self::create_video(&pipeline, &layout);
         // create and link audio mixer
-        let (audio_mixer_bin, audio_mixer, audio_mixer_pad) =
-            Self::create_audio(&pipeline, &layout);
+        let (audio_mixer_bin, audio_mixer, audio_mixer_pad) = Self::create_audio(&pipeline);
 
         // link to audiomixer example:
         // let pad =
@@ -171,10 +173,12 @@ impl Mixer {
 
         // link to mixer
         (
+            video_mixer_bin.clone(),
+            video_mixer.clone(),
             video_mixer_pad,
             video_participants_pads,
-            audio_mixer_bin,
-            audio_mixer,
+            audio_mixer_bin.clone(),
+            audio_mixer.clone(),
             audio_mixer_pad,
         )
     }
@@ -189,7 +193,7 @@ impl Mixer {
     fn create_video(
         pipeline: &gst::Pipeline,
         layout: &Layout,
-    ) -> (gst::GhostPad, Vec<gst::GhostPad>) {
+    ) -> (gst::Bin, gst::Element, gst::GhostPad, Vec<gst::GhostPad>) {
         // prepare compositor input sinks
         let sink_pads = (0..layout.num_viewers())
             .into_iter()
@@ -212,11 +216,10 @@ impl Mixer {
         // prepare a bin with the compositor
         let bin = format!(
             r#"name=compositor-bin
-    videotestsrc
-        is_live=true
-    ! compositor
+    compositor
         name=video-mixer
         background=black
+        ignore-inactive-pads=true
         sink_0::xpos={speaker_x}
         sink_0::ypos={speaker_y}
         sink_0::width={speaker_width}
@@ -284,6 +287,8 @@ impl Mixer {
         let bin = gst::parse_bin_from_description(&bin, false).unwrap();
         pipeline.add(&bin).unwrap();
 
+        let mixer = bin.by_name("video-mixer").unwrap();
+
         // link our internal sink to a ghost pad at the bin's outside
         let mixer_pad = link_bin_ghost_pad(&bin, "video-mixer-output", "src");
         // let participants_pads: Vec<gst::GhostPad> = (0..layout.num_viewers() + 1)
@@ -292,7 +297,7 @@ impl Mixer {
         //     .collect();
         let participants_pads = vec![];
         // return pads of interest
-        (mixer_pad, participants_pads)
+        (bin.clone(), mixer, mixer_pad, participants_pads)
     }
     /// create an audio mixer from a given layout
     /// # Arguments
@@ -300,10 +305,7 @@ impl Mixer {
     /// - `layout` : Layout of speaker and viewers
     /// # Returns
     /// Returns two `GhostPad` instances: 1st for video and 2nd for audio
-    fn create_audio(
-        pipeline: &gst::Pipeline,
-        layout: &Layout,
-    ) -> (gst::Bin, gst::Element, gst::GhostPad) {
+    fn create_audio(pipeline: &gst::Pipeline) -> (gst::Bin, gst::Element, gst::GhostPad) {
         // prepare a bin with the compositor
         let bin = format!(
             r#"name=audio-mixer-bin

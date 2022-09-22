@@ -1,3 +1,4 @@
+use crate::mixer::mixer::*;
 use gst::prelude::*;
 use gst::Promise;
 use gstreamer as gst;
@@ -143,34 +144,4 @@ pub async fn create_web_rtc_bin(
     };
 
     (webrtcbin, answer)
-}
-
-pub(crate) fn on_linked(
-    orig_src: gst::Element,
-    fakesink: gst::Element,
-    ghost_pad: gst::GhostPad,
-) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
-    move |_| {
-        orig_src.unlink(&fakesink);
-        ghost_pad
-            .set_target(Some(&orig_src.static_pad("src").unwrap()))
-            .unwrap();
-        fakesink.set_state(gst::State::Ready).unwrap();
-        orig_src.set_state(gst::State::Playing).unwrap();
-        None
-    }
-}
-
-pub(crate) fn on_unlinked(
-    orig_src: gst::Element,
-    fakesink: gst::Element,
-    ghost_pad: gst::GhostPad,
-) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
-    move |_| {
-        ghost_pad.set_target(None::<&gst::Pad>).unwrap();
-        orig_src.link(&fakesink).unwrap();
-        fakesink.set_state(gst::State::Playing).unwrap();
-        orig_src.set_state(gst::State::Ready).unwrap();
-        None
-    }
 }
