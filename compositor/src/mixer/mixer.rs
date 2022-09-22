@@ -88,7 +88,6 @@ impl Mixer {
                         err.error()
                     );
                     eprintln!("Debugging information: {:?}", err.debug());
-                    self.generate_dot_file("error.dot");
                     break;
                 }
                 MessageView::Eos(..) => break,
@@ -134,7 +133,6 @@ impl Mixer {
         self.audio_mixer_bin.add_pad(&audio_pad).unwrap();
         audio_source.link(&audio_pad).unwrap();
         self.video_sources.insert(name.to_string(), video_source);
-        // bin.set_state(gst::State::Playing).unwrap();
         self.pipeline.set_state(gst::State::Playing).unwrap();
     }
 

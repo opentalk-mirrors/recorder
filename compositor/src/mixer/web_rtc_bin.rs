@@ -18,7 +18,7 @@ pub async fn create_web_rtc_bin(
 ) -> (WebRtcBin, String) {
     // prepare a bin with the dash recorder
     let bin = format!(
-        r#"
+        r#"name={name}-webrtc-bin
     webrtcbin
         name=webrtc-{name}
 
@@ -170,6 +170,7 @@ pub(crate) fn on_unlinked(
         ghost_pad.set_target(None::<&gst::Pad>).unwrap();
         orig_src.link(&fakesink).unwrap();
         fakesink.set_state(gst::State::Playing).unwrap();
+        orig_src.set_state(gst::State::Ready).unwrap();
         None
     }
 }

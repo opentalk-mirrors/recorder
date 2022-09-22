@@ -211,9 +211,9 @@ impl Mixer {
 
         // prepare a bin with the compositor
         let bin = format!(
-            r#"
-    
+            r#"name=compositor-bin
     videotestsrc
+        is_live=true
     ! compositor
         name=video-mixer
         background=black
@@ -300,15 +300,15 @@ impl Mixer {
     /// - `layout` : Layout of speaker and viewers
     /// # Returns
     /// Returns two `GhostPad` instances: 1st for video and 2nd for audio
-    #[allow(dead_code)]
     fn create_audio(
         pipeline: &gst::Pipeline,
         layout: &Layout,
     ) -> (gst::Bin, gst::Element, gst::GhostPad) {
         // prepare a bin with the compositor
         let bin = format!(
-            r#"
+            r#"name=audio-mixer-bin
     audiotestsrc 
+        is_live=true
         wave=silence
     ! audiomixer
         name=audio-mixer

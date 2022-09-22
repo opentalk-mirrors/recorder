@@ -52,7 +52,7 @@ pub fn create_test_source_with_pattern(
 ) -> (gst::Bin, gst::GhostPad, gst::GhostPad) {
     // prepare a bin with the dash recorder
     let bin = format!(
-        r#"
+        r#"name={name}-testsrc-bin
     videotestsrc
         pattern={pattern}
         is_live=true
