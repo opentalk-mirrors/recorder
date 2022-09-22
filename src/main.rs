@@ -57,7 +57,6 @@ async fn main() -> Result<()> {
     )
     .await;
 
-
     // TODO: this grows into infinity
     let mut tasks = vec![];
 
@@ -68,7 +67,11 @@ async fn main() -> Result<()> {
                     serde_json::from_slice::<commands::StartRecording>(&delivery.data)
                 {
                     log::debug!("Received command {command:?}");
-                    tasks.push(tokio::spawn(handle_command(http_client.clone(), settings.clone(), command)));
+                    tasks.push(tokio::spawn(handle_command(
+                        http_client.clone(),
+                        settings.clone(),
+                        command,
+                    )));
                 }
             }
             Err(e) => {
@@ -87,8 +90,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn handle_command(http_client: reqwest::Client, settings: Arc<Settings>, command: commands::StartRecording) {
-    signaling::Connection::connect(http_client, settings.clone(), command.room)
+async fn handle_command(
+    http_client: reqwest::Client,
+    settings: Arc<Settings>,
+    command: commands::StartRecording,
+) {
+    signaling::Signaling::connect(http_client, settings.clone(), command.room)
         .await
         .unwrap();
 }
