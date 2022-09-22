@@ -1,6 +1,7 @@
 {
     "cSpell.words": [
         "audiomixer",
+        "audiotestsrc",
         "autoaudiosink",
         "autovideosink",
         "avenc",
@@ -9,6 +10,7 @@
         "dashsink",
         "deltax",
         "deltay",
+        "fakesink",
         "gstreamer",
         "halignment",
         "Konstantin",
