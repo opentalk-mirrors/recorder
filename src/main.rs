@@ -1,9 +1,9 @@
-use std::sync::Arc;
-
 use anyhow::Result;
-use futures::{future::join_all, StreamExt};
+use futures::future::join_all;
+use futures::StreamExt;
 use gst::glib;
 use settings::Settings;
+use std::sync::Arc;
 
 mod commands;
 mod settings;
@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     let rmq_conn = lapin::Connection::connect_uri(
         settings.rabbitmq.uri.clone(),
         lapin::ConnectionProperties::default()
-            .with_executor(tokio_executor_trait::Tokio::current()) // TODO: contribute to https://github.com/amqp-rs/executor-trait
+            .with_executor(tokio_executor_trait::Tokio::current())
             .with_reactor(tokio_reactor_trait::Tokio),
     )
     .await?;
@@ -47,9 +47,10 @@ async fn main() -> Result<()> {
 
     let http_client = reqwest::Client::new();
 
-    handle_command(
-        http_client.clone(),
+    // TODO: remove me!
+    record(
         settings.clone(),
+        http_client.clone(),
         commands::StartRecording {
             room: "f5c0099c-4645-4162-b89c-9b0aeba01600".into(),
             breakout: None,
@@ -67,9 +68,10 @@ async fn main() -> Result<()> {
                     serde_json::from_slice::<commands::StartRecording>(&delivery.data)
                 {
                     log::debug!("Received command {command:?}");
-                    tasks.push(tokio::spawn(handle_command(
-                        http_client.clone(),
+
+                    tasks.push(tokio::spawn(record(
                         settings.clone(),
+                        http_client.clone(),
                         command,
                     )));
                 }
@@ -90,12 +92,31 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn handle_command(
-    http_client: reqwest::Client,
+async fn record(
     settings: Arc<Settings>,
+    http_client: reqwest::Client,
     command: commands::StartRecording,
 ) {
-    signaling::Signaling::connect(http_client, settings.clone(), command.room)
+    let mut signaling = signaling::Signaling::connect(http_client, settings.clone(), command.room)
         .await
         .unwrap();
+
+    loop {
+        let event = match signaling.run().await {
+            Ok(event) => event,
+            Err(e) => {
+                log::error!("signaling error {:?}", e);
+                return;
+            }
+        };
+
+        match event {
+            signaling::Event::ParticipantJoined(id) => todo!(),
+            signaling::Event::ParticipantUpdated(id) => todo!(),
+            signaling::Event::ParticipantLeft(id) => todo!(),
+            signaling::Event::SdpOffer(id, typ, offer) => todo!(),
+            signaling::Event::SdpCandidate(id, typ, candidate) => todo!(),
+            signaling::Event::SdpEndOfCandidates(id, typ) => todo!(),
+        }
+    }
 }

@@ -7,6 +7,7 @@ use reqwest::header::{
 };
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tt::tungstenite::http::Request;
@@ -19,15 +20,25 @@ pub struct Signaling {
     id: ParticipantId,
 
     /// List of all other participants in the conference
-    participants: Vec<ParticipantState>,
+    participants: HashMap<ParticipantId, ParticipantState>,
 
     connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-pub enum Event {}
-
 struct ParticipantState {
-    id: ParticipantId,
+    publishing: HashSet<MediaSessionType>,
+}
+
+/// Event emitted by [`Signaling::run`]
+#[derive(Debug)]
+pub enum Event {
+    ParticipantJoined(ParticipantId),
+    ParticipantUpdated(ParticipantId),
+    ParticipantLeft(ParticipantId),
+
+    SdpOffer(ParticipantId, MediaSessionType, String),
+    SdpCandidate(ParticipantId, MediaSessionType, TrickleCandidate),
+    SdpEndOfCandidates(ParticipantId, MediaSessionType),
 }
 
 impl Signaling {
@@ -93,19 +104,33 @@ impl Signaling {
             id,
             participants: participants
                 .into_iter()
-                .map(|p| ParticipantState { id: p.id })
+                .map(|p| {
+                    let mut publishing = HashSet::new();
+
+                    if p.media.video.is_some() {
+                        publishing.insert(MediaSessionType::Video);
+                    }
+
+                    if p.media.screen.is_some() {
+                        publishing.insert(MediaSessionType::Screen);
+                    }
+
+                    (p.id, ParticipantState { publishing })
+                })
                 .collect(),
             connection: stream,
         })
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<Event> {
         loop {
             tokio::select! {
                 msg = self.connection.next() => {
                     if let Some(msg) = msg {
                         let msg = msg.context("Failed to receive websocket message")?;
-                        self.handle_websocket_message(msg).await?;
+                        if let Some(event) = self.handle_websocket_message(msg).await? {
+                            return Ok(event);
+                        }
                     } else {
                         bail!("unexpected websocket disconnection");
                     }
@@ -114,15 +139,15 @@ impl Signaling {
         }
     }
 
-    async fn handle_websocket_message(&mut self, msg: Message) -> Result<()> {
+    async fn handle_websocket_message(&mut self, msg: Message) -> Result<Option<Event>> {
         let parse_result = match msg {
             Message::Text(ref s) => serde_json::from_str::<incoming::Message>(s),
             Message::Binary(ref b) => serde_json::from_slice::<incoming::Message>(b),
             Message::Ping(data) => {
                 self.connection.send(Message::Pong(data)).await?;
-                return Ok(());
+                return Ok(None);
             }
-            Message::Pong(_) => return Ok(()),
+            Message::Pong(_) => return Ok(None),
             Message::Close(_) => todo!(),
             Message::Frame(_) => unreachable!("send-only message"),
         };
@@ -131,20 +156,135 @@ impl Signaling {
             Ok(msg) => msg,
             Err(e) => {
                 log::error!("Failed to parse incoming message {msg:?}, {e}");
-                return Ok(());
+                return Ok(None);
             }
         };
 
         match msg {
-            incoming::Message::Control(msg) => match msg {},
+            incoming::Message::Control(msg) => match msg {
+                incoming::ControlMessage::Joined(participant) => {
+                    Ok(Some(Event::ParticipantJoined(participant.id)))
+                }
+                incoming::ControlMessage::Updated(participant) => {
+                    let mut publishing = HashSet::new();
+
+                    if participant.media.video.is_some() {
+                        publishing.insert(MediaSessionType::Video);
+                    }
+
+                    if participant.media.screen.is_some() {
+                        publishing.insert(MediaSessionType::Screen);
+                    }
+
+                    if let Some(state) = self.participants.get_mut(&participant.id) {
+                        state.publishing = publishing;
+                    } else {
+                        log::error!("Got update for unknown participant {}", participant.id.0);
+                        return Ok(None);
+                    }
+
+                    Ok(Some(Event::ParticipantUpdated(participant.id)))
+                }
+                incoming::ControlMessage::Left { id } => Ok(Some(Event::ParticipantLeft(id))),
+            },
             incoming::Message::Media(msg) => match msg {
-                incoming::MediaMessage::SdpOffer(sdp) => todo!(),
-                incoming::MediaMessage::SdpCandidate(candidate) => todo!(),
-                incoming::MediaMessage::SdpEndOfCandidates(_) => todo!(),
+                incoming::MediaMessage::SdpOffer(sdp) => Ok(Some(Event::SdpOffer(
+                    sdp.source.source,
+                    sdp.source.media_session_type,
+                    sdp.sdp,
+                ))),
+                incoming::MediaMessage::SdpCandidate(candidate) => Ok(Some(Event::SdpCandidate(
+                    candidate.source.source,
+                    candidate.source.media_session_type,
+                    candidate.candidate,
+                ))),
+                incoming::MediaMessage::SdpEndOfCandidates(source) => Ok(Some(
+                    Event::SdpEndOfCandidates(source.source, source.media_session_type),
+                )),
                 incoming::MediaMessage::WebRtcUp(_) => todo!(),
                 incoming::MediaMessage::WebRtcDown(_) => todo!(),
             },
         }
+    }
+
+    pub fn publishes(&self, id: ParticipantId, typ: MediaSessionType) -> bool {
+        self.participants
+            .get(&id)
+            .map(|p| p.publishing.contains(&typ))
+            .unwrap_or_default()
+    }
+
+    pub async fn start_subscribe(
+        &mut self,
+        id: ParticipantId,
+        typ: MediaSessionType,
+    ) -> Result<()> {
+        self.send(outgoing::Message::Media(outgoing::MediaMessage::Subscribe(
+            outgoing::Target {
+                target: id,
+                media_session_type: typ,
+            },
+        )))
+        .await
+    }
+
+    pub async fn send_answer(
+        &mut self,
+        id: ParticipantId,
+        typ: MediaSessionType,
+        sdp: String,
+    ) -> Result<()> {
+        self.send(outgoing::Message::Media(outgoing::MediaMessage::SdpAnswer(
+            outgoing::Sdp {
+                sdp,
+                target: outgoing::Target {
+                    target: id,
+                    media_session_type: typ,
+                },
+            },
+        )))
+        .await
+    }
+
+    pub async fn send_candidate(
+        &mut self,
+        id: ParticipantId,
+        typ: MediaSessionType,
+        candidate: TrickleCandidate,
+    ) -> Result<()> {
+        self.send(outgoing::Message::Media(
+            outgoing::MediaMessage::SdpCandidate(outgoing::SdpCandidate {
+                candidate,
+                target: outgoing::Target {
+                    target: id,
+                    media_session_type: typ,
+                },
+            }),
+        ))
+        .await
+    }
+
+    pub async fn send_end_of_candidates(
+        &mut self,
+        id: ParticipantId,
+        typ: MediaSessionType,
+    ) -> Result<()> {
+        self.send(outgoing::Message::Media(
+            outgoing::MediaMessage::SdpEndOfCandidates(outgoing::Target {
+                target: id,
+                media_session_type: typ,
+            }),
+        ))
+        .await
+    }
+
+    async fn send(&mut self, msg: outgoing::Message) -> Result<()> {
+        self.connection
+            .send(Message::Text(
+                serde_json::to_string(&msg).context("failed to serialize message")?,
+            ))
+            .await
+            .context("failed to send message")
     }
 }
 
@@ -154,7 +294,7 @@ struct Payload<'s, T> {
     pub payload: T,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParticipantId(pub Uuid);
 
 mod incoming {
@@ -170,6 +310,21 @@ mod incoming {
     #[derive(Debug, Deserialize)]
     pub struct Participant {
         pub id: ParticipantId,
+
+        #[serde(default)]
+        pub media: MediaData,
+    }
+
+    #[derive(Debug, Default, Deserialize)]
+    pub struct MediaData {
+        pub video: Option<MediaSessionState>,
+        pub screen: Option<MediaSessionState>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct MediaSessionState {
+        pub video: bool,
+        pub audio: bool,
     }
 
     #[derive(Debug, Deserialize)]
@@ -181,7 +336,11 @@ mod incoming {
 
     #[derive(Debug, Deserialize)]
     #[serde(rename_all = "snake_case")]
-    pub enum ControlMessage {}
+    pub enum ControlMessage {
+        Joined(Participant),
+        Updated(Participant),
+        Left { id: ParticipantId },
+    }
 
     #[derive(Debug, Deserialize)]
     #[serde(rename_all = "snake_case", tag = "message")]
@@ -189,7 +348,9 @@ mod incoming {
         SdpOffer(Sdp),
         SdpCandidate(SdpCandidate),
         SdpEndOfCandidates(Source),
+        #[serde(rename = "webrtc_up")]
         WebRtcUp(Source),
+        #[serde(rename = "webrtc_down")]
         WebRtcDown(Source),
     }
 
@@ -220,7 +381,7 @@ mod outgoing {
 
     #[derive(Debug, Serialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
-    pub enum Action {
+    pub enum Message {
         Control(ControlMessage),
         Media(MediaMessage),
     }
@@ -266,7 +427,7 @@ pub struct TrickleCandidate {
     pub sdp_m_line_index: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaSessionType {
     Video,
