@@ -41,11 +41,13 @@ pub fn create_display_sink(pipeline: &gst::Pipeline) -> (gst::GhostPad, gst::Gho
     // prepare a bin with the dash recorder
     let bin = &format!(
         r#"
-    autovideosink
+    queue
         name=output-video-sink
+    ! autovideosink
 
-    autoaudiosink
+    queue
         name=output-audio-sink
+    ! autoaudiosink
         "#,
     );
 
