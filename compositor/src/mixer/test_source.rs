@@ -61,6 +61,7 @@ pub fn create_test_source_with_pattern(
         name={name}-video
     ! fakesink
         name=video-fakesink
+        sync=true
     
     audiotestsrc
         is_live=true
@@ -68,6 +69,7 @@ pub fn create_test_source_with_pattern(
         name={name}-audio
     ! fakesink
         name=audio-fakesink
+        sync=true
     "#,
         height = resolution.height,
         width = resolution.width
@@ -103,7 +105,7 @@ pub fn create_test_source_with_pattern(
     audio_ghost_pad.connect(
         "unlinked",
         true,
-        on_linked(
+        on_unlinked(
             audio_source.clone(),
             audio_fakesink.clone(),
             audio_ghost_pad.clone(),
