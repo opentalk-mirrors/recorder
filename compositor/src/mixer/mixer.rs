@@ -62,8 +62,10 @@ impl Mixer {
 
         // add dash sink to pipeline
         let (video_sink, audio_sink) = if test_sink {
+            info!("using display sink...");
             create_display_sink(&pipeline)
         } else {
+            info!("using dash sink...");
             create_dash_sink(&pipeline)
         };
         // add composite view to pipeline
@@ -239,16 +241,20 @@ impl Mixer {
     }
 
     pub fn add_test_source(&mut self, layout: &dyn Layout, name: &str, resolution: &Size) {
-        self.pipeline.set_state(gst::State::Paused).unwrap();
+        debug!("add mixer {name}");
+        // self.pipeline.set_state(gst::State::Paused).unwrap();
         let (_bin, video_source, audio_source) =
             create_test_source(&self.pipeline, name, resolution);
+
         let audio_pad = gst::GhostPad::with_target(
             None,
             &self.audio.mixer.request_pad_simple("sink_%").unwrap(),
         )
         .unwrap();
         self.audio.bin.add_pad(&audio_pad).unwrap();
+        debug!("link audio_src");
         audio_source.link(&audio_pad).unwrap();
+        debug!("link audio_src done");
 
         let inner_mixer_pad = self.video.mixer.request_pad_simple("sink_%").unwrap();
         let video_pad = gst::GhostPad::with_target(None, &inner_mixer_pad).unwrap();
@@ -280,14 +286,18 @@ impl Mixer {
 
     pub fn set_viewable(&self, names: &[&str]) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
+
         for (i, &name) in names.iter().enumerate() {
+            debug!("link {name} @ {i}");
             self.video
                 .sources
                 .get(name)
                 .unwrap()
                 .link(&self.video.pads[i])
                 .unwrap();
+            debug!("finished linking {name} @ {i}");
         }
+
         self.pipeline.set_state(gst::State::Playing).unwrap();
     }
 
@@ -303,12 +313,14 @@ pub(crate) fn on_linked(
     ghost_pad: gst::GhostPad,
 ) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
     move |_| {
-        fake_sink.set_state(gst::State::Ready).unwrap();
         orig_src.unlink(&fake_sink);
+
+        let parent = fake_sink.parent().unwrap().downcast::<gst::Bin>().unwrap();
+        parent.remove(&fake_sink).unwrap();
+
         ghost_pad
             .set_target(Some(&orig_src.static_pad("src").unwrap()))
             .unwrap();
-        orig_src.set_state(gst::State::Playing).unwrap();
         None
     }
 }
@@ -319,10 +331,8 @@ pub(crate) fn on_unlinked(
     ghost_pad: gst::GhostPad,
 ) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
     move |_| {
-        orig_src.set_state(gst::State::Ready).unwrap();
         ghost_pad.set_target(None::<&gst::Pad>).unwrap();
         orig_src.link(&fake_sink).unwrap();
-        fake_sink.set_state(gst::State::Playing).unwrap();
         None
     }
 }
