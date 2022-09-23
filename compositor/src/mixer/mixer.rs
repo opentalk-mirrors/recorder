@@ -226,9 +226,10 @@ impl Mixer {
         }
     }
 
-    pub fn add_test_source(&mut self, layout: &dyn Layout, name: &str) {
+    pub fn add_test_source(&mut self, layout: &dyn Layout, name: &str, resolution: &Size) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
-        let (_bin, video_source, audio_source) = create_test_source(&self.pipeline, name);
+        let (_bin, video_source, audio_source) =
+            create_test_source(&self.pipeline, name, resolution);
         let audio_pad = gst::GhostPad::with_target(
             None,
             &self.audio.mixer.request_pad_simple("sink_%").unwrap(),

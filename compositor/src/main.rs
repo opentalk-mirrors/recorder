@@ -73,7 +73,7 @@ fn main() {
     ];
 
     for name in &names[0..args.participants] {
-        mixer.add_test_source(&layout, name);
+        mixer.add_test_source(&layout, name, &resolution);
     }
     mixer.set_viewable(&names[0..args.participants]);
 

@@ -23,6 +23,7 @@ static mut PATTERN_COUNT: usize = 0;
 pub fn create_test_source(
     pipeline: &gst::Pipeline,
     name: &str,
+    resolution: &Size,
 ) -> (gst::Bin, gst::GhostPad, gst::GhostPad) {
     // get fresh pattern
     let pattern = unsafe {
@@ -30,15 +31,16 @@ pub fn create_test_source(
         PATTERN_COUNT += 1;
         p
     };
-    create_test_source_with_pattern(pipeline, name, pattern)
+    create_test_source_with_pattern(pipeline, name, pattern, resolution)
 }
 
 #[allow(dead_code)]
 pub fn create_test_source_blank(
     pipeline: &gst::Pipeline,
     name: &str,
+    resolution: &Size,
 ) -> (gst::Bin, gst::GhostPad, gst::GhostPad) {
-    create_test_source_with_pattern(pipeline, name, "black")
+    create_test_source_with_pattern(pipeline, name, "black", resolution)
 }
 
 #[allow(dead_code)]
@@ -46,6 +48,7 @@ pub fn create_test_source_with_pattern(
     pipeline: &gst::Pipeline,
     name: &str,
     pattern: &str,
+    resolution: &Size,
 ) -> (gst::Bin, gst::GhostPad, gst::GhostPad) {
     // prepare a bin with the dash recorder
     let bin = format!(
@@ -54,7 +57,7 @@ pub fn create_test_source_with_pattern(
         pattern={pattern}
         is_live=true
     ! capssetter 
-        caps=video/x-raw,format=RGB
+        caps=video/x-raw,format=RGB,width={width},height={height}
         name={name}-video
     ! fakesink
         name=video-fakesink
@@ -65,7 +68,9 @@ pub fn create_test_source_with_pattern(
         name={name}-audio
     ! fakesink
         name=audio-fakesink
-    "#
+    "#,
+        height = resolution.height,
+        width = resolution.width
     );
 
     // parse bin and add it to the pipeline
