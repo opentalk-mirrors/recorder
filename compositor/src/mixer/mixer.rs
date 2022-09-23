@@ -102,7 +102,9 @@ impl Mixer {
         // prepare a bin with the compositor
         let bin = format!(
             r#"name=compositor-bin
-    compositor
+    videotestsrc
+        pattern=black
+    ! compositor
         name=video-mixer
         background=black
         ignore-inactive-pads=true
@@ -161,7 +163,7 @@ impl Mixer {
             r#"name=audio-mixer-bin
     audiotestsrc 
         is_live=true
-        wave=silence
+        volume=0.01
     ! audiomixer
         name=audio-mixer
     ! queue
@@ -173,6 +175,8 @@ impl Mixer {
         info!("parsing audio mixer bin:\n{bin}");
         let bin = gst::parse_bin_from_description(&bin, false).unwrap();
         pipeline.add(&bin).unwrap();
+
+        // get mixer and create output ghost pad
         let mixer = pipeline.by_name("audio-mixer").unwrap();
         let pad = link_bin_ghost_pad(&bin, "audio-mixer-output", "src");
         // link our internal sink to a ghost pad at the bin's outside
@@ -195,11 +199,19 @@ impl Mixer {
             layout.speaking_alignment(count),
         );
         self.video.mixer.foreach_sink_pad(move |_, pad| {
-            let n: usize = pad.name().split("_").last().unwrap().parse().unwrap();
-            pad.set_property("xpos", layout.position(n, count).x as i32);
-            pad.set_property("ypos", layout.position(n, count).y as i32);
-            pad.set_property("width", layout.size(n, count).width as i32);
-            pad.set_property("height", layout.size(n, count).height as i32);
+            let n: usize = pad
+                .name()
+                .split("_")
+                .last()
+                .unwrap()
+                .parse::<usize>()
+                .unwrap();
+            if n > 0 {
+                pad.set_property("xpos", layout.position(n - 1, count).x as i32);
+                pad.set_property("ypos", layout.position(n - 1, count).y as i32);
+                pad.set_property("width", layout.size(n - 1, count).width as i32);
+                pad.set_property("height", layout.size(n - 1, count).height as i32);
+            }
             true
         });
     }
