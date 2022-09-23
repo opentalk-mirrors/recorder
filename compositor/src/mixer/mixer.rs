@@ -4,6 +4,22 @@ use super::*;
 use gst::prelude::*;
 use gstreamer as gst;
 
+#[derive(Clone)]
+pub struct VideoMixer {
+    pub bin: gst::Bin,
+    pub mixer: gst::Element,
+    pub pad: gst::GhostPad,
+    pub pads: Vec<gst::GhostPad>,
+    pub sources: HashMap<String, gst::GhostPad>,
+}
+
+#[derive(Clone)]
+pub struct AudioMixer {
+    pub bin: gst::Bin,
+    pub mixer: gst::Element,
+    pub pad: gst::GhostPad,
+}
+
 /// Manages interface to mixer pipelines.
 ///
 /// A mixer which puts together meta information (like title, clock or who's speaking) and audio/video
@@ -17,13 +33,8 @@ pub struct Mixer {
     /// access the title text within the mixer view if provided
     title: Option<gst::Element>,
 
-    pub video_mixer_bin: gst::Bin,
-    pub video_mixer: gst::Element,
-    pub video_pads: Vec<gst::GhostPad>,
-    pub video_sources: HashMap<String, gst::GhostPad>,
-
-    pub audio_mixer_bin: gst::Bin,
-    pub audio_mixer: gst::Element,
+    pub video: VideoMixer,
+    pub audio: AudioMixer,
 }
 
 #[allow(dead_code)]
@@ -51,18 +62,10 @@ impl Mixer {
         // create layout
         let layout = Layout::new_speaker_vertical(&resolution, num_viewers);
         // add composite view to pipeline
-        let (
-            video_mixer_bin,
-            video_mixer,
-            video_src,
-            video_pads,
-            audio_mixer_bin,
-            audio_mixer,
-            audio_src,
-        ) = Mixer::new_speaker(&pipeline, &layout);
+        let (video, audio) = Mixer::new_speaker(&pipeline, &layout);
         // link srcs to sinks
-        video_src.link(&video_sink).unwrap();
-        audio_src.link(&audio_sink).unwrap();
+        video.pad.link(&video_sink).unwrap();
+        audio.pad.link(&audio_sink).unwrap();
 
         // start playing
         info!("starting pipeline...");
@@ -77,12 +80,8 @@ impl Mixer {
             title: pipeline.by_name("title"),
             speaking: pipeline.by_name("speaking"),
             pipeline,
-            video_mixer_bin,
-            video_mixer,
-            video_pads,
-            video_sources: HashMap::new(),
-            audio_mixer_bin,
-            audio_mixer,
+            video,
+            audio,
         }
     }
 
@@ -140,22 +139,22 @@ impl Mixer {
         );
         let audio_pad = gst::GhostPad::with_target(
             None,
-            &self.audio_mixer.request_pad_simple("sink_%").unwrap(),
+            &self.audio.mixer.request_pad_simple("sink_%").unwrap(),
         )
         .unwrap();
-        self.audio_mixer_bin.add_pad(&audio_pad).unwrap();
+        self.audio.bin.add_pad(&audio_pad).unwrap();
         audio_source.link(&audio_pad).unwrap();
 
         let video_pad = gst::GhostPad::with_target(
             None,
-            &self.video_mixer.request_pad_simple("sink_%").unwrap(),
+            &self.video.mixer.request_pad_simple("sink_%").unwrap(),
         )
         .unwrap();
-        self.video_mixer_bin.add_pad(&video_pad).unwrap();
-        self.video_pads.push(video_pad);
-        self.video_sources.insert(name.to_string(), video_source);
+        self.video.bin.add_pad(&video_pad).unwrap();
+        self.video.pads.push(video_pad);
+        self.video.sources.insert(name.to_string(), video_source);
 
-        self.pipeline.set_state(gst::State::Playing).unwrap();
+        //self.pipeline.set_state(gst::State::Playing).unwrap();
     }
 
     pub async fn add_stream(&mut self, name: &str, sdp_offer: &str) -> String {
@@ -165,12 +164,13 @@ impl Mixer {
 
         let audio_pad = gst::GhostPad::with_target(
             None,
-            &self.audio_mixer.request_pad_simple("sink_%").unwrap(),
+            &self.audio.mixer.request_pad_simple("sink_%").unwrap(),
         )
         .unwrap();
-        self.audio_mixer_bin.add_pad(&audio_pad).unwrap();
+        self.audio.bin.add_pad(&audio_pad).unwrap();
         webrtcbin.audio_src.link(&audio_pad).unwrap();
-        self.video_sources
+        self.video
+            .sources
             .insert(name.to_string(), webrtcbin.video_src);
 
         answer
@@ -179,10 +179,11 @@ impl Mixer {
     pub fn set_viewable(&self, names: &[&str]) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
         for (i, &name) in names.iter().enumerate() {
-            self.video_sources
+            self.video
+                .sources
                 .get(name)
                 .unwrap()
-                .link(&self.video_pads[i])
+                .link(&self.video.pads[i])
                 .unwrap();
         }
         self.pipeline.set_state(gst::State::Playing).unwrap();

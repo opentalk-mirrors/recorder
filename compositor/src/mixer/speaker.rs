@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::helpers::*;
 use super::*;
 use gst::prelude::*;
@@ -147,39 +149,13 @@ impl Mixer {
     /// - `factory` : factory to create A/V sources
     /// # Returns
     /// Returns two `GhostPad` instances: 1st for video and 2nd for audio
-    pub fn new_speaker(
-        pipeline: &gst::Pipeline,
-        layout: &Layout,
-    ) -> (
-        gst::Bin,
-        gst::Element,
-        gst::GhostPad,
-        Vec<gst::GhostPad>,
-        gst::Bin,
-        gst::Element,
-        gst::GhostPad,
-    ) {
-        // create and link video mixer
-        let (video_mixer_bin, video_mixer, video_mixer_pad, video_participants_pads) =
-            Self::create_video(&pipeline, &layout);
-        // create and link audio mixer
-        let (audio_mixer_bin, audio_mixer, audio_mixer_pad) = Self::create_audio(&pipeline);
-
-        // link to audiomixer example:
-        // let pad =
-        //     gst::GhostPad::with_target(None, &audio_mixer.request_pad_simple("sink_%").unwrap());
-        // audio_mixer_bin.add_pad(&pad);
-        // src.link(&pad);
-
+    pub fn new_speaker(pipeline: &gst::Pipeline, layout: &Layout) -> (VideoMixer, AudioMixer) {
         // link to mixer
         (
-            video_mixer_bin.clone(),
-            video_mixer.clone(),
-            video_mixer_pad,
-            video_participants_pads,
-            audio_mixer_bin.clone(),
-            audio_mixer.clone(),
-            audio_mixer_pad,
+            // create and link video mixer
+            Self::create_video(&pipeline, &layout),
+            // create and link audio mixer
+            Self::create_audio(&pipeline),
         )
     }
 
@@ -190,10 +166,7 @@ impl Mixer {
     /// # Returns
     /// Returns two `GhostPad` instances: 1st for video and 2nd for audio
     #[allow(dead_code)]
-    fn create_video(
-        pipeline: &gst::Pipeline,
-        layout: &Layout,
-    ) -> (gst::Bin, gst::Element, gst::GhostPad, Vec<gst::GhostPad>) {
+    fn create_video(pipeline: &gst::Pipeline, layout: &Layout) -> VideoMixer {
         // prepare compositor input sinks
         let sink_pads = (0..layout.num_viewers())
             .into_iter()
@@ -286,18 +259,17 @@ impl Mixer {
         info!("parsing video mixer bin:\n{bin}");
         let bin = gst::parse_bin_from_description(&bin, false).unwrap();
         pipeline.add(&bin).unwrap();
-
         let mixer = bin.by_name("video-mixer").unwrap();
-
         // link our internal sink to a ghost pad at the bin's outside
-        let mixer_pad = link_bin_ghost_pad(&bin, "video-mixer-output", "src");
-        // let participants_pads: Vec<gst::GhostPad> = (0..layout.num_viewers() + 1)
-        //     .into_iter()
-        //     .map(|n| link_bin_add_ghost_pad(&bin, "video-mixer", &format!("sink_{n}")))
-        //     .collect();
-        let participants_pads = vec![];
+        let pad = link_bin_ghost_pad(&bin, "video-mixer-output", "src");
         // return pads of interest
-        (bin.clone(), mixer, mixer_pad, participants_pads)
+        VideoMixer {
+            bin,
+            mixer,
+            pad,
+            pads: Vec::new(),
+            sources: HashMap::new(),
+        }
     }
     /// create an audio mixer from a given layout
     /// # Arguments
@@ -305,7 +277,7 @@ impl Mixer {
     /// - `layout` : Layout of speaker and viewers
     /// # Returns
     /// Returns two `GhostPad` instances: 1st for video and 2nd for audio
-    fn create_audio(pipeline: &gst::Pipeline) -> (gst::Bin, gst::Element, gst::GhostPad) {
+    fn create_audio(pipeline: &gst::Pipeline) -> AudioMixer {
         // prepare a bin with the compositor
         let bin = format!(
             r#"name=audio-mixer-bin
@@ -322,14 +294,10 @@ impl Mixer {
         // parse bin and add it to the pipeline
         info!("parsing audio mixer bin:\n{bin}");
         let bin = gst::parse_bin_from_description(&bin, false).unwrap();
-
         pipeline.add(&bin).unwrap();
-
+        let mixer = pipeline.by_name("audio-mixer").unwrap();
+        let pad = link_bin_ghost_pad(&bin, "audio-mixer-output", "src");
         // link our internal sink to a ghost pad at the bin's outside
-        (
-            bin.clone(),
-            pipeline.by_name("audio-mixer").unwrap(),
-            link_bin_ghost_pad(&bin, "audio-mixer-output", "src"),
-        )
+        AudioMixer { bin, mixer, pad }
     }
 }
