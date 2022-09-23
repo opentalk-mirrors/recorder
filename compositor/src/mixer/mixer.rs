@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use super::helpers::*;
+use super::layout::*;
 use super::*;
 use gst::prelude::*;
 use gstreamer as gst;
@@ -26,7 +28,6 @@ pub struct AudioMixer {
 /// from multiple participants (sources).
 #[derive(Clone)]
 pub struct Mixer {
-    pub resolution: Size,
     pub pipeline: gst::Pipeline,
     /// access the 'who's speaking?' text within the mixer view if provided
     speaking: Option<gst::Element>,
@@ -46,7 +47,7 @@ impl Mixer {
     /// - `resolution`: target resolution of the output image
     /// - `test_src`: Use test sources (generate test content instead of using webrtc)
     /// - `test_sink`: Use test sinks (video display and audio output on your device)
-    pub fn new(num_viewers: usize, resolution: Size, test_sink: bool) -> Self {
+    pub fn new(resolution: &Size, test_sink: bool) -> Self {
         // print pipeline in verbose mode
         info!("parsing pipeline...");
 
@@ -59,10 +60,11 @@ impl Mixer {
         } else {
             create_dash_sink(&pipeline)
         };
-        // create layout
-        let layout = Layout::new_speaker_vertical(&resolution, num_viewers);
         // add composite view to pipeline
-        let (video, audio) = Mixer::new_speaker(&pipeline, &layout);
+        // create and link video mixer
+        let video = Self::create_video(&pipeline, resolution);
+        // create and link audio mixer
+        let audio = Self::create_audio(&pipeline);
         // link srcs to sinks
         video.pad.link(&video_sink).unwrap();
         audio.pad.link(&audio_sink).unwrap();
@@ -75,7 +77,6 @@ impl Mixer {
         info!("pipeline running (press Ctrl+C to stop)...");
 
         Self {
-            resolution,
             // get elements of interest from pipeline
             title: pipeline.by_name("title"),
             speaking: pipeline.by_name("speaking"),
@@ -84,35 +85,127 @@ impl Mixer {
             audio,
         }
     }
+    /// create an video mixer from a given layout
+    /// # Arguments
+    /// - `pipeline` : the pipeline to add the video mixer into
+    /// - `layout` : Layout of speaker and viewers
+    /// # Returns
+    /// Returns two `GhostPad` instances: 1st for video and 2nd for audio
+    #[allow(dead_code)]
+    fn create_video(pipeline: &gst::Pipeline, resolution: &Size) -> VideoMixer {
+        // prepare a bin with the compositor
+        let bin = format!(
+            r#"name=compositor-bin
+    compositor
+        name=video-mixer
+        background=black
+        ignore-inactive-pads=true
+    ! clockoverlay
+        name=clock
+        font-desc="Sans, 14"
+        time-format="%x %X %Z"
+        xpad=10
+        ypad=2
+        color=0xffffffff
+    ! textoverlay
+        name=title
+        font-desc="Sans, 16"
+        xpad=10
+        ypad=2
+        color=0xffffffff
+    ! textoverlay
+        name=speaking
+        font-desc="Sans, 16"
+        xpad=10
+        ypad=2
+        color=0xffffffff
+    ! video/x-raw,width={width},height={height}
+    ! queue
+        name=video-mixer-output
+                "#,
+            width = resolution.width,
+            height = resolution.height,
+        );
 
-    /// wait until mixer generates error or ends
-    pub fn run(&self) {
-        // wait until error or EOS
-        let bus = self.pipeline.bus().unwrap();
-        for msg in bus.iter_timed(gst::ClockTime::NONE) {
-            use gst::MessageView;
-
-            match msg.view() {
-                MessageView::Error(err) => {
-                    eprintln!(
-                        "Error received from element {:?}: {}",
-                        err.src().map(|s| s.path_string()),
-                        err.error()
-                    );
-                    eprintln!("Debugging information: {:?}", err.debug());
-                    break;
-                }
-                MessageView::Eos(..) => break,
-                _ => (),
-            }
+        // parse bin and add it to the pipeline
+        info!("parsing video mixer bin:\n{bin}");
+        let bin = gst::parse_bin_from_description(&bin, false).unwrap();
+        pipeline.add(&bin).unwrap();
+        let mixer = bin.by_name("video-mixer").unwrap();
+        // link our internal sink to a ghost pad at the bin's outside
+        let pad = link_bin_ghost_pad(&bin, "video-mixer-output", "src");
+        // return pads of interest
+        VideoMixer {
+            bin,
+            mixer,
+            pad,
+            pads: Vec::new(),
+            sources: HashMap::new(),
         }
-
-        // stop pipeline
-        self.pipeline
-            .set_state(gst::State::Null)
-            .expect("Unable to set the pipeline to the `Null` state");
     }
+    /// create an audio mixer from a given layout
+    /// # Arguments
+    /// - `pipeline` : the pipeline to add the audio mixer into
+    /// - `layout` : Layout of speaker and viewers
+    /// # Returns
+    /// Returns two `GhostPad` instances: 1st for video and 2nd for audio
+    fn create_audio(pipeline: &gst::Pipeline) -> AudioMixer {
+        // prepare a bin with the compositor
+        let bin = format!(
+            r#"name=audio-mixer-bin
+    audiotestsrc 
+        is_live=true
+        wave=silence
+    ! audiomixer
+        name=audio-mixer
+    ! queue
+        name=audio-mixer-output
+    "#,
+        );
 
+        // parse bin and add it to the pipeline
+        info!("parsing audio mixer bin:\n{bin}");
+        let bin = gst::parse_bin_from_description(&bin, false).unwrap();
+        pipeline.add(&bin).unwrap();
+        let mixer = pipeline.by_name("audio-mixer").unwrap();
+        let pad = link_bin_ghost_pad(&bin, "audio-mixer-output", "src");
+        // link our internal sink to a ghost pad at the bin's outside
+        AudioMixer { bin, mixer, pad }
+    }
+    fn relayout(&self, count: usize, layout: &dyn Layout) {
+        self.layout_overlay(
+            "title",
+            layout.title_position(count),
+            layout.title_alignment(),
+        );
+        self.layout_overlay(
+            "clock",
+            layout.clock_position(count),
+            layout.clock_alignment(),
+        );
+        self.layout_overlay(
+            "speaking",
+            layout.speaking_position(count),
+            layout.speaking_alignment(count),
+        );
+        self.video.mixer.foreach_sink_pad(move |_, pad| {
+            let n: usize = pad.name().split("_").last().unwrap().parse().unwrap();
+            pad.set_property("xpos", layout.position(n, count).x as i32);
+            pad.set_property("ypos", layout.position(n, count).y as i32);
+            pad.set_property("width", layout.size(n, count).width as i32);
+            pad.set_property("height", layout.size(n, count).height as i32);
+            true
+        });
+    }
+    fn layout_overlay(&self, name: &str, position: Position, alignment: Alignment) {
+        if let Some(title) = self.pipeline.by_name(name) {
+            title.set_property_from_str("halignment", alignment.horizontal);
+            title.set_property_from_str("valignment", alignment.vertical);
+            title.set_property_from_str("line-alignment", alignment.horizontal);
+            title.set_property_from_str("deltax", &position.x.to_string());
+            title.set_property_from_str("deltay", &position.y.to_string());
+        }
+    }
     /// set the 'who's speaking?' text within the mixer view if provided
     pub fn set_title(&self, text: &str) {
         if let Some(title) = &self.title {
@@ -127,7 +220,7 @@ impl Mixer {
         }
     }
 
-    pub fn add_test_source(&mut self, name: &str) {
+    pub fn add_test_source(&mut self, layout: &dyn Layout, name: &str) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
         let (_bin, video_source, audio_source) = create_test_source(
             &self.pipeline,
@@ -145,16 +238,13 @@ impl Mixer {
         self.audio.bin.add_pad(&audio_pad).unwrap();
         audio_source.link(&audio_pad).unwrap();
 
-        let video_pad = gst::GhostPad::with_target(
-            None,
-            &self.video.mixer.request_pad_simple("sink_%").unwrap(),
-        )
-        .unwrap();
+        let inner_mixer_pad = self.video.mixer.request_pad_simple("sink_%").unwrap();
+        let video_pad = gst::GhostPad::with_target(None, &inner_mixer_pad).unwrap();
         self.video.bin.add_pad(&video_pad).unwrap();
         self.video.pads.push(video_pad);
         self.video.sources.insert(name.to_string(), video_source);
-
-        //self.pipeline.set_state(gst::State::Playing).unwrap();
+        self.relayout(self.video.sources.len(), layout);
+        self.pipeline.set_state(gst::State::Playing).unwrap();
     }
 
     pub async fn add_stream(&mut self, name: &str, sdp_offer: &str) -> String {

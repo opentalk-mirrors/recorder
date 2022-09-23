@@ -5,6 +5,7 @@ extern crate clap;
 extern crate log;
 
 use clap::Parser;
+use gst::traits::{ElementExt, GstObjectExt};
 use gstreamer as gst;
 use mixer::*;
 
@@ -52,8 +53,9 @@ fn main() {
         }
     };
 
+    let layout = SpeakerLayout::new(&resolution);
     // create a mixer for audio and video
-    let mut mixer = Mixer::new(args.viewers, resolution, args.display);
+    let mut mixer = Mixer::new(&resolution, args.test);
 
     let names = [
         "Peer",
@@ -71,7 +73,7 @@ fn main() {
     ];
 
     for name in &names[0..args.viewers + 1] {
-        mixer.add_test_source(name);
+        mixer.add_test_source(&layout, name);
     }
     mixer.set_viewable(&names[0..args.viewers + 1]);
 
@@ -87,17 +89,17 @@ fn main() {
     }
 
     // clone a mixer instance for the thread
-    let thread_mixer = mixer.clone();
+    let pipeline = mixer.pipeline.clone();
 
     // start thread which continuously switches speaking text
     std::thread::spawn(move || {
         // initially set title
-        thread_mixer.set_title("Some very important meeting");
+        mixer.set_title("Some very important meeting");
 
         let mut i: usize = 0;
         loop {
             // continuously set who's speaking
-            thread_mixer.set_speaking(&format!("{}", names[i % names.len()]));
+            mixer.set_speaking(&format!("{}", names[i % names.len()]));
             // and switch who's speaking
             i += 1;
             if i >= names.len() {
@@ -109,5 +111,33 @@ fn main() {
     });
 
     // run the mixer
-    mixer.run();
+    run(&pipeline);
+}
+
+/// wait until mixer generates error or ends
+pub fn run(pipeline: &gst::Pipeline) {
+    // wait until error or EOS
+    let bus = pipeline.bus().unwrap();
+    for msg in bus.iter_timed(gst::ClockTime::NONE) {
+        use gst::MessageView;
+
+        match msg.view() {
+            MessageView::Error(err) => {
+                eprintln!(
+                    "Error received from element {:?}: {}",
+                    err.src().map(|s| s.path_string()),
+                    err.error()
+                );
+                eprintln!("Debugging information: {:?}", err.debug());
+                break;
+            }
+            MessageView::Eos(..) => break,
+            _ => (),
+        }
+    }
+
+    // stop pipeline
+    pipeline
+        .set_state(gst::State::Null)
+        .expect("Unable to set the pipeline to the `Null` state");
 }

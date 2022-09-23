@@ -26,38 +26,17 @@ pub struct Alignment {
 }
 
 /// recording picture layout
-pub struct Layout {
-    /// size of the output
-    pub size: Size,
-    /// positions of the viewers
-    pub viewers_positions: Vec<Position>,
-    /// size of a viewer
-    pub viewers_size: Size,
-    /// speaker's y-position
-    pub speaker_position: Position,
-    /// width of the speaker
-    pub speaker_size: Size,
-    /// alignment of the title
-    pub title_alignment: Alignment,
-    /// position of the title
-    pub title_position: Position,
-    /// position of the "who's speaking" text
-    pub speaking_position: Position,
-    /// alignment of the "who's speaking" text
-    pub speaking_alignment: Alignment,
-    /// position of the clock display
-    pub clock_position: Position,
-    /// alignment of the clock display
-    pub clock_alignment: Alignment,
-}
-
-impl Layout {
-    /// return the number of viewers that have to be displayed
-    pub fn num_viewers(&self) -> usize {
-        self.viewers_positions.len()
-    }
-    #[allow(dead_code)]
-    pub fn no_viewers(&self) -> bool {
-        self.viewers_positions.len() == 0
-    }
+pub trait Layout {
+    fn resolution(&self) -> &Size;
+    fn position(&self, n: usize, count: usize) -> Position;
+    fn size(&self, n: usize, count: usize) -> Size;
+    fn title_alignment(&self) -> Alignment;
+    fn title_position(&self, _count: usize) -> Position;
+    // align the "who's speaking" text
+    fn speaking_alignment(&self, count: usize) -> Alignment;
+    // place "who's speaking" text
+    fn speaking_position(&self, count: usize) -> Position;
+    // align clock display
+    fn clock_alignment(&self) -> Alignment;
+    fn clock_position(&self, count: usize) -> Position;
 }

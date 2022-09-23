@@ -104,8 +104,7 @@ async fn record(
     use compositor::{Mixer, Size};
 
     let mixer = Mixer::new(
-        5,
-        Size {
+        &Size {
             width: 1920,
             height: 1080,
         },
