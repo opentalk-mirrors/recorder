@@ -5,7 +5,7 @@ extern crate clap;
 extern crate log;
 
 use clap::Parser;
-use gst::traits::{ElementExt, GstObjectExt};
+use gst::traits::{ElementExt, GstBinExt, GstObjectExt};
 use gstreamer as gst;
 use mixer::*;
 
@@ -55,7 +55,7 @@ fn main() {
 
     let layout = SpeakerLayout::new(&resolution);
     // create a mixer for audio and video
-    let mut mixer = Mixer::new(&resolution, args.test);
+    let mut mixer = Mixer::new(&resolution, args.display);
 
     let names = [
         "Peer",
@@ -72,10 +72,19 @@ fn main() {
         "E",
     ];
 
-    for name in &names[0..args.participants] {
+    for (n, name) in names[0..args.participants].iter().enumerate() {
+        // std::thread::sleep_ms(2000);
         mixer.add_test_source(&layout, name, &resolution);
+        mixer.set_viewable(&names[0..n]);
     }
-    mixer.set_viewable(&names[0..args.participants]);
+    // mixer
+    //     .pipeline
+    //     .by_name("bin0")
+    //     .unwrap()
+    //     .set_state(gst::State::Playing)
+    //     .unwrap();
+
+    std::thread::sleep_ms(2000);
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
