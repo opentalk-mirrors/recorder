@@ -14,8 +14,8 @@ use mixer::*;
 #[clap(author, version, about, long_about = None)]
 pub struct Arguments {
     /// number of visible viewers (additionally to the speaker)
-    #[clap(long, value_parser, default_value = "5")]
-    viewers: usize,
+    #[clap(short, long, value_parser, default_value = "5")]
+    participants: usize,
     /// width and height (e.g. `1920x1080`) of the composite output
     #[clap(long, value_parser, default_value = "640x480")]
     resolution: String,
@@ -72,10 +72,10 @@ fn main() {
         "E",
     ];
 
-    for name in &names[0..args.viewers + 1] {
+    for name in &names[0..args.participants] {
         mixer.add_test_source(&layout, name);
     }
-    mixer.set_viewable(&names[0..args.viewers + 1]);
+    mixer.set_viewable(&names[0..args.participants]);
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {

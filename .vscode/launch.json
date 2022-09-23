@@ -44,8 +44,8 @@
             "args": [
                 "-D",
                 "-d",
-                "--viewers",
-                "5"
+                "-p",
+                "2"
             ],
             "environment": [
                 {

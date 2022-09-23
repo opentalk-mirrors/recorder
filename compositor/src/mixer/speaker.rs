@@ -39,7 +39,7 @@ impl Layout for SpeakerLayout {
             horizontal: "left",
             vertical: match count {
                 // put to the bottom when none or only one viewer is available
-                0 | 1 => "bottom",
+                0 | 1 | 2 => "bottom",
                 // otherwise we center it within the title area
                 _ => "center",
             },
@@ -52,7 +52,7 @@ impl Layout for SpeakerLayout {
             x: 0,
             y: match count {
                 // straight at the bottom (see `speaking_alignment`)
-                0 | 1 => 0,
+                0 | 1 | 2 => 0,
                 // center vertically within title area
                 _ => -(self.speaker_height(count) as i64 / 2),
             },
@@ -70,13 +70,13 @@ impl Layout for SpeakerLayout {
         Position {
             x: match count {
                 // right within whole picture
-                0 | 1 => 0,
+                0 | 1 | 2 => 0,
                 // right within title area
                 _ => -(self.viewers_width(count) as i64),
             },
             y: match count {
                 // bottom of the whole picture
-                0 => 0,
+                0 | 1 | 2 => 0,
                 // bottom within title area
                 _ => -(self.speaker_height(count) as i64),
             },
@@ -104,10 +104,10 @@ impl SpeakerLayout {
         self.size.width as f64 / self.size.height as f64
     }
     fn viewers_height(&self, count: usize) -> usize {
-        if count > 0 {
-            self.size.height / count
-        } else {
-            0
+        match count {
+            0 | 1 => 0,
+            2 => self.size.height / 2,
+            _ => self.size.height / (count - 1),
         }
     }
     fn viewers_width(&self, count: usize) -> usize {
@@ -128,8 +128,9 @@ impl SpeakerLayout {
     fn viewers_position(&self, n: usize, count: usize) -> Position {
         // calculate viewers' positions
         match count {
+            0 | 1 => Position { x: 0, y: 0 },
             // place one viewer centered beside the speaker
-            1 => Position {
+            2 => Position {
                 x: self.size.width as i64 / 2,
                 y: self.size.height as i64 / 4,
             },
@@ -159,7 +160,7 @@ impl SpeakerLayout {
         // calculate speaker's position
         match count {
             // place speaker beside single viewer
-            1 => Position {
+            2 => Position {
                 x: 0,
                 y: self.size.height as i64 / 4,
             },

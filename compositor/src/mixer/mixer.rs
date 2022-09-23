@@ -6,15 +6,22 @@ use super::*;
 use gst::prelude::*;
 use gstreamer as gst;
 
+/// pipeline elements and pads relating to the video mixer
 #[derive(Clone)]
 pub struct VideoMixer {
+    /// bin the compositor is enveloped in
     pub bin: gst::Bin,
+    /// the compositor itself
     pub mixer: gst::Element,
+    /// output pad
     pub pad: gst::GhostPad,
+    /// input pads
     pub pads: Vec<gst::GhostPad>,
+    ///
     pub sources: HashMap<String, gst::GhostPad>,
 }
 
+/// pipeline elements and pads relating to the audio mixer
 #[derive(Clone)]
 pub struct AudioMixer {
     pub bin: gst::Bin,
@@ -45,7 +52,6 @@ impl Mixer {
     /// - `num_viewers`: number of viewers beside a speaker
     /// (so if `num_viewers` is `0` there is only one participant visible)
     /// - `resolution`: target resolution of the output image
-    /// - `test_src`: Use test sources (generate test content instead of using webrtc)
     /// - `test_sink`: Use test sinks (video display and audio output on your device)
     pub fn new(resolution: &Size, test_sink: bool) -> Self {
         // print pipeline in verbose mode
@@ -222,14 +228,7 @@ impl Mixer {
 
     pub fn add_test_source(&mut self, layout: &dyn Layout, name: &str) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
-        let (_bin, video_source, audio_source) = create_test_source(
-            &self.pipeline,
-            name,
-            &Size {
-                width: 1920,
-                height: 1080,
-            },
-        );
+        let (_bin, video_source, audio_source) = create_test_source(&self.pipeline, name);
         let audio_pad = gst::GhostPad::with_target(
             None,
             &self.audio.mixer.request_pad_simple("sink_%").unwrap(),
