@@ -16,6 +16,9 @@ pub struct Arguments {
     /// number of visible viewers (additionally to the speaker)
     #[clap(short, long, value_parser, default_value = "5")]
     participants: usize,
+    /// maximum number of visible participants
+    #[clap(short, long, value_parser, default_value = "5")]
+    visibles: usize,
     /// width and height (e.g. `1920x1080`) of the composite output
     #[clap(long, value_parser, default_value = "640x480")]
     resolution: String,
@@ -55,7 +58,7 @@ fn main() {
 
     let layout = SpeakerLayout::new(&resolution);
     // create a mixer for audio and video
-    let mut mixer = Mixer::new(&resolution, args.display);
+    let mut mixer = Mixer::new(&resolution, args.visibles, args.display);
 
     let names = [
         "Peer",
@@ -75,16 +78,18 @@ fn main() {
     for (n, name) in names[0..args.participants].iter().enumerate() {
         // std::thread::sleep_ms(2000);
         mixer.add_test_source(&layout, name, &resolution);
-        mixer.set_viewable(&names[0..n]);
+        std::thread::sleep_ms(500);
     }
-    // mixer
-    //     .pipeline
-    //     .by_name("bin0")
-    //     .unwrap()
-    //     .set_state(gst::State::Playing)
-    //     .unwrap();
+    mixer.set_viewable(&names[0..std::cmp::min(args.participants, args.visibles)]);
 
-    std::thread::sleep_ms(2000);
+    mixer
+        .pipeline
+        .by_name("bin0")
+        .unwrap()
+        .set_state(gst::State::Playing)
+        .unwrap();
+
+    //    std::thread::sleep_ms(2000);
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {

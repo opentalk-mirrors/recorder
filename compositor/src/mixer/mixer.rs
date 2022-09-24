@@ -9,23 +9,26 @@ use gstreamer as gst;
 /// pipeline elements and pads relating to the video mixer
 #[derive(Clone)]
 pub struct VideoMixer {
-    /// bin the compositor is enveloped in
+    /// bin the video compositor is enveloped in
     pub bin: gst::Bin,
-    /// the compositor itself
+    /// the video compositor element itself
     pub mixer: gst::Element,
-    /// output pad
-    pub pad: gst::GhostPad,
-    /// input pads
-    pub pads: Vec<gst::GhostPad>,
-    ///
+    /// video output pad
+    pub src_pad: gst::GhostPad,
+    /// video input pads
+    pub sink_pads: Vec<gst::GhostPad>,
+    /// video sources pads
     pub sources: HashMap<String, gst::GhostPad>,
 }
 
 /// pipeline elements and pads relating to the audio mixer
 #[derive(Clone)]
 pub struct AudioMixer {
+    /// bin the audio mixer is enveloped in
     pub bin: gst::Bin,
+    /// the mixer element itself
     pub mixer: gst::Element,
+    /// audio output pad
     pub pad: gst::GhostPad,
 }
 
@@ -40,9 +43,12 @@ pub struct Mixer {
     speaking: Option<gst::Element>,
     /// access the title text within the mixer view if provided
     title: Option<gst::Element>,
-
+    /// video mixer elements
     pub video: VideoMixer,
+    /// audio mixer elements
     pub audio: AudioMixer,
+    /// maximum visible participants
+    pub max_visibles: usize,
 }
 
 #[allow(dead_code)]
@@ -53,7 +59,7 @@ impl Mixer {
     /// (so if `num_viewers` is `0` there is only one participant visible)
     /// - `resolution`: target resolution of the output image
     /// - `test_sink`: Use test sinks (video display and audio output on your device)
-    pub fn new(resolution: &Size, test_sink: bool) -> Self {
+    pub fn new(resolution: &Size, visibles: usize, test_sink: bool) -> Self {
         // print pipeline in verbose mode
         info!("parsing pipeline...");
 
@@ -68,13 +74,14 @@ impl Mixer {
             info!("using dash sink...");
             create_dash_sink(&pipeline)
         };
-        // add composite view to pipeline
+
         // create and link video mixer
         let video = Self::create_video(&pipeline, resolution);
         // create and link audio mixer
         let audio = Self::create_audio(&pipeline);
-        // link srcs to sinks
-        video.pad.link(&video_sink).unwrap();
+
+        // link sources to sinks
+        video.src_pad.link(&video_sink).unwrap();
         audio.pad.link(&audio_sink).unwrap();
 
         // start playing
@@ -84,8 +91,9 @@ impl Mixer {
             .expect("Unable to set the pipeline to the `Playing` state");
         info!("pipeline running (press Ctrl+C to stop)...");
 
+        // return elements of interest from pipeline
         Self {
-            // get elements of interest from pipeline
+            max_visibles: visibles,
             title: pipeline.by_name("title"),
             speaking: pipeline.by_name("speaking"),
             pipeline,
@@ -143,13 +151,13 @@ impl Mixer {
         pipeline.add(&bin).unwrap();
         let mixer = bin.by_name("video-mixer").unwrap();
         // link our internal sink to a ghost pad at the bin's outside
-        let pad = link_bin_ghost_pad(&bin, "video-mixer-output", "src");
+        let src_pad = link_bin_ghost_pad(&bin, "video-mixer-output", "src");
         // return pads of interest
         VideoMixer {
             bin,
             mixer,
-            pad,
-            pads: Vec::new(),
+            src_pad,
+            sink_pads: Vec::new(),
             sources: HashMap::new(),
         }
     }
@@ -184,7 +192,7 @@ impl Mixer {
         // link our internal sink to a ghost pad at the bin's outside
         AudioMixer { bin, mixer, pad }
     }
-    fn relayout(&self, count: usize, layout: &dyn Layout) {
+    fn layout(&self, count: usize, layout: &dyn Layout) {
         self.layout_overlay(
             "title",
             layout.title_position(count),
@@ -241,28 +249,40 @@ impl Mixer {
     }
 
     pub fn add_test_source(&mut self, layout: &dyn Layout, name: &str, resolution: &Size) {
-        debug!("add mixer {name}");
-        // self.pipeline.set_state(gst::State::Paused).unwrap();
-        let (_bin, video_source, audio_source) =
+        debug!("adding mixer {name}");
+
+        // create new AV audio source
+        let (bin, video_source, audio_source) =
             create_test_source(&self.pipeline, name, resolution);
 
-        let audio_pad = gst::GhostPad::with_target(
-            None,
-            &self.audio.mixer.request_pad_simple("sink_%").unwrap(),
-        )
-        .unwrap();
-        self.audio.bin.add_pad(&audio_pad).unwrap();
-        debug!("link audio_src");
-        audio_source.link(&audio_pad).unwrap();
-        debug!("link audio_src done");
+        // add bin to pipeline
+        self.pipeline.add(&bin).unwrap();
 
-        let inner_mixer_pad = self.video.mixer.request_pad_simple("sink_%").unwrap();
-        let video_pad = gst::GhostPad::with_target(None, &inner_mixer_pad).unwrap();
-        self.video.bin.add_pad(&video_pad).unwrap();
-        self.video.pads.push(video_pad);
+        // add new sink to audiomixer
+        let audio_mixer_pad = &self.audio.mixer.request_pad_simple("sink_%").unwrap();
+        // create ghost pad to connect audio sink to bins outside
+        let audio_ghost = gst::GhostPad::with_target(None, audio_mixer_pad).unwrap();
+        // add new audio sink to bin
+        self.audio.bin.add_pad(&audio_ghost).unwrap();
+        // link audio source directly to audio sink ghost pad
+        audio_source.link(&audio_ghost).unwrap();
+
+        // add new sink to compositor
+        let video_mixer_pad = self.video.mixer.request_pad_simple("sink_%").unwrap();
+        // create ghost pad to connect video sink to bins outside
+        let video_ghost = gst::GhostPad::with_target(None, &video_mixer_pad).unwrap();
+        // add new video sink to bin
+        self.video.bin.add_pad(&video_ghost).unwrap();
+        // remember video pad
+        self.video.sink_pads.push(video_ghost);
+        // remember video source
         self.video.sources.insert(name.to_string(), video_source);
-        self.relayout(self.video.sources.len(), layout);
-        self.pipeline.set_state(gst::State::Playing).unwrap();
+
+        // update the layout of our composite if number of visible pictures has changed
+        self.layout(
+            std::cmp::min(self.video.sources.len(), self.max_visibles),
+            layout,
+        );
     }
 
     pub async fn add_stream(&mut self, name: &str, sdp_offer: &str) -> String {
@@ -285,20 +305,31 @@ impl Mixer {
     }
 
     pub fn set_viewable(&self, names: &[&str]) {
-        self.pipeline.set_state(gst::State::Paused).unwrap();
-
+        // unlink all compositor pads
+        for pad in &self.video.sink_pads {
+            if let Some(peer) = pad.peer() {
+                peer.unlink(pad).unwrap();
+            }
+        }
         for (i, &name) in names.iter().enumerate() {
             debug!("link {name} @ {i}");
-            self.video
-                .sources
-                .get(name)
-                .unwrap()
-                .link(&self.video.pads[i])
-                .unwrap();
-            debug!("finished linking {name} @ {i}");
+            if i < self.video.sink_pads.len() {
+                let mixer_pad = &self.video.mixer.request_pad_simple("sink_%").unwrap();
+                // link
+                self.video
+                    .sink_pads
+                    .get(name)
+                    .link(&self.video.mixer.sink_pads()[i])
+                    .unwrap();
+                self.video
+                    .sources
+                    .get(name)
+                    .unwrap()
+                    .link(&self.video.sink_pads[i])
+                    .unwrap();
+            }
         }
-
-        self.pipeline.set_state(gst::State::Playing).unwrap();
+        debug!("finished linking {name} @ {i}");
     }
 
     /// generate a DOT file describing the current pipeline in a graph (for debugging)
@@ -308,31 +339,60 @@ impl Mixer {
 }
 
 pub(crate) fn on_linked(
-    orig_src: gst::Element,
+    source: gst::Element,
     fake_sink: gst::Element,
     ghost_pad: gst::GhostPad,
 ) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
     move |_| {
-        orig_src.unlink(&fake_sink);
-
-        let parent = fake_sink.parent().unwrap().downcast::<gst::Bin>().unwrap();
-        parent.remove(&fake_sink).unwrap();
-
-        ghost_pad
-            .set_target(Some(&orig_src.static_pad("src").unwrap()))
-            .unwrap();
+        for pad in source.src_pads() {
+            // clone captures for closure
+            let source = source.clone();
+            let fake_sink = fake_sink.clone();
+            let ghost_pad = ghost_pad.clone();
+            // add blocking probe to pad
+            let probe = pad
+                .add_probe(gst::PadProbeType::BLOCK, move |_, _| {
+                    // unlink source from fake_sink
+                    source.unlink(&fake_sink);
+                    // remove fake sink from surrounding bin
+                    let bin = fake_sink.parent().unwrap().downcast::<gst::Bin>().unwrap();
+                    bin.remove(&fake_sink).unwrap();
+                    // link ghost pad to source pad
+                    ghost_pad
+                        .set_target(Some(&source.static_pad("src").unwrap()))
+                        .unwrap();
+                    // well done
+                    gst::PadProbeReturn::Ok
+                })
+                .unwrap();
+            pad.remove_probe(probe);
+        }
         None
     }
 }
 
 pub(crate) fn on_unlinked(
-    orig_src: gst::Element,
+    source: gst::Element,
     fake_sink: gst::Element,
     ghost_pad: gst::GhostPad,
 ) -> impl Fn(&[gst::glib::Value]) -> Option<gst::glib::Value> {
     move |_| {
-        ghost_pad.set_target(None::<&gst::Pad>).unwrap();
-        orig_src.link(&fake_sink).unwrap();
+        for pad in source.src_pads() {
+            // clone captures for closure
+            let source = source.clone();
+            let fake_sink = fake_sink.clone();
+            let ghost_pad = ghost_pad.clone();
+            // add blocking probe to pad
+            let probe = pad
+                .add_probe(gst::PadProbeType::BLOCK, move |_, _| {
+                    ghost_pad.set_target(None::<&gst::Pad>).unwrap();
+                    source.link(&fake_sink).unwrap();
+                    // well done
+                    gst::PadProbeReturn::Ok
+                })
+                .unwrap();
+            pad.remove_probe(probe);
+        }
         None
     }
 }

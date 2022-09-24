@@ -78,7 +78,6 @@ pub fn create_test_source_with_pattern(
     // parse bin and add it to the pipeline
     info!("parsing test source bin `{name}`:\n{bin}");
     let bin = gst::parse_bin_from_description(&bin, false).unwrap();
-    pipeline.add(&bin).unwrap();
 
     let video_source = bin.by_name(&format!("{name}-video")).unwrap();
     let audio_source = bin.by_name(&format!("{name}-audio")).unwrap();
@@ -133,5 +132,5 @@ pub fn create_test_source_with_pattern(
     );
 
     // link our internal sink to a ghost pad at the bin's outside
-    (bin.clone(), video_ghost_pad, audio_ghost_pad)
+    (bin, video_ghost_pad, audio_ghost_pad)
 }
