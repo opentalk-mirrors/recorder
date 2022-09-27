@@ -1,3 +1,9 @@
+mod grid;
+mod speaker;
+
+pub use grid::*;
+pub use speaker::*;
+
 /// Cartesian pixel position
 #[derive(Debug, Clone)]
 pub struct Position {
@@ -14,6 +20,11 @@ pub struct Size {
     pub width: usize,
     /// vertical dimension
     pub height: usize,
+}
+impl Size {
+    pub fn ratio(&self) -> f64 {
+        self.width as f64 / self.height as f64
+    }
 }
 
 /// text alignment

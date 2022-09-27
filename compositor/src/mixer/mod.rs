@@ -1,14 +1,9 @@
-mod helpers;
-mod layout;
+mod display_sink;
 mod mixer;
-mod sinks;
-mod speaker;
-mod test_source;
-mod web_rtc_bin;
+mod participant;
 
-pub use layout::{Layout, Position, Size};
+pub use display_sink::*;
 pub use mixer::Mixer;
-pub use sinks::*;
-pub use speaker::*;
-pub use test_source::*;
-pub use web_rtc_bin::*;
+pub use participant::*;
+
+pub use mixer::generate_dot_file;

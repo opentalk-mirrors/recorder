@@ -1,3 +1,4 @@
+mod layout;
 mod mixer;
 
 extern crate clap;
@@ -5,9 +6,8 @@ extern crate clap;
 extern crate log;
 
 use clap::Parser;
-use gst::traits::{ElementExt, GstBinExt, GstObjectExt};
+use gst::traits::{ElementExt, GstObjectExt};
 use gstreamer as gst;
-use mixer::*;
 
 /// program arguments
 #[derive(Parser, Debug)]
@@ -50,15 +50,18 @@ fn main() {
             .split('x')
             .map(|x| x.parse().unwrap())
             .collect::<Vec<usize>>();
-        Size {
+        layout::Size {
             width: x[0],
             height: x[1],
         }
     };
 
-    let layout = SpeakerLayout::new(&resolution);
+    let layout = layout::Grid::new(&resolution);
+    let pipeline = gst::Pipeline::new(None);
     // create a mixer for audio and video
-    let mut mixer = Mixer::new(&resolution, args.visibles, args.display);
+    let mixer = mixer::Mixer::new(&pipeline, &resolution, args.visibles, layout, args.display);
+    let output = mixer::DisplaySink::create(&pipeline, &resolution);
+    mixer.link_display_sink(&output);
 
     let names = [
         "Peer",
@@ -75,35 +78,43 @@ fn main() {
         "E",
     ];
 
-    for (n, name) in names[0..args.participants].iter().enumerate() {
-        // std::thread::sleep_ms(2000);
-        mixer.add_test_source(&layout, name, &resolution);
-        std::thread::sleep_ms(500);
+    let mut participants = Vec::<mixer::Participant>::new();
+    for n in 0..80 {
+        participants.push(mixer::Participant::create(
+            &pipeline,
+            &format!("{n}"),
+            "smpte",
+            &resolution,
+        ));
     }
-    mixer.set_viewable(&names[0..std::cmp::min(args.participants, args.visibles)]);
 
-    mixer
-        .pipeline
-        .by_name("bin0")
-        .unwrap()
-        .set_state(gst::State::Playing)
-        .unwrap();
-
-    //    std::thread::sleep_ms(2000);
+    pipeline.set_state(gst::State::Playing);
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
         // must set this to work
-        if let Ok(path) = std::env::var("GST_DEBUG_DUMP_DOT_DIR") {
-            info!("writing DOT file `{}/pipeline.dot`...", path);
-            mixer.generate_dot_file("pipeline");
-        } else {
-            warn!("can not write DOT file. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to a absolute path");
+        mixer::generate_dot_file(&pipeline, "pipeline-null");
+    }
+
+    for m in 0..100 {
+        for n in 0..participants.len() {
+            participants[n].link(&mixer).unwrap();
+            std::thread::sleep_ms(1000);
         }
+        std::thread::sleep_ms(500);
+        for n in 0..participants.len() {
+            participants[n].unlink(&mixer).unwrap();
+            std::thread::sleep_ms(1000);
+        }
+    }
+    // shall we create DOT file of mixer's pipeline?
+    if args.dot {
+        // must set this to work
+        mixer::generate_dot_file(&pipeline, "pipeline");
     }
 
     // clone a mixer instance for the thread
-    let pipeline = mixer.pipeline.clone();
+    let pipeline = pipeline.clone();
 
     // start thread which continuously switches speaking text
     std::thread::spawn(move || {

@@ -1,11 +1,10 @@
 use super::*;
-use layout::*;
 
-pub struct SpeakerLayout {
+pub struct Speaker {
     size: Size,
 }
 
-impl Layout for SpeakerLayout {
+impl Layout for Speaker {
     fn resolution(&self) -> &Size {
         &self.size
     }
@@ -83,7 +82,7 @@ impl Layout for SpeakerLayout {
         }
     }
 }
-impl SpeakerLayout {
+impl Speaker {
     /// create a layout where the viewers are vertically distributed at the right side
     /// of the speaker and remaining space is used to display a title and 'who's speaking'
     /// # Arguments
