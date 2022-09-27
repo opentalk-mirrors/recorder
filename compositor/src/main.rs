@@ -72,64 +72,70 @@ fn main() {
         mixer::generate_dot_file(&pipeline, "pipeline");
     }
 
-    // clone a mixer instance for the thread
-    let pipeline_ = pipeline.clone();
-
     // start thread which continuously switches speaking text
-    std::thread::spawn(move || {
-        // initially set title
-        mixer.set_title("Some very important meeting");
+    std::thread::spawn({
+        let pipeline = pipeline.clone();
+        move || {
+            // clone a mixer instance for the thread
+            // initially set title
+            mixer.set_title("Some very important meeting");
 
-        for n in 0..args.participants {
-            let name = format!("{n}");
-            mixer.participants.insert(
-                name.clone(),
-                mixer::Participant::create(&pipeline_, &name, "smpte", &resolution),
-            );
-        }
-        trace!("participants: {:?}", mixer.participants.keys());
+            for n in 0..args.participants {
+                let name = format!("{n}");
+                mixer.participants.insert(
+                    name.clone(),
+                    mixer::Participant::create(&pipeline, &name, "smpte", &resolution),
+                );
+            }
+            trace!("participants: {:?}", mixer.participants.keys());
 
-        let mut i: usize = 0;
-        let mut m: isize = 0;
-        let mut step: isize = 1;
-        loop {
-            trace!("==================================================================");
-            let mut names = Vec::new();
-            for i in 0..m {
-                names.push(format!("{i}"));
-            }
-            trace!("-set_viewable-----------------------------------------------------");
-            trace!("visibles: {:?}", names);
-            mixer.set_viewable(&names);
-            // continuously set who's speaking
-            if i > 0 {
-                mixer.set_speaking(&format!("{}", names[i % names.len()]));
-            }
-            // and switch who's speaking
-            i += 1;
-            if i >= names.len() {
-                i = 0;
-            }
-            std::thread::sleep_ms(100);
-            mixer.layout(&pipeline_);
+            let mut i: usize = 0;
+            let mut m: isize = 0;
+            let mut step: isize = 1;
+            loop {
+                trace!("==================================================================");
+                let mut names = Vec::new();
+                for i in 0..m {
+                    names.push(format!("{i}"));
+                }
+                trace!("-set_viewable-----------------------------------------------------");
+                trace!("visibles: {:?}", names);
+                pipeline.set_state(gst::State::Paused).unwrap();
+                std::thread::sleep_ms(100);
+                mixer.set_viewable(&names);
+                // continuously set who's speaking
+                if i > 0 {
+                    mixer.set_speaking(&format!("{}", names[i % names.len()]));
+                }
+                trace!("-layout-----------------------------------------------------------");
+                mixer.layout();
+                pipeline.set_state(gst::State::Playing).unwrap();
+                trace!("-ready-----------------------------------------------------------");
+                std::thread::sleep_ms(100);
 
-            // shall we create DOT file of mixer's pipeline?
-            if args.dot {
-                // must set this to work
-                mixer::generate_dot_file(&pipeline_, &format!("pipeline-{i}-{m}"));
-            }
+                // shall we create DOT file of mixer's pipeline?
+                if args.dot {
+                    // must set this to work
+                    mixer::generate_dot_file(&pipeline, &format!("pipeline-{i}-{m}"));
+                }
+                // and switch who's speaking
+                i += 1;
+                if i >= names.len() {
+                    i = 0;
+                }
 
-            if m == args.visibles as isize - 1 {
-                step = -1;
-            }
-            if m == 0 {
-                step = 1;
-            }
-            m = m + step;
-            std::thread::sleep_ms(1000);
+                if m == args.visibles as isize - 1 {
+                    step = -1;
+                }
+                if m == 0 {
+                    step = 1;
+                }
+                m = m + step;
+                std::thread::sleep_ms(1000);
 
-            // take time
-            std::thread::sleep(std::time::Duration::from_millis(1000));
+                // take time
+                std::thread::sleep(std::time::Duration::from_millis(1000));
+            }
         }
     });
 

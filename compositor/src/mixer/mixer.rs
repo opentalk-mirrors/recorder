@@ -18,6 +18,7 @@ where
     pub compositor: gst::Element,
     resolution: Size,
     pub max_participants: usize,
+    pub visibles: usize,
     clock: Option<gst::Element>,
     title: Option<gst::Element>,
     speaking: Option<gst::Element>,
@@ -48,11 +49,17 @@ where
         background_src.set_property_from_str("pattern", "black");
         background_src.set_property_from_str("is-live", "true");
 
+        let background_queue =
+            gst::ElementFactory::make("queue", Some(&format!("background-output"))).unwrap();
+
         // create compositor
         let compositor =
             gst::ElementFactory::make("compositor", Some(&format!("compositor"))).unwrap();
-        compositor.set_property_from_str("background", "black");
-
+        compositor.set_property_from_str("background", "checker");
+        compositor.set_property_from_str("ignore-inactive-pads", "true");
+        for _ in 0..max_participants {
+            compositor.request_pad_simple("sink_%u").unwrap();
+        }
         // create clock overlay
         let clock_overlay =
             gst::ElementFactory::make("clockoverlay", Some(&format!("compositor-clock"))).unwrap();
@@ -93,6 +100,7 @@ where
         // add elements to pipeline
         pipeline.add(&background_src).unwrap();
         pipeline.add(&caps).unwrap();
+        pipeline.add(&background_queue).unwrap();
         pipeline.add(&compositor).unwrap();
         pipeline.add(&clock_overlay).unwrap();
         pipeline.add(&title_overlay).unwrap();
@@ -101,7 +109,8 @@ where
 
         // link elements
         background_src.link(&caps).unwrap();
-        caps.link(&compositor).unwrap();
+        caps.link(&background_queue).unwrap();
+        background_queue.link(&compositor).unwrap();
         compositor.link(&clock_overlay).unwrap();
         clock_overlay.link(&title_overlay).unwrap();
         title_overlay.link(&speaking_overlay).unwrap();
@@ -122,6 +131,7 @@ where
             compositor: compositor.clone(),
             resolution: resolution.clone(),
             max_participants,
+            visibles: 0,
             clock: Some(clock_overlay.clone()),
             title: Some(title_overlay.clone()),
             speaking: Some(speaking_overlay.clone()),
@@ -153,9 +163,9 @@ where
     pub fn link_display_sink(&self, sink: &DisplaySink) {
         self.output_pad.link(sink.sink_pad()).unwrap();
     }
-    pub fn layout(&self, pipeline: &gst::Pipeline) {
-        pipeline.set_state(gst::State::Paused).unwrap();
-        let count = (self.compositor.num_sink_pads()) as usize;
+    pub fn layout(&self) {
+        let count = self.visibles;
+        trace!("visibles = {count}");
         self.layout_overlay(
             &self.title,
             self.layout.title_position(count),
@@ -172,9 +182,22 @@ where
             self.layout.speaking_alignment(count),
         );
         for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
-            let count = count - 1;
-            let pos = self.layout.position(n, count);
-            let size = self.layout.size(n, count);
+            let (pos, size, alpha) = if n < count {
+                (
+                    self.layout.position(n, count),
+                    self.layout.size(n, count),
+                    1.0,
+                )
+            } else {
+                (
+                    Position { x: 0, y: 0 },
+                    Size {
+                        width: 0,
+                        height: 0,
+                    },
+                    0.0,
+                )
+            };
             trace!(
                 "{name}: xpos={xpos}, ypos={ypos}, width={width}, height={height}",
                 xpos = pos.x as i32,
@@ -187,8 +210,8 @@ where
             pad.set_property("ypos", pos.y as i32);
             pad.set_property("width", size.width as i32);
             pad.set_property("height", size.height as i32);
+            pad.set_property("alpha", alpha);
         }
-        pipeline.set_state(gst::State::Playing).unwrap();
     }
     fn layout_overlay(
         &self,
@@ -222,57 +245,40 @@ where
             return Err(Error::TooManyParticipants);
         }
         trace!("linking {:?}...", names);
-        for name in names.clone() {
-            if let Some(participant) = self.participants.get_mut(&name) {
+        let compositor_sink_pads = self.compositor.sink_pads();
+        for (n, name) in names.iter().enumerate() {
+            if let Some(participant) = self.participants.get_mut(&name.clone()) {
                 // check if not already linked to compositor
                 if let Some(fake_sink) = &participant.video_fake_sink {
-                    // sync closure with channel
-                    let (notify, wait) = std::sync::mpsc::sync_channel(1);
                     // add probe to stop source
-                    participant
-                        .video_src_pad
-                        .add_probe(gst::PadProbeType::BLOCK, {
-                            // clone elements and pads for closure
-                            let sink_pad = participant.video_sink_pad.clone();
-                            let src_pad = participant.video_src_pad.clone();
-                            let fake_sink = fake_sink.clone();
-                            let compositor = self.compositor.clone();
-                            let pipeline = self.pipeline.clone();
-                            move |_pad, info| {
-                                src_pad.remove_probe(info.id.take().unwrap());
-                                // we only want the first probe event
-                                if src_pad.unlink(&sink_pad).is_ok() {
-                                    trace!(
-                                        "unlinking video fake sink pad {sink} from {source}...",
-                                        sink = sink_pad.name(),
-                                        source = name
-                                    );
-                                    // halt fake sink
-                                    fake_sink.set_state(gst::State::Null).unwrap();
-                                    // remove fake sink from pipeline
-                                    pipeline.remove(&fake_sink).unwrap();
-                                    // create new compositor sink pad
-                                    let compositor_sink_pad =
-                                        compositor.request_pad_simple("sink_%u").unwrap();
-                                    // link source with compositor
-                                    src_pad.link(&compositor_sink_pad).unwrap();
-                                    // sync with outside and send compositor sink pad
-                                    notify.send(compositor_sink_pad).unwrap();
-                                }
-                                // we did already remove the probe
-                                gst::PadProbeReturn::Pass
-                            }
-                        });
-
-                    // wait for closure to finish and retrieve compositor sink pad
-                    let compositor_sink_pad = wait
-                        .recv_timeout(std::time::Duration::from_secs(6))
-                        .unwrap();
+                    // clone elements and pads for closure
+                    let sink_pad = participant.video_sink_pad.clone();
+                    let src_pad = participant.video_src_pad.clone();
+                    let fake_sink = fake_sink.clone();
+                    let compositor = self.compositor.clone();
+                    let pipeline = self.pipeline.clone();
+                    // create new compositor sink pad
+                    //src_pad.remove_probe(info.id.take().unwrap());
+                    // we only want the first probe event
+                    if src_pad.unlink(&sink_pad).is_ok() {
+                        trace!(
+                            "unlinking video fake sink pad {sink} from {source}...",
+                            sink = sink_pad.name(),
+                            source = name
+                        );
+                        // halt fake sink
+                        fake_sink.set_state(gst::State::Null).unwrap();
+                        // remove fake sink from pipeline
+                        pipeline.remove(&fake_sink).unwrap();
+                        // link source with compositor
+                        src_pad.link(&compositor_sink_pads[n + 1]).unwrap();
+                    }
 
                     // remove fake sink from compositor to signal that we have unlinked it
                     participant.video_fake_sink = None;
                     // save new compositor sink pad
-                    participant.video_sink_pad = compositor_sink_pad;
+                    participant.video_sink_pad = compositor_sink_pads[n + 1].clone();
+                    self.visibles = self.visibles + 1;
                     trace!("linked {name} successfully", name = participant.name);
                 }
             } else {
@@ -283,12 +289,11 @@ where
     }
     pub fn unlink(&mut self, names: &Vec<String>) -> Result<(), Error> {
         trace!("unlinking {:?}...", names);
-        for name in names.clone() {
-            if let Some(participant) = self.participants.get_mut(&name) {
+        let compositor_sink_pads = self.compositor.sink_pads();
+        for (n, name) in names.iter().enumerate() {
+            if let Some(participant) = self.participants.get_mut(&name.clone()) {
                 // check if not already linked to fake sink
                 if participant.video_fake_sink.is_none() {
-                    // sync closure with channel
-                    let (notify, wait) = std::sync::mpsc::sync_channel(1);
                     // create fake sink
                     trace!("creating new fake sink...");
                     let fake_sink = gst::ElementFactory::make(
@@ -298,45 +303,36 @@ where
                     .unwrap();
                     fake_sink.set_property_from_str("sync", "true");
                     // add probe to stop source
-                    participant
-                        .video_src_pad
-                        .add_probe(gst::PadProbeType::BLOCK, {
-                            // clone elements and pads for closure
-                            let src_pad = participant.video_src_pad.clone();
-                            let fake_sink = fake_sink.clone();
-                            let mixer = self.compositor.clone();
-                            let pipeline = self.pipeline.clone();
-                            move |pad, info| {
-                                // we only want the first probe event
-                                src_pad.remove_probe(info.id.take().unwrap());
-                                if let Some(peer) = pad.peer() {
-                                    trace!(
-                                        "unlinking compositor {sink} from {source}...",
-                                        sink = peer.name(),
-                                        source = name
-                                    );
-                                    mixer.release_request_pad(&peer);
+                    // clone elements and pads for closure
+                    let src_pad = participant.video_src_pad.clone();
+                    let fake_sink = fake_sink.clone();
+                    let pipeline = self.pipeline.clone();
+                    let fake_sink_pad = fake_sink.static_pad("sink").unwrap();
+                    // we only want the first probe event
+                    //src_pad.remove_probe(info.id.take().unwrap());
+                    if let Some(peer) = src_pad.peer() {
+                        trace!(
+                            "unlinking compositor {sink} from {source}...",
+                            sink = peer.name(),
+                            source = name
+                        );
+                        src_pad.unlink(&peer).unwrap();
 
-                                    trace!("add fake sink to pipeline...");
-                                    fake_sink.set_state(gst::State::Playing).unwrap();
-                                    pipeline.add(&fake_sink).unwrap();
-                                    trace!("create fake sink pad...");
-                                    let fake_sink_pad = fake_sink.static_pad("sink").unwrap();
-                                    trace!("link to fake sink pad...");
-                                    src_pad.link(&fake_sink_pad).unwrap();
-                                    notify.send(fake_sink_pad).unwrap();
-                                }
-                                gst::PadProbeReturn::Pass
-                            }
-                        });
-
-                    let fake_sink_pad = wait
-                        .recv_timeout(std::time::Duration::from_secs(6))
-                        .unwrap();
-
+                        trace!("add fake sink to pipeline...");
+                        pipeline.add(&fake_sink).unwrap();
+                        trace!("create fake sink pad...");
+                        trace!("link to fake sink pad...");
+                        src_pad.link(&fake_sink_pad).unwrap();
+                    }
+                    //                        gst::PadProbeReturn::Pass
+                    /*
+                                       let fake_sink_pad = wait
+                                           .recv_timeout(std::time::Duration::from_secs(6))
+                                           .unwrap();
+                    */
                     participant.video_fake_sink = Some(fake_sink);
                     participant.video_sink_pad = fake_sink_pad;
-
+                    self.visibles = self.visibles - 1;
                     trace!("unlinked {name} successfully", name = participant.name);
                 }
             } else {

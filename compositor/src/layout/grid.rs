@@ -81,15 +81,17 @@ impl Grid {
         self.grid(count).1
     }
     fn grid(&self, count: usize) -> (usize, usize) {
-        if count > 0 {
+        if count > 1 {
             let columns = (f64::sqrt(count as f64) + 0.9) as usize;
             let rows = (count + columns - 1) / columns;
+            trace!("count = {count}, rows = {rows}, columns = {columns}");
             if rows > columns {
                 (columns + 1, rows - 1)
             } else {
                 (columns, rows)
             }
         } else {
+            trace!("count = {count}, rows = 1, columns = 1");
             (1, 1)
         }
     }
