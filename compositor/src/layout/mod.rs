@@ -38,6 +38,7 @@ pub struct Alignment {
 
 /// recording picture layout
 pub trait Layout {
+    fn new(resolution: &Size) -> Self;
     fn resolution(&self) -> &Size;
     fn position(&self, n: usize, count: usize) -> Position;
     fn size(&self, n: usize, count: usize) -> Size;

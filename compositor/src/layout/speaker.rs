@@ -1,10 +1,28 @@
 use super::*;
 
+#[derive(Clone)]
 pub struct Speaker {
     size: Size,
 }
 
 impl Layout for Speaker {
+    /// create a layout where the viewers are vertically distributed at the right side
+    /// of the speaker and remaining space is used to display a title and 'who's speaking'
+    /// # Arguments
+    /// - `resolution` : dimensions of the output picture in pixels
+    /// # Return
+    /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
+    #[allow(dead_code)]
+    fn new(resolution: &Size) -> Self {
+        // calculate layout
+        Self {
+            // overall picture size
+            size: Size {
+                width: resolution.width,
+                height: resolution.height,
+            },
+        }
+    }
     fn resolution(&self) -> &Size {
         &self.size
     }
@@ -83,23 +101,6 @@ impl Layout for Speaker {
     }
 }
 impl Speaker {
-    /// create a layout where the viewers are vertically distributed at the right side
-    /// of the speaker and remaining space is used to display a title and 'who's speaking'
-    /// # Arguments
-    /// - `resolution` : dimensions of the output picture in pixels
-    /// # Return
-    /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
-    #[allow(dead_code)]
-    pub fn new(resolution: &Size) -> Self {
-        // calculate layout
-        Self {
-            // overall picture size
-            size: Size {
-                width: resolution.width,
-                height: resolution.height,
-            },
-        }
-    }
     fn ratio(&self) -> f64 {
         self.size.width as f64 / self.size.height as f64
     }

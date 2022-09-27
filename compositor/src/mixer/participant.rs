@@ -1,17 +1,13 @@
-use crate::error::Error;
 use crate::layout::*;
-use crate::mixer::Mixer;
 use gst::{
-    prelude::{ElementExtManual, GObjectExtManualGst},
-    traits::{ElementExt, GstBinExt, PadExt},
-    PadExtManual, Pipeline,
+    prelude::GObjectExtManualGst,
+    traits::{ElementExt, GstBinExt},
 };
 use gstreamer as gst;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Participant {
     pub name: String,
-    elements: Vec<gst::Element>,
     pub video_fake_sink: Option<gst::Element>,
     pub video_src_pad: gst::Pad,
     pub video_sink_pad: gst::Pad,
@@ -30,7 +26,7 @@ impl Participant {
     ) -> Participant {
         let width = resolution.width;
         let height = resolution.height;
-
+        trace!("create new participant '{name}'");
         // create test src
         let video_test_src =
             gst::ElementFactory::make("videotestsrc", Some(&format!("video-testsrc-{name}")))
@@ -90,15 +86,6 @@ impl Participant {
 
         Participant {
             name: name.to_string(),
-            // remember elements for deletion
-            elements: vec![
-                video_test_src.clone(),
-                video_caps.clone(),
-                video_fake_sink.clone(),
-                /*                 audio_test_src.clone(),
-                             audio_fake_sink.clone(),
-                */
-            ],
             // remember elements and pads for connect/disconnect
             video_src_pad: video_queue.static_pad("src").unwrap(),
             video_sink_pad: video_fake_sink.static_pad("sink").unwrap(),

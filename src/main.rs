@@ -101,17 +101,25 @@ async fn record(
         .await
         .unwrap();
 
-    use compositor::{Mixer, Size};
+    use compositor::*;
 
-    let mixer = Mixer::new(
+    let mut mixer = Mixer::<Speaker>::new::<DisplaySink>(
+        // resolution
         &Size {
             width: 1920,
             height: 1080,
         },
         // maximum visible partcipants
         6,
-        false,
     );
+
+    mixer.play();
+
+    let names: Vec<String> = vec!["Peer", "Markus", "Michael", "Konstantin", "Pat"]
+        .iter()
+        .map(|n| n.to_string())
+        .collect();
+    mixer.add_participants(&names);
 
     loop {
         let event = match signaling.run().await {

@@ -1,14 +1,16 @@
 mod error;
 mod layout;
 mod mixer;
+//mod tests;
 
 extern crate clap;
 #[macro_use]
 extern crate log;
 
 use clap::Parser;
-use gst::traits::{ElementExt, GstObjectExt};
 use gstreamer as gst;
+use layout::*;
+use mixer::*;
 
 /// program arguments
 #[derive(Parser, Debug)]
@@ -57,67 +59,52 @@ fn main() {
         }
     };
 
-    let layout = layout::Grid::new(&resolution);
-    let pipeline = gst::Pipeline::new(None);
     // create a mixer for audio and video
-    let mut mixer = mixer::Mixer::new(&pipeline, &resolution, args.visibles, layout, args.display);
-    let output = mixer::DisplaySink::new(&pipeline, &resolution);
-    mixer.link_display_sink(&output);
+    let mixer = Mixer::<Speaker>::new::<DisplaySink>(&resolution, args.participants);
 
-    pipeline.set_state(gst::State::Playing).unwrap();
+    mixer.play();
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
         // must set this to work
-        mixer::generate_dot_file(&pipeline, "pipeline");
+        mixer.generate_dot_file("pipeline");
     }
 
     // start thread which continuously switches speaking text
     std::thread::spawn({
-        let pipeline = pipeline.clone();
+        let mut mixer = mixer.clone();
         move || {
             // clone a mixer instance for the thread
             // initially set title
             mixer.set_title("Some very important meeting");
 
-            for n in 0..args.participants {
-                let name = format!("{n}");
-                mixer.participants.insert(
-                    name.clone(),
-                    mixer::Participant::create(&pipeline, &name, "smpte", &resolution),
-                );
-            }
-            trace!("participants: {:?}", mixer.participants.keys());
+            let names: Vec<String> = (0..args.participants)
+                .enumerate()
+                .map(|(n, _)| n.to_string().clone())
+                .collect();
+            mixer.add_participants(&names);
 
             let mut i: usize = 0;
             let mut m: isize = 0;
             let mut step: isize = 1;
             loop {
-                trace!("==================================================================");
                 let mut names = Vec::new();
                 for i in 0..m {
                     names.push(format!("{i}"));
                 }
-                trace!("-set_viewable-----------------------------------------------------");
-                trace!("visibles: {:?}", names);
-                pipeline.set_state(gst::State::Paused).unwrap();
-                std::thread::sleep_ms(100);
+                mixer.pause();
                 mixer.set_viewable(&names);
                 // continuously set who's speaking
                 if i > 0 {
                     mixer.set_speaking(&format!("{}", names[i % names.len()]));
                 }
-                trace!("-layout-----------------------------------------------------------");
                 mixer.layout();
-
-                pipeline.set_state(gst::State::Playing).unwrap();
-                trace!("-ready-----------------------------------------------------------");
-                std::thread::sleep_ms(100);
+                mixer.play();
 
                 // shall we create DOT file of mixer's pipeline?
                 if args.dot {
                     // must set this to work
-                    mixer::generate_dot_file(&pipeline, &format!("pipeline-{i}-{m}"));
+                    mixer.generate_dot_file(&format!("pipeline-{i}-{m}"));
                 }
                 // and switch who's speaking
                 i += 1;
@@ -137,33 +124,5 @@ fn main() {
     });
 
     // run the mixer
-    run(&pipeline);
-}
-
-/// wait until mixer generates error or ends
-pub fn run(pipeline: &gst::Pipeline) {
-    // wait until error or EOS
-    let bus = pipeline.bus().unwrap();
-    for msg in bus.iter_timed(gst::ClockTime::NONE) {
-        use gst::MessageView;
-
-        match msg.view() {
-            MessageView::Error(err) => {
-                eprintln!(
-                    "Error received from element {:?}: {}",
-                    err.src().map(|s| s.path_string()),
-                    err.error()
-                );
-                eprintln!("Debugging information: {:?}", err.debug());
-                break;
-            }
-            MessageView::Eos(..) => break,
-            _ => (),
-        }
-    }
-
-    // stop pipeline
-    pipeline
-        .set_state(gst::State::Null)
-        .expect("Unable to set the pipeline to the `Null` state");
+    mixer.run();
 }

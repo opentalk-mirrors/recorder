@@ -1,20 +1,21 @@
-use std::collections::HashMap;
-
-use super::display_sink::DisplaySink;
-
 use crate::{error::Error, layout::*, mixer::Participant};
 use gst::{
     prelude::{ElementExtManual, GObjectExtManualGst, ObjectExt},
     traits::{ElementExt, GstBinExt, GstObjectExt, PadExt},
 };
-use gst_sdp::gst::PadExtManual;
 use gstreamer as gst;
+use std::collections::HashMap;
 
+pub trait Sink {
+    fn new(pipeline: &gst::Pipeline, _resolution: &Size) -> Self;
+    fn sink_pad(&self) -> &gst::Pad;
+}
+
+#[derive(Clone)]
 pub struct Mixer<L>
 where
     L: Layout,
 {
-    elements: Vec<gst::Element>,
     pub compositor: gst::Element,
     resolution: Size,
     pub max_participants: usize,
@@ -22,7 +23,6 @@ where
     clock: Option<gst::Element>,
     title: Option<gst::Element>,
     speaking: Option<gst::Element>,
-    output_pad: gst::Pad,
     pipeline: gst::Pipeline,
     layout: L,
     pub participants: HashMap<String, Participant>,
@@ -32,15 +32,17 @@ impl<L> Mixer<L>
 where
     L: Layout,
 {
-    pub fn new(
-        pipeline: &gst::Pipeline,
-        resolution: &Size,
-        max_participants: usize,
-        layout: L,
-        _test_sink: bool,
-    ) -> Mixer<L> {
+    pub fn new<S>(resolution: &Size, max_participants: usize) -> Self
+    where
+        S: Sink,
+    {
         let width = resolution.width;
         let height = resolution.height;
+        let layout = L::new(&resolution);
+        let pipeline = gst::Pipeline::new(None);
+
+        // create output link
+        let output = S::new(&pipeline, &resolution);
 
         // create test src to get a picture when no participant is connected
         let background_src =
@@ -96,6 +98,7 @@ where
 
         let output_queue =
             gst::ElementFactory::make("queue", Some(&format!("compositor-output"))).unwrap();
+        let output_pad = output_queue.static_pad("src").unwrap();
 
         // add elements to pipeline
         pipeline.add(&background_src).unwrap();
@@ -115,18 +118,10 @@ where
         clock_overlay.link(&title_overlay).unwrap();
         title_overlay.link(&speaking_overlay).unwrap();
         speaking_overlay.link(&output_queue).unwrap();
+        // link to output sink
+        output_pad.link(output.sink_pad()).unwrap();
 
         Mixer {
-            // remember elements for deletion
-            elements: vec![
-                background_src.clone(),
-                compositor.clone(),
-                clock_overlay.clone(),
-                title_overlay.clone(),
-                speaking_overlay.clone(),
-                caps.clone(),
-                output_queue.clone(),
-            ],
             // remember elements and pads for connect/disconnect and property setup
             compositor: compositor.clone(),
             resolution: resolution.clone(),
@@ -135,10 +130,17 @@ where
             clock: Some(clock_overlay.clone()),
             title: Some(title_overlay.clone()),
             speaking: Some(speaking_overlay.clone()),
-            output_pad: output_queue.static_pad("src").unwrap(),
             layout,
             pipeline: pipeline.clone(),
             participants: HashMap::new(),
+        }
+    }
+    pub fn add_participants(&mut self, names: &[String]) {
+        for name in names {
+            self.participants.insert(
+                name.to_string(),
+                Participant::create(&self.pipeline, name, "smpte", &self.resolution),
+            );
         }
     }
     pub fn set_viewable(&mut self, names: &[String]) {
@@ -159,9 +161,6 @@ where
             )
             .unwrap();
         }
-    }
-    pub fn link_display_sink(&self, sink: &DisplaySink) {
-        self.output_pad.link(sink.sink_pad()).unwrap();
     }
     pub fn layout(&self) {
         let count = self.visibles;
@@ -326,20 +325,54 @@ where
         }
         Ok(())
     }
-}
+    pub fn play(&self) {
+        self.pipeline.set_state(gst::State::Playing).unwrap();
+        std::thread::sleep_ms(100);
+    }
+    pub fn pause(&self) {
+        self.pipeline.set_state(gst::State::Paused).unwrap();
+        std::thread::sleep_ms(100);
+    }
+    /// wait until mixer generates error or ends
+    pub fn run(&self) {
+        // wait until error or EOS
+        let bus = self.pipeline.bus().unwrap();
+        for msg in bus.iter_timed(gst::ClockTime::NONE) {
+            use gst::MessageView;
 
-pub fn generate_dot_file(pipeline: &gst::Pipeline, filename_without_extension: &str) {
-    if let Ok(path) = std::env::var("GST_DEBUG_DUMP_DOT_DIR") {
-        info!(
-            "writing DOT file `{}/{filename_without_extension}.dot`...",
-            path
-        );
-        gst::debug_bin_to_dot_file(
-            pipeline,
-            gst::DebugGraphDetails::ALL,
-            filename_without_extension,
-        );
-    } else {
-        warn!("can not write DOT file. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to a absolute path");
+            match msg.view() {
+                MessageView::Error(err) => {
+                    eprintln!(
+                        "Error received from element {:?}: {}",
+                        err.src().map(|s| s.path_string()),
+                        err.error()
+                    );
+                    eprintln!("Debugging information: {:?}", err.debug());
+                    break;
+                }
+                MessageView::Eos(..) => break,
+                _ => (),
+            }
+        }
+
+        // stop pipeline
+        self.pipeline
+            .set_state(gst::State::Null)
+            .expect("Unable to set the pipeline to the `Null` state");
+    }
+    pub fn generate_dot_file(&self, filename_without_extension: &str) {
+        if let Ok(path) = std::env::var("GST_DEBUG_DUMP_DOT_DIR") {
+            info!(
+                "writing DOT file `{}/{filename_without_extension}.dot`...",
+                path
+            );
+            gst::debug_bin_to_dot_file(
+                &self.pipeline,
+                gst::DebugGraphDetails::ALL,
+                filename_without_extension,
+            );
+        } else {
+            warn!("can not write DOT file. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to a absolute path");
+        }
     }
 }
