@@ -32,7 +32,7 @@ impl Layout for Grid {
     }
 
     // align the "who's speaking" text
-    fn speaking_alignment(&self, count: usize) -> Alignment {
+    fn speaking_alignment(&self, _count: usize) -> Alignment {
         Alignment {
             horizontal: "left",
             vertical: "bottom",
@@ -40,7 +40,7 @@ impl Layout for Grid {
     }
 
     // place "who's speaking" text
-    fn speaking_position(&self, count: usize) -> Position {
+    fn speaking_position(&self, _count: usize) -> Position {
         // straight at the bottom (see `speaking_alignment`)
         Position { x: 0, y: 0 }
     }
@@ -102,6 +102,7 @@ impl Grid {
     fn uni_size(&self, count: usize) -> Size {
         let width = self.resolution().width / self.columns(count);
         let height = (width as f64 / self.resolution().ratio()) as usize;
+        trace!("uni_size({count}) = {width}x{height}");
         Size { width, height }
     }
     fn padding(&self, count: usize) -> usize {
