@@ -286,7 +286,7 @@ where
     }
     pub fn unlink(&mut self, names: &Vec<String>) -> Result<(), Error> {
         trace!("unlinking {:?}...", names);
-        for (n, name) in names.iter().enumerate() {
+        for (_, name) in names.iter().enumerate() {
             if let Some(participant) = self.participants.get_mut(&name.clone()) {
                 // check if not already linked to fake sink
                 if participant.video_fake_sink.is_none() {

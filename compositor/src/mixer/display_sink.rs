@@ -8,7 +8,7 @@ pub struct DisplaySink {
 
 impl DisplaySink {
     #[allow(dead_code)]
-    pub fn create(pipeline: &gst::Pipeline, resolution: &Size) -> DisplaySink {
+    pub fn new(pipeline: &gst::Pipeline, _resolution: &Size) -> DisplaySink {
         let video_sink =
             gst::ElementFactory::make("xvimagesink", Some("display-video-sink")).unwrap();
 

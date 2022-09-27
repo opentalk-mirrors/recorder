@@ -61,7 +61,7 @@ fn main() {
     let pipeline = gst::Pipeline::new(None);
     // create a mixer for audio and video
     let mut mixer = mixer::Mixer::new(&pipeline, &resolution, args.visibles, layout, args.display);
-    let output = mixer::DisplaySink::create(&pipeline, &resolution);
+    let output = mixer::DisplaySink::new(&pipeline, &resolution);
     mixer.link_display_sink(&output);
 
     pipeline.set_state(gst::State::Playing).unwrap();
@@ -132,10 +132,6 @@ fn main() {
                     step = 1;
                 }
                 m = m + step;
-                std::thread::sleep_ms(1000);
-
-                // take time
-                std::thread::sleep(std::time::Duration::from_millis(1000));
             }
         }
     });

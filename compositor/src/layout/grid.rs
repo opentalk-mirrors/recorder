@@ -16,7 +16,7 @@ impl Layout for Grid {
             y: (self.height(count) * row + self.padding(count)) as i64,
         }
     }
-    fn size(&self, n: usize, count: usize) -> Size {
+    fn size(&self, _n: usize, count: usize) -> Size {
         self.uni_size(count)
     }
     fn title_alignment(&self) -> Alignment {
@@ -51,7 +51,7 @@ impl Layout for Grid {
             vertical: "bottom",
         }
     }
-    fn clock_position(&self, count: usize) -> Position {
+    fn clock_position(&self, _count: usize) -> Position {
         // place clock display
         Position { x: 0, y: 0 }
     }
@@ -64,6 +64,7 @@ impl Grid {
     /// - `resolution` : dimensions of the output picture in pixels
     /// # Return
     /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
+    #[allow(dead_code)]
     pub fn new(resolution: &Size) -> Self {
         // calculate layout
         Self {
