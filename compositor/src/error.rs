@@ -2,4 +2,5 @@
 pub enum Error {
     TooManyParticipants,
     ParticipantNotFound(String),
+    PlayingPipelineForbidden,
 }

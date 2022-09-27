@@ -78,6 +78,7 @@ fn main() {
             // initially set title
             mixer.set_title("Some very important meeting");
 
+            // add participant names
             let names: Vec<String> = (0..args.participants)
                 .enumerate()
                 .map(|(n, _)| n.to_string().clone())
@@ -88,17 +89,25 @@ fn main() {
             let mut m: isize = 0;
             let mut step: isize = 1;
             loop {
-                let mut names = Vec::new();
-                for i in 0..m {
-                    names.push(format!("{i}"));
-                }
+                // pause before changing the scene
                 mixer.pause();
+
+                // select participant names for visibility
+                let names: Vec<String> = (0..m)
+                    .enumerate()
+                    .map(|(n, _)| n.to_string().clone())
+                    .collect();
                 mixer.set_viewable(&names);
+
                 // continuously set who's speaking
-                if i > 0 {
+                if !names.is_empty() {
                     mixer.set_speaking(&format!("{}", names[i % names.len()]));
+                    // enumerate names
+                    i += 1;
                 }
                 mixer.layout();
+
+                // play after changing the scene
                 mixer.play();
 
                 // shall we create DOT file of mixer's pipeline?
@@ -106,19 +115,14 @@ fn main() {
                     // must set this to work
                     mixer.generate_dot_file(&format!("pipeline-{i}-{m}"));
                 }
-                // and switch who's speaking
-                i += 1;
-                if i >= names.len() {
-                    i = 0;
-                }
 
+                // enumerate number of visibles up and down in a loop
                 if m == args.visibles as isize - 1 {
                     step = -1;
-                }
-                if m == 0 {
+                } else if m == 0 {
                     step = 1;
                 }
-                m = m + step;
+                m += step;
             }
         }
     });

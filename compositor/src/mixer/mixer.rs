@@ -143,7 +143,10 @@ where
             );
         }
     }
-    pub fn set_viewable(&mut self, names: &[String]) {
+    pub fn set_viewable(&mut self, names: &[String]) -> Result<(), Error> {
+        if self.pipeline.current_state() == gst::State::Playing {
+            return Err(Error::PlayingPipelineForbidden);
+        }
         self.unlink(
             &self
                 .participants
@@ -161,8 +164,12 @@ where
             )
             .unwrap();
         }
+        Ok(())
     }
-    pub fn layout(&self) {
+    pub fn layout(&self) -> Result<(), Error> {
+        if self.pipeline.current_state() == gst::State::Playing {
+            return Err(Error::PlayingPipelineForbidden);
+        }
         let count = self.visibles;
         trace!("visibles = {count}");
         self.layout_overlay(
@@ -211,6 +218,7 @@ where
             pad.set_property("height", size.height as i32);
             pad.set_property("alpha", alpha);
         }
+        Ok(())
     }
     fn layout_overlay(
         &self,
@@ -240,6 +248,9 @@ where
         }
     }
     pub fn link(&mut self, names: &Vec<String>) -> Result<(), Error> {
+        if self.pipeline.current_state() == gst::State::Playing {
+            return Err(Error::PlayingPipelineForbidden);
+        }
         if (self.compositor.num_sink_pads() - 1) as usize >= self.max_participants {
             return Err(Error::TooManyParticipants);
         }
@@ -284,6 +295,9 @@ where
         Ok(())
     }
     pub fn unlink(&mut self, names: &Vec<String>) -> Result<(), Error> {
+        if self.pipeline.current_state() == gst::State::Playing {
+            return Err(Error::PlayingPipelineForbidden);
+        }
         trace!("unlinking {:?}...", names);
         for (_, name) in names.iter().enumerate() {
             if let Some(participant) = self.participants.get_mut(&name.clone()) {
