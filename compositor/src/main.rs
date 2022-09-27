@@ -109,6 +109,7 @@ fn main() {
                 }
                 trace!("-layout-----------------------------------------------------------");
                 mixer.layout();
+
                 pipeline.set_state(gst::State::Playing).unwrap();
                 trace!("-ready-----------------------------------------------------------");
                 std::thread::sleep_ms(100);
