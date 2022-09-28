@@ -37,7 +37,7 @@ pub struct Alignment {
 }
 
 /// recording picture layout
-pub trait Layout {
+pub trait Layout: Send + 'static {
     fn new(resolution: &Size) -> Self;
     fn resolution(&self) -> &Size;
     fn position(&self, n: usize, count: usize) -> Position;

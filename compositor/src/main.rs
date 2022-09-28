@@ -12,6 +12,12 @@ use gstreamer as gst;
 use layout::*;
 use mixer::*;
 
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum LayoutT {
+    Speaker,
+    Grid,
+}
+
 /// program arguments
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -31,6 +37,9 @@ pub struct Arguments {
     /// generate dot file of pipeline
     #[clap(short = 'D', long)]
     dot: bool,
+    /// select layout
+    #[clap(short, long, value_enum, default_value = "grid")]
+    layout: LayoutT,
     /// use test sources
     #[clap(short, long)]
     test: bool,
@@ -43,6 +52,15 @@ fn main() {
     // parse command line arguments
     let args = Arguments::parse();
 
+    match args.layout {
+        LayoutT::Speaker => run::<Speaker>(args),
+        LayoutT::Grid => run::<Grid>(args),
+    }
+}
+fn run<L>(args: Arguments)
+where
+    L: Layout + Clone,
+{
     // initialize gstreamer
     gst::init().unwrap();
 
@@ -60,12 +78,9 @@ fn main() {
     };
 
     // create a mixer for audio and video
-    let mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(
-        &resolution,
-        args.participants,
-        args.visibles,
-    )
-    .unwrap();
+    let mixer =
+        Mixer::<L, TestSource>::new::<DisplaySink>(&resolution, args.participants, args.visibles)
+            .unwrap();
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
@@ -146,6 +161,8 @@ fn main() {
                     step = 1;
                 }
                 m += step;
+                // let it happen
+                std::thread::sleep_ms(500);
             }
         }
     });

@@ -49,22 +49,37 @@ mplayer dash.mpd
 ### Advanced options
 
 ```txt
-compositor 0.1.0
+compositor 0.1.1
 program arguments
 
 USAGE:
     compositor [OPTIONS]
 
 OPTIONS:
-    -d, --display                    just use video display instead of recording
-    -D, --dot                        generate dot file of pipeline
-    -h, --help                       Print help information
-        --resolution <RESOLUTION>    width and height (e.g. `1920x1080`) of the composite output
-                                     [default: 640x480]
-    -t, --test                       use test sources
-    -V, --version                    Print version information
-        --viewers <VIEWERS>          number of visible viewers (additionally to the speaker)
-                                     [default: 5]
+    -d, --display
+            just use video display instead of recording
+
+    -D, --dot
+            generate dot file of pipeline
+
+    -h, --help
+            Print help information
+
+    -p, --participants <PARTICIPANTS>
+            number of visible viewers (additionally to the speaker) [default: 5]
+
+        --resolution <RESOLUTION>
+            width and height (e.g. `1920x1080`) of the composite output [default: 640x480]
+
+    -t, --test
+            use test sources
+
+    -v, --visibles <VISIBLES>
+            maximum number of visible participants [default: 5]
+
+    -V, --version
+            Print version information
+
 ```
 
 ## Convert Dash files into one *MP4* file
