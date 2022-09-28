@@ -1,8 +1,4 @@
 use crate::{layout::*, Source};
-use gst::{
-    prelude::GObjectExtManualGst,
-    traits::{ElementExt, GstBinExt},
-};
 use gstreamer as gst;
 
 #[derive(Debug, Clone)]
@@ -24,5 +20,9 @@ where
             name: name.to_string(),
             source: SRC::new(pipeline, name, "smpte", resolution),
         }
+    }
+    #[allow(dead_code)]
+    pub fn is_video_linked(&self) -> bool {
+        self.source.video_fake_sink().is_some()
     }
 }

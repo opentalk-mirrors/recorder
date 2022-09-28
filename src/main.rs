@@ -109,9 +109,12 @@ async fn record(
             width: 1920,
             height: 1080,
         },
-        // maximum visible partcipants
+        // partcipants
+        20,
+        // maximum visibles
         6,
-    );
+    )
+    .unwrap();
 
     mixer.play();
 

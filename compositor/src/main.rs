@@ -60,9 +60,26 @@ fn main() {
     };
 
     // create a mixer for audio and video
-    let mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(&resolution, args.participants);
+    let mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(
+        &resolution,
+        args.participants,
+        args.visibles,
+    )
+    .unwrap();
+
+    // shall we create DOT file of mixer's pipeline?
+    if args.dot {
+        // must set this to work
+        mixer.generate_dot_file(&format!("pipeline-initial"));
+    }
 
     mixer.play();
+
+    // shall we create DOT file of mixer's pipeline?
+    if args.dot {
+        // must set this to work
+        mixer.generate_dot_file(&format!("pipeline-first-playing"));
+    }
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
@@ -81,23 +98,29 @@ fn main() {
             // add participant names
             let names: Vec<String> = (0..args.participants)
                 .enumerate()
-                .map(|(n, _)| n.to_string().clone())
+                .map(|(n, _)| format!("Participant {n}").clone())
                 .collect();
-            mixer.add_participants(&names);
+
+            mixer.pause();
+            mixer.add_participants(&names).unwrap();
+            mixer.play();
 
             let mut i: usize = 0;
             let mut m: isize = 0;
             let mut step: isize = 1;
             loop {
+                trace!(
+                    "------------------------------ {i} ({m} visibles) ------------------------------"
+                );
                 // pause before changing the scene
                 mixer.pause();
 
                 // select participant names for visibility
                 let names: Vec<String> = (0..m)
                     .enumerate()
-                    .map(|(n, _)| n.to_string().clone())
+                    .map(|(n, _)| format!("Participant {n}").clone())
                     .collect();
-                mixer.set_viewable(&names);
+                mixer.set_visibles(&names).unwrap();
 
                 // continuously set who's speaking
                 if !names.is_empty() {
@@ -105,7 +128,7 @@ fn main() {
                     // enumerate names
                     i += 1;
                 }
-                mixer.layout();
+                mixer.layout().unwrap();
 
                 // play after changing the scene
                 mixer.play();
@@ -117,7 +140,7 @@ fn main() {
                 }
 
                 // enumerate number of visibles up and down in a loop
-                if m == args.visibles as isize - 1 {
+                if m >= args.visibles as isize {
                     step = -1;
                 } else if m == 0 {
                     step = 1;

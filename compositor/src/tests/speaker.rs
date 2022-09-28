@@ -30,19 +30,14 @@ fn test_speaker_view() {
                     mixer::Participant::create(&pipeline, &name, "smpte", &resolution),
                 );
             }
-            trace!("participants: {:?}", mixer.participants.keys());
-
             let mut i: usize = 0;
             let mut m: isize = 0;
             let mut step: isize = 1;
             loop {
-                trace!("==================================================================");
                 let mut names = Vec::new();
                 for i in 0..m {
                     names.push(format!("{i}"));
                 }
-                trace!("-set_viewable-----------------------------------------------------");
-                trace!("visibles: {:?}", names);
                 pipeline.set_state(gst::State::Paused).unwrap();
                 std::thread::sleep_ms(100);
                 mixer.set_viewable(&names);
@@ -50,11 +45,9 @@ fn test_speaker_view() {
                 if i > 0 {
                     mixer.set_speaking(&format!("{}", names[i % names.len()]));
                 }
-                trace!("-layout-----------------------------------------------------------");
                 mixer.layout();
 
                 pipeline.set_state(gst::State::Playing).unwrap();
-                trace!("-ready-----------------------------------------------------------");
                 std::thread::sleep_ms(100);
 
                 // shall we create DOT file of mixer's pipeline?

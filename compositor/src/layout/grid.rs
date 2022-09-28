@@ -86,14 +86,12 @@ impl Grid {
         if count > 1 {
             let columns = (f64::sqrt(count as f64) + 0.9) as usize;
             let rows = (count + columns - 1) / columns;
-            trace!("count = {count}, rows = {rows}, columns = {columns}");
             if rows > columns {
                 (columns + 1, rows - 1)
             } else {
                 (columns, rows)
             }
         } else {
-            trace!("count = {count}, rows = 1, columns = 1");
             (1, 1)
         }
     }
@@ -106,7 +104,6 @@ impl Grid {
     fn uni_size(&self, count: usize) -> Size {
         let width = self.resolution().width / self.columns(count);
         let height = (width as f64 / self.resolution().ratio()) as usize;
-        trace!("uni_size({count}) = {width}x{height}");
         Size { width, height }
     }
     fn padding(&self, count: usize) -> usize {
