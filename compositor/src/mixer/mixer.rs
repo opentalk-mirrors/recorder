@@ -6,15 +6,26 @@ use gst::{
 use gstreamer as gst;
 use std::collections::HashMap;
 
+pub trait Source {
+    fn new(pipeline: &gst::Pipeline, name: &str, pattern: &str, resolution: &Size) -> Self;
+    fn video_src_element(&self) -> &gst::Element;
+    fn video_src_pad(&self) -> &gst::Pad;
+    fn video_sink_pad(&self) -> &gst::Pad;
+    fn video_fake_sink(&self) -> &Option<gst::Element>;
+    fn set_video_sink_pad(&mut self, sink_pad: gst::Pad);
+    fn set_video_fake_sink(&mut self, fake_sink: Option<gst::Element>);
+}
+
 pub trait Sink {
     fn new(pipeline: &gst::Pipeline, _resolution: &Size) -> Self;
-    fn sink_pad(&self) -> &gst::Pad;
+    fn video_sink_pad(&self) -> &gst::Pad;
 }
 
 #[derive(Clone)]
-pub struct Mixer<L>
+pub struct Mixer<L, SRC>
 where
     L: Layout,
+    SRC: Source,
 {
     pub compositor: gst::Element,
     resolution: Size,
@@ -25,16 +36,17 @@ where
     speaking: Option<gst::Element>,
     pipeline: gst::Pipeline,
     layout: L,
-    pub participants: HashMap<String, Participant>,
+    pub participants: HashMap<String, Participant<SRC>>,
 }
 
-impl<L> Mixer<L>
+impl<L, SRC> Mixer<L, SRC>
 where
     L: Layout,
+    SRC: Source,
 {
-    pub fn new<S>(resolution: &Size, max_participants: usize) -> Self
+    pub fn new<SINK>(resolution: &Size, max_participants: usize) -> Self
     where
-        S: Sink,
+        SINK: Sink,
     {
         let width = resolution.width;
         let height = resolution.height;
@@ -42,7 +54,7 @@ where
         let pipeline = gst::Pipeline::new(None);
 
         // create output link
-        let output = S::new(&pipeline, &resolution);
+        let output = SINK::new(&pipeline, &resolution);
 
         // create test src to get a picture when no participant is connected
         let background_src =
@@ -119,7 +131,7 @@ where
         title_overlay.link(&speaking_overlay).unwrap();
         speaking_overlay.link(&output_queue).unwrap();
         // link to output sink
-        output_pad.link(output.sink_pad()).unwrap();
+        output_pad.link(output.video_sink_pad()).unwrap();
 
         Mixer {
             // remember elements and pads for connect/disconnect and property setup
@@ -139,7 +151,7 @@ where
         for name in names {
             self.participants.insert(
                 name.to_string(),
-                Participant::create(&self.pipeline, name, "smpte", &self.resolution),
+                Participant::new(&self.pipeline, name, &self.resolution),
             );
         }
     }
@@ -258,16 +270,17 @@ where
         let compositor_sink_pads = self.compositor.sink_pads();
         for (n, name) in names.iter().enumerate() {
             if let Some(participant) = self.participants.get_mut(&name.clone()) {
+                let source = &mut participant.source;
                 // check if not already linked to compositor
-                if let Some(fake_sink) = &participant.video_fake_sink {
-                    if participant
-                        .video_src_pad
-                        .unlink(&participant.video_sink_pad)
+                if let Some(fake_sink) = source.video_fake_sink() {
+                    if source
+                        .video_src_pad()
+                        .unlink(source.video_sink_pad())
                         .is_ok()
                     {
                         trace!(
                             "unlinking video fake sink pad {sink} from {source}...",
-                            sink = participant.video_sink_pad.name(),
+                            sink = participant.name,
                             source = name
                         );
                         // halt fake sink
@@ -275,16 +288,16 @@ where
                         // remove fake sink from pipeline
                         self.pipeline.remove(fake_sink).unwrap();
                         // link source with compositor
-                        participant
-                            .video_src_pad
+                        source
+                            .video_src_pad()
                             .link(&compositor_sink_pads[n + 1])
                             .unwrap();
                     }
 
                     // remove fake sink from compositor to signal that we have unlinked it
-                    participant.video_fake_sink = None;
+                    source.set_video_fake_sink(None);
                     // save new compositor sink pad
-                    participant.video_sink_pad = compositor_sink_pads[n + 1].clone();
+                    source.set_video_sink_pad(compositor_sink_pads[n + 1].clone());
                     self.visibles = self.visibles + 1;
                     trace!("linked {name} successfully", name = participant.name);
                 }
@@ -301,8 +314,9 @@ where
         trace!("unlinking {:?}...", names);
         for (_, name) in names.iter().enumerate() {
             if let Some(participant) = self.participants.get_mut(&name.clone()) {
+                let source = &mut participant.source;
                 // check if not already linked to fake sink
-                if participant.video_fake_sink.is_none() {
+                if source.video_fake_sink().is_none() {
                     // create fake sink
                     trace!("creating new fake sink...");
                     let fake_sink = gst::ElementFactory::make(
@@ -311,25 +325,25 @@ where
                     )
                     .unwrap();
                     fake_sink.set_property_from_str("sync", "true");
-                    if let Some(peer) = participant.video_src_pad.peer() {
+                    if let Some(peer) = source.video_src_pad().peer() {
                         trace!(
                             "unlinking compositor {sink} from {source}...",
                             sink = peer.name(),
                             source = name
                         );
-                        participant.video_src_pad.unlink(&peer).unwrap();
+                        source.video_src_pad().unlink(&peer).unwrap();
 
                         trace!("add fake sink to pipeline...");
                         self.pipeline.add(&fake_sink).unwrap();
                         trace!("create fake sink pad...");
                         trace!("link to fake sink pad...");
-                        participant
-                            .video_src_pad
+                        source
+                            .video_src_pad()
                             .link(&fake_sink.static_pad("sink").unwrap())
                             .unwrap();
                     }
-                    participant.video_sink_pad = fake_sink.static_pad("sink").unwrap();
-                    participant.video_fake_sink = Some(fake_sink);
+                    source.set_video_sink_pad(fake_sink.static_pad("sink").unwrap());
+                    source.set_video_fake_sink(Some(fake_sink));
                     self.visibles = self.visibles - 1;
                     trace!("unlinked {name} successfully", name = participant.name);
                 }

@@ -60,7 +60,7 @@ fn main() {
     };
 
     // create a mixer for audio and video
-    let mixer = Mixer::<Speaker>::new::<DisplaySink>(&resolution, args.participants);
+    let mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(&resolution, args.participants);
 
     mixer.play();
 

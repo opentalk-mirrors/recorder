@@ -19,7 +19,7 @@ impl Sink for DisplaySink {
             video_sink_pad: video_sink.static_pad("sink").unwrap(),
         }
     }
-    fn sink_pad(&self) -> &gst::Pad {
+    fn video_sink_pad(&self) -> &gst::Pad {
         &self.video_sink_pad
     }
 }

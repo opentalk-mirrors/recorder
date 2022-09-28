@@ -103,7 +103,7 @@ async fn record(
 
     use compositor::*;
 
-    let mut mixer = Mixer::<Speaker>::new::<DisplaySink>(
+    let mut mixer = Mixer::<Speaker, TestSource>::new::<DisplaySink>(
         // resolution
         &Size {
             width: 1920,
