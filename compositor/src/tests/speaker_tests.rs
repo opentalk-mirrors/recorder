@@ -1,3 +1,9 @@
+extern crate clap;
+#[cfg(test)]
+use crate::{layout::*, mixer::*};
+#[cfg(test)]
+use gstreamer as gst;
+
 #[test]
 fn test_speaker_view() {
     env_logger::init();

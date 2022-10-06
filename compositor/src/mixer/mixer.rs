@@ -13,13 +13,13 @@ pub trait Source {
     fn video_src_pad(&self) -> &gst::Pad;
     fn video_sink_pad(&self) -> &gst::Pad;
     fn video_fake_sink(&self) -> &Option<gst::Element>;
-    fn set_video_sink_pad(&mut self, sink_pad: gst::Pad);
+    fn set_video_sink(&mut self, sink_pad: gst::Pad, sink: gst::Element);
     fn set_video_fake_sink(&mut self, fake_sink: Option<gst::Element>);
     fn audio_src_element(&self) -> &gst::Element;
     fn audio_src_pad(&self) -> &gst::Pad;
     fn audio_sink_pad(&self) -> &gst::Pad;
     fn audio_fake_sink(&self) -> &Option<gst::Element>;
-    fn set_audio_sink_pad(&mut self, sink_pad: gst::Pad);
+    fn set_audio_sink(&mut self, sink_pad: gst::Pad, sink: gst::Element);
     fn set_audio_fake_sink(&mut self, fake_sink: Option<gst::Element>);
 }
 
@@ -79,9 +79,6 @@ where
         video_background_src.set_property_from_str("pattern", "black");
         video_background_src.set_property_from_str("is-live", "true");
 
-        let video_background_queue =
-            gst::ElementFactory::make("queue", Some(&format!("video-background-queue"))).unwrap();
-
         // create video caps setter
         let video_caps =
             gst::ElementFactory::make("capssetter", Some(&format!("video-caps"))).unwrap();
@@ -126,29 +123,22 @@ where
         speaking_overlay.set_property_from_str("ypad", "2");
         speaking_overlay.set_property_from_str("color", "0xffffffff");
 
-        // create video output queue
-        let video_output_queue =
-            gst::ElementFactory::make("queue", Some(&format!("video-output-queue"))).unwrap();
-        let video_output_pad = video_output_queue.static_pad("src").unwrap();
+        let video_output_pad = speaking_overlay.static_pad("src").unwrap();
 
         // add video elements to pipeline
         pipeline.add(&video_background_src).unwrap();
         pipeline.add(&video_caps).unwrap();
-        pipeline.add(&video_background_queue).unwrap();
         pipeline.add(&compositor).unwrap();
         pipeline.add(&clock_overlay).unwrap();
         pipeline.add(&title_overlay).unwrap();
         pipeline.add(&speaking_overlay).unwrap();
-        pipeline.add(&video_output_queue).unwrap();
 
         // link video elements
         video_background_src.link(&video_caps).unwrap();
-        video_caps.link(&video_background_queue).unwrap();
-        video_background_queue.link(&compositor).unwrap();
+        video_caps.link(&compositor).unwrap();
         compositor.link(&clock_overlay).unwrap();
         clock_overlay.link(&title_overlay).unwrap();
         title_overlay.link(&speaking_overlay).unwrap();
-        speaking_overlay.link(&video_output_queue).unwrap();
         // link to output sink
         video_output_pad.link(output.video_sink_pad()).unwrap();
 
@@ -166,9 +156,6 @@ where
             &format!("audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000",),
         );
 
-        let audio_background_queue =
-            gst::ElementFactory::make("queue", Some(&format!("audio-background-queue"))).unwrap();
-
         // create audio mixer
         let audio_mixer =
             gst::ElementFactory::make("audiomixer", Some(&format!("audio-mixer"))).unwrap();
@@ -177,28 +164,21 @@ where
             audio_mixer.request_pad_simple("sink_%u").unwrap();
         }
 
-        // create audio output queue
-        let audio_output_queue =
-            gst::ElementFactory::make("queue", Some(&format!("audio-queue"))).unwrap();
-        let audio_output_pad = audio_output_queue.static_pad("src").unwrap();
+        let audio_output_pad = audio_mixer.static_pad("src").unwrap();
 
         // link audio elements
         pipeline.add(&audio_background_src).unwrap();
         pipeline.add(&audio_caps).unwrap();
-        pipeline.add(&audio_background_queue).unwrap();
         pipeline.add(&audio_mixer).unwrap();
-        pipeline.add(&audio_output_queue).unwrap();
 
         // link audio elements
         audio_background_src.link(&audio_caps).unwrap();
-        audio_caps.link(&audio_background_queue).unwrap();
-        audio_background_queue.link(&audio_mixer).unwrap();
-        audio_mixer.link(&audio_output_queue).unwrap();
+        audio_caps.link(&audio_mixer).unwrap();
         // link to output sink
         audio_output_pad.link(output.audio_sink_pad()).unwrap();
 
         Ok(Mixer {
-            // remember elements and pads for connect/disconnect and property setup
+            // remember all those elements and pads
             compositor: compositor.clone(),
             audio_mixer: audio_mixer.clone(),
             resolution: resolution.clone(),
@@ -227,6 +207,7 @@ where
         self.link_audio(&names.to_vec())?;
         Ok(())
     }
+    #[allow(dead_code)]
     pub fn remove_participants(&mut self, names: &[String]) -> Result<(), Error> {
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -429,7 +410,10 @@ where
                     // remove fake sink from compositor to signal that we have unlinked it
                     source.set_audio_fake_sink(None);
                     // save new compositor sink pad
-                    source.set_audio_sink_pad(audiomixer_sink_pads[n + 1].clone());
+                    source.set_audio_sink(
+                        audiomixer_sink_pads[n + 1].clone(),
+                        self.audio_mixer.clone(),
+                    );
                     trace!(
                         "linked audio of {name} successfully",
                         name = participant.name
@@ -473,7 +457,7 @@ where
                             .link(&fake_sink.static_pad("sink").unwrap())
                             .unwrap();
                     }
-                    source.set_audio_sink_pad(fake_sink.static_pad("sink").unwrap());
+                    source.set_audio_sink(fake_sink.static_pad("sink").unwrap(), fake_sink.clone());
                     source.set_audio_fake_sink(Some(fake_sink));
                     self.visibles = self.visibles - 1;
                     trace!(
@@ -514,8 +498,11 @@ where
 
                     // remove fake sink from compositor to signal that we have unlinked it
                     source.set_video_fake_sink(None);
-                    // save new compositor sink pad
-                    source.set_video_sink_pad(compositor_sink_pads[n + 1].clone());
+                    // save new compositor sink and snik pad
+                    source.set_video_sink(
+                        compositor_sink_pads[n + 1].clone(),
+                        self.compositor.clone(),
+                    );
                     self.visibles = self.visibles + 1;
                     trace!(
                         "linked video of {name} successfully",
@@ -559,7 +546,7 @@ where
                             .link(&fake_sink.static_pad("sink").unwrap())
                             .unwrap();
                     }
-                    source.set_video_sink_pad(fake_sink.static_pad("sink").unwrap());
+                    source.set_video_sink(fake_sink.static_pad("sink").unwrap(), fake_sink.clone());
                     source.set_video_fake_sink(Some(fake_sink));
                     self.visibles = self.visibles - 1;
                     trace!(

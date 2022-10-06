@@ -1,7 +1,8 @@
 mod error;
 mod layout;
 mod mixer;
-//mod tests;
+#[cfg(test)]
+mod tests;
 
 extern crate clap;
 #[macro_use]
@@ -125,9 +126,7 @@ where
             let mut step: isize = 1;
             let mut removed = Vec::new();
             loop {
-                trace!(
-                    "------------------------------ {i} ({m} visibles) ------------------------------"
-                );
+                trace!("------------------------ {i} ({m} visibles) ------------------------");
                 // pause before changing the scene
                 mixer.pause();
 
@@ -139,11 +138,11 @@ where
                     .collect();
                 mixer.set_visibles(&names).unwrap();
 
-                if let Some(last) = names.last() {
-                    mixer.remove_participants(&[last.to_string()]).unwrap();
-                    removed.push(last.to_string());
-                }
-
+                /*                if let Some(last) = names.last() {
+                                    mixer.remove_participants(&[last.to_string()]).unwrap();
+                                    removed.push(last.to_string());
+                                }
+                */
                 // continuously set who's speaking
                 if !names.is_empty() {
                     mixer.set_speaking(&format!("{}", names[i % names.len()]));

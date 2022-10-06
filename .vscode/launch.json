@@ -22,6 +22,10 @@
                 }
             },
             "args": [],
+            "env": {
+                "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor/pipelines",
+                "RUST_LOG": "trace"
+            },
             "cwd": "${workspaceFolder}/compositor"
         },
         {
@@ -46,14 +50,14 @@
                 "-t",
                 "-d",
                 "-p",
-                "8",
+                "80",
                 "-v",
-                "8",
+                "80",
                 "-l",
                 "grid"
             ],
             "env": {
-                "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor",
+                "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor/pipelines",
                 "RUST_LOG": "trace"
             },
             "cwd": "${workspaceFolder}/compositor"
