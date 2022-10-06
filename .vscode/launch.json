@@ -52,11 +52,10 @@
                 "-l",
                 "grid"
             ],
-            "environment": [
-                {
-                    "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor"
-                }
-            ],
+            "env": {
+                "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor",
+                "RUST_LOG": "trace"
+            },
             "cwd": "${workspaceFolder}/compositor"
         }
     ]

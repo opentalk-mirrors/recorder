@@ -12,10 +12,14 @@ pub struct TestSource {
     pub video_sink_pad: gst::Pad,
     pub video_src_pad: gst::Pad,
     pub video_src_element: gst::Element,
+    video_caps: gst::Element,
+    video_queue: gst::Element,
     pub audio_fake_sink: Option<gst::Element>,
     pub audio_sink_pad: gst::Pad,
     pub audio_src_pad: gst::Pad,
     pub audio_src_element: gst::Element,
+    audio_caps: gst::Element,
+    audio_queue: gst::Element,
 }
 
 impl Source for TestSource {
@@ -101,10 +105,14 @@ impl Source for TestSource {
             video_src_element: video_test_src,
             video_sink_pad: video_fake_sink.static_pad("sink").unwrap(),
             video_fake_sink: Some(video_fake_sink),
+            video_caps,
+            video_queue,
             audio_src_pad: audio_queue.static_pad("src").unwrap(),
             audio_src_element: audio_test_src,
             audio_sink_pad: audio_fake_sink.static_pad("sink").unwrap(),
             audio_fake_sink: Some(audio_fake_sink),
+            audio_caps,
+            audio_queue,
         }
     }
     fn video_src_element(&self) -> &gst::Element {
@@ -142,5 +150,33 @@ impl Source for TestSource {
     }
     fn set_audio_fake_sink(&mut self, fake_sink: Option<gst::Element>) {
         self.audio_fake_sink = fake_sink;
+    }
+    /// remove elements from pipeline
+    fn remove(&self, pipeline: &gst::Pipeline) {
+        self.audio_src_element.unlink(&self.audio_caps);
+        self.audio_caps.unlink(&self.audio_queue);
+
+        if let Some(video_fake_sink) = &self.video_fake_sink {
+            video_fake_sink.set_state(gst::State::Null).unwrap();
+            pipeline.remove(video_fake_sink).unwrap();
+        }
+        self.video_src_element.set_state(gst::State::Null).unwrap();
+        pipeline.remove(&self.video_src_element).unwrap();
+        if let Some(audio_fake_sink) = &self.audio_fake_sink {
+            audio_fake_sink.set_state(gst::State::Null).unwrap();
+            self.audio_queue.unlink(audio_fake_sink);
+            pipeline.remove(audio_fake_sink).unwrap();
+        }
+        self.audio_src_element.set_state(gst::State::Null).unwrap();
+        pipeline.remove(&self.audio_src_element).unwrap();
+
+        self.video_caps.set_state(gst::State::Null).unwrap();
+        pipeline.remove(&self.video_caps).unwrap();
+        self.video_queue.set_state(gst::State::Null).unwrap();
+        pipeline.remove(&self.video_queue).unwrap();
+        self.audio_caps.set_state(gst::State::Null).unwrap();
+        pipeline.remove(&self.audio_caps).unwrap();
+        self.audio_queue.set_state(gst::State::Null).unwrap();
+        pipeline.remove(&self.audio_queue).unwrap();
     }
 }

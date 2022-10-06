@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 pub trait Source {
     fn new(pipeline: &gst::Pipeline, name: &str, pattern: &str, resolution: &Size) -> Self;
+    fn remove(&self, pipeline: &gst::Pipeline);
     fn video_src_element(&self) -> &gst::Element;
     fn video_src_pad(&self) -> &gst::Pad;
     fn video_sink_pad(&self) -> &gst::Pad;
@@ -224,6 +225,23 @@ where
             self.participants.insert(name.to_string(), participant);
         }
         self.link_audio(&names.to_vec())?;
+        Ok(())
+    }
+    pub fn remove_participants(&mut self, names: &[String]) -> Result<(), Error> {
+        if self.pipeline.current_state() == gst::State::Playing {
+            return Err(Error::PlayingPipelineForbidden);
+        }
+        for name in names {
+            trace!("removing participant '{name}'");
+            if let Some(participant) = self.participants.get(name) {
+                // remove participant's source from pipeline
+                participant.source.remove(&self.pipeline);
+                // remove participant from mixer map
+                self.participants.remove(name);
+            } else {
+                warn!("participant '{name}' not found");
+            }
+        }
         Ok(())
     }
     pub fn set_visibles(&mut self, names: &[String]) -> Result<(), Error> {

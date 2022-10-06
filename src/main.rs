@@ -134,7 +134,7 @@ async fn record(
         };
 
         match event {
-            signaling::Event::ParticipantJoined(id) => {}
+            signaling::Event::ParticipantJoined(id) => mixer.add_participants(&[id]),
             signaling::Event::ParticipantUpdated(id) => todo!(),
             signaling::Event::ParticipantLeft(id) => todo!(),
             signaling::Event::SdpOffer(id, typ, offer) => {}

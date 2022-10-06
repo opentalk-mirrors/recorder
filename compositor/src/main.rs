@@ -123,6 +123,7 @@ where
             let mut i: usize = 0;
             let mut m: isize = 0;
             let mut step: isize = 1;
+            let mut removed = Vec::new();
             loop {
                 trace!(
                     "------------------------------ {i} ({m} visibles) ------------------------------"
@@ -134,8 +135,14 @@ where
                 let names: Vec<String> = (0..m)
                     .enumerate()
                     .map(|(n, _)| format!("Participant {n}").clone())
+                    .filter(|s| !removed.contains(s))
                     .collect();
                 mixer.set_visibles(&names).unwrap();
+
+                if let Some(last) = names.last() {
+                    mixer.remove_participants(&[last.to_string()]).unwrap();
+                    removed.push(last.to_string());
+                }
 
                 // continuously set who's speaking
                 if !names.is_empty() {
