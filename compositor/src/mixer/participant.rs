@@ -2,23 +2,23 @@ use crate::{layout::*, Source};
 use gstreamer as gst;
 
 #[derive(Debug, Clone)]
-pub struct Participant<SRC>
+pub struct Participant<S>
 where
-    SRC: Source,
+    S: Source,
 {
     pub name: String,
-    pub source: SRC,
+    pub source: S,
 }
 
-impl<SRC> Participant<SRC>
+impl<S> Participant<S>
 where
-    SRC: Source,
+    S: Source,
 {
     #[allow(dead_code)]
     pub fn new(pipeline: &gst::Pipeline, name: &str, resolution: &Size) -> Self {
         Self {
             name: name.to_string(),
-            source: SRC::new(pipeline, name, "smpte", resolution),
+            source: S::new(pipeline, name, "smpte", resolution),
         }
     }
     #[allow(dead_code)]

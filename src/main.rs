@@ -103,7 +103,7 @@ async fn record(
 
     use compositor::*;
 
-    let mut mixer = Mixer::<Speaker, TestSource>::new::<DisplaySink>(
+    let mut mixer = Mixer::<Speaker, WebRtcSource>::new::<DisplaySink>(
         // resolution
         &Size {
             width: 1920,
@@ -116,13 +116,15 @@ async fn record(
     )
     .unwrap();
 
-    mixer.play();
+    for id in signaling.publishing_participants() {
+        mixer.add_participants(&[id.0.to_string()]).unwrap();
+        signaling
+            .start_subscribe(id, signaling::MediaSessionType::Video)
+            .await
+            .unwrap();
+    }
 
-    let names: Vec<String> = vec!["Peer", "Markus", "Michael", "Konstantin", "Pat"]
-        .iter()
-        .map(|n| n.to_string())
-        .collect();
-    mixer.add_participants(&names);
+    mixer.play();
 
     loop {
         let event = match signaling.run().await {
@@ -134,10 +136,24 @@ async fn record(
         };
 
         match event {
-            signaling::Event::ParticipantJoined(id) => mixer.add_participants(&[id]),
-            signaling::Event::ParticipantUpdated(id) => todo!(),
-            signaling::Event::ParticipantLeft(id) => todo!(),
-            signaling::Event::SdpOffer(id, typ, offer) => {}
+            signaling::Event::ParticipantJoined(id) => {}
+            signaling::Event::ParticipantUpdated(id) => {}
+            signaling::Event::ParticipantLeft(id) => {
+                mixer.pause();
+                mixer.remove_participants(&[id.0.to_string()]).unwrap();
+                mixer.play();
+            }
+            signaling::Event::SdpOffer(id, typ, offer) => {
+                let answer = mixer.participants[&id.0.to_string()]
+                    .source
+                    .receive_offer(offer)
+                    .await;
+
+                signaling.send_answer(id, typ, answer).await.unwrap();
+                mixer.pause();
+                mixer.set_visibles(&[id.0.to_string()]).unwrap();
+                mixer.play();
+            }
             signaling::Event::SdpCandidate(id, typ, candidate) => todo!(),
             signaling::Event::SdpEndOfCandidates(id, typ) => {}
         }

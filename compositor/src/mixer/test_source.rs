@@ -104,6 +104,28 @@ impl Source for TestSource {
             audio_caps,
         }
     }
+    /// remove elements from pipeline
+    fn remove(&self, pipeline: &gst::Pipeline) {
+        self.video_src_element.unlink(&self.video_caps);
+        self.video_caps.unlink(&self.video_sink);
+
+        // remove video elements from pipeline
+        if let Some(video_fake_sink) = &self.video_fake_sink {
+            pipeline.remove(video_fake_sink).unwrap();
+        }
+        pipeline.remove(&self.video_src_element).unwrap();
+        if let Some(audio_fake_sink) = &self.audio_fake_sink {
+            pipeline.remove(audio_fake_sink).unwrap();
+        }
+        pipeline.remove(&self.video_caps).unwrap();
+
+        // unlink audio elements
+        self.audio_src_element.unlink(&self.audio_caps);
+        self.audio_caps.unlink(&self.audio_sink);
+        self.audio_src_element.set_state(gst::State::Null).unwrap();
+        pipeline.remove(&self.audio_src_element).unwrap();
+        pipeline.remove(&self.audio_caps).unwrap();
+    }
     fn video_src_element(&self) -> &gst::Element {
         &self.video_src_element
     }
@@ -141,27 +163,5 @@ impl Source for TestSource {
     }
     fn set_audio_fake_sink(&mut self, fake_sink: Option<gst::Element>) {
         self.audio_fake_sink = fake_sink;
-    }
-    /// remove elements from pipeline
-    fn remove(&self, pipeline: &gst::Pipeline) {
-        self.video_src_element.unlink(&self.video_caps);
-        self.video_caps.unlink(&self.video_sink);
-
-        // remove video elements from pipeline
-        if let Some(video_fake_sink) = &self.video_fake_sink {
-            pipeline.remove(video_fake_sink).unwrap();
-        }
-        pipeline.remove(&self.video_src_element).unwrap();
-        if let Some(audio_fake_sink) = &self.audio_fake_sink {
-            pipeline.remove(audio_fake_sink).unwrap();
-        }
-        pipeline.remove(&self.video_caps).unwrap();
-
-        // unlink audio elements
-        self.audio_src_element.unlink(&self.audio_caps);
-        self.audio_caps.unlink(&self.audio_sink);
-        self.audio_src_element.set_state(gst::State::Null).unwrap();
-        pipeline.remove(&self.audio_src_element).unwrap();
-        pipeline.remove(&self.audio_caps).unwrap();
     }
 }

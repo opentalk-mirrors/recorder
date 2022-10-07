@@ -146,7 +146,7 @@ where
         let audio_background_src =
             gst::ElementFactory::make("audiotestsrc", Some(&format!("audio-background"))).unwrap();
         audio_background_src.set_property_from_str("is-live", "true");
-        audio_background_src.set_property_from_str("volume", "0.01");
+        audio_background_src.set_property_from_str("volume", "0.0");
 
         // create audio caps setter
         let audio_caps =

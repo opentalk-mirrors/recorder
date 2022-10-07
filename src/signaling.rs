@@ -122,6 +122,19 @@ impl Signaling {
         })
     }
 
+    pub fn publishing_participants(&self) -> Vec<ParticipantId> {
+        self.participants
+            .iter()
+            .filter_map(|(&id, state)| {
+                state
+                    .publishing
+                    .get(&MediaSessionType::Video)
+                    .is_some()
+                    .then_some(id)
+            })
+            .collect()
+    }
+
     pub async fn run(&mut self) -> Result<Event> {
         loop {
             tokio::select! {
@@ -201,8 +214,8 @@ impl Signaling {
                 incoming::MediaMessage::SdpEndOfCandidates(source) => Ok(Some(
                     Event::SdpEndOfCandidates(source.source, source.media_session_type),
                 )),
-                incoming::MediaMessage::WebRtcUp(_) => todo!(),
-                incoming::MediaMessage::WebRtcDown(_) => todo!(),
+                incoming::MediaMessage::WebRtcUp(_) => Ok(None),
+                incoming::MediaMessage::WebRtcDown(_) => Ok(None),
             },
         }
     }
@@ -294,7 +307,7 @@ struct Payload<'s, T> {
     pub payload: T,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParticipantId(pub Uuid);
 
 mod incoming {
@@ -335,7 +348,7 @@ mod incoming {
     }
 
     #[derive(Debug, Deserialize)]
-    #[serde(rename_all = "snake_case")]
+    #[serde(rename_all = "snake_case", tag = "message")]
     pub enum ControlMessage {
         Joined(Participant),
         Updated(Participant),
