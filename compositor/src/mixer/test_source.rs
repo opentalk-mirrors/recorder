@@ -79,17 +79,14 @@ impl Source for TestSource {
             audio_caps,
         }
     }
+
     /// remove elements from pipeline
     fn remove(self, pipeline: &gst::Pipeline) {
-        self.video_src_element.unlink(&self.video_caps);
-
         // remove video elements from pipeline
         pipeline.remove(&self.video_src_element).unwrap();
         pipeline.remove(&self.video_caps).unwrap();
 
-        // unlink audio elements
-        self.audio_src_element.unlink(&self.audio_caps);
-        self.audio_src_element.set_state(gst::State::Null).unwrap();
+        // remove audio elements
         pipeline.remove(&self.audio_src_element).unwrap();
         pipeline.remove(&self.audio_caps).unwrap();
     }

@@ -2,10 +2,13 @@ use crate::Source;
 use gstreamer as gst;
 
 #[derive(Debug)]
-pub enum LinkStatus {
+pub enum VideoLinkStatus {
+    /// Video source is unlinked
     None,
+    /// Video source is linked to this fakesink
     Fakesink(gst::Element),
-    Compositor(gst::Pad),
+    /// Video source is linked to this (nth) pad on the compositor
+    Compositor(usize, gst::Pad),
 }
 
 #[derive(Debug)]
@@ -14,9 +17,12 @@ where
     S: Source,
 {
     pub name: String,
+    /// Wrapped AV source of this participant
     pub source: S,
+    /// Contains the pad this participants audio stream is linked to. None if its not linked.
     pub audio_mixer_pad: Option<gst::Pad>,
-    pub video_link_status: LinkStatus,
+    /// Video link status of this participant
+    pub video_link_status: VideoLinkStatus,
 }
 
 impl<S> Participant<S>
@@ -28,7 +34,7 @@ where
             name,
             source: S::new(pipeline, params),
             audio_mixer_pad: None,
-            video_link_status: LinkStatus::None,
+            video_link_status: VideoLinkStatus::None,
         }
     }
 }

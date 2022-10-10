@@ -1,5 +1,3 @@
-extern crate clap;
-
 use compositor::*;
 use gstreamer as gst;
 use std::thread::sleep;
@@ -12,6 +10,7 @@ fn names(count: usize) -> Vec<String> {
 
 #[test]
 fn test_visibles() {
+    env_logger::init();
     // initialize gstreamer
     gst::init().unwrap();
 
@@ -76,6 +75,7 @@ fn test_visibles() {
 
 #[test]
 fn test_remove() {
+    env_logger::init();
     // initialize gstreamer
     gst::init().unwrap();
 

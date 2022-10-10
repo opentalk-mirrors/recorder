@@ -1,4 +1,4 @@
-use crate::{error::Error, mixer::participant::LinkStatus, Alignment, Layout, Position, Size};
+use crate::{error::Error, mixer::participant::VideoLinkStatus, Alignment, Layout, Position, Size};
 use core::mem::replace;
 use gst::prelude::*;
 use gstreamer as gst;
@@ -201,7 +201,7 @@ where
         self.participants.insert(name.to_string(), participant);
 
         self.link_audio(&name)?;
-        self.link_video_fakesink(&name)?;
+        self.link_video_to_fakesink(&name)?;
 
         Ok(())
     }
@@ -210,6 +210,8 @@ where
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
         }
+
+        trace!("remove participant {name:?}");
 
         self.unlink_audio(name)?;
         self.unlink_video(name)?;
@@ -235,14 +237,17 @@ where
             return Err(Error::TooManyVisibles);
         }
 
-        for name in names {
-            self.link_video_fakesink(name)?;
+        // Unlink all participants
+        let tmp = self.participants.keys().cloned().collect::<Vec<_>>();
+        for name in tmp {
+            self.link_video_to_fakesink(&name)?;
         }
 
         self.visibles = 0;
 
+        // Link all given participants
         for (n, name) in names.iter().enumerate() {
-            self.link_video_compositor(name, n)?;
+            self.link_video_to_compositor(name, n)?;
             self.visibles += 1;
         }
 
@@ -431,7 +436,7 @@ where
         Ok(())
     }
 
-    fn link_video_fakesink(&mut self, name: &str) -> Result<(), Error> {
+    fn link_video_to_fakesink(&mut self, name: &str) -> Result<(), Error> {
         trace!("linking video of {name:?} to fakesink...");
 
         let participant = self
@@ -440,9 +445,11 @@ where
             .ok_or_else(|| Error::ParticipantNotFound(name.to_owned()))?;
 
         match &participant.video_link_status {
-            LinkStatus::None => {}
-            LinkStatus::Fakesink(_) => return Ok(()),
-            LinkStatus::Compositor(pad) => participant.source.video_src_pad().unlink(pad).unwrap(),
+            VideoLinkStatus::None => {}
+            VideoLinkStatus::Fakesink(_) => return Ok(()),
+            VideoLinkStatus::Compositor(_, pad) => {
+                participant.source.video_src_pad().unlink(pad).unwrap()
+            }
         }
 
         let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
@@ -453,12 +460,12 @@ where
             .link(&fakesink.static_pad("sink").unwrap())
             .unwrap();
 
-        participant.video_link_status = LinkStatus::Fakesink(fakesink);
+        participant.video_link_status = VideoLinkStatus::Fakesink(fakesink);
 
         Ok(())
     }
 
-    fn link_video_compositor(&mut self, name: &str, n: usize) -> Result<(), Error> {
+    fn link_video_to_compositor(&mut self, name: &str, n: usize) -> Result<(), Error> {
         trace!("linking video of {name:?} to compositor@{n}...");
 
         let participant = self
@@ -467,8 +474,8 @@ where
             .ok_or_else(|| Error::ParticipantNotFound(name.to_owned()))?;
 
         match &participant.video_link_status {
-            LinkStatus::None => {}
-            LinkStatus::Fakesink(fakesink) => {
+            VideoLinkStatus::None => {}
+            VideoLinkStatus::Fakesink(fakesink) => {
                 participant
                     .source
                     .video_src_pad()
@@ -477,9 +484,10 @@ where
                 fakesink.set_state(gst::State::Null).unwrap();
                 self.pipeline.remove(fakesink).unwrap();
             }
-            LinkStatus::Compositor(_) => {
-                // TODO: check for relayout?
-                return Ok(());
+            VideoLinkStatus::Compositor(curr_n, pad) => {
+                if *curr_n != n {
+                    participant.source.video_src_pad().unlink(pad).unwrap();
+                }
             }
         }
 
@@ -491,7 +499,10 @@ where
             .link(&compositor_sink_pads[n + 1])
             .unwrap();
 
-        participant.video_link_status = LinkStatus::Compositor(compositor_sink_pads[n + 1].clone());
+        participant.video_link_status =
+            VideoLinkStatus::Compositor(n, compositor_sink_pads[n + 1].clone());
+
+        trace!("linked video of {name:?} to compositor@{n}...");
 
         Ok(())
     }
@@ -504,9 +515,9 @@ where
             .get_mut(name)
             .ok_or_else(|| Error::ParticipantNotFound(name.to_owned()))?;
 
-        match replace(&mut participant.video_link_status, LinkStatus::None) {
-            LinkStatus::None => return Ok(()),
-            LinkStatus::Fakesink(fakesink) => {
+        match replace(&mut participant.video_link_status, VideoLinkStatus::None) {
+            VideoLinkStatus::None => {}
+            VideoLinkStatus::Fakesink(fakesink) => {
                 participant
                     .source
                     .video_src_pad()
@@ -515,10 +526,12 @@ where
                 fakesink.set_state(gst::State::Null).unwrap();
                 self.pipeline.remove(&fakesink).unwrap();
             }
-            LinkStatus::Compositor(pad) => {
+            VideoLinkStatus::Compositor(_, pad) => {
                 participant.source.video_src_pad().unlink(&pad).unwrap();
             }
         }
+
+        trace!("unlinked video of {name:?}...");
 
         Ok(())
     }
