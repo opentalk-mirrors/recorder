@@ -1,15 +1,14 @@
-use crate::mixer::mixer::*;
 use gst::prelude::*;
-use gst::Promise;
 use gstreamer as gst;
 use tokio::sync::oneshot;
+
+use crate::Source;
 
 pub struct WebRtcSource {
     bin: gst::Bin,
     webrtcbin: gst::Element,
 
     video_ghostpad: gst::Pad,
-
     audio_ghostpad: gst::Pad,
 }
 

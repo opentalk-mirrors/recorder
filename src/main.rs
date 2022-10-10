@@ -1,3 +1,4 @@
+use crate::signaling::MediaSessionType;
 use anyhow::Result;
 use futures::future::join_all;
 use futures::StreamExt;
@@ -5,8 +6,6 @@ use gst::glib;
 use settings::Settings;
 use std::collections::HashSet;
 use std::sync::Arc;
-
-use crate::signaling::MediaSessionType;
 
 mod commands;
 mod settings;
@@ -195,8 +194,8 @@ async fn record(
 
                 signaling.send_answer(id, typ, answer).await.unwrap();
             }
-            signaling::Event::SdpCandidate(id, typ, candidate) => todo!(),
-            signaling::Event::SdpEndOfCandidates(id, typ) => {}
+            signaling::Event::SdpCandidate(_id, _typ, _candidate) => todo!(),
+            signaling::Event::SdpEndOfCandidates(_id, _typ) => {}
         }
 
         mixer.play();

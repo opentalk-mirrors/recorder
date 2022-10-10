@@ -1,4 +1,4 @@
-use super::mixer::Source;
+use super::Source;
 use crate::layout::*;
 use gst::{
     prelude::*,

@@ -1,16 +1,13 @@
 extern crate clap;
 
-#[cfg(test)]
-use crate::{layout::*, mixer::*};
-#[cfg(test)]
+use compositor::*;
 use gstreamer as gst;
+use std::thread::sleep;
+use std::time::Duration;
 
-#[cfg(test)]
 fn names(count: usize) -> Vec<String> {
     // add participant names
-    (0..count)
-        .map(|n| format!("Participant {n}").clone())
-        .collect()
+    (0..count).map(|n| format!("Participant {n}")).collect()
 }
 
 #[test]
@@ -26,11 +23,11 @@ fn test_visibles() {
     let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(resolution, 8, 4).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file(&format!("test_visible-0.dot"));
+    mixer.generate_dot_file("test_visible-0.dot");
 
     let names = names(8);
 
-    std::thread::sleep_ms(500);
+    sleep(Duration::from_millis(500));
 
     mixer.set_title("add 8 participants");
     mixer.pause();
@@ -42,39 +39,39 @@ fn test_visibles() {
     mixer.play();
     mixer.generate_dot_file("test_visible-1.dot");
 
-    std::thread::sleep_ms(500);
-
+    sleep(Duration::from_millis(500));
     mixer.set_title("show 1-4");
     mixer.pause();
     mixer.set_visibles(&names[0..4]).unwrap();
     mixer.layout().unwrap();
     mixer.play();
 
-    mixer.generate_dot_file(&format!("test_visible-2.dot"));
-    std::thread::sleep_ms(1000);
+    mixer.generate_dot_file("test_visible-2.dot");
+
+    sleep(Duration::from_millis(500));
 
     mixer.set_title("show 5-6");
     mixer.pause();
     mixer.set_visibles(&names[4..6]).unwrap();
     mixer.layout().unwrap();
     mixer.play();
-    mixer.generate_dot_file(&format!("test_visible-3.dot"));
+    mixer.generate_dot_file("test_visible-3.dot");
 
     mixer.set_title("show 6-8");
     mixer.pause();
     mixer.set_visibles(&names[5..8]).unwrap();
     mixer.layout().unwrap();
     mixer.play();
-    mixer.generate_dot_file(&format!("test_visible-4.dot"));
+    mixer.generate_dot_file("test_visible-4.dot");
 
     mixer.set_title("show 8");
     mixer.pause();
     mixer.set_visibles(&names[7..8]).unwrap();
     mixer.layout().unwrap();
     mixer.play();
-    mixer.generate_dot_file(&format!("test_visible-5.dot"));
+    mixer.generate_dot_file("test_visible-5.dot");
 
-    std::thread::sleep_ms(500);
+    sleep(Duration::from_millis(500));
 }
 
 #[test]
@@ -90,11 +87,11 @@ fn test_remove() {
     let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(resolution, 8, 4).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file(&format!("test_visible-0.dot"));
+    mixer.generate_dot_file("test_visible-0.dot");
 
     let names = names(8);
 
-    std::thread::sleep_ms(500);
+    sleep(Duration::from_millis(500));
 
     mixer.set_title("add 8 participants");
     mixer.pause();
@@ -104,9 +101,9 @@ fn test_remove() {
             .unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file(&format!("test_visible-1.dot"));
+    mixer.generate_dot_file("test_visible-1.dot");
 
-    std::thread::sleep_ms(500);
+    sleep(Duration::from_millis(500));
 
     mixer.set_title("show 1-4");
     mixer.pause();
@@ -114,8 +111,9 @@ fn test_remove() {
     mixer.layout().unwrap();
     mixer.play();
 
-    mixer.generate_dot_file(&format!("test_visible-2.dot"));
-    std::thread::sleep_ms(1000);
+    mixer.generate_dot_file("test_visible-2.dot");
+
+    sleep(Duration::from_secs(1));
 
     mixer.set_title("remove 1-2");
     mixer.pause();
@@ -124,9 +122,9 @@ fn test_remove() {
     }
     mixer.layout().unwrap();
     mixer.play();
-    mixer.generate_dot_file(&format!("test_visible-3.dot"));
+    mixer.generate_dot_file("test_visible-3.dot");
 
-    std::thread::sleep_ms(1000);
+    sleep(Duration::from_secs(1));
 
     mixer.set_title("show 2-6");
     mixer.pause();
@@ -135,7 +133,7 @@ fn test_remove() {
     }
     mixer.layout().unwrap();
     mixer.play();
-    mixer.generate_dot_file(&format!("test_visible-4.dot"));
+    mixer.generate_dot_file("test_visible-4.dot");
 
-    std::thread::sleep_ms(1000);
+    sleep(Duration::from_secs(1));
 }

@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 pub struct Signaling {
     /// Own participant id
-    id: ParticipantId,
+    _id: ParticipantId,
 
     /// List of all other participants in the conference
     participants: HashMap<ParticipantId, ParticipantState>,
@@ -101,7 +101,7 @@ impl Signaling {
             };
 
         Ok(Self {
-            id,
+            _id: id,
             participants: participants
                 .into_iter()
                 .map(|p| {
