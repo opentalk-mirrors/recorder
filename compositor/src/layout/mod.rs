@@ -14,7 +14,7 @@ pub struct Position {
 }
 
 /// Cartesian pixel dimension
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Size {
     /// horizontal dimension
     pub width: usize,
@@ -22,6 +22,11 @@ pub struct Size {
     pub height: usize,
 }
 impl Size {
+    pub const HD: Self = Self {
+        width: 1920,
+        height: 1080,
+    };
+
     pub fn ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }
@@ -37,7 +42,7 @@ pub struct Alignment {
 }
 
 /// recording picture layout
-pub trait Layout: Send + 'static {
+pub trait Layout: Send + Sync + 'static {
     fn new(resolution: &Size) -> Self;
     fn resolution(&self) -> &Size;
     fn position(&self, n: usize, count: usize) -> Position;

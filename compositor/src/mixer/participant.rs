@@ -1,28 +1,34 @@
-use crate::{layout::*, Source};
+use crate::Source;
 use gstreamer as gst;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+pub enum LinkStatus {
+    None,
+    Fakesink(gst::Element),
+    Compositor(gst::Pad),
+}
+
+#[derive(Debug)]
 pub struct Participant<S>
 where
     S: Source,
 {
     pub name: String,
     pub source: S,
+    pub audio_mixer_pad: Option<gst::Pad>,
+    pub video_link_status: LinkStatus,
 }
 
 impl<S> Participant<S>
 where
     S: Source,
 {
-    #[allow(dead_code)]
-    pub fn new(pipeline: &gst::Pipeline, name: &str, resolution: &Size) -> Self {
+    pub fn new(pipeline: &gst::Pipeline, name: String, params: S::Parameters) -> Self {
         Self {
-            name: name.to_string(),
-            source: S::new(pipeline, name, "smpte", resolution),
+            name,
+            source: S::new(pipeline, params),
+            audio_mixer_pad: None,
+            video_link_status: LinkStatus::None,
         }
-    }
-    #[allow(dead_code)]
-    pub fn is_video_linked(&self) -> bool {
-        self.source.video_fake_sink().is_some()
     }
 }

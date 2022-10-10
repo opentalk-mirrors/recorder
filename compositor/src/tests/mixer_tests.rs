@@ -9,8 +9,7 @@ use gstreamer as gst;
 fn names(count: usize) -> Vec<String> {
     // add participant names
     (0..count)
-        .enumerate()
-        .map(|(n, _)| format!("Participant {n}").clone())
+        .map(|n| format!("Participant {n}").clone())
         .collect()
 }
 
@@ -24,7 +23,7 @@ fn test_visibles() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(&resolution, 8, 4).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(resolution, 8, 4).unwrap();
     mixer.play();
 
     mixer.generate_dot_file(&format!("test_visible-0.dot"));
@@ -35,7 +34,11 @@ fn test_visibles() {
 
     mixer.set_title("add 8 participants");
     mixer.pause();
-    mixer.add_participants(&names).unwrap();
+    for name in &names {
+        mixer
+            .add_participant(name.clone(), (name.clone(), "ball", Size::HD))
+            .unwrap();
+    }
     mixer.play();
     mixer.generate_dot_file("test_visible-1.dot");
 
@@ -84,7 +87,7 @@ fn test_remove() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(&resolution, 8, 4).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(resolution, 8, 4).unwrap();
     mixer.play();
 
     mixer.generate_dot_file(&format!("test_visible-0.dot"));
@@ -95,7 +98,11 @@ fn test_remove() {
 
     mixer.set_title("add 8 participants");
     mixer.pause();
-    mixer.add_participants(&names).unwrap();
+    for name in &names {
+        mixer
+            .add_participant(name.clone(), (name.clone(), "ball", Size::HD))
+            .unwrap();
+    }
     mixer.play();
     mixer.generate_dot_file(&format!("test_visible-1.dot"));
 
@@ -112,7 +119,9 @@ fn test_remove() {
 
     mixer.set_title("remove 1-2");
     mixer.pause();
-    mixer.remove_participants(&names[0..2]).unwrap();
+    for name in &names[0..2] {
+        mixer.remove_participant(name).unwrap();
+    }
     mixer.layout().unwrap();
     mixer.play();
     mixer.generate_dot_file(&format!("test_visible-3.dot"));
@@ -121,7 +130,9 @@ fn test_remove() {
 
     mixer.set_title("show 2-6");
     mixer.pause();
-    mixer.set_visibles(&names[4..8]).unwrap();
+    for name in &names[4..8] {
+        mixer.remove_participant(name).unwrap();
+    }
     mixer.layout().unwrap();
     mixer.play();
     mixer.generate_dot_file(&format!("test_visible-4.dot"));

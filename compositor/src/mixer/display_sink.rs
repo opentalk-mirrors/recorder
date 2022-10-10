@@ -1,5 +1,4 @@
 use super::mixer::Sink;
-use crate::layout::*;
 use gst::traits::{ElementExt, GstBinExt};
 use gstreamer as gst;
 
@@ -9,8 +8,9 @@ pub struct DisplaySink {
 }
 
 impl Sink for DisplaySink {
+    type Parameters = ();
     #[allow(dead_code)]
-    fn new(pipeline: &gst::Pipeline, _resolution: &Size) -> DisplaySink {
+    fn new(pipeline: &gst::Pipeline, _: ()) -> DisplaySink {
         let video_sink =
             gst::ElementFactory::make("xvimagesink", Some("display-video-sink")).unwrap();
         let audio_sink =
@@ -24,10 +24,12 @@ impl Sink for DisplaySink {
             audio_sink_pad: audio_sink.static_pad("sink").unwrap(),
         }
     }
-    fn video_sink_pad(&self) -> &gst::Pad {
-        &self.video_sink_pad
+
+    fn video_sink_pad(&self) -> gst::Pad {
+        self.video_sink_pad.clone()
     }
-    fn audio_sink_pad(&self) -> &gst::Pad {
-        &self.audio_sink_pad
+
+    fn audio_sink_pad(&self) -> gst::Pad {
+        self.audio_sink_pad.clone()
     }
 }

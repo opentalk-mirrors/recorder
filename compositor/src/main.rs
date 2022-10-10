@@ -79,14 +79,14 @@ where
     };
 
     // create a mixer for audio and video
-    let mixer =
-        Mixer::<L, TestSource>::new::<DisplaySink>(&resolution, args.participants, args.visibles)
+    let mut mixer =
+        Mixer::<L, TestSource>::new::<DisplaySink>(resolution, args.participants, args.visibles)
             .unwrap();
 
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
         // must set this to work
-        mixer.generate_dot_file(&format!("pipeline-initial"));
+        mixer.generate_dot_file("pipeline-initial");
     }
 
     mixer.play();
@@ -94,7 +94,7 @@ where
     // shall we create DOT file of mixer's pipeline?
     if args.dot {
         // must set this to work
-        mixer.generate_dot_file(&format!("pipeline-first-playing"));
+        mixer.generate_dot_file("pipeline-first-playing");
     }
 
     // shall we create DOT file of mixer's pipeline?
@@ -103,9 +103,10 @@ where
         mixer.generate_dot_file("pipeline");
     }
 
+    let run_fn = mixer.run();
+
     // start thread which continuously switches speaking text
     std::thread::spawn({
-        let mut mixer = mixer.clone();
         move || {
             // clone a mixer instance for the thread
             // initially set title
@@ -114,11 +115,25 @@ where
             // add participant names
             let names: Vec<String> = (0..args.participants)
                 .enumerate()
-                .map(|(n, _)| format!("Participant {n}").clone())
+                .map(|(n, _)| format!("Participant {n}"))
                 .collect();
 
             mixer.pause();
-            mixer.add_participants(&names).unwrap();
+            for participant in &names {
+                mixer
+                    .add_participant(
+                        participant.clone(),
+                        (
+                            participant.clone(),
+                            "ball",
+                            Size {
+                                width: 1240,
+                                height: 720,
+                            },
+                        ),
+                    )
+                    .unwrap();
+            }
             mixer.play();
 
             let mut i: usize = 0;
@@ -133,7 +148,7 @@ where
                 // select participant names for visibility
                 let names: Vec<String> = (0..m)
                     .enumerate()
-                    .map(|(n, _)| format!("Participant {n}").clone())
+                    .map(|(n, _)| format!("Participant {n}"))
                     .filter(|s| !removed.contains(s))
                     .collect();
                 mixer.set_visibles(&names).unwrap();
@@ -145,7 +160,7 @@ where
                 */
                 // continuously set who's speaking
                 if !names.is_empty() {
-                    mixer.set_speaking(&format!("{}", names[i % names.len()]));
+                    mixer.set_speaking(&names[i % names.len()]);
                     // enumerate names
                     i += 1;
                 }
@@ -174,5 +189,5 @@ where
     });
 
     // run the mixer
-    mixer.run();
+    run_fn();
 }
