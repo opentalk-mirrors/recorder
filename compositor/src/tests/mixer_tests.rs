@@ -36,7 +36,7 @@ fn test_visibles() {
     mixer.pause();
     for name in &names {
         mixer
-            .add_participant(name.clone(), (name.clone(), "ball", Size::HD))
+            .add_participant(name.clone(), (name.clone(), "smpte", Size::HD))
             .unwrap();
     }
     mixer.play();
@@ -100,7 +100,7 @@ fn test_remove() {
     mixer.pause();
     for name in &names {
         mixer
-            .add_participant(name.clone(), (name.clone(), "ball", Size::HD))
+            .add_participant(name.clone(), (name.clone(), "smpte", Size::HD))
             .unwrap();
     }
     mixer.play();

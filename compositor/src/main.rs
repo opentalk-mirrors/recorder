@@ -125,7 +125,7 @@ where
                         participant.clone(),
                         (
                             participant.clone(),
-                            "ball",
+                            "smpte",
                             Size {
                                 width: 1240,
                                 height: 720,
