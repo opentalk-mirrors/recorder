@@ -176,9 +176,22 @@ impl Signaling {
         match msg {
             incoming::Message::Control(msg) => match msg {
                 incoming::ControlMessage::Joined(participant) => {
+                    let mut publishing = HashSet::new();
+
+                    if participant.media.video.is_some() {
+                        publishing.insert(MediaSessionType::Video);
+                    }
+
+                    if participant.media.screen.is_some() {
+                        publishing.insert(MediaSessionType::Screen);
+                    }
+
+                    self.participants
+                        .insert(participant.id, ParticipantState { publishing });
+
                     Ok(Some(Event::ParticipantJoined(participant.id)))
                 }
-                incoming::ControlMessage::Updated(participant) => {
+                incoming::ControlMessage::Update(participant) => {
                     let mut publishing = HashSet::new();
 
                     if participant.media.video.is_some() {
@@ -351,7 +364,7 @@ mod incoming {
     #[serde(rename_all = "snake_case", tag = "message")]
     pub enum ControlMessage {
         Joined(Participant),
-        Updated(Participant),
+        Update(Participant),
         Left { id: ParticipantId },
     }
 

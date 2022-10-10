@@ -3,7 +3,10 @@ use futures::future::join_all;
 use futures::StreamExt;
 use gst::glib;
 use settings::Settings;
+use std::collections::HashSet;
 use std::sync::Arc;
+
+use crate::signaling::MediaSessionType;
 
 mod commands;
 mod settings;
@@ -105,7 +108,7 @@ async fn record(
 
     let mut mixer = Mixer::<Speaker, WebRtcSource>::new::<DisplaySink>(
         // resolution
-        &Size {
+        Size {
             width: 1920,
             height: 1080,
         },
@@ -116,12 +119,15 @@ async fn record(
     )
     .unwrap();
 
+    let mut list = HashSet::new();
+
     for id in signaling.publishing_participants() {
-        mixer.add_participants(&[id.0.to_string()]).unwrap();
+        mixer.add_participant(id.0.to_string(), ()).unwrap();
         signaling
-            .start_subscribe(id, signaling::MediaSessionType::Video)
+            .start_subscribe(id, MediaSessionType::Video)
             .await
             .unwrap();
+        list.insert(id);
     }
 
     mixer.play();
@@ -135,27 +141,64 @@ async fn record(
             }
         };
 
+        mixer.pause();
+
         match event {
-            signaling::Event::ParticipantJoined(id) => {}
-            signaling::Event::ParticipantUpdated(id) => {}
+            signaling::Event::ParticipantJoined(id) => {
+                if signaling.publishes(id, MediaSessionType::Video) {
+                    mixer.pause();
+                    mixer.add_participant(id.0.to_string(), ()).unwrap();
+                    mixer.play();
+
+                    signaling
+                        .start_subscribe(id, MediaSessionType::Video)
+                        .await
+                        .unwrap();
+                    list.insert(id);
+                }
+            }
+            signaling::Event::ParticipantUpdated(id) => {
+                if !list.contains(&id) && signaling.publishes(id, MediaSessionType::Video) {
+                    mixer.pause();
+                    mixer.add_participant(id.0.to_string(), ()).unwrap();
+                    mixer.play();
+
+                    signaling
+                        .start_subscribe(id, MediaSessionType::Video)
+                        .await
+                        .unwrap();
+                    list.insert(id);
+                }
+            }
             signaling::Event::ParticipantLeft(id) => {
-                mixer.pause();
-                mixer.remove_participants(&[id.0.to_string()]).unwrap();
-                mixer.play();
+                if list.remove(&id) {
+                    mixer.remove_participant(&id.0.to_string()).unwrap();
+                }
             }
             signaling::Event::SdpOffer(id, typ, offer) => {
+                mixer.pause();
+
                 let answer = mixer.participants[&id.0.to_string()]
                     .source
                     .receive_offer(offer)
                     .await;
+                mixer
+                    .set_visibles(
+                        &list
+                            .iter()
+                            .map(|id| id.0.to_string())
+                            .collect::<Vec<String>>(),
+                    )
+                    .unwrap();
+
+                mixer.play();
 
                 signaling.send_answer(id, typ, answer).await.unwrap();
-                mixer.pause();
-                mixer.set_visibles(&[id.0.to_string()]).unwrap();
-                mixer.play();
             }
             signaling::Event::SdpCandidate(id, typ, candidate) => todo!(),
             signaling::Event::SdpEndOfCandidates(id, typ) => {}
         }
+
+        mixer.play();
     }
 }
