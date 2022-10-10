@@ -171,7 +171,20 @@ async fn record(
             }
             signaling::Event::ParticipantLeft(id) => {
                 if list.remove(&id) {
+                    mixer.pause();
+
                     mixer.remove_participant(&id.0.to_string()).unwrap();
+
+                    mixer
+                        .set_visibles(
+                            &list
+                                .iter()
+                                .map(|id| id.0.to_string())
+                                .collect::<Vec<String>>(),
+                        )
+                        .unwrap();
+
+                    mixer.play();
                 }
             }
             signaling::Event::SdpOffer(id, typ, offer) => {
@@ -181,6 +194,7 @@ async fn record(
                     .source
                     .receive_offer(offer)
                     .await;
+
                 mixer
                     .set_visibles(
                         &list

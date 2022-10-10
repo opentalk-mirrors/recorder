@@ -221,6 +221,8 @@ where
 
         participant.source.remove(&self.pipeline);
 
+        self.layout()?;
+
         Ok(())
     }
 
@@ -237,6 +239,8 @@ where
             self.link_video_fakesink(name)?;
         }
 
+        self.visibles = 0;
+
         for (n, name) in names.iter().enumerate() {
             self.link_video_compositor(name, n)?;
             self.visibles += 1;
@@ -251,6 +255,7 @@ where
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
         }
+
         let count = self.visibles;
         trace!("visibles = {count}");
         self.layout_overlay(
