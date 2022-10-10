@@ -140,8 +140,6 @@ async fn record(
             }
         };
 
-        mixer.pause();
-
         match event {
             signaling::Event::ParticipantJoined(id) => {
                 if signaling.publishes(id, MediaSessionType::Video) {
@@ -211,7 +209,5 @@ async fn record(
             signaling::Event::SdpCandidate(_id, _typ, _candidate) => todo!(),
             signaling::Event::SdpEndOfCandidates(_id, _typ) => {}
         }
-
-        mixer.play();
     }
 }
