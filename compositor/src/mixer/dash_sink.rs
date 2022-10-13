@@ -18,7 +18,7 @@ impl Sink for DashSink {
             "
             dashsink
                 name=dashsink
-                muxer=mp4
+                muxer=ts
                 dynamic=true
                 target-duration=2
 
