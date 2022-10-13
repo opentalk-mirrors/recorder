@@ -4,11 +4,13 @@ use gst::prelude::*;
 use gstreamer as gst;
 use std::collections::HashMap;
 
+mod dash_sink;
 mod display_sink;
 mod participant;
 mod test_source;
 mod webrtc_source;
 
+pub use dash_sink::DashSink;
 pub use display_sink::DisplaySink;
 pub use participant::Participant;
 pub use test_source::TestSource;
@@ -154,11 +156,6 @@ where
 
         // create audio mixer
         let audio_mixer = gst::ElementFactory::make("audiomixer", Some("audio-mixer")).unwrap();
-        audio_mixer.set_property_from_str("ignore-inactive-pads", "true");
-        for _ in 0..max_participants + 1 {
-            audio_mixer.request_pad_simple("sink_%u").unwrap();
-        }
-
         let audio_output_pad = audio_mixer.static_pad("src").unwrap();
 
         // link audio elements

@@ -6,6 +6,7 @@ use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
+    pub auth: Auth,
     pub controller: ControllerSettings,
     pub rabbitmq: RabbitMqSettings,
 }
@@ -18,6 +19,13 @@ impl Settings {
             .build()?
             .try_deserialize()
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Auth {
+    pub issuer: openidconnect::IssuerUrl,
+    pub client_id: openidconnect::ClientId,
+    pub client_secret: openidconnect::ClientSecret,
 }
 
 #[derive(Debug, Deserialize)]

@@ -11,6 +11,7 @@ gst-sdp = { package = "gstreamer-sdp", version = "0.18" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.18", features = [
     "v1_20",
 ] }
+gio = "0.15"
 log = "0.4.0"
 tokio = { version = "1", features = ["sync"] }
 

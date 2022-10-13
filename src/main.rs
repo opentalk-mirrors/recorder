@@ -1,5 +1,6 @@
 use crate::signaling::MediaSessionType;
 use anyhow::Result;
+use core::time::Duration;
 use futures::future::join_all;
 use futures::StreamExt;
 use gst::glib;
@@ -105,13 +106,13 @@ async fn record(
 
     use compositor::*;
 
-    let mut mixer = Mixer::<Speaker, WebRtcSource>::new::<DisplaySink>(
+    let mut mixer = Mixer::<Speaker, WebRtcSource>::new::<DashSink>(
         // resolution
         Size {
             width: 1920,
             height: 1080,
         },
-        // partcipants
+        // participants
         20,
         // maximum visibles
         6,
@@ -130,6 +131,11 @@ async fn record(
     }
 
     mixer.play();
+
+    for n in 0..10 {
+        mixer.generate_dot_file(&format!("yoyo_{n}"));
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
 
     loop {
         let event = match signaling.run().await {

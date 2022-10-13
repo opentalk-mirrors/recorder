@@ -1,3 +1,8 @@
+[auth]
+issuer = "https://p01nc.heinlein-video.de:8443/auth/realms/K3K"
+client_id = "Controller"
+client_secret = "180a89c9-a802-4799-ab54-652777d88160"
+
 [controller]
 domain = "localhost:8000"
 insecure = true

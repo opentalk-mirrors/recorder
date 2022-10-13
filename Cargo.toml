@@ -30,5 +30,7 @@ serde_json = "1"
 rand = "0.8"
 uuid = { features = ["serde"], version = "1" }
 
+openidconnect = "2.3"
+
 [workspace]
 members = ["compositor"]
