@@ -10,17 +10,30 @@ pub struct DashSink {
     audio_sink_pad: gst::Pad,
 }
 
-impl Sink for DashSink {
-    type Parameters = ();
+#[derive(Default)]
+pub struct DashParameters {
+    pub mpd_root_path: &'static str,
+    pub mpd_file_name: &'static str,
+    pub mpd_base_url: &'static str,
+    pub target_duration: u64,
+}
 
-    fn new(pipeline: &gst::Pipeline, _: ()) -> DashSink {
+impl Sink for DashSink {
+    type Parameters = DashParameters;
+
+    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
         let bin = gst::parse_bin_from_description(
-            "
+            &format!(
+                "
             dashsink
                 name=dashsink
                 muxer=ts
                 dynamic=true
                 target-duration=2
+                mpd-filename={mpd_file_name}
+                mpd-root-path={mpd_root_path}
+                mpd-base-url={mpd_base_url}
+                target-duration={target_duration}
 
             avenc_aac name=audio-encoder
             ! dashsink.audio_0
@@ -28,6 +41,11 @@ impl Sink for DashSink {
             x264enc name=video-encoder
             ! dashsink.video_0
         ",
+                mpd_file_name = params.mpd_file_name,
+                mpd_root_path = params.mpd_root_path,
+                mpd_base_url = params.mpd_base_url,
+                target_duration = params.target_duration
+            ),
             false,
         )
         .unwrap();

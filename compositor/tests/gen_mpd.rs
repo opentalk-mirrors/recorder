@@ -1,6 +1,7 @@
 use core::time::Duration;
 
 use compositor::*;
+use gio::glib::mkdir_with_parents;
 use gstreamer as gst;
 
 #[test]
@@ -15,7 +16,16 @@ fn generate_mpd() {
         height: 480,
     };
 
-    let mixer = Mixer::<Grid, TestSource>::new::<DashSink>(resolution, 8, 4).unwrap();
+    let sink_params = DashParameters {
+        mpd_root_path: "./tests/output",
+        ..Default::default()
+    };
+
+    if !std::path::Path::new(sink_params.mpd_root_path).exists() {
+        std::fs::create_dir(sink_params.mpd_root_path).unwrap();
+    }
+
+    let mixer = Mixer::<Grid, TestSource>::new::<DashSink>(resolution, 8, 4, sink_params).unwrap();
 
     mixer.play();
 
