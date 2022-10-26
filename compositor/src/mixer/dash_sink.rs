@@ -8,12 +8,22 @@ pub struct DashSink {
     audio_sink_pad: gst::Pad,
 }
 
-#[derive(Default)]
 pub struct DashParameters {
     pub mpd_root_path: &'static str,
     pub mpd_file_name: &'static str,
-    pub mpd_base_url: &'static str,
+    pub mpd_baseurl: &'static str,
     pub target_duration: u64,
+}
+
+impl Default for DashParameters {
+    fn default() -> Self {
+        Self {
+            mpd_root_path: "./",
+            mpd_file_name: "dash.mpd",
+            mpd_baseurl: "",
+            target_duration: 15,
+        }
+    }
 }
 
 impl Sink for DashSink {
@@ -30,7 +40,7 @@ impl Sink for DashSink {
                 target-duration=2
                 mpd-filename={mpd_file_name}
                 mpd-root-path={mpd_root_path}
-                mpd-base-url={mpd_base_url}
+                mpd-baseurl={mpd_baseurl}
                 target-duration={target_duration}
 
             avenc_aac name=audio-encoder
@@ -41,7 +51,7 @@ impl Sink for DashSink {
         ",
                 mpd_file_name = params.mpd_file_name,
                 mpd_root_path = params.mpd_root_path,
-                mpd_base_url = params.mpd_base_url,
+                mpd_baseurl = params.mpd_baseurl,
                 target_duration = params.target_duration
             ),
             false,
