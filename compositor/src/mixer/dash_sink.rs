@@ -4,8 +4,6 @@ use gstreamer as gst;
 use std::io::Write;
 
 pub struct DashSink {
-    dashsink: gst::Element,
-
     video_sink_pad: gst::Pad,
     audio_sink_pad: gst::Pad,
 }
@@ -52,7 +50,7 @@ impl Sink for DashSink {
 
         pipeline.add(&bin).unwrap();
 
-        let dashsink = bin.by_name("dashsink").unwrap();
+        bin.by_name("dashsink").unwrap();
         let audio_encode = bin.by_name("audio-encoder").unwrap();
         let video_encode = bin.by_name("video-encoder").unwrap();
 
@@ -88,7 +86,6 @@ impl Sink for DashSink {
         bin.add_pad(&video_sink_pad).unwrap();
 
         Self {
-            dashsink,
             video_sink_pad: video_sink_pad.upcast(),
             audio_sink_pad: audio_sink_pad.upcast(),
         }
