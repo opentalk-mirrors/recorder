@@ -84,7 +84,7 @@ fn test_remove() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(resolution, 8, 4, ()).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource>::new::<FakeSink>(resolution, 8, 4, ()).unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_visible-0.dot");

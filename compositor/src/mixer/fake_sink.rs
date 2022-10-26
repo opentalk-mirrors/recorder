@@ -2,19 +2,17 @@ use super::Sink;
 use gst::traits::{ElementExt, GstBinExt};
 use gstreamer as gst;
 
-pub struct DisplaySink {
+pub struct FakeSink {
     video_sink_pad: gst::Pad,
     audio_sink_pad: gst::Pad,
 }
 
-impl Sink for DisplaySink {
+impl Sink for FakeSink {
     type Parameters = ();
     #[allow(dead_code)]
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
-        let video_sink =
-            gst::ElementFactory::make("xvimagesink", Some("display-video-sink")).unwrap();
-        let audio_sink =
-            gst::ElementFactory::make("pulsesink", Some("display-audio-sink")).unwrap();
+        let video_sink = gst::ElementFactory::make("fakesink", Some("fake-video-sink")).unwrap();
+        let audio_sink = gst::ElementFactory::make("fakesink", Some("fake-audio-sink")).unwrap();
 
         pipeline.add(&video_sink).unwrap();
         pipeline.add(&audio_sink).unwrap();

@@ -6,12 +6,15 @@ use std::collections::HashMap;
 
 mod dash_sink;
 mod display_sink;
+mod fake_sink;
 mod participant;
 mod test_source;
 mod webrtc_source;
 
+pub use dash_sink::DashParameters;
 pub use dash_sink::DashSink;
 pub use display_sink::DisplaySink;
+pub use fake_sink::FakeSink;
 pub use participant::Participant;
 pub use test_source::TestSource;
 pub use webrtc_source::WebRtcSource;
