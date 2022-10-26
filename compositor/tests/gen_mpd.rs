@@ -17,12 +17,12 @@ fn generate_mpd() {
     };
 
     let sink_params = DashParameters {
-        mpd_root_path: "./tests/output",
+        mpd_root_path: "./tests/output/generate_mpd",
         ..Default::default()
     };
 
     if !std::path::Path::new(sink_params.mpd_root_path).exists() {
-        std::fs::create_dir(sink_params.mpd_root_path).unwrap();
+        std::fs::create_dir_all(sink_params.mpd_root_path).unwrap();
     }
 
     let mixer = Mixer::<Grid, TestSource>::new::<DashSink>(resolution, 8, 4, sink_params).unwrap();

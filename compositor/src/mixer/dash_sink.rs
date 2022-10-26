@@ -32,15 +32,15 @@ impl Sink for DashSink {
     fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
         let bin = gst::parse_bin_from_description(
             &format!(
-                "
+                r#"
             dashsink
                 name=dashsink
                 muxer=ts
-                dynamic=true
+                dynamic=false
                 target-duration=2
-                mpd-filename={mpd_file_name}
-                mpd-root-path={mpd_root_path}
-                mpd-baseurl={mpd_baseurl}
+                mpd-filename="{mpd_file_name}"
+                mpd-root-path="{mpd_root_path}"
+                mpd-baseurl="{mpd_baseurl}"
                 target-duration={target_duration}
 
             avenc_aac name=audio-encoder
@@ -48,7 +48,7 @@ impl Sink for DashSink {
 
             x264enc name=video-encoder
             ! dashsink.video_0
-        ",
+        "#,
                 mpd_file_name = params.mpd_file_name,
                 mpd_root_path = params.mpd_root_path,
                 mpd_baseurl = params.mpd_baseurl,
