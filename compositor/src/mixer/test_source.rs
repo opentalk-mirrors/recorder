@@ -16,14 +16,35 @@ pub struct TestSource {
     audio_caps: gst::Element,
 }
 
+pub struct TestSourceParameters {
+    pub name: &'static str,
+    pub pattern: &'static str,
+    pub resolution: Size,
+}
+
+impl Default for TestSourceParameters {
+    fn default() -> Self {
+        Self {
+            name: "test-source",
+            pattern: "smpte",
+            resolution: Size {
+                width: 640,
+                height: 480,
+            },
+        }
+    }
+}
+
 impl Source for TestSource {
-    type Parameters = (String, &'static str, Size);
+    type Parameters = TestSourceParameters;
 
-    fn new(pipeline: &gst::Pipeline, (name, pattern, resolution): Self::Parameters) -> TestSource {
-        trace!("create new TestSource '{name}'");
+    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> TestSource {
+        trace!("create new TestSource '{}'", params.name);
 
-        let width = resolution.width;
-        let height = resolution.height;
+        let name = params.name;
+        let width = params.resolution.width;
+        let height = params.resolution.height;
+        let pattern = params.pattern;
 
         // create video test src
         let video_test_src =

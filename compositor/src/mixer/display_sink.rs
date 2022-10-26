@@ -19,7 +19,7 @@ impl Sink for DisplaySink {
         pipeline.add(&video_sink).unwrap();
         pipeline.add(&audio_sink).unwrap();
 
-        Self {
+        DisplaySink {
             video_sink_pad: video_sink.static_pad("sink").unwrap(),
             audio_sink_pad: audio_sink.static_pad("sink").unwrap(),
         }

@@ -37,7 +37,6 @@ impl Sink for DashSink {
                 name=dashsink
                 muxer=ts
                 dynamic=false
-                target-duration=2
                 mpd-filename="{mpd_file_name}"
                 mpd-root-path="{mpd_root_path}"
                 mpd-baseurl="{mpd_baseurl}"

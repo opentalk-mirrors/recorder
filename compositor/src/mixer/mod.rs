@@ -11,12 +11,11 @@ mod participant;
 mod test_source;
 mod webrtc_source;
 
-pub use dash_sink::DashParameters;
-pub use dash_sink::DashSink;
+pub use dash_sink::{DashParameters, DashSink};
 pub use display_sink::DisplaySink;
 pub use fake_sink::FakeSink;
 pub use participant::Participant;
-pub use test_source::TestSource;
+pub use test_source::{TestSource, TestSourceParameters};
 pub use webrtc_source::WebRtcSource;
 
 pub trait Source {
@@ -332,6 +331,10 @@ where
     }
     pub fn pause(&self) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    pub fn exit(&self) {
+        self.pipeline.set_state(gst::State::Null).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
