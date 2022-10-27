@@ -31,9 +31,12 @@ fn test_visibles() {
     mixer.set_title("add 8 participants");
     mixer.pause();
     for name in &names {
-        mixer
-            .add_participant(name.clone(), (name.clone(), "smpte", Size::HD))
-            .unwrap();
+        let params = TestSourceParameters {
+            name: name.to_string(),
+            resolution: Size::FHD,
+            ..Default::default()
+        };
+        mixer.add_participant(name.clone(), params).unwrap();
     }
     mixer.play();
     mixer.generate_dot_file("test_visible-1.dot");
@@ -96,9 +99,12 @@ fn test_remove() {
     mixer.set_title("add 8 participants");
     mixer.pause();
     for name in &names {
-        mixer
-            .add_participant(name.clone(), (name.clone(), "smpte", Size::HD))
-            .unwrap();
+        let params = TestSourceParameters {
+            name: name.to_string(),
+            resolution: Size::FHD,
+            ..Default::default()
+        };
+        mixer.add_participant(name.clone(), params).unwrap();
     }
     mixer.play();
     mixer.generate_dot_file("test_visible-1.dot");

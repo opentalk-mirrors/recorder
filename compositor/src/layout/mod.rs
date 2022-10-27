@@ -22,11 +22,36 @@ pub struct Size {
     pub height: usize,
 }
 impl Size {
+    /// SD (Standard Definition)
+    pub const SD: Self = Self {
+        width: 640,
+        height: 480,
+    };
+    /// HD (High Definition)
     pub const HD: Self = Self {
+        width: 720,
+        height: 480,
+    };
+    /// Full HD (FHD)
+    pub const FHD: Self = Self {
         width: 1920,
         height: 1080,
     };
-
+    /// QHD (Quad HD)
+    pub const QHD: Self = Self {
+        width: 2560,
+        height: 1440,
+    };
+    /// 4K video or Ultra HD (UHD)
+    pub const UHD: Self = Self {
+        width: 3840,
+        height: 2160,
+    };
+    /// 8K video or Full Ultra HD
+    pub const FULL_ULTRA_HD: Self = Self {
+        width: 7680,
+        height: 4320,
+    };
     pub fn ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }

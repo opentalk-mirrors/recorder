@@ -106,16 +106,20 @@ async fn record(
 
     use compositor::*;
 
+    let sink_params = DashParameters {
+        mpd_root_path: "./tests/output/generate_mpd",
+        target_duration: 2,
+        ..Default::default()
+    };
+
     let mut mixer = Mixer::<Speaker, WebRtcSource>::new::<DashSink>(
         // resolution
-        Size {
-            width: 1920,
-            height: 1080,
-        },
+        Size::FHD,
         // participants
         20,
         // maximum visibles
         6,
+        sink_params,
     )
     .unwrap();
 

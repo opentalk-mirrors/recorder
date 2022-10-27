@@ -17,20 +17,17 @@ pub struct TestSource {
 }
 
 pub struct TestSourceParameters {
-    pub name: &'static str,
-    pub pattern: &'static str,
+    pub name: String,
+    pub pattern: String,
     pub resolution: Size,
 }
 
 impl Default for TestSourceParameters {
     fn default() -> Self {
         Self {
-            name: "test-source",
-            pattern: "smpte",
-            resolution: Size {
-                width: 640,
-                height: 480,
-            },
+            name: "test-source".to_string(),
+            pattern: "smpte".to_string(),
+            resolution: Size::SD,
         }
     }
 }
@@ -50,7 +47,7 @@ impl Source for TestSource {
         let video_test_src =
             gst::ElementFactory::make("videotestsrc", Some(&format!("video-testsrc-{name}")))
                 .unwrap();
-        video_test_src.set_property_from_str("pattern", pattern);
+        video_test_src.set_property_from_str("pattern", &pattern);
         video_test_src.set_property_from_str("is-live", "true");
 
         // create video caps setter
