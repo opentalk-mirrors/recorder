@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     let _main_loop = glib::MainLoop::new(None, false);
 
     let rmq_conn = lapin::Connection::connect_uri(
-        settings.rabbitmq.uri.clone(),
+        settings.rabbit_mq.uri.clone(),
         lapin::ConnectionProperties::default()
             .with_executor(tokio_executor_trait::Tokio::current())
             .with_reactor(tokio_reactor_trait::Tokio),
@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
 
     let queue = rmq_channel
         .queue_declare(
-            &settings.rabbitmq.queue,
+            &settings.rabbit_mq.queue,
             Default::default(),
             Default::default(),
         )
@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
                 }
             }
             Err(e) => {
-                log::error!("rabbitmq consumer returned error: {}", e);
+                log::error!("RabbitMQ consumer returned error: {}", e);
                 break;
             }
         }
@@ -107,7 +107,7 @@ async fn record(
     use compositor::*;
 
     let sink_params = DashParameters {
-        mpd_root_path: "./tests/output/generate_mpd",
+        mpd_root_path: "./tests/output/generate_mpd".into(),
         target_duration: 2,
         ..Default::default()
     };

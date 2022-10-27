@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer};
 pub struct Settings {
     pub auth: Auth,
     pub controller: ControllerSettings,
-    pub rabbitmq: RabbitMqSettings,
+    pub rabbit_mq: RabbitMqSettings,
 }
 
 impl Settings {

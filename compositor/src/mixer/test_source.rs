@@ -25,8 +25,8 @@ pub struct TestSourceParameters {
 impl Default for TestSourceParameters {
     fn default() -> Self {
         Self {
-            name: "test-source".to_string(),
-            pattern: "smpte".to_string(),
+            name: "test-source".into(),
+            pattern: "smpte".into(),
             resolution: Size::SD,
         }
     }

@@ -9,18 +9,18 @@ pub struct DashSink {
 }
 
 pub struct DashParameters {
-    pub mpd_root_path: &'static str,
-    pub mpd_file_name: &'static str,
-    pub mpd_baseurl: &'static str,
+    pub mpd_root_path: String,
+    pub mpd_file_name: String,
+    pub mpd_baseurl: String,
     pub target_duration: u64,
 }
 
 impl Default for DashParameters {
     fn default() -> Self {
         Self {
-            mpd_root_path: "./",
-            mpd_file_name: "dash.mpd",
-            mpd_baseurl: "",
+            mpd_root_path: "./".into(),
+            mpd_file_name: "dash.mpd".into(),
+            mpd_baseurl: "".into(),
             target_duration: 15,
         }
     }
@@ -125,8 +125,8 @@ impl<W: Write> Write for Writer<W> {
         self.w.flush()
     }
 
-    fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
-        self.w.write_vectored(bufs)
+    fn write_vectored(&mut self, buffers: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
+        self.w.write_vectored(buffers)
     }
 
     fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
