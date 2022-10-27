@@ -5,4 +5,5 @@ pub enum Error {
     ParticipantNotFound(String),
     PlayingPipelineForbidden,
     MoreMaxVisiblesThanMaxParticipants,
+    IdDoublet(String),
 }

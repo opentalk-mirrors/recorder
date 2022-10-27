@@ -45,7 +45,6 @@ fn test_visibles() {
     mixer.set_title("show 1-4");
     mixer.pause();
     mixer.set_visibles(&names[0..4]).unwrap();
-    mixer.layout().unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_visible-2.dot");
@@ -55,21 +54,18 @@ fn test_visibles() {
     mixer.set_title("show 5-6");
     mixer.pause();
     mixer.set_visibles(&names[4..6]).unwrap();
-    mixer.layout().unwrap();
     mixer.play();
     mixer.generate_dot_file("test_visible-3.dot");
 
     mixer.set_title("show 6-8");
     mixer.pause();
     mixer.set_visibles(&names[5..8]).unwrap();
-    mixer.layout().unwrap();
     mixer.play();
     mixer.generate_dot_file("test_visible-4.dot");
 
     mixer.set_title("show 8");
     mixer.pause();
     mixer.set_visibles(&names[7..8]).unwrap();
-    mixer.layout().unwrap();
     mixer.play();
     mixer.generate_dot_file("test_visible-5.dot");
 
@@ -114,7 +110,6 @@ fn test_remove() {
     mixer.set_title("show 1-4");
     mixer.pause();
     mixer.set_visibles(&names[0..4]).unwrap();
-    mixer.layout().unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_visible-2.dot");
@@ -126,7 +121,6 @@ fn test_remove() {
     for name in &names[0..2] {
         mixer.remove_participant(name).unwrap();
     }
-    mixer.layout().unwrap();
     mixer.play();
     mixer.generate_dot_file("test_visible-3.dot");
 
@@ -137,7 +131,6 @@ fn test_remove() {
     for name in &names[4..8] {
         mixer.remove_participant(name).unwrap();
     }
-    mixer.layout().unwrap();
     mixer.play();
     mixer.generate_dot_file("test_visible-4.dot");
 

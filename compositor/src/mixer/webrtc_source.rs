@@ -24,11 +24,13 @@ impl Source for WebRtcSource {
 
             webrtc.
             ! rtpvp8depay
-            ! avdec_vp8 name=video-decode
+            ! avdec_vp8 
+                name=video-decode
 
             webrtc.
             ! rtpopusdepay
-            ! opusdec name=audio-decode
+            ! opusdec 
+                name=audio-decode
         ",
             false,
         )

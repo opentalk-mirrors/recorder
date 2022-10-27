@@ -16,7 +16,7 @@ pub struct Participant<S>
 where
     S: Source,
 {
-    pub name: String,
+    pub id: String,
     /// Wrapped AV source of this participant
     pub source: S,
     /// Contains the pad this participants audio stream is linked to. None if its not linked.
@@ -29,9 +29,9 @@ impl<S> Participant<S>
 where
     S: Source,
 {
-    pub fn new(pipeline: &gst::Pipeline, name: String, params: S::Parameters) -> Self {
+    pub fn new(pipeline: &gst::Pipeline, id: String, params: S::Parameters) -> Self {
         Self {
-            name,
+            id,
             source: S::new(pipeline, params),
             audio_mixer_pad: None,
             video_link_status: VideoLinkStatus::None,
