@@ -53,7 +53,7 @@ impl Size {
         width: 7680,
         height: 4320,
     };
-    /// return ratio between width and heighthttps://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayVAlign
+    /// return ratio between width and height
     pub fn ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }
@@ -63,10 +63,10 @@ impl Size {
 #[derive(Debug, Clone)]
 pub struct Alignment {
     /// horizontal alignment
-    /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayHAlign) for possible values.
+    /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayHAlign) for possible values).
     pub horizontal: &'static str,
     /// vertical alignment
-    /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayVAlign) for possible values.
+    /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayVAlign) for possible values).
     pub vertical: &'static str,
 }
 
