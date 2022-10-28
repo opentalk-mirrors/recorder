@@ -102,7 +102,7 @@ The result is the whole video in one file named `out.mp4`.
 
 ## GStreamer Pipeline
 
-![Audio/Video Pipeline](images/pipeline.png)
+![Audio/Video Pipeline](images/3_playing.dot.png)
 
 ## Known Problems
 
