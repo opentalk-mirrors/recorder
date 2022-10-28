@@ -21,6 +21,7 @@ pub struct Size {
     /// vertical dimension
     pub height: usize,
 }
+
 impl Size {
     /// SD (Standard Definition)
     pub const SD: Self = Self {
@@ -52,12 +53,13 @@ impl Size {
         width: 7680,
         height: 4320,
     };
+    /// return ratio between width and height
     pub fn ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }
 }
 
-/// text alignment
+/// Text alignment
 #[derive(Debug, Clone)]
 pub struct Alignment {
     /// horizontal alignment
@@ -66,19 +68,26 @@ pub struct Alignment {
     pub vertical: &'static str,
 }
 
-/// recording picture layout
+/// Video picture layout
 pub trait Layout: Send + Sync + 'static {
+    /// Create new layout for the given solution.
     fn new(resolution: &Size) -> Self;
+    /// Get setup resolution.
     fn resolution(&self) -> &Size;
+    /// Get position of the nth participants video.
     fn position(&self, n: usize, count: usize) -> Position;
+    /// Get size of the nth participants video.
     fn size(&self, n: usize, count: usize) -> Size;
+    /// Get alignment of the title text.
     fn title_alignment(&self) -> Alignment;
+    /// Get position of the title text.
     fn title_position(&self, _count: usize) -> Position;
-    // align the "who's speaking" text
+    /// Get alignment of the "who's speaking" text.
     fn speaking_alignment(&self, count: usize) -> Alignment;
-    // place "who's speaking" text
+    /// Get position of the "who's speaking" text.
     fn speaking_position(&self, count: usize) -> Position;
-    // align clock display
+    /// Get alignment of the clock display.
     fn clock_alignment(&self) -> Alignment;
+    /// Get position of the clock display.
     fn clock_position(&self, count: usize) -> Position;
 }

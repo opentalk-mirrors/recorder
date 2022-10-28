@@ -24,7 +24,7 @@ pub trait Source {
     type Parameters;
     /// Create an add a new source to a pipeline.
     /// Creates a bunch of elements based on given parameters and adds them to the pipeline.
-    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self;
+    fn new(pipeline: &gst::Pipeline, id: String, params: Self::Parameters) -> Self;
     /// Remove existing source from pipeline.
     /// Decouples and removes all elements from the pipeline which are created within this source.
     fn remove(self, pipeline: &gst::Pipeline);
@@ -48,7 +48,7 @@ pub trait Sink {
 }
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type
-/// # Arguments
+/// # Types
 /// - `L`: Layout to use to compose output picture.
 /// - `SRC`: Source type to use when adding participants.
 pub struct Mixer<L, SRC>
@@ -80,10 +80,10 @@ where
     pub participants: HashMap<String, Participant<SRC>>,
 }
 
-impl<L, S> Mixer<L, S>
+impl<L, SRC> Mixer<L, SRC>
 where
     L: Layout,
-    S: Source,
+    SRC: Source,
 {
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     /// # Arguments
@@ -226,7 +226,12 @@ where
     /// # Arguments
     /// - `id`: Unique identifier of the participant.
     /// - `params`: Source specific parameters.
-    pub fn add_participant(&mut self, id: String, params: S::Parameters) -> Result<(), Error> {
+    pub fn add_participant(
+        &mut self,
+        id: String,
+        display_name: String,
+        params: SRC::Parameters,
+    ) -> Result<(), Error> {
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -239,7 +244,7 @@ where
         }
 
         // add new participant
-        let participant = Participant::new(&self.pipeline, id.clone(), params);
+        let participant = Participant::new(&self.pipeline, id.clone(), display_name, params);
         self.participants.insert(id.to_string(), participant);
 
         // link new participant

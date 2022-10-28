@@ -16,8 +16,8 @@ pub struct TestSource {
     audio_caps: gst::Element,
 }
 
+#[derive(Clone)]
 pub struct TestSourceParameters {
-    pub name: String,
     pub pattern: String,
     pub resolution: Size,
 }
@@ -25,7 +25,6 @@ pub struct TestSourceParameters {
 impl Default for TestSourceParameters {
     fn default() -> Self {
         Self {
-            name: "test-source".into(),
             pattern: "smpte".into(),
             resolution: Size::SD,
         }
@@ -35,24 +34,23 @@ impl Default for TestSourceParameters {
 impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
-    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> TestSource {
-        trace!("create new TestSource '{}'", params.name);
+    fn new(pipeline: &gst::Pipeline, id: String, params: Self::Parameters) -> TestSource {
+        trace!("create new TestSource '{}'", id);
 
-        let name = params.name;
         let width = params.resolution.width;
         let height = params.resolution.height;
         let pattern = params.pattern;
 
         // create video test src
         let video_test_src =
-            gst::ElementFactory::make("videotestsrc", Some(&format!("video-testsrc-{name}")))
+            gst::ElementFactory::make("videotestsrc", Some(&format!("video-testsrc-{id}")))
                 .unwrap();
         video_test_src.set_property_from_str("pattern", &pattern);
         video_test_src.set_property_from_str("is-live", "true");
 
         // create video caps setter
         let video_caps =
-            gst::ElementFactory::make("capssetter", Some(&format!("video-caps-{name}"))).unwrap();
+            gst::ElementFactory::make("capssetter", Some(&format!("video-caps-{id}"))).unwrap();
         video_caps.set_property_from_str(
             "caps",
             &format!("video/x-raw,format=RGB,width={width},height={height}",),
@@ -67,14 +65,14 @@ impl Source for TestSource {
 
         // create audio test src
         let audio_test_src =
-            gst::ElementFactory::make("audiotestsrc", Some(&format!("audio-testsrc-{name}")))
+            gst::ElementFactory::make("audiotestsrc", Some(&format!("audio-testsrc-{id}")))
                 .unwrap();
         audio_test_src.set_property_from_str("volume", "0.01");
         audio_test_src.set_property_from_str("is-live", "true");
 
         // create audio caps setter
         let audio_caps =
-            gst::ElementFactory::make("capssetter", Some(&format!("audio-caps-{name}"))).unwrap();
+            gst::ElementFactory::make("capssetter", Some(&format!("audio-caps-{id}"))).unwrap();
         audio_caps.set_property_from_str(
             "caps",
             "audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000",

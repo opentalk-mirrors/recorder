@@ -1,7 +1,9 @@
 use super::*;
 
+/// Grid layout
 #[derive(Clone)]
 pub struct Grid {
+    // Size of the target picture in pixels.
     size: Size,
 }
 
@@ -23,6 +25,7 @@ impl Layout for Grid {
             },
         }
     }
+
     fn resolution(&self) -> &Size {
         &self.size
     }

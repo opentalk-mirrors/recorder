@@ -30,7 +30,9 @@ fn generate_mpd() {
     let mut mixer =
         Mixer::<Grid, TestSource>::new::<DashSink>(resolution, 8, 4, sink_params).unwrap();
 
-    mixer.add_participant("test".into(), source_params).unwrap();
+    mixer
+        .add_participant("test".into(), "".into(), source_params)
+        .unwrap();
     mixer.play();
 
     std::thread::sleep(Duration::from_secs(30));

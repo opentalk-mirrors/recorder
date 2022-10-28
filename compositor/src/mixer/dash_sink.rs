@@ -3,19 +3,29 @@ use gst::prelude::*;
 use gstreamer as gst;
 use std::io::Write;
 
+/// Writes out dash MPD/ts into files.
 pub struct DashSink {
+    /// Video sink pad.
     video_sink_pad: gst::Pad,
+    /// Audio sink pad.
     audio_sink_pad: gst::Pad,
 }
 
+/// Parameters of the Dash sink
 pub struct DashParameters {
+    /// Path where the MPD and its fragments will be written.
     pub mpd_root_path: String,
+    /// Filename of the mpd to write.
     pub mpd_file_name: String,
+    /// BaseURL to set in the MPD.
     pub mpd_baseurl: String,
+    /// The target duration in seconds of a segment/file
+    /// (0 - disabled, useful for management of segment duration by the streaming server).
     pub target_duration: u64,
 }
 
 impl Default for DashParameters {
+    /// Dash parameters default
     fn default() -> Self {
         Self {
             mpd_root_path: "./".into(),
@@ -29,7 +39,9 @@ impl Default for DashParameters {
 impl Sink for DashSink {
     type Parameters = DashParameters;
 
+    /// Create and add new Dash sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
+        // create bin including codecs and the dash sink
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#"
@@ -57,8 +69,10 @@ impl Sink for DashSink {
         )
         .unwrap();
 
+        // add sink to pipeline
         pipeline.add(&bin).unwrap();
 
+        // get codes from bin
         bin.by_name("dashsink").unwrap();
         let audio_encode = bin.by_name("audio-encoder").unwrap();
         let video_encode = bin.by_name("video-encoder").unwrap();
@@ -86,24 +100,29 @@ impl Sink for DashSink {
         //     Some(stream.to_value())
         // });
 
+        // create ghost pads which link to codecs
         let audio_sink_pad =
             gst::GhostPad::with_target(None, &audio_encode.static_pad("sink").unwrap()).unwrap();
         let video_sink_pad =
             gst::GhostPad::with_target(None, &video_encode.static_pad("sink").unwrap()).unwrap();
 
+        // add ghost pads to bin
         bin.add_pad(&audio_sink_pad).unwrap();
         bin.add_pad(&video_sink_pad).unwrap();
 
+        // return new Dash sink
         Self {
             video_sink_pad: video_sink_pad.upcast(),
             audio_sink_pad: audio_sink_pad.upcast(),
         }
     }
 
+    /// Get video sink pad.
     fn video_sink_pad(&self) -> gst::Pad {
         self.video_sink_pad.clone()
     }
 
+    /// Get audio sink pad.
     fn audio_sink_pad(&self) -> gst::Pad {
         self.audio_sink_pad.clone()
     }

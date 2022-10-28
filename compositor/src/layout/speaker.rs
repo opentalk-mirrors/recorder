@@ -1,7 +1,9 @@
 use super::*;
 
+/// Speaker layout
 #[derive(Clone)]
 pub struct Speaker {
+    // Size of the target picture in pixels.
     size: Size,
 }
 
@@ -23,21 +25,25 @@ impl Layout for Speaker {
             },
         }
     }
+
     fn resolution(&self) -> &Size {
         &self.size
     }
+
     fn position(&self, n: usize, count: usize) -> Position {
         match n {
             0 => self.speaker_position(count),
             _ => self.viewers_position(n - 1, count),
         }
     }
+
     fn size(&self, n: usize, count: usize) -> Size {
         match n {
             0 => self.speaker_size(count),
             _ => self.viewers_size(n - 1, count),
         }
     }
+
     fn title_alignment(&self) -> Alignment {
         // align the title text
         Alignment {
@@ -45,12 +51,12 @@ impl Layout for Speaker {
             vertical: "top",
         }
     }
+
     fn title_position(&self, _count: usize) -> Position {
         // place the title at the top left corner
         Position { x: 0, y: 0 }
     }
 
-    // align the "who's speaking" text
     fn speaking_alignment(&self, count: usize) -> Alignment {
         Alignment {
             horizontal: "left",
@@ -63,7 +69,6 @@ impl Layout for Speaker {
         }
     }
 
-    // place "who's speaking" text
     fn speaking_position(&self, count: usize) -> Position {
         Position {
             x: 0,
@@ -75,13 +80,14 @@ impl Layout for Speaker {
             },
         }
     }
-    // align clock display
+
     fn clock_alignment(&self) -> Alignment {
         Alignment {
             horizontal: "right",
             vertical: "bottom",
         }
     }
+
     fn clock_position(&self, count: usize) -> Position {
         // place clock display
         Position {

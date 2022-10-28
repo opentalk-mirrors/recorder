@@ -15,11 +15,14 @@ pub struct WebRtcSource {
 impl Source for WebRtcSource {
     type Parameters = ();
 
-    fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+    fn new(pipeline: &gst::Pipeline, id: String, _: ()) -> Self {
         let bin = gst::parse_bin_from_description(
-            "
+            &format!(
+                "
+                name=webrtcbin-{id}
+                
             webrtcbin
-                name=webrtc
+                name=webrtc-{id}
                 bundle-policy=max-bundle
 
             webrtc.
@@ -31,7 +34,8 @@ impl Source for WebRtcSource {
             ! rtpopusdepay
             ! opusdec 
                 name=audio-decode
-        ",
+        "
+            ),
             false,
         )
         .unwrap();
