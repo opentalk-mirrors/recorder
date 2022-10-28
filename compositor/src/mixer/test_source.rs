@@ -6,23 +6,35 @@ use gst::{
 };
 use gstreamer as gst;
 
+/// Source that generates dummy picture and sound to simulate a participant's input.
 #[derive(Clone)]
 pub struct TestSource {
+    /// Video source GStreamer pad.
     pub video_src_pad: gst::Pad,
+    /// Video source GStreamer element pad.
     pub video_src_element: gst::Element,
+    /// GStreamer element to manage video caps.
     video_caps: gst::Element,
+    /// Audio source GStreamer pad.
     pub audio_src_pad: gst::Pad,
+    /// Audio source GStreamer element pad.
     pub audio_src_element: gst::Element,
+    /// GStreamer element to manage audio caps.
     audio_caps: gst::Element,
 }
 
+/// Specific parameters needed to create a [TestSource]
 #[derive(Clone)]
 pub struct TestSourceParameters {
+    /// Pattern to produce
+    /// (see: [this list](https://gstreamer.freedesktop.org/documentation/videotestsrc/index.html?gi-language=c#GstVideoTestSrcPattern)).
     pub pattern: String,
+    /// Resolution of the generated picture.
     pub resolution: Size,
 }
 
 impl Default for TestSourceParameters {
+    /// [TestSource]'s default parameters
     fn default() -> Self {
         Self {
             pattern: "smpte".into(),
@@ -32,8 +44,10 @@ impl Default for TestSourceParameters {
 }
 
 impl Source for TestSource {
+    /// Forward parameters to [Source]'s generic type
     type Parameters = TestSourceParameters;
 
+    /// Create a new [TestSource] and add it to the given pipeline.
     fn new(pipeline: &gst::Pipeline, id: String, params: Self::Parameters) -> TestSource {
         trace!("create new TestSource '{}'", id);
 
@@ -107,10 +121,12 @@ impl Source for TestSource {
         pipeline.remove(&self.audio_caps).unwrap();
     }
 
+    /// Get video source pad.
     fn video_src_pad(&self) -> gst::Pad {
         self.video_src_pad.clone()
     }
 
+    /// Get audio source pad.
     fn audio_src_pad(&self) -> gst::Pad {
         self.audio_src_pad.clone()
     }

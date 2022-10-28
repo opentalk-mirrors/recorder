@@ -5,13 +5,13 @@ use std::io::Write;
 
 /// Writes out dash MPD/ts into files.
 pub struct DashSink {
-    /// Video sink pad.
+    /// Video sink GStreamer pad.
     video_sink_pad: gst::Pad,
-    /// Audio sink pad.
+    /// Audio sink GStreamer pad.
     audio_sink_pad: gst::Pad,
 }
 
-/// Parameters of the Dash sink
+/// Specific parameters needed to create a [DashSink]
 pub struct DashParameters {
     /// Path where the MPD and its fragments will be written.
     pub mpd_root_path: String,

@@ -4,17 +4,23 @@ use tokio::sync::oneshot;
 
 use crate::Source;
 
+/// Source that connects to an WebRTC source and provides the incoming streams as participant's input.
 pub struct WebRtcSource {
+    /// GStreamer bin surrounding all included elements
     bin: gst::Bin,
+    /// WebRTC GStreamer element which manages mostly everything.
     webrtcbin: gst::Element,
-
+    /// GStreamer video ghost pad to connect from the outside of the bin.
     video_ghostpad: gst::Pad,
+    /// GStreamer audio ghost pad to connect from the outside of the bin.
     audio_ghostpad: gst::Pad,
 }
 
 impl Source for WebRtcSource {
+    /// Does no need no parameters
     type Parameters = ();
 
+    /// Create a new WebRTC source
     fn new(pipeline: &gst::Pipeline, id: String, _: ()) -> Self {
         let bin = gst::parse_bin_from_description(
             &format!(
