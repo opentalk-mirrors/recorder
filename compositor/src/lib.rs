@@ -64,8 +64,10 @@ pub use mixer::*;
 fn generate_example_pipeline_picture() {
     use gstreamer as gst;
 
+    // initialize logging
     env_logger::init();
-    // initialize gstreamer
+
+    // initialize GStreamer
     gst::init().unwrap();
 
     // get output resolution from arguments
@@ -74,12 +76,15 @@ fn generate_example_pipeline_picture() {
         height: 480,
     };
 
+    // setup mixer
     let mut mixer = Mixer::<Grid, TestSource>::new::<FakeSink>(resolution, 3, 2, ()).unwrap();
-
+    // generate pipeline DOT graph of the empty pipeline
     mixer.generate_dot_file("0_init", gst::DebugGraphDetails::STATES);
 
+    // prepare test source parameters
     let params = TestSourceParameters::default();
 
+    // add three participants
     mixer
         .add_participant("P1".into(), "".into(), params.clone())
         .unwrap();
@@ -89,15 +94,16 @@ fn generate_example_pipeline_picture() {
     mixer
         .add_participant("P3".into(), "".into(), params)
         .unwrap();
+    // generate pipeline DOT graph
     mixer.generate_dot_file("1_add_participants", gst::DebugGraphDetails::STATES);
 
+    // set two participants to be visible
     mixer.set_visibles(&["P1".into(), "P2".into()]).unwrap();
+    // generate pipeline DOT graph
     mixer.generate_dot_file("2_set_visibles", gst::DebugGraphDetails::STATES);
 
+    // start the pipeline
     mixer.play();
+    // generate pipeline DOT graph
     mixer.generate_dot_file("3_playing", gst::DebugGraphDetails::STATES);
-
-    mixer.play();
-
-    std::thread::sleep(core::time::Duration::from_secs(3));
 }
