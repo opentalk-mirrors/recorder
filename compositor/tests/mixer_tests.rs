@@ -22,7 +22,7 @@ fn test_visibles() {
     let mut mixer = Mixer::<Grid, TestSource>::new::<DisplaySink>(resolution, 8, 4, ()).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_visible-0.dot");
+    mixer.generate_dot_file("test_visible-0.dot", gst::DebugGraphDetails::ALL);
 
     let ids = generate_ids(8);
 
@@ -40,7 +40,7 @@ fn test_visibles() {
             .unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file("test_visible-1.dot");
+    mixer.generate_dot_file("test_visible-1.dot", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_millis(500));
     mixer.set_title("show 1-4");
@@ -48,7 +48,7 @@ fn test_visibles() {
     mixer.set_visibles(&ids[0..4]).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_visible-2.dot");
+    mixer.generate_dot_file("test_visible-2.dot", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_millis(500));
 
@@ -56,19 +56,19 @@ fn test_visibles() {
     mixer.pause();
     mixer.set_visibles(&ids[4..6]).unwrap();
     mixer.play();
-    mixer.generate_dot_file("test_visible-3.dot");
+    mixer.generate_dot_file("test_visible-3.dot", gst::DebugGraphDetails::ALL);
 
     mixer.set_title("show 6-8");
     mixer.pause();
     mixer.set_visibles(&ids[5..8]).unwrap();
     mixer.play();
-    mixer.generate_dot_file("test_visible-4.dot");
+    mixer.generate_dot_file("test_visible-4.dot", gst::DebugGraphDetails::ALL);
 
     mixer.set_title("show 8");
     mixer.pause();
     mixer.set_visibles(&ids[7..8]).unwrap();
     mixer.play();
-    mixer.generate_dot_file("test_visible-5.dot");
+    mixer.generate_dot_file("test_visible-5.dot", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_millis(500));
 }
@@ -87,7 +87,7 @@ fn test_remove() {
     let mut mixer = Mixer::<Grid, TestSource>::new::<FakeSink>(resolution, 8, 4, ()).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_visible-0.dot");
+    mixer.generate_dot_file("test_visible-0.dot", gst::DebugGraphDetails::ALL);
 
     let ids = generate_ids(8);
 
@@ -105,7 +105,7 @@ fn test_remove() {
             .unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file("test_visible-1.dot");
+    mixer.generate_dot_file("test_visible-1.dot", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_millis(500));
 
@@ -114,7 +114,7 @@ fn test_remove() {
     mixer.set_visibles(&ids[0..4]).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_visible-2.dot");
+    mixer.generate_dot_file("test_visible-2.dot", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 
@@ -124,7 +124,7 @@ fn test_remove() {
         mixer.remove_participant(name).unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file("test_visible-3.dot");
+    mixer.generate_dot_file("test_visible-3.dot", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 
@@ -134,7 +134,7 @@ fn test_remove() {
         mixer.remove_participant(name).unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file("test_visible-4.dot");
+    mixer.generate_dot_file("test_visible-4.dot", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 }

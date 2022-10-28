@@ -126,7 +126,9 @@ async fn record(
     let mut list = HashSet::new();
 
     for id in signaling.publishing_participants() {
-        mixer.add_participant(id.0.to_string(), ()).unwrap();
+        mixer
+            .add_participant(id.0.to_string(), id.0.to_string(), ())
+            .unwrap();
         signaling
             .start_subscribe(id, MediaSessionType::Video)
             .await
@@ -154,7 +156,9 @@ async fn record(
             signaling::Event::ParticipantJoined(id) => {
                 if signaling.publishes(id, MediaSessionType::Video) {
                     mixer.pause();
-                    mixer.add_participant(id.0.to_string(), ()).unwrap();
+                    mixer
+                        .add_participant(id.0.to_string(), id.0.to_string(), ())
+                        .unwrap();
                     mixer.play();
 
                     signaling
@@ -167,7 +171,9 @@ async fn record(
             signaling::Event::ParticipantUpdated(id) => {
                 if !list.contains(&id) && signaling.publishes(id, MediaSessionType::Video) {
                     mixer.pause();
-                    mixer.add_participant(id.0.to_string(), ()).unwrap();
+                    mixer
+                        .add_participant(id.0.to_string(), id.0.to_string(), ())
+                        .unwrap();
                     mixer.play();
 
                     signaling

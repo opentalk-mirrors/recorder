@@ -76,7 +76,7 @@ fn generate_example_pipeline_picture() {
 
     let mut mixer = Mixer::<Grid, TestSource>::new::<FakeSink>(resolution, 3, 2, ()).unwrap();
 
-    mixer.generate_dot_file("0_init");
+    mixer.generate_dot_file("0_init", gst::DebugGraphDetails::STATES);
 
     let params = TestSourceParameters::default();
 
@@ -89,13 +89,15 @@ fn generate_example_pipeline_picture() {
     mixer
         .add_participant("P3".into(), "".into(), params)
         .unwrap();
-    mixer.generate_dot_file("1_add_participants");
+    mixer.generate_dot_file("1_add_participants", gst::DebugGraphDetails::STATES);
 
     mixer.set_visibles(&["P1".into(), "P2".into()]).unwrap();
-    mixer.generate_dot_file("2_set_visibles");
+    mixer.generate_dot_file("2_set_visibles", gst::DebugGraphDetails::STATES);
 
     mixer.play();
-    mixer.generate_dot_file("3_playing");
+    mixer.generate_dot_file("3_playing", gst::DebugGraphDetails::STATES);
 
     mixer.play();
+
+    std::thread::sleep(core::time::Duration::from_secs(3));
 }

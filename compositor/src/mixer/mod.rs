@@ -383,19 +383,19 @@ where
     }
 
     /// generate DOT file of the current pipeline
-    pub fn generate_dot_file(&self, filename_without_extension: &str) {
+    pub fn generate_dot_file(
+        &self,
+        filename_without_extension: &str,
+        details: gst::DebugGraphDetails,
+    ) {
         if let Ok(path) = std::env::var("GST_DEBUG_DUMP_DOT_DIR") {
             info!(
                 "writing DOT file `{}/{filename_without_extension}.dot`...",
                 path
             );
-            gst::debug_bin_to_dot_file(
-                &self.pipeline,
-                gst::DebugGraphDetails::ALL,
-                filename_without_extension,
-            );
+            gst::debug_bin_to_dot_file(&self.pipeline, details, filename_without_extension);
         } else {
-            warn!("can not write DOT file. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to a absolute path");
+            error!("can not write DOT file. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to a absolute path");
         }
     }
 }
