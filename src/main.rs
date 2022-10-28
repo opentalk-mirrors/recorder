@@ -3,7 +3,7 @@ use anyhow::Result;
 use core::time::Duration;
 use futures::future::join_all;
 use futures::StreamExt;
-use gst::glib;
+use gst::{glib, DebugGraphDetails};
 use settings::Settings;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -139,7 +139,7 @@ async fn record(
     mixer.play();
 
     for n in 0..10 {
-        mixer.generate_dot_file(&format!("yoyo_{n}"));
+        mixer.generate_dot_file(&format!("yoyo_{n}"), DebugGraphDetails::ALL);
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
