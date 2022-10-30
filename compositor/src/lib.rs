@@ -33,20 +33,20 @@
     # Generic source and sink traits
 
     - [Generic Source Trait](mixer::Source)
-      Generic trait which the mixer is assuming for an input source.
+      is a generic trait which the mixer is assuming for an input source.
     - [Generic Sink Trait](mixer::Sink)
-      Generic trait which the mixer is assuming for an output sink.
+      is a generic trait which the mixer is assuming for an output sink.
 
     # Testing
 
     In addition there are some alternative sources and sinks included which are used for testing purposes.
 
     - [Test Source](mixer::TestSource)
-      Test source which just generates some dummy participant audio and video data.
+      which just generates some dummy participant audio and video data.
     - [Fake Sink](mixer::FakeSink)
-      Sink without any output - just to make it run.
+      is a sink without any output - just to make it run.
     - [Display Sink](mixer::DisplaySink)
-      Sink which displays the output on the screen.
+      is a sink which displays the output on the screen.
 */
 
 #[macro_use]
