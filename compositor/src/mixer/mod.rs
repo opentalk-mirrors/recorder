@@ -95,7 +95,7 @@ where
         resolution: Size,
         max_participants: usize,
         max_visibles: usize,
-        params: SINK::Parameters,
+        sink_params: SINK::Parameters,
     ) -> Result<Self, Error>
     where
         SINK: Sink,
@@ -113,7 +113,7 @@ where
         let pipeline = gst::Pipeline::new(None);
 
         // create output link
-        let output = SINK::new(&pipeline, params);
+        let output = SINK::new(&pipeline, sink_params);
 
         // create video test src to get a picture when no participant is connected
         let video_background_src =

@@ -1,19 +1,19 @@
 /*!
     # Purpose
-    The compositor crate manages a gstreamer pipeline which receives WebRTC input audio and video streams
+    The *compositor* crate manages a gstreamer pipeline which receives WebRTC input audio and video streams
     of so-called *participants* and mixes them together using the so-called *mixer*.
 
     - [Mixer](mixer::Mixer)
     - [Participants](mixer::Participant)
 
-    It then composes an output image showing some of them (so-called *visibles*) in the output picture).
+    It then composes an output image showing some of them (so-called *visibles*) in the output picture.
 
     All incoming audio of all the participants will be mixed together independent of if they are invisible or not.
     The output then will be written onto disk into a Dash instance which consists of several files (MPD and Transport Streams).
 
     # Source & Sink
 
-    To get the input and out the output the following types are used
+    To read the input and write the output the following types are used
 
     - [WebRTC Source](mixer::WebRtcSource)
       Manages a connection to a WebRTC source and provides the content to the internal GStreamer pipeline.
@@ -36,7 +36,6 @@
       Generic trait which the mixer is assuming for an input source.
     - [Generic Sink Trait](mixer::Sink)
       Generic trait which the mixer is assuming for an output sink.
-
 
     # Testing
 

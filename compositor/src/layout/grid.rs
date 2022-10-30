@@ -1,6 +1,7 @@
 use super::*;
 
 /// Grid layout
+/// Places all the *visible* participants in a grid on screen.
 #[derive(Clone)]
 pub struct Grid {
     // Size of the target picture in pixels.

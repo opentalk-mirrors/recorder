@@ -46,11 +46,11 @@ where
         pipeline: &gst::Pipeline,
         id: String,
         display_name: String,
-        params: SRC::Parameters,
+        src_params: SRC::Parameters,
     ) -> Self {
         Self {
             display_name,
-            source: SRC::new(pipeline, id, params),
+            source: SRC::new(pipeline, id, src_params),
             audio_mixer_pad: None,
             video_link_status: VideoLinkStatus::None,
         }
