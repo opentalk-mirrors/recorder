@@ -1,6 +1,6 @@
 /*!
     # Purpose
-    The *compositor* crate manages a gstreamer pipeline which receives WebRTC input audio and video streams
+    The *compositor* crate manages a [GStreamer](https://gstreamer.freedesktop.org/) pipeline which receives [WebRTC](https://webrtc.org/) input audio and video streams
     of so-called *participants* and mixes them together using the so-called *mixer*.
 
     - [Mixer](mixer::Mixer)
@@ -9,7 +9,11 @@
     It then composes an output image showing some of them (so-called *visibles*) in the output picture.
 
     All incoming audio of all the participants will be mixed together independent of if they are invisible or not.
-    The output then will be written onto disk into a Dash instance which consists of several files (MPD and Transport Streams).
+    The output then will be written onto disk into a
+    [MPEG-DASH](https://de.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP (Dynamic Adaptive Streaming over HTTP))
+    instance which consists of several files including the
+    [MPD](https://ott.dolby.com/OnDelKits/DDP/Dolby_Digital_Plus_Online_Delivery_Kit_v1.5/Documentation/Playback/SDM/help_files/topics/c_dash_mpd_ov.html (media presentation description))
+    and Transport Streams.
 
     # Source & Sink
 
