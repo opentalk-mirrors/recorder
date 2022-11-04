@@ -2,6 +2,7 @@ use super::TEST_OUTPUT_DIR;
 use crate::*;
 use core::time::Duration;
 use gstreamer as gst;
+use std::path::PathBuf;
 
 #[test]
 fn test_dash() {
@@ -16,13 +17,13 @@ fn test_dash() {
     };
 
     // use default parameters for sink
-    let sink_params = MatroskaParameters::default();
-    let address = sink_params.address.clone();
-    let port = sink_params.port;
+    let sink_params = DashParameters {
+        mpd: PathBuf::from(TEST_OUTPUT_DIR).join("test_dash"),
+        ..Default::default()
+    };
 
     // create grid mixer with test sources for participants and a MatroskaSink
-    let mut mixer =
-        Mixer::<Grid, TestSource, MatroskaSink>::new(resolution, 4, sink_params).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource, DashSink>::new(resolution, 4, sink_params).unwrap();
 
     // add a participant
     mixer
@@ -31,32 +32,6 @@ fn test_dash() {
 
     // start mixer
     mixer.play();
-
-    // start ffmpeg to fetch output stream and create DASH files
-    std::process::Command::new("ffmpeg")
-        .args([
-            "-v",
-            "warning",
-            "-y",
-            "-nostdin",
-            "-i",
-            &format!("tcp://{address}:{port}"),
-            "-map",
-            "0",
-            "-b:0",
-            "192k",
-            "-use_timeline",
-            "1",
-            "-use_template",
-            "1",
-            "-adaptation_sets",
-            "id=0,streams=v id=1,streams=a",
-            "-f",
-            "dash",
-            &format!("{TEST_OUTPUT_DIR}/generate_mpd/output.mpd"),
-        ])
-        .spawn()
-        .unwrap();
 
     // stir until done
     std::thread::sleep(Duration::from_secs(3));

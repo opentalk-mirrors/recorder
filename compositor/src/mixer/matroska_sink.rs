@@ -1,7 +1,7 @@
 use super::Sink;
 use gst::prelude::*;
 use gstreamer as gst;
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener};
 use std::os::unix::prelude::AsRawFd;
 use std::sync::mpsc;
 
@@ -17,16 +17,14 @@ pub struct MatroskaSink {
 /// Specific parameters needed to create a [FileSink]
 #[derive(Clone)]
 pub struct MatroskaParameters {
-    pub address: String,
-    pub port: u16,
+    pub address: SocketAddr,
 }
 
 impl Default for MatroskaParameters {
     /// File parameters default
     fn default() -> Self {
         Self {
-            address: "127.0.0.1".to_string(),
-            port: 9000,
+            address: "127.0.0.1:9000".parse().unwrap(),
         }
     }
 }
@@ -82,21 +80,20 @@ impl Sink for MatroskaSink {
         // create ghost pads which link to codecs
         let audio_sink_pad =
             gst::GhostPad::with_target(None, &audio.static_pad("sink").unwrap()).unwrap();
-        //    gst::GhostPad::with_target(None, &mux.request_pad_simple("audio_%u").unwrap()).unwrap();
         let video_sink_pad =
             gst::GhostPad::with_target(None, &video.static_pad("sink").unwrap()).unwrap();
-        //        gst::GhostPad::with_target(None, &mux.request_pad_simple("video_%u").unwrap()).unwrap();
 
         // add ghost pads to bin
         bin.add_pad(&audio_sink_pad).unwrap();
         bin.add_pad(&video_sink_pad).unwrap();
 
         // listen on given TCP port
-        let address = &format!("{}:{}", params.address, params.port);
+        let address = params.address.to_string();
         trace!("Start listening on {}", address);
-
         let (_stop_sender, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
         let listener = TcpListener::bind(address).unwrap();
+
+        // spawn a thread which waits until the channel
         std::thread::spawn(move || loop {
             let (socket, _) = listener.accept().unwrap();
             trace!("Start sending matroska data");

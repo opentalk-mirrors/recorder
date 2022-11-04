@@ -1,9 +1,5 @@
-use crate::{error::Error, mixer::participant::VideoLinkStatus, Alignment, Layout, Position, Size};
-use core::mem::replace;
-use gst::prelude::*;
-use gstreamer as gst;
-use std::collections::HashMap;
-
+// sub-modules
+mod dash_sink;
 mod display_sink;
 mod fake_sink;
 mod matroska_sink;
@@ -11,12 +7,23 @@ mod participant;
 mod test_source;
 mod webrtc_source;
 
+// forward useful sub-module stuff as public
+pub use dash_sink::{DashParameters, DashSink};
 pub use display_sink::DisplaySink;
 pub use fake_sink::FakeSink;
 pub use matroska_sink::{MatroskaParameters, MatroskaSink};
 pub use participant::Participant;
 pub use test_source::{TestSource, TestSourceParameters};
 pub use webrtc_source::WebRtcSource;
+
+// what else we need from this lib
+use crate::{error::Error, mixer::participant::VideoLinkStatus, Alignment, Layout, Position, Size};
+
+// what we need from external libraries
+use core::mem::replace;
+use gst::prelude::*;
+use gstreamer as gst;
+use std::collections::HashMap;
 
 /// Trait of a participant's audio/video source.
 pub trait Source {
@@ -45,6 +52,10 @@ pub trait Sink {
     fn video_sink_pad(&self) -> gst::Pad;
     /// Get sink pad of the audio sink.
     fn audio_sink_pad(&self) -> gst::Pad;
+    /// called from `Mixer::play()`
+    fn on_play(&self) {}
+    /// called from `Mixer::play()`
+    fn on_pause(&self) {}
 }
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type
@@ -72,13 +83,13 @@ where
     title: Option<gst::Element>,
     /// GStreamer element for rendering a "who' speaking" display into the output picture if whished.
     speaking: Option<gst::Element>,
-    /// The mixer GStreamer pipeline
+    /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
     /// Layout of the output picture.
     layout: L,
-    /// Current participants
+    /// Current participants.
     pub participants: HashMap<String, Participant<SRC>>,
-    /// holds the output sink
+    /// Holds the output sink.
     pub output: SINK,
 }
 
@@ -334,12 +345,14 @@ where
     pub fn play(&self) {
         self.pipeline.set_state(gst::State::Playing).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
+        self.output.on_play();
     }
 
     /// pause playing of pipeline
     pub fn pause(&self) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
+        self.output.on_pause();
     }
 
     /// generate DOT file of the current pipeline
