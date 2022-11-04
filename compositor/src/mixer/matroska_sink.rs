@@ -14,7 +14,7 @@ pub struct MatroskaSink {
     stop_sender: mpsc::Sender<()>,
 }
 
-/// Specific parameters needed to create a [FileSink]
+/// Specific parameters needed to create a MatroskaSink
 #[derive(Clone)]
 pub struct MatroskaParameters {
     pub address: SocketAddr,
