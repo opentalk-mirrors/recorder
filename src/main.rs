@@ -112,8 +112,6 @@ async fn record(
         seg_type: SegmentType::AUTO,
         port: 9000,
         bitrate: 0x100000,
-        // no need to change this:
-        ..Default::default()
     };
 
     let mut mixer = Mixer::<Speaker, WebRtcSource, DashSink>::new(
