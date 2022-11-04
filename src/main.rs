@@ -106,12 +106,17 @@ async fn record(
 
     use compositor::*;
 
-    let sink_params = MatroskaParameters {
-        address: "tcp:/127.0.0.1".into(),
+    let sink_params = DashParameters {
+        mpd: std::path::PathBuf::from("./output.mpd"),
+        seg_duration: 5.0,
+        seg_type: SegmentType::AUTO,
         port: 9000,
+        bitrate: 0x100000,
+        // no need to change this:
+        ..Default::default()
     };
 
-    let mut mixer = Mixer::<Speaker, WebRtcSource, MatroskaSink>::new(
+    let mut mixer = Mixer::<Speaker, WebRtcSource, DashSink>::new(
         // resolution
         Size::FHD,
         // maximum visibles

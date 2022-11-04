@@ -8,7 +8,7 @@ mod test_source;
 mod webrtc_source;
 
 // forward useful sub-module stuff as public
-pub use dash_sink::{DashParameters, DashSink};
+pub use dash_sink::{DashParameters, DashSink, SegmentType};
 pub use display_sink::DisplaySink;
 pub use fake_sink::FakeSink;
 pub use matroska_sink::{MatroskaParameters, MatroskaSink};
