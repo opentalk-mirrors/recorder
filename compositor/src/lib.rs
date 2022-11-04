@@ -59,6 +59,8 @@ extern crate log;
 mod error;
 mod layout;
 mod mixer;
+#[cfg(test)]
+mod tests;
 
 pub use layout::*;
 pub use mixer::*;
@@ -80,7 +82,7 @@ fn generate_example_pipeline_picture() {
     };
 
     // setup mixer
-    let mut mixer = Mixer::<Grid, TestSource>::new::<FakeSink>(resolution, 3, 2, ()).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource, FakeSink>::new(resolution, 3, 2, ()).unwrap();
     // generate pipeline DOT graph of the empty pipeline
     mixer.generate_dot_file("0_init", gst::DebugGraphDetails::STATES);
 

@@ -56,15 +56,18 @@ impl Source for TestSource {
         let pattern = params.pattern;
 
         // create video test src
-        let video_test_src =
-            gst::ElementFactory::make("videotestsrc", Some(&format!("video-testsrc-{id}")))
-                .unwrap();
+        let video_test_src = gst::ElementFactory::make_with_name(
+            "videotestsrc",
+            Some(&format!("video-testsrc-{id}")),
+        )
+        .unwrap();
         video_test_src.set_property_from_str("pattern", &pattern);
         video_test_src.set_property_from_str("is-live", "true");
 
         // create video caps setter
         let video_caps =
-            gst::ElementFactory::make("capssetter", Some(&format!("video-caps-{id}"))).unwrap();
+            gst::ElementFactory::make_with_name("capssetter", Some(&format!("video-caps-{id}")))
+                .unwrap();
         video_caps.set_property_from_str(
             "caps",
             &format!("video/x-raw,format=RGB,width={width},height={height}",),
@@ -78,15 +81,18 @@ impl Source for TestSource {
         video_test_src.link(&video_caps).unwrap();
 
         // create audio test src
-        let audio_test_src =
-            gst::ElementFactory::make("audiotestsrc", Some(&format!("audio-testsrc-{id}")))
-                .unwrap();
+        let audio_test_src = gst::ElementFactory::make_with_name(
+            "audiotestsrc",
+            Some(&format!("audio-testsrc-{id}")),
+        )
+        .unwrap();
         audio_test_src.set_property_from_str("volume", "0.01");
         audio_test_src.set_property_from_str("is-live", "true");
 
         // create audio caps setter
         let audio_caps =
-            gst::ElementFactory::make("capssetter", Some(&format!("audio-caps-{id}"))).unwrap();
+            gst::ElementFactory::make_with_name("capssetter", Some(&format!("audio-caps-{id}")))
+                .unwrap();
         audio_caps.set_property_from_str(
             "caps",
             "audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000",

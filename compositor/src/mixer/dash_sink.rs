@@ -12,6 +12,7 @@ pub struct DashSink {
 }
 
 /// Specific parameters needed to create a [DashSink]
+#[derive(Clone)]
 pub struct DashParameters {
     /// Path where the MPD and its fragments will be written.
     pub mpd_root_path: String,

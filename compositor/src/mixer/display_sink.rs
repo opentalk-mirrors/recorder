@@ -19,9 +19,9 @@ impl Sink for DisplaySink {
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
         // create video and audio sink
         let video_sink =
-            gst::ElementFactory::make("xvimagesink", Some("display-video-sink")).unwrap();
+            gst::ElementFactory::make_with_name("xvimagesink", Some("display-video-sink")).unwrap();
         let audio_sink =
-            gst::ElementFactory::make("pulsesink", Some("display-audio-sink")).unwrap();
+            gst::ElementFactory::make_with_name("pulsesink", Some("display-audio-sink")).unwrap();
 
         // add sinks to pipeline
         pipeline.add(&video_sink).unwrap();

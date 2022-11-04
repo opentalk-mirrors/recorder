@@ -1,4 +1,4 @@
 /*.lock
 /target
 /pipelines
-/tests/output
+/test_output/*

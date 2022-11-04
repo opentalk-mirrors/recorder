@@ -8,10 +8,10 @@ edition = "2021"
 [dependencies]
 compositor = { path = "compositor" }
 
-gst = { package = "gstreamer", version = "0.18" }
-gst-app = { package = "gstreamer-app", version = "0.18" }
-gst-sdp = { package = "gstreamer-sdp", version = "0.18" }
-gst-webrtc = { package = "gstreamer-webrtc", version = "0.18", features = [
+gst = { package = "gstreamer", version = "0.19" }
+gst-app = { package = "gstreamer-app", version = "0.19" }
+gst-sdp = { package = "gstreamer-sdp", version = "0.19" }
+gst-webrtc = { package = "gstreamer-webrtc", version = "0.19", features = [
     "v1_20",
 ] }
 tt = { package = "tokio-tungstenite", version = "0.17" }

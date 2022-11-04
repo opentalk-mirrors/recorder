@@ -112,7 +112,7 @@ async fn record(
         ..Default::default()
     };
 
-    let mut mixer = Mixer::<Speaker, WebRtcSource>::new::<DashSink>(
+    let mut mixer = Mixer::<Speaker, WebRtcSource, DashSink>::new(
         // resolution
         Size::FHD,
         // participants

@@ -1,12 +1,13 @@
 use crate::{error::Error, mixer::participant::VideoLinkStatus, Alignment, Layout, Position, Size};
 use core::mem::replace;
-use gst::prelude::*;
+use gst::{event, prelude::*};
 use gstreamer as gst;
 use std::collections::HashMap;
 
 mod dash_sink;
 mod display_sink;
 mod fake_sink;
+mod matroska_sink;
 mod participant;
 mod test_source;
 mod webrtc_source;
@@ -14,6 +15,7 @@ mod webrtc_source;
 pub use dash_sink::{DashParameters, DashSink};
 pub use display_sink::DisplaySink;
 pub use fake_sink::FakeSink;
+pub use matroska_sink::{MatroskaParameters, MatroskaSink};
 pub use participant::Participant;
 pub use test_source::{TestSource, TestSourceParameters};
 pub use webrtc_source::WebRtcSource;
@@ -51,10 +53,12 @@ pub trait Sink {
 /// # Types
 /// - `L`: Layout to use to compose output picture.
 /// - `SRC`: Source type to use when adding participants.
-pub struct Mixer<L, SRC>
+/// - `SINK`: Sink type to use for output.
+pub struct Mixer<L, SRC, SINK>
 where
     L: Layout,
     SRC: Source,
+    SINK: Sink,
 {
     /// GStreamer element which composes the output video out of the source videos.
     pub compositor: gst::Element,
@@ -78,12 +82,15 @@ where
     layout: L,
     /// Current participants
     pub participants: HashMap<String, Participant<SRC>>,
+    /// holds the output sink
+    pub output: SINK,
 }
 
-impl<L, SRC> Mixer<L, SRC>
+impl<L, SRC, SINK> Mixer<L, SRC, SINK>
 where
     L: Layout,
     SRC: Source,
+    SINK: Sink,
 {
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     /// # Arguments
@@ -91,15 +98,12 @@ where
     /// - `max_participants`: Maximum number of allowed participants.
     /// - `max_visibles`: Maximum number of visible participants.
     /// - `visibles`: Number of currently visible participants.
-    pub fn new<SINK>(
+    pub fn new(
         resolution: Size,
         max_participants: usize,
         max_visibles: usize,
         sink_params: SINK::Parameters,
-    ) -> Result<Self, Error>
-    where
-        SINK: Sink,
-    {
+    ) -> Result<Self, Error> {
         // check for bounds
         if max_participants < max_visibles {
             return Err(Error::MoreMaxVisiblesThanMaxParticipants);
@@ -117,19 +121,21 @@ where
 
         // create video test src to get a picture when no participant is connected
         let video_background_src =
-            gst::ElementFactory::make("videotestsrc", Some("video-background")).unwrap();
+            gst::ElementFactory::make_with_name("videotestsrc", Some("video-background")).unwrap();
         video_background_src.set_property_from_str("pattern", "black");
         video_background_src.set_property_from_str("is-live", "true");
 
         // create video caps setter
-        let video_caps = gst::ElementFactory::make("capssetter", Some("video-caps")).unwrap();
+        let video_caps =
+            gst::ElementFactory::make_with_name("capssetter", Some("video-caps")).unwrap();
         video_caps.set_property_from_str(
             "caps",
             &format!("video/x-raw,format=RGB,width={width},height={height}",),
         );
 
         // create video compositor
-        let compositor = gst::ElementFactory::make("compositor", Some("video-compositor")).unwrap();
+        let compositor =
+            gst::ElementFactory::make_with_name("compositor", Some("video-compositor")).unwrap();
         compositor.set_property_from_str("ignore-inactive-pads", "true");
         for _ in 0..max_visibles + 1 {
             compositor.request_pad_simple("sink_%u").unwrap();
@@ -137,7 +143,8 @@ where
 
         // create video clock overlay
         let clock_overlay =
-            gst::ElementFactory::make("clockoverlay", Some("video-clock-overlay")).unwrap();
+            gst::ElementFactory::make_with_name("clockoverlay", Some("video-clock-overlay"))
+                .unwrap();
         clock_overlay.set_property_from_str("font-desc", "Sans, 14");
         clock_overlay.set_property_from_str("time-format", "%x %X %Z");
         clock_overlay.set_property_from_str("xpad", "10");
@@ -146,7 +153,8 @@ where
 
         // create video title text overlay
         let title_overlay =
-            gst::ElementFactory::make("textoverlay", Some("video-title-overlay")).unwrap();
+            gst::ElementFactory::make_with_name("textoverlay", Some("video-title-overlay"))
+                .unwrap();
         title_overlay.set_property_from_str("font-desc", "Sans, 16");
         title_overlay.set_property_from_str("xpad", "10");
         title_overlay.set_property_from_str("ypad", "2");
@@ -154,7 +162,8 @@ where
 
         // create video speaking text overlay
         let speaking_overlay =
-            gst::ElementFactory::make("textoverlay", Some("video-speaking-overlay")).unwrap();
+            gst::ElementFactory::make_with_name("textoverlay", Some("video-speaking-overlay"))
+                .unwrap();
         speaking_overlay.set_property_from_str("font-desc", "Sans, 16");
         speaking_overlay.set_property_from_str("xpad", "10");
         speaking_overlay.set_property_from_str("ypad", "2");
@@ -181,19 +190,21 @@ where
 
         // create test src to get a picture when no participant is connected
         let audio_background_src =
-            gst::ElementFactory::make("audiotestsrc", Some("audio-background")).unwrap();
+            gst::ElementFactory::make_with_name("audiotestsrc", Some("audio-background")).unwrap();
         audio_background_src.set_property_from_str("is-live", "true");
         audio_background_src.set_property_from_str("volume", "0.0");
 
         // create audio caps setter
-        let audio_caps = gst::ElementFactory::make("capssetter", Some("audio-caps")).unwrap();
+        let audio_caps =
+            gst::ElementFactory::make_with_name("capssetter", Some("audio-caps")).unwrap();
         audio_caps.set_property_from_str(
             "caps",
             "audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000",
         );
 
         // create audio mixer
-        let audio_mixer = gst::ElementFactory::make("audiomixer", Some("audio-mixer")).unwrap();
+        let audio_mixer =
+            gst::ElementFactory::make_with_name("audiomixer", Some("audio-mixer")).unwrap();
         let audio_output_pad = audio_mixer.static_pad("src").unwrap();
 
         // link audio elements
@@ -220,6 +231,7 @@ where
             layout,
             pipeline,
             participants: HashMap::new(),
+            output,
         })
     }
     /// Add a new participant to the mixer.
@@ -346,6 +358,7 @@ where
 
     // halt pipeline (can not be played again)
     pub fn exit(&self) {
+        self.pipeline.send_event(gst::event::Eos::new());
         self.pipeline.set_state(gst::State::Null).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
@@ -400,10 +413,11 @@ where
     }
 }
 
-impl<L, S> Mixer<L, S>
+impl<L, SRC, SINK> Mixer<L, SRC, SINK>
 where
     L: Layout,
-    S: Source,
+    SRC: Source,
+    SINK: Sink,
 {
     /// Re-layout the current compositor scene.
     fn layout(&self) -> Result<(), Error> {
@@ -532,7 +546,7 @@ where
             }
         }
 
-        let fakesink = gst::ElementFactory::make("fakesink", None).unwrap();
+        let fakesink = gst::ElementFactory::make_with_name("fakesink", None).unwrap();
         self.pipeline.add(&fakesink).unwrap();
         participant
             .source

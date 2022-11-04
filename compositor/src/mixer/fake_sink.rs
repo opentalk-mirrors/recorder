@@ -18,8 +18,10 @@ impl Sink for FakeSink {
     #[allow(dead_code)]
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
         // create video and audio sink
-        let video_sink = gst::ElementFactory::make("fakesink", Some("fake-video-sink")).unwrap();
-        let audio_sink = gst::ElementFactory::make("fakesink", Some("fake-audio-sink")).unwrap();
+        let video_sink =
+            gst::ElementFactory::make_with_name("fakesink", Some("fake-video-sink")).unwrap();
+        let audio_sink =
+            gst::ElementFactory::make_with_name("fakesink", Some("fake-audio-sink")).unwrap();
 
         // add sinks to pipeline
         pipeline.add(&video_sink).unwrap();

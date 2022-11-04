@@ -6,14 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gstreamer = { version="0.18", features=["v1_20"] }
-gst-sdp = { package = "gstreamer-sdp", version = "0.18" }
-gst-webrtc = { package = "gstreamer-webrtc", version = "0.18", features = [
+gstreamer = { version="0.19", features=["v1_20"] }
+gst-sdp = { package = "gstreamer-sdp", version = "0.19" }
+gst-webrtc = { package = "gstreamer-webrtc", version = "0.19", features = [
     "v1_20",
 ] }
-gio = "0.15"
+gio = "0.16"
 log = "0.4.0"
-tokio = { version = "1", features = ["sync"] }
+glib = "0.16"
+tokio = { version = "1", features = ["sync", "net"] }
 
 [dev-dependencies]
 env_logger = "0.9.0"
