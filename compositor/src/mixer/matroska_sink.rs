@@ -33,7 +33,7 @@ impl Sink for MatroskaSink {
     type Parameters = MatroskaParameters;
 
     /// Create and add new Dash sink into existing pipeline.
-    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
+    fn new(pipeline: &gst::Pipeline, params: MatroskaParameters) -> Self {
         // create bin including codecs and the dash sink
         let bin = gst::parse_bin_from_description(
             &format!(

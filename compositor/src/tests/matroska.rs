@@ -4,7 +4,9 @@ use gstreamer as gst;
 
 #[test]
 fn test_matroska() {
+    // init logger
     env_logger::init();
+
     // initialize gstreamer
     gst::init().unwrap();
 

@@ -37,7 +37,7 @@ impl SegmentType {
 /// Specific parameters needed to create.
 #[derive(Clone)]
 pub struct DashParameters {
-    /// Path, name and extension of the MPD file to create (e.g. "./output/my_media.mpd").
+    /// Path, name and extension of the MPD file to create (e.g. `./output/my_media.mpd`).
     /// All further media files will be created beside the MPD file.
     /// All files will be overwritten!
     pub mpd: PathBuf,
@@ -71,7 +71,7 @@ impl Sink for DashSink {
     type Parameters = DashParameters;
 
     /// Create and add new DASH sink into existing pipeline.
-    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
+    fn new(pipeline: &gst::Pipeline, params: DashParameters) -> Self {
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {

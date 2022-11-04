@@ -6,7 +6,9 @@ use std::path::PathBuf;
 
 #[test]
 fn test_dash() {
+    // init logger
     env_logger::init();
+
     // initialize gstreamer
     gst::init().unwrap();
 

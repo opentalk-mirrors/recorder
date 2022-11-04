@@ -48,7 +48,7 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [TestSource] and add it to the given pipeline.
-    fn new(pipeline: &gst::Pipeline, id: String, params: Self::Parameters) -> TestSource {
+    fn new(pipeline: &gst::Pipeline, id: String, params: TestSourceParameters) -> TestSource {
         trace!("create new TestSource '{}'", id);
 
         let width = params.resolution.width;
