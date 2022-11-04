@@ -50,8 +50,6 @@ pub struct DashParameters {
     pub seg_duration: f32,
     /// DASH segment type
     pub seg_type: SegmentType,
-    /// Parameters for underlying matroska sink.
-    pub matroska: MatroskaParameters,
 }
 
 impl Default for DashParameters {
@@ -63,7 +61,6 @@ impl Default for DashParameters {
             bitrate: 1024 * 1024,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
-            matroska: Default::default(),
         }
     }
 }
@@ -76,7 +73,13 @@ impl Sink for DashSink {
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
-            matroska_sink: MatroskaSink::new(pipeline, params.matroska.clone()),
+            matroska_sink: MatroskaSink::new(
+                pipeline,
+                MatroskaParameters {
+                    // use fixed localhost but with given port
+                    address: format!("127.0.0.1:{}", params.port).parse().unwrap(),
+                },
+            ),
             params,
         }
     }
@@ -103,6 +106,7 @@ impl Sink for DashSink {
                 "-y",
                 "-nostdin",
                 "-i",
+                // read from localhost and given port
                 &format!("tcp://127.0.0.1:{}", self.params.port),
                 "-map",
                 "0",
@@ -147,7 +151,7 @@ impl Sink for DashSink {
                     break;
                 }
                 MessageView::Eos(..) => break,
-                _ => trace!("{:?}", msg),
+                _ => (),
             }
         }
     }
