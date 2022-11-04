@@ -106,13 +106,12 @@ async fn record(
 
     use compositor::*;
 
-    let sink_params = DashParameters {
-        mpd_root_path: "./tests/output/generate_mpd".into(),
-        target_duration: 2,
-        ..Default::default()
+    let sink_params = MatroskaParameters {
+        local_address: "tcp:/127.0.0.1".into(),
+        port: 9000,
     };
 
-    let mut mixer = Mixer::<Speaker, WebRtcSource, DashSink>::new(
+    let mut mixer = Mixer::<Speaker, WebRtcSource, MatroskaSink>::new(
         // resolution
         Size::FHD,
         // participants

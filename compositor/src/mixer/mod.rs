@@ -4,7 +4,6 @@ use gst::prelude::*;
 use gstreamer as gst;
 use std::collections::HashMap;
 
-mod dash_sink;
 mod display_sink;
 mod fake_sink;
 mod matroska_sink;
@@ -12,7 +11,6 @@ mod participant;
 mod test_source;
 mod webrtc_source;
 
-pub use dash_sink::{DashParameters, DashSink};
 pub use display_sink::DisplaySink;
 pub use fake_sink::FakeSink;
 pub use matroska_sink::{MatroskaParameters, MatroskaSink};
