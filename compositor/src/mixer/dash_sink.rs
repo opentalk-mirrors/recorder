@@ -1,6 +1,7 @@
 use crate::Sink;
 use crate::{MatroskaParameters, MatroskaSink};
 
+use gst::prelude::*;
 use gstreamer as gst;
 use std::path::PathBuf;
 
@@ -123,5 +124,35 @@ impl Sink for DashSink {
             ])
             .spawn()
             .unwrap();
+    }
+    fn on_exit(pipeline: &gst::Pipeline) {
+        // send EOS into pipeline to flush output
+        pipeline.send_event(gst::event::Eos::new());
+
+        // wait until error or EOS
+        let bus = pipeline.bus().unwrap();
+        for msg in bus.iter_timed(gst::ClockTime::NONE) {
+            use gst::MessageView;
+
+            match msg.view() {
+                MessageView::Error(err) => {
+                    error!(
+                        "Error received from element {:?}: {}",
+                        err.src().map(|s| s.path_string()),
+                        err.error()
+                    );
+                    debug!("Debugging information: {:?}", err.debug());
+                    break;
+                }
+                MessageView::Eos(..) => break,
+                _ => trace!("{:?}", msg),
+            }
+        }
+
+        // stop pipeline
+        pipeline
+            .set_state(gst::State::Null)
+            .expect("Unable to set the pipeline to the `Null` state");
+        trace!("Mixer exited successfully");
     }
 }

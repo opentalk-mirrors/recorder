@@ -52,10 +52,12 @@ pub trait Sink {
     fn video_sink_pad(&self) -> gst::Pad;
     /// Get sink pad of the audio sink.
     fn audio_sink_pad(&self) -> gst::Pad;
-    /// called from `Mixer::play()`
+    /// Called by `Mixer::play()`.
     fn on_play(&self) {}
-    /// called from `Mixer::play()`
+    /// Called by `Mixer::pause()`.
     fn on_pause(&self) {}
+    /// Called by `Mixer::drop()`.
+    fn on_exit(_pipeline: &gst::Pipeline) {}
 }
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type
@@ -379,35 +381,6 @@ where
     SRC: Source,
     SINK: Sink,
 {
-    /// wait until mixer generates error or ends
-    fn run(&self) {
-        // wait until error or EOS
-        let bus = self.pipeline.bus().unwrap();
-        for msg in bus.iter_timed(gst::ClockTime::NONE) {
-            use gst::MessageView;
-
-            match msg.view() {
-                MessageView::Error(err) => {
-                    error!(
-                        "Error received from element {:?}: {}",
-                        err.src().map(|s| s.path_string()),
-                        err.error()
-                    );
-                    debug!("Debugging information: {:?}", err.debug());
-                    break;
-                }
-                MessageView::Eos(..) => break,
-                _ => (),
-            }
-        }
-
-        // stop pipeline
-        self.pipeline
-            .set_state(gst::State::Null)
-            .expect("Unable to set the pipeline to the `Null` state");
-        trace!("Mixer exited successfully")
-    }
-
     /// Re-layout the current compositor scene.
     fn layout(&self) -> Result<(), Error> {
         // check preconditions
@@ -631,9 +604,6 @@ where
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {
         trace!("exiting mixer");
-        // send EOS into pipeline to flush output
-        self.pipeline.send_event(gst::event::Eos::new());
-        // wait for EOS being processed
-        self.run();
+        SINK::on_exit(&self.pipeline);
     }
 }

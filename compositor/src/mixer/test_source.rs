@@ -63,6 +63,7 @@ impl Source for TestSource {
         .unwrap();
         video_test_src.set_property_from_str("pattern", &pattern);
         video_test_src.set_property_from_str("is-live", "true");
+        video_test_src.set_property_from_str("num-buffers", "100");
 
         // create video caps setter
         let video_caps =
