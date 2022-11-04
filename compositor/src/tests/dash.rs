@@ -35,6 +35,8 @@ fn test_dash() {
     // start mixer
     mixer.play();
 
+    mixer.generate_dot_file("test_dash", gst::DebugGraphDetails::ALL);
+
     // stir until done
     std::thread::sleep(Duration::from_secs(3));
 }
