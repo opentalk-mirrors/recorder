@@ -7,98 +7,38 @@
 - [OpenTalk Mixer](#opentalk-mixer)
   - [Content](#content)
   - [Purpose](#purpose)
-  - [First Speaker Composite](#first-speaker-composite)
-  - [Running](#running)
-    - [Advanced options](#advanced-options)
-  - [Convert Dash files into one *MP4* file](#convert-dash-files-into-one-mp4-file)
+  - [Composites](#composites)
+    - [Speaker Composite](#speaker-composite)
+    - [Grid Composite](#grid-composite)
+  - [Start DASH demo](#start-dash-demo)
   - [GStreamer Pipeline](#gstreamer-pipeline)
   - [Known Problems](#known-problems)
 
 ## Purpose
 
-This is a study of the recording compositor to be used in *OpenTalk Recorder*.
+This is the recording compositor to be used in *OpenTalk Recorder*.
 
-## First Speaker Composite
+## Composites
+
+### Speaker Composite
 
 The recording composite `speaker` has slightly different look than the one used in the participants view because this study is a straight forward approach and recording composites might look different in either way because recording (or streaming) presentation usually is different to what each participant is setting up for himself. Additionally we can test if inserting text overlays with title, a clock or other useful information is wishful in recordings.
 
 ![First Speaker Composite](images/speaker.png)
 
-## Running
+### Grid Composite
 
-Run the program with:
+A composite placing all visible participants in a grid.
 
-```sh
-RUST_LOG=INFO cargo run -- -t -d
-```
+## Start DASH demo
 
-This will use test sources (`-t`) and display the output on screen (`-d`). `RUST_LOG=INFO` sets the logging level to info.
+Please try the following line which starts a demo which uses an existing crate test to generate DASH output of a scene with one participant (simulated by a test video):
 
 ```sh
-RUST_LOG=INFO cargo run -- -t
+RUST_LOG=trace cargo test test_matroska & sleep 1 ; bin/record-ffmpeg.sh tcp://127.0.0.1:9000 test_output/dash.mpd 1M 5 auto
 ```
 
-Take away the display option and This will produce an *MPD file* `dash.mpd` and several video files named `video_1_x.ts` where `x` is an incrementing number.
-
-The *Dash* files can be played with `mplayer` by using the following line:
-
-```sh
-mplayer dash.mpd
-```
-
-### Advanced options
-
-```txt
-compositor 0.1.1
-program arguments
-
-USAGE:
-    compositor [OPTIONS]
-
-OPTIONS:
-    -d, --display
-            just use video display instead of recording
-
-    -D, --dot
-            generate dot file of pipeline
-
-    -h, --help
-            Print help information
-
-    -p, --participants <PARTICIPANTS>
-            number of visible viewers (additionally to the speaker) [default: 5]
-
-        --resolution <RESOLUTION>
-            width and height (e.g. `1920x1080`) of the composite output [default: 640x480]
-
-    -t, --test
-            use test sources
-
-    -v, --visibles <VISIBLES>
-            maximum number of visible participants [default: 5]
-
-    -V, --version
-            Print version information
-
-```
-
-## Convert Dash files into one *MP4* file
-
-To convert the files into one *MP4* file you need to remove the base URL from the MPD file because otherwise `ffmpeg` would not find the files (but `mplayer` need the line :/).
-
-Remove the following XML element from the file before starting the next command.
-
-```xml
-<BaseURL>file://...</BaseURL>
-```
-
-Then use the following line to do the conversion:
-
-```sh
-ffmpeg -i dash.mpd out.mp4
-```
-
-The result is the whole video in one file named `out.mp4`.
+If the cargo build lasts longer then 1s try to precompile or increase the sleep time in the line above.
 
 ## GStreamer Pipeline
 

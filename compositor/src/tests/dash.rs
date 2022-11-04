@@ -49,8 +49,6 @@ fn test_dash() {
             "1",
             "-use_template",
             "1",
-            "-window_size",
-            "5",
             "-adaptation_sets",
             "id=0,streams=v id=1,streams=a",
             "-f",
