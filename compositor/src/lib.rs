@@ -23,6 +23,8 @@
       Manages a connection to a WebRTC source and provides the content to the internal GStreamer pipeline.
     - [Dash sink](mixer::DashSink)
       Writes the output into a Dash instance consisting of an MPD file and several audio/video files.
+    - [Matroska sink](mixer::MatroskaSink)
+      Listens on a TCP port to write the raw output to, after someone connects.
 
     # Layouts
 

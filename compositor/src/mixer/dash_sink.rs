@@ -4,22 +4,27 @@ use crate::{MatroskaParameters, MatroskaSink};
 use gstreamer as gst;
 use std::path::PathBuf;
 
-/// Writes out *Dash* A/V files.
+/// Writes out *DASH* A/V files.
 pub struct DashSink {
     /// Underlying Matroska sink.
     matroska_sink: MatroskaSink,
     params: DashParameters,
 }
 
+/// DASH segment type
 #[allow(dead_code)]
 #[derive(Clone)]
 pub enum SegmentType {
+    /// Select DASH segment files format based on the stream codec.
     AUTO,
+    /// Use ISOBMFF format.
     MP4,
+    /// Use WebM format.
     WEBM,
 }
 
 impl SegmentType {
+    /// Get segment type as string.
     fn as_str(&self) -> &str {
         match self {
             Self::AUTO => "auto",
@@ -32,11 +37,19 @@ impl SegmentType {
 /// Specific parameters needed to create.
 #[derive(Clone)]
 pub struct DashParameters {
+    /// Path, name and extension of the MPD file to create (e.g. "./output/my_media.mpd").
+    /// All further media files will be created beside the MPD file.
+    /// All files will be overwritten!
     pub mpd: PathBuf,
+    /// TCP port to use to connect the ffmpeg process to the matroska sink.
     pub port: u16,
+    /// Bitrate to aim in output.
     pub bitrate: usize,
+    /// Segment duration in seconds
     pub seg_duration: f32,
+    /// DASH segment type
     pub seg_type: SegmentType,
+    /// Parameters for underlying matroska sink.
     pub matroska: MatroskaParameters,
 }
 
