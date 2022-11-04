@@ -4,7 +4,7 @@
     of so-called *participants* and mixes them together using the so-called *mixer*.
 
     - [Mixer](mixer::Mixer)
-    - [Participants](mixer::Participant)
+    - [Participant](mixer::Participant)
 
     It then composes an output image showing some of them (so-called *visibles*) in the output picture.
 
@@ -19,39 +19,39 @@
 
     To read the input and write the output the following types are used
 
-    - [WebRTC Source](mixer::WebRtcSource)
-      Manages a connection to a WebRTC source and provides the content to the internal GStreamer pipeline.
-    - [Dash sink](mixer::DashSink)
-      Writes the output into a Dash instance consisting of an MPD file and several audio/video files.
-    - [Matroska sink](mixer::MatroskaSink)
-      Listens on a TCP port to write the raw output to, after someone connects.
+    - [WebRtcSource](mixer::WebRtcSource)
+      manages a connection to a WebRTC source and provides the content to the internal GStreamer pipeline.
+    - [DashSink](mixer::DashSink)
+      writes the output into a Dash instance consisting of an MPD file and several audio/video files.
+    - [MatroskaSink](mixer::MatroskaSink)
+      listens on a TCP port to write the raw output to, after someone connects.
 
     # Layouts
 
     Several so-called *layouts* can be used to control the output composite.
 
-    - [Grid layout](layout::Grid)
+    - [Grid](layout::Grid)
       shows a grid of all visible participants
-    - [Speaker layout](layout::Speaker)
+    - [Speaker](layout::Speaker)
       shows a bigger picture of the first visible participant (so-called *speaker*)
       and uses the rest of the available picture area to arrange all other visibles.
 
     # Generic source and sink traits
 
-    - [Generic Source Trait](mixer::Source)
+    - [Source](mixer::Source)
       is a generic trait which the mixer is assuming for an input source.
-    - [Generic Sink Trait](mixer::Sink)
+    - [Sink](mixer::Sink)
       is a generic trait which the mixer is assuming for an output sink.
 
     # Testing
 
     In addition there are some alternative sources and sinks included which are used for testing purposes.
 
-    - [Test Source](mixer::TestSource)
+    - [TestSource](mixer::TestSource)
       which just generates some dummy participant audio and video data.
-    - [Fake Sink](mixer::FakeSink)
+    - [FakeSink](mixer::FakeSink)
       is a sink without any output - just to make it run.
-    - [Display Sink](mixer::DisplaySink)
+    - [DisplaySink](mixer::DisplaySink)
       is a sink which displays the output on the screen.
 */
 
