@@ -62,8 +62,6 @@ where
     pub compositor: gst::Element,
     /// GStreamer element which composes the output audio out of the source audios.
     pub audio_mixer: gst::Element,
-    /// Maximum number of allowed participants.
-    pub max_participants: usize,
     /// Maximum number of visible participants.
     pub max_visibles: usize,
     /// Number of currently visible participants.
@@ -93,19 +91,13 @@ where
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     /// # Arguments
     /// - `resolution`: Output video resolution.
-    /// - `max_participants`: Maximum number of allowed participants.
     /// - `max_visibles`: Maximum number of visible participants.
     /// - `visibles`: Number of currently visible participants.
     pub fn new(
         resolution: Size,
-        max_participants: usize,
         max_visibles: usize,
         sink_params: SINK::Parameters,
     ) -> Result<Self, Error> {
-        // check for bounds
-        if max_participants < max_visibles {
-            return Err(Error::MoreMaxVisiblesThanMaxParticipants);
-        }
         // get width/height
         let width = resolution.width;
         let height = resolution.height;
@@ -220,7 +212,6 @@ where
             // remember all those elements and pads
             compositor,
             audio_mixer,
-            max_participants,
             max_visibles,
             visibles: 0,
             clock: Some(clock_overlay),
@@ -245,9 +236,6 @@ where
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
-        }
-        if self.participants.len() >= self.max_participants {
-            return Err(Error::TooManyParticipants);
         }
         if self.participants.contains_key(&id) {
             return Err(Error::IdDoublet(id));

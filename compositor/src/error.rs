@@ -1,8 +1,5 @@
 #[derive(Debug)]
 pub enum Error {
-    /// Trying to add too many participants to the mixer
-    /// (maximum value is defined by mixer configuration)
-    TooManyParticipants,
     /// Trying to set too many participants in the mixer to be visible
     /// (maximum value is defined by mixer configuration)
     TooManyVisibles,

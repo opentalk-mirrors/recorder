@@ -43,4 +43,5 @@ ffmpeg 												`# More help: https://ffmpeg.org/ffmpeg-formats.html#dash-2` 
 	-seg_duration $SEG_DURATION							`# Set the segment length in seconds (fractional value can be set).` \
 	-adaptation_sets "id=0,streams=v id=1,streams=a"	`# Assign streams to AdaptationSets.` \
 	-dash_segment_type $SEG_TYPE						`# segment type (e.g. auto, mp4 or webm)` \
-    -f dash "$MPD"										`# Write DASH files` \
+    -f dash 									        `# Write DASH files` \
+    "$MPD"										        `# MPD file path` \

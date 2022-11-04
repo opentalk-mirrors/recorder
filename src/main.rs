@@ -107,15 +107,13 @@ async fn record(
     use compositor::*;
 
     let sink_params = MatroskaParameters {
-        local_address: "tcp:/127.0.0.1".into(),
+        address: "tcp:/127.0.0.1".into(),
         port: 9000,
     };
 
     let mut mixer = Mixer::<Speaker, WebRtcSource, MatroskaSink>::new(
         // resolution
         Size::FHD,
-        // participants
-        20,
         // maximum visibles
         6,
         sink_params,

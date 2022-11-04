@@ -17,12 +17,12 @@ fn test_dash() {
 
     // use default parameters for sink
     let sink_params = MatroskaParameters::default();
-    let address = sink_params.local_address.clone();
+    let address = sink_params.address.clone();
     let port = sink_params.port;
 
     // create grid mixer with test sources for participants and a MatroskaSink
     let mut mixer =
-        Mixer::<Grid, TestSource, MatroskaSink>::new(resolution, 8, 4, sink_params).unwrap();
+        Mixer::<Grid, TestSource, MatroskaSink>::new(resolution, 4, sink_params).unwrap();
 
     // add a participant
     mixer
@@ -40,7 +40,7 @@ fn test_dash() {
             "-y",
             "-nostdin",
             "-i",
-            &format!("tcp://{address}:{port}",),
+            &format!("tcp://{address}:{port}"),
             "-map",
             "0",
             "-b:0",

@@ -1,7 +1,6 @@
 use super::Sink;
 use gst::prelude::*;
 use gstreamer as gst;
-use std::io::Write;
 use std::net::TcpListener;
 use std::os::unix::prelude::AsRawFd;
 use std::sync::mpsc;
@@ -18,7 +17,7 @@ pub struct MatroskaSink {
 /// Specific parameters needed to create a [FileSink]
 #[derive(Clone)]
 pub struct MatroskaParameters {
-    pub local_address: String,
+    pub address: String,
     pub port: u16,
 }
 
@@ -26,7 +25,7 @@ impl Default for MatroskaParameters {
     /// File parameters default
     fn default() -> Self {
         Self {
-            local_address: "127.0.0.1".to_string(),
+            address: "127.0.0.1".to_string(),
             port: 9000,
         }
     }
@@ -93,7 +92,7 @@ impl Sink for MatroskaSink {
         bin.add_pad(&video_sink_pad).unwrap();
 
         // listen on given TCP port
-        let address = &format!("{}:{}", params.local_address, params.port);
+        let address = &format!("{}:{}", params.address, params.port);
         trace!("Start listening on {}", address);
 
         let (_stop_sender, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
@@ -128,41 +127,5 @@ impl Sink for MatroskaSink {
 impl Drop for MatroskaSink {
     fn drop(&mut self) {
         self.stop_sender.send(()).unwrap();
-    }
-}
-
-struct Writer<W> {
-    w: W,
-}
-
-impl<W: Write> Write for Writer<W> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        // println!("write {}", buf.len());
-        self.w.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        // println!("Flush! ###############");
-
-        self.w.flush()
-    }
-
-    fn write_vectored(&mut self, buffers: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
-        self.w.write_vectored(buffers)
-    }
-
-    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
-        self.w.write_all(buf)
-    }
-
-    fn write_fmt(&mut self, fmt: std::fmt::Arguments<'_>) -> std::io::Result<()> {
-        self.w.write_fmt(fmt)
-    }
-
-    fn by_ref(&mut self) -> &mut Self
-    where
-        Self: Sized,
-    {
-        self
     }
 }
