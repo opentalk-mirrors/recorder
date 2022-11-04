@@ -34,5 +34,5 @@ fn test_matroska() {
     mixer.generate_dot_file("test_matroska", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(10));
+    std::thread::sleep(Duration::from_secs(3));
 }

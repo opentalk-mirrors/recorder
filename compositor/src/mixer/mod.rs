@@ -604,6 +604,15 @@ where
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {
         trace!("exiting mixer");
+
+        // call sink to prepare for dropping pipeline
         SINK::on_exit(&self.pipeline);
+
+        // stop pipeline
+        self.pipeline
+            .set_state(gst::State::Null)
+            .expect("Unable to set the pipeline to the `Null` state");
+
+        trace!("Mixer exited successfully");
     }
 }

@@ -125,6 +125,8 @@ impl Sink for DashSink {
             .spawn()
             .unwrap();
     }
+
+    /// Sends EOS into pipeline to flush output before
     fn on_exit(pipeline: &gst::Pipeline) {
         // send EOS into pipeline to flush output
         pipeline.send_event(gst::event::Eos::new());
@@ -148,11 +150,5 @@ impl Sink for DashSink {
                 _ => trace!("{:?}", msg),
             }
         }
-
-        // stop pipeline
-        pipeline
-            .set_state(gst::State::Null)
-            .expect("Unable to set the pipeline to the `Null` state");
-        trace!("Mixer exited successfully");
     }
 }
