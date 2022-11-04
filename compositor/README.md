@@ -13,6 +13,11 @@
   - [Start DASH demo](#start-dash-demo)
   - [GStreamer Pipeline](#gstreamer-pipeline)
   - [Known Problems](#known-problems)
+  - [Further Documentation](#further-documentation)
+  - [Tests](#tests)
+  - [Links](#links)
+    - [Dash](#dash)
+    - [GStreamer](#gstreamer)
 
 ## Purpose
 
@@ -48,3 +53,32 @@ If the cargo build lasts longer then 1s try to precompile or increase the sleep 
 
 - *Dash* seems to need h264 or h265 encoding when writing files
 - the *gstreamer* `dashsink` element is quite new and `mp4` muxer is still not working but `ts` does
+
+## Further Documentation
+
+There is a lot of rust inline documentation which you might compile using this line:
+
+```sh
+cargo doc
+```
+
+## Tests
+
+There are some integration and a few unit tests.
+**TODO:** They currently do not succeed if they are started in parallel!
+
+The starting point to that documentation will then be `/recorder/target/doc/compositor/index.html`.
+
+## Links
+
+Helpful links are listed here:
+
+### Dash
+
+- [FFmpeg DASH parameters](https://ffmpeg.org/ffmpeg-formats.html#dash-2)
+- [`ffmpeg` documentation](https://ffmpeg.org/ffmpeg.html)
+
+### GStreamer
+
+- [gstreamer `compositor` documentation](https://git.heinlein-video.de/p.hoffmann/recorder/-/tree/main/compositor)
+- [Used Rust GStreamer bindings](https://docs.rs/gstreamer/latest/gstreamer/)
