@@ -43,6 +43,8 @@ fn test_dash() {
             &format!("tcp://{address}:{port}",),
             "-map",
             "0",
+            "-b:0",
+            "192k",
             "-use_timeline",
             "1",
             "-use_template",
@@ -59,6 +61,5 @@ fn test_dash() {
         .unwrap();
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(1));
-    mixer.exit();
+    std::thread::sleep(Duration::from_secs(3));
 }

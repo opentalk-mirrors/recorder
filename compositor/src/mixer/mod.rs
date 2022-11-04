@@ -1,6 +1,6 @@
 use crate::{error::Error, mixer::participant::VideoLinkStatus, Alignment, Layout, Position, Size};
 use core::mem::replace;
-use gst::{event, prelude::*};
+use gst::prelude::*;
 use gstreamer as gst;
 use std::collections::HashMap;
 
@@ -344,55 +344,16 @@ where
         }
     }
 
-    // start playing of pipeline
+    /// start playing of pipeline
     pub fn play(&self) {
         self.pipeline.set_state(gst::State::Playing).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
-    // pause playing of pipeline
+    /// pause playing of pipeline
     pub fn pause(&self) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-
-    // halt pipeline (can not be played again)
-    pub fn exit(&self) {
-        self.pipeline.send_event(gst::event::Eos::new());
-        self.pipeline.set_state(gst::State::Null).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-
-    /// wait until mixer generates error or ends
-    pub fn run(&self) -> impl FnOnce() {
-        let pipeline = self.pipeline.clone();
-
-        move || {
-            // wait until error or EOS
-            let bus = pipeline.bus().unwrap();
-            for msg in bus.iter_timed(gst::ClockTime::NONE) {
-                use gst::MessageView;
-
-                match msg.view() {
-                    MessageView::Error(err) => {
-                        eprintln!(
-                            "Error received from element {:?}: {}",
-                            err.src().map(|s| s.path_string()),
-                            err.error()
-                        );
-                        eprintln!("Debugging information: {:?}", err.debug());
-                        break;
-                    }
-                    MessageView::Eos(..) => break,
-                    _ => (),
-                }
-            }
-
-            // stop pipeline
-            pipeline
-                .set_state(gst::State::Null)
-                .expect("Unable to set the pipeline to the `Null` state");
-        }
     }
 
     /// generate DOT file of the current pipeline
@@ -419,6 +380,35 @@ where
     SRC: Source,
     SINK: Sink,
 {
+    /// wait until mixer generates error or ends
+    fn run(&self) {
+        // wait until error or EOS
+        let bus = self.pipeline.bus().unwrap();
+        for msg in bus.iter_timed(gst::ClockTime::NONE) {
+            use gst::MessageView;
+
+            match msg.view() {
+                MessageView::Error(err) => {
+                    error!(
+                        "Error received from element {:?}: {}",
+                        err.src().map(|s| s.path_string()),
+                        err.error()
+                    );
+                    debug!("Debugging information: {:?}", err.debug());
+                    break;
+                }
+                MessageView::Eos(..) => break,
+                _ => (),
+            }
+        }
+
+        // stop pipeline
+        self.pipeline
+            .set_state(gst::State::Null)
+            .expect("Unable to set the pipeline to the `Null` state");
+        trace!("Mixer exited successfully")
+    }
+
     /// Re-layout the current compositor scene.
     fn layout(&self) -> Result<(), Error> {
         // check preconditions
@@ -630,5 +620,21 @@ where
         trace!("unlinked video of {id:?}...");
 
         Ok(())
+    }
+}
+
+impl<L, SRC, SINK> Drop for Mixer<L, SRC, SINK>
+where
+    L: Layout,
+    SRC: Source,
+    SINK: Sink,
+{
+    /// halt pipeline (can not be played again)
+    fn drop(&mut self) {
+        trace!("exiting mixer");
+        // send EOS into pipeline to flush output
+        self.pipeline.send_event(gst::event::Eos::new());
+        // wait for EOS being processed
+        self.run();
     }
 }
