@@ -1,5 +1,5 @@
-use super::Source;
-use crate::layout::*;
+use super::{Size, Source};
+
 use gst::{
     prelude::*,
     traits::{ElementExt, GstBinExt},

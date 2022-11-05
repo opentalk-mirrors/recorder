@@ -1,4 +1,5 @@
 use super::Sink;
+
 use gst::traits::{ElementExt, GstBinExt};
 use gstreamer as gst;
 

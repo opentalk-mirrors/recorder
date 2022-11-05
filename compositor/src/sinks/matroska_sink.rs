@@ -1,9 +1,12 @@
 use super::Sink;
+
 use gst::prelude::*;
 use gstreamer as gst;
-use std::net::{SocketAddr, TcpListener};
-use std::os::unix::prelude::AsRawFd;
-use std::sync::mpsc;
+use std::{
+    net::{SocketAddr, TcpListener},
+    os::unix::prelude::AsRawFd,
+    sync::mpsc,
+};
 
 /// Writes out *Matroska* mux-ed raw A/V on a TCP port
 pub struct MatroskaSink {

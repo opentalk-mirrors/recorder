@@ -1,4 +1,4 @@
-use crate::Source;
+use super::Source;
 use gstreamer as gst;
 
 /// Status of a participant if it is linked to a fake sink or the compositor.

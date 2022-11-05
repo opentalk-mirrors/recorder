@@ -1,5 +1,7 @@
-use crate::Sink;
-use crate::{MatroskaParameters, MatroskaSink};
+use super::{
+    matroska_sink::{MatroskaParameters, MatroskaSink},
+    Sink,
+};
 
 use gst::prelude::*;
 use gstreamer as gst;

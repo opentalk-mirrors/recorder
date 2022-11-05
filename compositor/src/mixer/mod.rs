@@ -1,64 +1,22 @@
 // sub-modules
-mod dash_sink;
-mod display_sink;
-mod fake_sink;
-mod matroska_sink;
 mod participant;
-mod test_source;
-mod webrtc_source;
+mod sink;
+mod source;
 
 // forward useful sub-module stuff as public
-pub use dash_sink::{DashParameters, DashSink, SegmentType};
-pub use display_sink::DisplaySink;
-pub use fake_sink::FakeSink;
-pub use matroska_sink::{MatroskaParameters, MatroskaSink};
 pub use participant::Participant;
-pub use test_source::{TestSource, TestSourceParameters};
-pub use webrtc_source::WebRtcSource;
+pub use sink::Sink;
+pub use source::Source;
 
 // what else we need from this lib
-use crate::{error::Error, mixer::participant::VideoLinkStatus, Alignment, Layout, Position, Size};
+use crate::{Alignment, Error, Layout, Position, Size};
+use participant::VideoLinkStatus;
 
 // what we need from external libraries
 use core::mem::replace;
 use gst::prelude::*;
 use gstreamer as gst;
 use std::collections::HashMap;
-
-/// Trait of a participant's audio/video source.
-pub trait Source {
-    /// Generic parameter type to overwrite by trait implementers.
-    type Parameters;
-    /// Create an add a new source to a pipeline.
-    /// Creates a bunch of elements based on given parameters and adds them to the pipeline.
-    fn new(pipeline: &gst::Pipeline, id: String, params: Self::Parameters) -> Self;
-    /// Remove existing source from pipeline.
-    /// Decouples and removes all elements from the pipeline which are created within this source.
-    fn remove(self, pipeline: &gst::Pipeline);
-    /// Get source pad of the video source.
-    fn video_src_pad(&self) -> gst::Pad;
-    /// Get source pad of the audio source.
-    fn audio_src_pad(&self) -> gst::Pad;
-}
-
-/// Trait of an output sink.
-pub trait Sink {
-    /// Generic parameter type to overwrite by trait implementers.
-    type Parameters;
-    /// Create an add a sink to the pipeline.
-    /// Creates a bunch of elements based on given parameters and adds them to the pipeline.
-    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self;
-    /// Get sink pad of the video sink.
-    fn video_sink_pad(&self) -> gst::Pad;
-    /// Get sink pad of the audio sink.
-    fn audio_sink_pad(&self) -> gst::Pad;
-    /// Called by `Mixer::play()`.
-    fn on_play(&mut self) {}
-    /// Called by `Mixer::pause()`.
-    fn on_pause(&mut self) {}
-    /// Called by `Mixer::drop()`.
-    fn on_exit(_pipeline: &gst::Pipeline) {}
-}
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type
 /// # Types

@@ -26,6 +26,7 @@
         "multifdsink",
         "muxer",
         "nostdin",
+        "oneshot",
         "opusdec",
         "pulsesink",
         "reqwest",

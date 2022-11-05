@@ -61,11 +61,16 @@ extern crate log;
 mod error;
 mod layout;
 mod mixer;
+mod sinks;
+mod sources;
 #[cfg(test)]
 mod tests;
 
+pub use error::*;
 pub use layout::*;
 pub use mixer::*;
+pub use sinks::*;
+pub use sources::*;
 
 #[test]
 fn generate_example_pipeline_picture() {
