@@ -53,9 +53,9 @@ pub trait Sink {
     /// Get sink pad of the audio sink.
     fn audio_sink_pad(&self) -> gst::Pad;
     /// Called by `Mixer::play()`.
-    fn on_play(&self) {}
+    fn on_play(&mut self) {}
     /// Called by `Mixer::pause()`.
-    fn on_pause(&self) {}
+    fn on_pause(&mut self) {}
     /// Called by `Mixer::drop()`.
     fn on_exit(_pipeline: &gst::Pipeline) {}
 }
@@ -344,14 +344,14 @@ where
     }
 
     /// start playing of pipeline
-    pub fn play(&self) {
+    pub fn play(&mut self) {
         self.pipeline.set_state(gst::State::Playing).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_play();
     }
 
     /// pause playing of pipeline
-    pub fn pause(&self) {
+    pub fn pause(&mut self) {
         self.pipeline.set_state(gst::State::Paused).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_pause();

@@ -4,12 +4,16 @@ use crate::{MatroskaParameters, MatroskaSink};
 use gst::prelude::*;
 use gstreamer as gst;
 use std::path::PathBuf;
+use std::process::Child;
 
 /// Writes out *DASH* A/V files.
 pub struct DashSink {
     /// Underlying Matroska sink.
     matroska_sink: MatroskaSink,
+    /// remember parameters for delayed usage
     params: DashParameters,
+    /// FFmpeg process
+    process: Option<std::process::Child>,
 }
 
 /// DASH segment type
@@ -81,6 +85,7 @@ impl Sink for DashSink {
                 },
             ),
             params,
+            process: None,
         }
     }
 
@@ -97,37 +102,46 @@ impl Sink for DashSink {
     /// Starts the FFmpeg receiver which catches the output of the matroska sink.
     /// # Arguments
     /// - `source`: URL of  
-    fn on_play(&self) {
+    fn on_play(&mut self) {
+        // check if FFmpeg process is still running
+        if let Some(process) = &mut self.process {
+            if process.try_wait().unwrap().is_none() {
+                // then skip any further action
+                return;
+            }
+        }
         // start ffmpeg to fetch output stream and create DASH files
-        std::process::Command::new("ffmpeg")
-            .args([
-                "-v",
-                "warning",
-                "-y",
-                "-nostdin",
-                "-i",
-                // read from localhost and given port
-                &format!("tcp://127.0.0.1:{}", self.params.port),
-                "-map",
-                "0",
-                "-b:0",
-                &self.params.bitrate.to_string(),
-                "-use_timeline",
-                "1",
-                "-use_template",
-                "1",
-                "-adaptation_sets",
-                "id=0,streams=v id=1,streams=a",
-                "-seg_duration",
-                &self.params.seg_duration.to_string(),
-                "-dash_segment_type",
-                self.params.seg_type.as_str(),
-                "-f",
-                "dash",
-                self.params.mpd.to_str().unwrap(),
-            ])
-            .spawn()
-            .unwrap();
+        self.process = Some(
+            std::process::Command::new("ffmpeg")
+                .args([
+                    "-v",
+                    "warning",
+                    "-y",
+                    "-nostdin",
+                    "-i",
+                    // read from localhost and given port
+                    &format!("tcp://127.0.0.1:{}", self.params.port),
+                    "-map",
+                    "0",
+                    "-b:0",
+                    &self.params.bitrate.to_string(),
+                    "-use_timeline",
+                    "1",
+                    "-use_template",
+                    "1",
+                    "-adaptation_sets",
+                    "id=0,streams=v id=1,streams=a",
+                    "-seg_duration",
+                    &self.params.seg_duration.to_string(),
+                    "-dash_segment_type",
+                    self.params.seg_type.as_str(),
+                    "-f",
+                    "dash",
+                    self.params.mpd.to_str().unwrap(),
+                ])
+                .spawn()
+                .unwrap(),
+        );
     }
 
     /// Sends EOS into pipeline to flush output before
