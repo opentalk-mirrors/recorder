@@ -19,10 +19,7 @@ impl Layout for Speaker {
         // calculate layout
         Self {
             // overall picture size
-            size: Size {
-                width: resolution.width,
-                height: resolution.height,
-            },
+            size: *resolution,
         }
     }
 
@@ -110,6 +107,7 @@ impl Speaker {
     fn ratio(&self) -> f64 {
         self.size.width as f64 / self.size.height as f64
     }
+
     fn viewers_height(&self, count: usize) -> usize {
         match count {
             0 | 1 => 0,
@@ -117,21 +115,26 @@ impl Speaker {
             _ => self.size.height / (count - 1),
         }
     }
+
     fn viewers_width(&self, count: usize) -> usize {
         (self.viewers_height(count) as f64 * self.ratio()) as usize
     }
+
     fn speaker_size(&self, count: usize) -> Size {
         Size {
             height: self.size.height - self.viewers_height(count),
             width: (self.speaker_height(count) as f64 * self.ratio()) as usize,
         }
     }
+
     fn speaker_height(&self, count: usize) -> usize {
         self.size.height - self.viewers_height(count)
     }
+
     fn speaker_width(&self, count: usize) -> usize {
         (self.speaker_height(count) as f64 * self.ratio()) as usize
     }
+
     fn viewers_position(&self, n: usize, count: usize) -> Position {
         // calculate viewers' positions
         match count {
@@ -148,6 +151,7 @@ impl Speaker {
             },
         }
     }
+
     fn viewers_size(&self, _n: usize, count: usize) -> Size {
         // calculate viewers' size
         match count {
@@ -163,6 +167,7 @@ impl Speaker {
             },
         }
     }
+
     fn speaker_position(&self, count: usize) -> Position {
         // calculate speaker's position
         match count {
