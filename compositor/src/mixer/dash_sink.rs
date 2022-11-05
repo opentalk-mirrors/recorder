@@ -62,7 +62,7 @@ impl Default for DashParameters {
         Self {
             mpd: PathBuf::from("dash.mpd"),
             port: 9000,
-            bitrate: 1024 * 1024,
+            bitrate: 0x100000,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
         }
