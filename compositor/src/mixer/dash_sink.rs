@@ -4,7 +4,6 @@ use crate::{MatroskaParameters, MatroskaSink};
 use gst::prelude::*;
 use gstreamer as gst;
 use std::path::PathBuf;
-use std::process::Child;
 
 /// Writes out *DASH* A/V files.
 pub struct DashSink {
