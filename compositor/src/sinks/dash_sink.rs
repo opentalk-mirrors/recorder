@@ -53,7 +53,7 @@ pub struct DashParameters {
     /// DASH segment type
     pub seg_type: SegmentType,
     /// Called when new files are ready
-    pub update: fn(files: Vec<&OsStr>),
+    pub update_callback: fn(files: Vec<&OsStr>),
 }
 
 fn update(files: Vec<&OsStr>) {
@@ -68,7 +68,7 @@ impl Default for DashParameters {
             bitrate: 0x100000,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
-            update,
+            update_callback: update,
         }
     }
 }
@@ -156,37 +156,40 @@ impl Sink for DashSink {
                 .unwrap(),
         );
 
-        // initialize inotify
-        let mut inotify = Inotify::init().unwrap();
+        // spawn a thread which checks for file updates
+        std::thread::spawn({
+            // initialize inotify
+            let mut inotify = Inotify::init().unwrap();
 
-        trace!("Writing DASH files into {}", output_dir.to_string_lossy());
+            trace!("Writing DASH files into {}", output_dir.to_string_lossy());
 
-        // add watch to that folder
-        inotify
-            .add_watch(output_dir, WatchMask::MOVED_TO | WatchMask::CLOSE)
-            .expect("Failed to add file watch");
+            // add watch to that folder
+            inotify
+                .add_watch(output_dir, WatchMask::MOVED_TO | WatchMask::CLOSE)
+                .expect("Failed to add file watch");
+            // get a copy of the callback
+            let update = self.params.update_callback;
+            move || {
+                let mut buffer = [0; 1024];
 
-        let update = self.params.update;
-        // spawn a thread which handles the watched events
-        std::thread::spawn(move || {
-            let mut buffer = [0; 1024];
+                loop {
+                    let events = loop {
+                        match inotify.read_events(&mut buffer) {
+                            Ok(events) => break events,
+                            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                                continue
+                            }
+                            _ => panic!("Error while reading events"),
+                        }
+                    };
 
-            loop {
-                let events = loop {
-                    match inotify.read_events(&mut buffer) {
-                        Ok(events) => break events,
-                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => continue,
-                        _ => panic!("Error while reading events"),
+                    let files: Vec<&OsStr> = events
+                        .filter_map(|event| event.name)
+                        .filter(|name| !name.to_str().unwrap().ends_with(".tmp"))
+                        .collect();
+                    if !files.is_empty() {
+                        update(files);
                     }
-                };
-
-                let files: Vec<&OsStr> = events
-                    .filter_map(|event| event.name)
-                    .filter(|name| !name.to_str().unwrap().ends_with(".tmp"))
-                    .collect();
-
-                if !files.is_empty() {
-                    update(files);
                 }
             }
         });

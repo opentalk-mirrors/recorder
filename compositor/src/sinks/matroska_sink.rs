@@ -12,7 +12,7 @@ pub struct MatroskaSink {
     video_sink_pad: gst::Pad,
     /// Audio sink GStreamer pad.
     audio_sink_pad: gst::Pad,
-    stop_sender: mpsc::Sender<()>,
+    stop_listen: mpsc::Sender<()>,
     pub address: SocketAddr,
 }
 
@@ -90,9 +90,8 @@ impl Sink for MatroskaSink {
         bin.add_pad(&video_sink_pad).unwrap();
 
         // listen on given TCP port
-        let address = params.address.to_string();
-        let (stop_sender, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
-        let listener = TcpListener::bind(address).unwrap();
+        let (stop_listen, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
+        let listener = TcpListener::bind(params.address).unwrap();
         let address = listener.local_addr().unwrap();
         trace!("Start listening on {address}",);
 
@@ -109,7 +108,7 @@ impl Sink for MatroskaSink {
         Self {
             video_sink_pad: video_sink_pad.upcast(),
             audio_sink_pad: audio_sink_pad.upcast(),
-            stop_sender,
+            stop_listen,
             address,
         }
     }
@@ -125,6 +124,12 @@ impl Sink for MatroskaSink {
     }
 
     fn on_exit(&mut self, _pipeline: &gst::Pipeline) {
-        self.stop_sender.send(()).unwrap();
+        self.stop_listen.send(()).unwrap();
+    }
+}
+
+impl Drop for MatroskaSink {
+    fn drop(&mut self) {
+        self.stop_listen.send(()).unwrap();
     }
 }
