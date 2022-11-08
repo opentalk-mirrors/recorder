@@ -47,8 +47,6 @@ pub struct DashParameters {
     /// All further media files will be created beside the MPD file.
     /// All files will be overwritten!
     pub mpd: PathBuf,
-    /// TCP port to use to connect the ffmpeg process to the matroska sink.
-    pub port: u16,
     /// Bitrate to aim in output.
     pub bitrate: usize,
     /// Segment duration in seconds
@@ -62,7 +60,6 @@ impl Default for DashParameters {
     fn default() -> Self {
         Self {
             mpd: PathBuf::from("dash.mpd"),
-            port: 9000,
             bitrate: 0x100000,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
@@ -82,7 +79,7 @@ impl Sink for DashSink {
                 pipeline,
                 MatroskaParameters {
                     // use fixed localhost but with given port
-                    address: format!("127.0.0.1:{}", params.port).parse().unwrap(),
+                    address: format!("127.0.0.1:0").parse().unwrap(),
                 },
             ),
             params,
@@ -121,7 +118,7 @@ impl Sink for DashSink {
                     "-nostdin",
                     "-i",
                     // read from localhost and given port
-                    &format!("tcp://127.0.0.1:{}", self.params.port),
+                    &format!("tcp://127.0.0.1:{}", self.matroska_sink.port),
                     "-map",
                     "0",
                     "-b:0",

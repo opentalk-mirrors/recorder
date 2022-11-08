@@ -15,6 +15,7 @@ pub struct MatroskaSink {
     /// Audio sink GStreamer pad.
     audio_sink_pad: gst::Pad,
     stop_sender: mpsc::Sender<()>,
+    pub port: SocketAddr,
 }
 
 /// Specific parameters needed to create a MatroskaSink
@@ -27,7 +28,7 @@ impl Default for MatroskaParameters {
     /// File parameters default
     fn default() -> Self {
         Self {
-            address: "127.0.0.1:9000".parse().unwrap(),
+            address: "127.0.0.1:0".parse().unwrap(),
         }
     }
 }
@@ -95,6 +96,7 @@ impl Sink for MatroskaSink {
         trace!("Start listening on {}", address);
         let (_stop_sender, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
         let listener = TcpListener::bind(address).unwrap();
+        let port = listener.local_addr().unwrap();
 
         // spawn a thread which waits until the channel
         std::thread::spawn(move || loop {
@@ -110,6 +112,7 @@ impl Sink for MatroskaSink {
             video_sink_pad: video_sink_pad.upcast(),
             audio_sink_pad: audio_sink_pad.upcast(),
             stop_sender: _stop_sender,
+            port,
         }
     }
 
