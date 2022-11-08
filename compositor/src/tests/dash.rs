@@ -20,7 +20,7 @@ fn test_dash() {
 
     // use default parameters for sink
     let sink_params = DashParameters {
-        mpd: PathBuf::from(TEST_OUTPUT_DIR).join("test_dash"),
+        mpd: PathBuf::from(TEST_OUTPUT_DIR).join("test_dash.mpd"),
         ..Default::default()
     };
 
@@ -38,5 +38,5 @@ fn test_dash() {
     mixer.generate_dot_file("test_dash", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(3));
+    std::thread::sleep(Duration::from_secs(20));
 }

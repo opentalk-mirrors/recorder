@@ -5,7 +5,8 @@ use super::{
 
 use gst::prelude::*;
 use gstreamer as gst;
-use std::path::PathBuf;
+use inotify::{Inotify, WatchMask};
+use std::{ffi::OsStr, path::PathBuf};
 
 /// Writes out *DASH* A/V files.
 pub struct DashSink {
@@ -53,6 +54,12 @@ pub struct DashParameters {
     pub seg_duration: f32,
     /// DASH segment type
     pub seg_type: SegmentType,
+    /// Called when new files are ready
+    pub update: fn(files: Vec<&OsStr>),
+}
+
+fn update(files: Vec<&OsStr>) {
+    trace!("updated files: {:?}", files);
 }
 
 impl Default for DashParameters {
@@ -63,6 +70,7 @@ impl Default for DashParameters {
             bitrate: 0x100000,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
+            update,
         }
     }
 }
@@ -118,7 +126,7 @@ impl Sink for DashSink {
                     "-nostdin",
                     "-i",
                     // read from localhost and given port
-                    &format!("tcp://127.0.0.1:{}", self.matroska_sink.port),
+                    &format!("tcp://{}", self.matroska_sink.address),
                     "-map",
                     "0",
                     "-b:0",
@@ -140,6 +148,40 @@ impl Sink for DashSink {
                 .spawn()
                 .unwrap(),
         );
+
+        // initialize inotify
+        let mut inotify = Inotify::init().unwrap();
+        // get target path from MPD file name
+        let path = self.params.mpd.as_path().parent().unwrap().clone();
+        trace!("Writing DASH files into {}", path.to_str().unwrap());
+        // add watch to that folder
+        inotify
+            .add_watch(path, WatchMask::MOVED_TO | WatchMask::CLOSE)
+            .expect("Failed to add file watch");
+        let update = self.params.update;
+        // spawn a thread which handles the watched events
+        std::thread::spawn(move || {
+            let mut buffer = [0; 1024];
+
+            loop {
+                let events = loop {
+                    match inotify.read_events(&mut buffer) {
+                        Ok(events) => break events,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => continue,
+                        _ => panic!("Error while reading events"),
+                    }
+                };
+
+                let files: Vec<&OsStr> = events
+                    .filter(|event| event.name.is_some())
+                    .map(|event| event.name.unwrap().clone())
+                    .filter(|name| !str::ends_with(name.to_str().unwrap(), ".tmp"))
+                    .collect();
+                if !files.is_empty() {
+                    update(files);
+                }
+            }
+        });
     }
 
     /// Sends EOS into pipeline to flush output before
