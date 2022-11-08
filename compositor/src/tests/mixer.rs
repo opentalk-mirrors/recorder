@@ -17,14 +17,18 @@ fn test_visibles() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Grid, TestSource, DisplaySink, u32>::new(resolution, 4, ()).unwrap();
+    let mut mixer = Mixer::<Speaker, TestSource, DisplaySink, u32>::new(resolution, 6, ()).unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_visible-0", gst::DebugGraphDetails::ALL);
 
+    let time = 1000;
+
     let ids = generate_ids(8);
 
     sleep(Duration::from_millis(500));
+
+    mixer.set_speaking("speaking");
 
     mixer.set_title("add 8 participants");
     mixer.pause();
@@ -37,38 +41,15 @@ fn test_visibles() {
             .add_participant(id, format!("Participant {id}"), params)
             .unwrap();
     }
-    mixer.play();
-    mixer.generate_dot_file("test_visible-1", gst::DebugGraphDetails::ALL);
 
-    sleep(Duration::from_millis(500));
-    mixer.set_title("show 1-4");
-    mixer.pause();
-    mixer.set_visibles(&ids[0..4]).unwrap();
-    mixer.play();
+    for i in 0..7 {
+        mixer.set_title(&format!("show {i}"));
+        mixer.pause();
+        mixer.set_visibles(&ids[0..i + 1]).unwrap();
+        mixer.play();
 
-    mixer.generate_dot_file("test_visible-2", gst::DebugGraphDetails::ALL);
-
-    sleep(Duration::from_millis(500));
-
-    mixer.set_title("show 5-6");
-    mixer.pause();
-    mixer.set_visibles(&ids[4..6]).unwrap();
-    mixer.play();
-    mixer.generate_dot_file("test_visible-3", gst::DebugGraphDetails::ALL);
-
-    mixer.set_title("show 6-8");
-    mixer.pause();
-    mixer.set_visibles(&ids[5..8]).unwrap();
-    mixer.play();
-    mixer.generate_dot_file("test_visible-4", gst::DebugGraphDetails::ALL);
-
-    mixer.set_title("show 8");
-    mixer.pause();
-    mixer.set_visibles(&ids[7..8]).unwrap();
-    mixer.play();
-    mixer.generate_dot_file("test_visible-5", gst::DebugGraphDetails::ALL);
-
-    sleep(Duration::from_millis(500));
+        sleep(Duration::from_millis(time));
+    }
 }
 
 #[test]

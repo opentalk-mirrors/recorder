@@ -53,27 +53,20 @@ impl Layout for Speaker {
         Position { x: 0, y: 0 }
     }
 
-    fn speaking_alignment(&self, count: usize) -> Alignment {
+    fn speaking_alignment(&self, _count: usize) -> Alignment {
         Alignment {
             horizontal: "left",
-            vertical: match count {
-                // put to the bottom when none or only one viewer is available
-                0 | 1 | 2 => "bottom",
-                // otherwise we center it within the title area
-                _ => "center",
-            },
+            vertical: "bottom",
         }
     }
 
     fn speaking_position(&self, count: usize) -> Position {
+        let pos = self.speaker_position(count);
+        let size = self.speaker_size(count);
+        let res = self.resolution();
         Position {
-            x: 0,
-            y: match count {
-                // straight at the bottom (see `speaking_alignment`)
-                0 | 1 | 2 => 0,
-                // center vertically within title area
-                _ => -(self.speaker_height(count) as i64 / 2),
-            },
+            x: pos.x,
+            y: -(res.height as i64 - (size.height as i64 + pos.y)),
         }
     }
 
