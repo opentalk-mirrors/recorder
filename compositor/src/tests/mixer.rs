@@ -22,15 +22,15 @@ fn test_visibles() {
 
     mixer.generate_dot_file("test_visible-0", gst::DebugGraphDetails::ALL);
 
-    let time = 1000;
+    let time = 10000;
 
     let ids = generate_ids(8);
 
     sleep(Duration::from_millis(500));
 
-    mixer.set_speaking("speaking");
+    mixer.set_speaking("Speaking");
 
-    mixer.set_title("add 8 participants");
+    mixer.set_title("Add 8 Participants");
     mixer.pause();
     for &id in &ids {
         let params = TestSourceParameters {
@@ -43,7 +43,8 @@ fn test_visibles() {
     }
 
     for i in 0..7 {
-        mixer.set_title(&format!("show {i}"));
+        let j = i + 1;
+        mixer.set_title(&format!("Showing {j} Participants"));
         mixer.pause();
         mixer.set_visibles(&ids[0..i + 1]).unwrap();
         mixer.play();
