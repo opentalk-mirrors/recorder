@@ -7,8 +7,21 @@ fn generate_ids(count: u32) -> Vec<u32> {
 }
 
 #[test]
-fn test_visibles() {
+fn test_speaker() {
+    test_layout::<Speaker>();
+}
+
+#[test]
+fn test_grid() {
+    test_layout::<Grid>();
+}
+
+fn test_layout<L>()
+where
+    L: Layout,
+{
     let _ = env_logger::try_init();
+
     // initialize gstreamer
     gst::init().unwrap();
 
@@ -17,12 +30,13 @@ fn test_visibles() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Speaker, TestSource, DisplaySink, u32>::new(resolution, 6, ()).unwrap();
+
+    let mut mixer = Mixer::<L, TestSource, DisplaySink, u32>::new(resolution, 6, ()).unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_visible-0", gst::DebugGraphDetails::ALL);
 
-    let time = 10000;
+    let time = 1000;
 
     let ids = generate_ids(8);
 

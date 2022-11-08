@@ -53,7 +53,6 @@ impl Layout for Grid {
         Position { x: 0, y: 0 }
     }
 
-    // align the "who's speaking" text
     fn speaking_alignment(&self, _count: usize) -> Alignment {
         Alignment {
             horizontal: "left",
@@ -61,10 +60,14 @@ impl Layout for Grid {
         }
     }
 
-    // place "who's speaking" text
-    fn speaking_position(&self, _count: usize) -> Position {
-        // straight at the bottom (see `speaking_alignment`)
-        Position { x: 0, y: 0 }
+    fn speaking_position(&self, count: usize) -> Position {
+        let pos = self.position(0, count);
+        let size = self.size(0, count);
+        let res = self.resolution();
+        Position {
+            x: pos.x,
+            y: -(res.height as i64 - (size.height as i64 + pos.y)),
+        }
     }
 
     // align clock display
