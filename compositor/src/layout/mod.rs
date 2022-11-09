@@ -30,8 +30,8 @@ impl Size {
     };
     /// HD (High Definition)
     pub const HD: Self = Self {
-        width: 720,
-        height: 480,
+        width: 1280,
+        height: 720,
     };
     /// Full HD (FHD)
     pub const FHD: Self = Self {
@@ -94,5 +94,5 @@ pub trait Layout: Send + Sync + 'static {
     fn clock_position(&self, count: usize) -> Position;
 
     #[cfg(test)]
-    fn name() -> &'static str;
+    const name: &'static str;
 }

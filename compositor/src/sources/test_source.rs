@@ -2,20 +2,116 @@ use crate::{Size, Source};
 use gst::prelude::*;
 use gst::traits::{ElementExt, GstBinExt};
 
+#[derive(Clone)]
+#[allow(dead_code)]
+pub enum Pattern {
+    /// image file
+    Location(String),
+    /// SMPTE 100%% color bars
+    Smpte,
+    /// Random (television snow)
+    Snow,
+    /// 100%% Black
+    Black,
+    /// 100%% White
+    White,
+    /// Red
+    Red,
+    /// Green
+    Green,
+    /// Blue
+    Blue,
+    /// Checkers 1px
+    Checkers1,
+    /// Checkers 2px
+    Checkers2,
+    /// Checkers 4px
+    Checkers4,
+    /// Checkers 8px
+    Checkers8,
+    /// Circular
+    Circular,
+    /// Blink
+    Blink,
+    /// SMPTE 75%% color bars
+    Smpte75,
+    /// Zone plate
+    ZonePlate,
+    /// Gamut checkers
+    Gamut,
+    /// Chroma zone plate
+    ChromaZonePlate,
+    /// Solid color
+    SolidColor,
+    /// Moving ball
+    Ball,
+    /// SMPTE 100%% color bars
+    Smpte100,
+    /// Bar
+    Bar,
+    /// Pinwheel
+    PinWheel,
+    /// Spokes
+    Spokes,
+    /// Gradient
+    Gradient,
+    /// Colors
+    Colors,
+    /// SMPTE test pattern, RP 219 conformant
+    SmpteRp219,
+}
+
+impl Into<&str> for Pattern {
+    fn into(self) -> &'static str {
+        match self {
+            Self::Location(_) => panic!("location can not be used as pattern!"),
+            Self::Smpte => "smpte".into(),
+            Self::Snow => "snow".into(),
+            Self::Black => "black".into(),
+            Self::White => "white".into(),
+            Self::Red => "red".into(),
+            Self::Green => "green".into(),
+            Self::Blue => "blue".into(),
+            Self::Checkers1 => "checkers-1".into(),
+            Self::Checkers2 => "checkers-2".into(),
+            Self::Checkers4 => "checkers-4".into(),
+            Self::Checkers8 => "checkers-8".into(),
+            Self::Circular => "circular".into(),
+            Self::Blink => "blink".into(),
+            Self::Smpte75 => "smpte75".into(),
+            Self::ZonePlate => "zone-plate".into(),
+            Self::Gamut => "gamut".into(),
+            Self::ChromaZonePlate => "chroma-zone-plate".into(),
+            Self::SolidColor => "solid-color".into(),
+            Self::Ball => "ball".into(),
+            Self::Smpte100 => "smpte100".into(),
+            Self::Bar => "bar".into(),
+            Self::PinWheel => "pinwheel".into(),
+            Self::Spokes => "spokes".into(),
+            Self::Gradient => "gradient".into(),
+            Self::Colors => "colors".into(),
+            Self::SmpteRp219 => "smpte-rp-219".into(),
+        }
+    }
+}
+
 /// Source that generates dummy picture and sound to simulate a participant's input.
 #[derive(Clone)]
 pub struct TestSource {
-    bin: gst::Bin,
     pub video_src_pad: gst::Pad,
+    /// Video source GStreamer element.
+    pub video_bin: gst::Bin,
+    /// Audio source GStreamer pad.
     pub audio_src_pad: gst::Pad,
+    /// Audio source GStreamer element.
+    pub audio_bin: gst::Bin,
 }
 
 /// Specific parameters needed to create a [TestSource]
 #[derive(Clone)]
 pub struct TestSourceParameters {
     /// Pattern to produce
-    /// (see: [this list](https://gstreamer.freedesktop.org/documentation/videotestsrc/index.html?gi-language=c#GstVideoTestSrcPattern)).
-    pub pattern: String,
+    pub pattern: Pattern,
     /// Resolution of the generated picture.
     pub resolution: Size,
 }
@@ -24,7 +120,7 @@ impl Default for TestSourceParameters {
     /// [TestSource]'s default parameters
     fn default() -> Self {
         Self {
-            pattern: "smpte".into(),
+            pattern: Pattern::Smpte,
             resolution: Size::SD,
         }
     }
@@ -35,50 +131,139 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [TestSource] and add it to the given pipeline.
-    fn new(pipeline: &gst::Pipeline, params: TestSourceParameters) -> TestSource {
-        let bin = format!(
-            r#"
-        videotestsrc pattern={pattern} is-live=true num-buffers=100 !
-            video/x-raw,format=RGB,width={width},height={height} !
-            queue name=video-output
-
-        audiotestsrc volume=0.01 is-live=true !
-            audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000 !
-            queue name=audio-output
-        "#,
-            pattern = params.pattern,
-            width = params.resolution.width,
-            height = params.resolution.height,
+    fn new(
+        pipeline: &gst::Pipeline,
+        resolution: &Size,
+        params: TestSourceParameters,
+    ) -> TestSource {
+        trace!(
+            "create new TestSource, resolution: (WxH){}:{}",
+            params.resolution.width,
+            params.resolution.height
         );
 
-        let bin = gst::parse_bin_from_description(&bin, false).unwrap();
+        // substitute parameters for easy us with format!()
+        let (width, height) = if resolution.ratio() == params.resolution.ratio() {
+            (params.resolution.width, params.resolution.height)
+        } else if resolution.ratio() > params.resolution.ratio() {
+            (
+                (params.resolution.height as f64 * resolution.ratio()) as usize,
+                params.resolution.height,
+            )
+        } else {
+            (
+                params.resolution.width,
+                (params.resolution.width as f64 / resolution.ratio()) as usize,
+            )
+        };
+        trace!("padding TestSource to {width}:{height}");
 
-        let video_output = bin.by_name("video-output").unwrap();
-        let video_output_pad = video_output.static_pad("src").unwrap();
-        let video_output_pad = gst::GhostPad::with_target(None, &video_output_pad)
-            .unwrap()
-            .upcast();
-        bin.add_pad(&video_output_pad).unwrap();
+        use std::cmp::min;
+        let (out_width, out_height) =
+            (min(resolution.width, width), min(resolution.height, height));
+        trace!("resizing TestSource to {out_width}:{out_height}");
 
-        let audio_output = bin.by_name("audio-output").unwrap();
-        let audio_output_pad = audio_output.static_pad("src").unwrap();
-        let audio_output_pad = gst::GhostPad::with_target(None, &audio_output_pad)
-            .unwrap()
-            .upcast();
-        bin.add_pad(&audio_output_pad).unwrap();
-        pipeline.add(&bin).unwrap();
+        // create bin including codecs and the dash sink
+        let video_bin = match params.pattern {
+            Pattern::Location(location) => gst::parse_bin_from_description(
+                &format!(
+                    r#"
+                    filesrc
+                        location={location}
+                    ! pngdec
+                    ! videoconvert
+                    ! imagefreeze
+                        is-live=true
+                    ! videobox
+                        fill=black
+                        autocrop=true
+                    ! capssetter
+                        caps=video/x-raw,format=RGB,width={width},height={height}
+                    ! videoscale
+                    ! capssetter
+                        caps=video/x-raw,format=RGB,width={out_width},height={out_height}
+                    ! queue
+                        name=video-testsrc
+                    "#
+                ),
+                false,
+            ),
+            _ => {
+                let pattern: &str = params.pattern.into();
+                gst::parse_bin_from_description(
+                    &format!(
+                        r#"
+                        videotestsrc
+                            pattern={pattern}
+                            is-live=true
+                        ! capssetter
+                            caps=video/x-raw,format=RGB,width={width},height={height}
+                        ! videoscale
+                        ! capssetter
+                            caps=video/x-raw,format=RGB,width={out_width},height={out_height}
+                        ! queue
+                            name=video-testsrc
+                        "#
+                    ),
+                    false,
+                )
+            }
+        }
+        .unwrap();
+        // add video elements to pipeline
+        pipeline.add(&video_bin).unwrap();
 
-        Self {
-            bin,
-            video_src_pad: video_output_pad,
-            audio_src_pad: audio_output_pad,
+        // get elements from bin
+        let video = video_bin.by_name("video-testsrc").unwrap();
+
+        // create ghost pads which link to codecs
+        let video_src_ghostpad =
+            gst::GhostPad::with_target(None, &video.static_pad("src").unwrap()).unwrap();
+        video_bin.add_pad(&video_src_ghostpad).unwrap();
+
+        let audio_bin = gst::parse_bin_from_description(
+            &format!(
+                r#"
+                audiotestsrc
+                    volume=0.01
+                    is-live=true
+                ! capssetter
+                    caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
+                ! queue
+                    name=audio-testsrc
+            "#
+            ),
+            false,
+        )
+        .unwrap();
+        // add audio elements to pipeline
+        pipeline.add(&audio_bin).unwrap();
+
+        // get elements from bin
+        let audio = audio_bin.by_name("audio-testsrc").unwrap();
+
+        // create ghost pads which link to codecs
+        let audio_src_ghostpad =
+            gst::GhostPad::with_target(None, &audio.static_pad("src").unwrap()).unwrap();
+        audio_bin.add_pad(&audio_src_ghostpad).unwrap();
+
+        TestSource {
+            // remember elements and pads for connect/disconnect
+            video_src_pad: video_src_ghostpad.upcast::<gst::Pad>(),
+            video_bin,
+            audio_src_pad: audio_src_ghostpad.upcast::<gst::Pad>(),
+            audio_bin,
         }
     }
 
     /// remove elements from pipeline
     fn remove(self, pipeline: &gst::Pipeline) {
-        pipeline.remove(&self.bin).unwrap();
-        self.bin.set_state(gst::State::Null).unwrap();
+        // remove video elements from pipeline
+        pipeline.remove(&self.video_bin).unwrap();
+        self.video_bin.set_state(gst::State::Null).unwrap();
+        // remove audio elements
+        pipeline.remove(&self.audio_bin).unwrap();
+        self.audio_bin.set_state(gst::State::Null).unwrap();
     }
 
     /// Get video source pad.

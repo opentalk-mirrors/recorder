@@ -73,6 +73,10 @@ where
         // get width/height
         let width = resolution.width;
         let height = resolution.height;
+        trace!(
+            "Output video resolution (WxH): {width}x{height} = {:2}",
+            resolution.ratio()
+        );
         // create new layout for the given resolution
         let layout = L::new(&resolution);
         // create new GStreamer pipeline
@@ -205,6 +209,7 @@ where
         display_name: String,
         params: SRC::Parameters,
     ) -> Result<(), Error<ID>> {
+        trace!("add participant( '{display_name}' )");
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -214,7 +219,12 @@ where
         }
 
         // add new participant
-        let participant = Participant::new(&self.pipeline, display_name, params);
+        let participant = Participant::new(
+            &self.pipeline,
+            &self.layout.resolution(),
+            display_name,
+            params,
+        );
         self.participants.insert(id, participant);
 
         // link new participant

@@ -1,4 +1,4 @@
-use super::Source;
+use super::{Size, Source};
 
 /// Status of a participant if it is linked to a fake sink or the compositor.
 #[derive(Debug)]
@@ -43,12 +43,13 @@ where
     /// - `params`: Parameters that will be forwarded to the source which gets created.
     pub fn new(
         pipeline: &gst::Pipeline,
+        resolution: &Size,
         display_name: String,
         src_params: SRC::Parameters,
     ) -> Self {
         Self {
             display_name,
-            source: SRC::new(pipeline, src_params),
+            source: SRC::new(pipeline, resolution, src_params),
             audio_mixer_pad: None,
             video_link_status: VideoLinkStatus::None,
         }

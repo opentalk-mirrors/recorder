@@ -1,4 +1,5 @@
-use crate::Source;
+use crate::{Size, Source};
+
 use gst::prelude::*;
 use tokio::sync::oneshot;
 
@@ -34,7 +35,8 @@ impl WebRtcSourceParams {
 impl Source for WebRtcSource {
     type Parameters = WebRtcSourceParams;
 
-    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
+    /// Create a new WebRTC source
+    fn new(pipeline: &gst::Pipeline, _: &Size, params: Self::Parameters) -> Self {
         let bin = gst::parse_bin_from_description(
             "
                 name=webrtcbin
