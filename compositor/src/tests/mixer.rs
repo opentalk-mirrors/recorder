@@ -34,9 +34,9 @@ where
     let mut mixer = Mixer::<L, TestSource, DisplaySink, u32>::new(resolution, 6, ()).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_visible-0", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_layout-0", gst::DebugGraphDetails::ALL);
 
-    let time = 1000;
+    let time = 500;
 
     let ids = generate_ids(8);
 
@@ -48,7 +48,7 @@ where
     mixer.pause();
     for &id in &ids {
         let params = TestSourceParameters {
-            resolution: Size::FHD,
+            resolution: Size::SD,
             ..Default::default()
         };
         mixer
@@ -56,13 +56,30 @@ where
             .unwrap();
     }
 
-    for i in 0..7 {
+    for i in 0..6 {
         let j = i + 1;
         mixer.set_title(&format!("Showing {j} Participants"));
         mixer.pause();
-        mixer.set_visibles(&ids[0..i + 1]).unwrap();
+        mixer.set_visibles(&ids[0..j]).unwrap();
         mixer.play();
 
+        mixer.generate_dot_file(
+            &format!("test_layout-{}-1.{}", L::name(), j),
+            gst::DebugGraphDetails::ALL,
+        );
+        sleep(Duration::from_millis(time));
+    }
+    for i in 0..6 {
+        let j = 6 - i - 1;
+        mixer.set_title(&format!("Showing {j} Participants"));
+        mixer.pause();
+        mixer.set_visibles(&ids[0..j]).unwrap();
+        mixer.play();
+
+        mixer.generate_dot_file(
+            &format!("test_layout-{}-2.{}", L::name(), j),
+            gst::DebugGraphDetails::ALL,
+        );
         sleep(Duration::from_millis(time));
     }
 }
@@ -81,7 +98,7 @@ fn test_remove() {
     let mut mixer = Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 4, ()).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_visible-0", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_remove-0", gst::DebugGraphDetails::ALL);
 
     let ids = generate_ids(8);
 
@@ -99,7 +116,7 @@ fn test_remove() {
             .unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file("test_visible-1", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_remove-1", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_millis(500));
 
@@ -108,7 +125,7 @@ fn test_remove() {
     mixer.set_visibles(&ids[0..4]).unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_visible-2", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_remove-2", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 
@@ -118,7 +135,7 @@ fn test_remove() {
         mixer.remove_participant(id).unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file("test_visible-3", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_remove-3", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 
@@ -128,7 +145,7 @@ fn test_remove() {
         mixer.remove_participant(id).unwrap();
     }
     mixer.play();
-    mixer.generate_dot_file("test_visible-4", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_remove-4", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 }

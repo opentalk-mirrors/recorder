@@ -9,6 +9,11 @@ pub struct Grid {
 }
 
 impl Layout for Grid {
+    #[cfg(test)]
+    fn name() -> &'static str {
+        "Grid"
+    }
+
     /// create a layout where the viewers are vertically distributed at the right side
     /// of the speaker and remaining space is used to display a title and 'who's speaking'
     /// # Arguments

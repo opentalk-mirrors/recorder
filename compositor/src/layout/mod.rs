@@ -92,4 +92,7 @@ pub trait Layout: Send + Sync + 'static {
     fn clock_alignment(&self) -> Alignment;
     /// Get position of the clock display.
     fn clock_position(&self, count: usize) -> Position;
+
+    #[cfg(test)]
+    fn name() -> &'static str;
 }

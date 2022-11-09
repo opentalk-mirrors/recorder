@@ -8,6 +8,11 @@ pub struct Speaker {
 }
 
 impl Layout for Speaker {
+    #[cfg(test)]
+    fn name() -> &'static str {
+        "Speaker"
+    }
+
     /// create a layout where the viewers are vertically distributed at the right side
     /// of the speaker and remaining space is used to display a title and 'who's speaking'
     /// # Arguments
