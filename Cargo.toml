@@ -9,7 +9,6 @@ edition = "2021"
 compositor = { path = "compositor" }
 
 gst = { package = "gstreamer", version = "0.19" }
-gst-app = { package = "gstreamer-app", version = "0.19" }
 gst-sdp = { package = "gstreamer-sdp", version = "0.19" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.19", features = [
     "v1_20",

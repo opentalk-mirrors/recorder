@@ -1,6 +1,5 @@
 use crate::Sink;
 use gst::traits::{ElementExt, GstBinExt};
-use gstreamer as gst;
 
 /// Fake sink to catch the compositor output without any further processing.
 pub struct FakeSink {

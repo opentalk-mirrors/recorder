@@ -1,6 +1,5 @@
 use crate::Sink;
 use gst::traits::{ElementExt, GstBinExt};
-use gstreamer as gst;
 
 /// Displays compositor output on the screen.
 pub struct DisplaySink {

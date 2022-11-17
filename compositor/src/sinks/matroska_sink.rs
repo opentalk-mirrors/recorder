@@ -1,6 +1,5 @@
 use crate::Sink;
 use gst::prelude::*;
-use gstreamer as gst;
 use std::{
     net::{SocketAddr, TcpListener},
     os::unix::prelude::AsRawFd,

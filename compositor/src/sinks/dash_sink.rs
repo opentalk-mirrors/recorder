@@ -1,7 +1,6 @@
 use super::matroska_sink::{MatroskaParameters, MatroskaSink};
 use crate::Sink;
 use gst::prelude::*;
-use gstreamer as gst;
 use inotify::{Inotify, WatchMask};
 use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
 use tempfile::TempDir;

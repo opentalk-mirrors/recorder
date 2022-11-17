@@ -15,7 +15,6 @@ use participant::VideoLinkStatus;
 // what we need from external libraries
 use core::mem::replace;
 use gst::prelude::*;
-use gstreamer as gst;
 use std::collections::HashMap;
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type

@@ -1,5 +1,3 @@
-use gstreamer as gst;
-
 /// Trait of an output sink.
 pub trait Sink {
     /// Generic parameter type to overwrite by trait implementers.

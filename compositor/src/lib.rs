@@ -74,8 +74,6 @@ pub use sources::*;
 
 #[test]
 fn generate_example_pipeline_picture() {
-    use gstreamer as gst;
-
     // initialize logging
     env_logger::init();
 

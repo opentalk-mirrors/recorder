@@ -1,6 +1,5 @@
 use crate::*;
 use core::time::Duration;
-use gstreamer as gst;
 
 #[test]
 fn test_dash() {

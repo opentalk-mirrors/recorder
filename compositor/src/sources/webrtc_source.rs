@@ -1,7 +1,5 @@
 use crate::Source;
-
 use gst::prelude::*;
-use gstreamer as gst;
 use tokio::sync::oneshot;
 
 /// Source that connects to an WebRTC source and provides the incoming streams as participant's input.

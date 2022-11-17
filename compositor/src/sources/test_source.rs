@@ -1,10 +1,6 @@
 use super::{Size, Source};
-
-use gst::{
-    prelude::*,
-    traits::{ElementExt, GstBinExt},
-};
-use gstreamer as gst;
+use gst::prelude::*;
+use gst::traits::{ElementExt, GstBinExt};
 
 /// Source that generates dummy picture and sound to simulate a participant's input.
 #[derive(Clone)]

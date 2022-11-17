@@ -1,5 +1,3 @@
-use gstreamer as gst;
-
 /// Trait of a participant's audio/video source.
 pub trait Source {
     /// Generic parameter type to overwrite by trait implementers.

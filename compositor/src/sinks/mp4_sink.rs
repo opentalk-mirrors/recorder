@@ -1,7 +1,6 @@
 use super::matroska_sink::{MatroskaParameters, MatroskaSink};
 use crate::Sink;
 use gst::prelude::*;
-use gstreamer as gst;
 
 /// Writes out a single MP4 file using FFmpeg
 pub struct Mp4Sink {
