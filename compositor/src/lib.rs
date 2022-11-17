@@ -75,7 +75,7 @@ pub use sources::*;
 #[test]
 fn generate_example_pipeline_picture() {
     // initialize logging
-    env_logger::init();
+    let _ = env_logger::try_init();
 
     // initialize GStreamer
     gst::init().unwrap();
@@ -87,7 +87,7 @@ fn generate_example_pipeline_picture() {
     };
 
     // setup mixer
-    let mut mixer = Mixer::<Grid, TestSource, FakeSink>::new(resolution, 2, ()).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 2, ()).unwrap();
     // generate pipeline DOT graph of the empty pipeline
     mixer.generate_dot_file("0_init", gst::DebugGraphDetails::STATES);
 
@@ -96,19 +96,17 @@ fn generate_example_pipeline_picture() {
 
     // add three participants
     mixer
-        .add_participant("P1".into(), "".into(), params.clone())
+        .add_participant(1, "P1".into(), params.clone())
         .unwrap();
     mixer
-        .add_participant("P2".into(), "".into(), params.clone())
+        .add_participant(2, "P2".into(), params.clone())
         .unwrap();
-    mixer
-        .add_participant("P3".into(), "".into(), params)
-        .unwrap();
+    mixer.add_participant(3, "P3".into(), params).unwrap();
     // generate pipeline DOT graph
     mixer.generate_dot_file("1_add_participants", gst::DebugGraphDetails::STATES);
 
     // set two participants to be visible
-    mixer.set_visibles(&["P1".into(), "P2".into()]).unwrap();
+    mixer.set_visibles(&[1, 2]).unwrap();
     // generate pipeline DOT graph
     mixer.generate_dot_file("2_set_visibles", gst::DebugGraphDetails::STATES);
 

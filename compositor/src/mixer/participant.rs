@@ -43,13 +43,12 @@ where
     /// - `params`: Parameters that will be forwarded to the source which gets created.
     pub fn new(
         pipeline: &gst::Pipeline,
-        id: String,
         display_name: String,
         src_params: SRC::Parameters,
     ) -> Self {
         Self {
             display_name,
-            source: SRC::new(pipeline, id, src_params),
+            source: SRC::new(pipeline, src_params),
             audio_mixer_pad: None,
             video_link_status: VideoLinkStatus::None,
         }

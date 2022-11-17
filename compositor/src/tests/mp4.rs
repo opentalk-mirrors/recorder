@@ -4,7 +4,7 @@ use core::time::Duration;
 #[test]
 fn test_mp4() {
     // init logger
-    env_logger::init();
+    let _ = env_logger::try_init();
 
     // initialize gstreamer
     gst::init().unwrap();
@@ -16,7 +16,7 @@ fn test_mp4() {
     };
 
     // create grid mixer with test sources for participants and a MatroskaSink
-    let mut mixer = Mixer::<Grid, TestSource, Mp4Sink>::new(
+    let mut mixer = Mixer::<Grid, TestSource, Mp4Sink, u32>::new(
         resolution,
         4,
         Mp4SinkParams {
@@ -27,7 +27,7 @@ fn test_mp4() {
 
     // add a participant
     mixer
-        .add_participant("test".into(), "".into(), Default::default())
+        .add_participant(0, "Participant 0".into(), Default::default())
         .unwrap();
 
     // start mixer

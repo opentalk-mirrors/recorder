@@ -97,7 +97,6 @@ impl Sink for Mp4Sink {
         let bus = pipeline.bus().unwrap();
         for msg in bus.iter_timed(gst::ClockTime::from_seconds(1)) {
             use gst::MessageView;
-            // trace!("{msg:?}");
 
             match msg.view() {
                 MessageView::Error(err) => {
@@ -115,8 +114,12 @@ impl Sink for Mp4Sink {
         }
 
         self.matroska_sink.on_exit(pipeline);
+    }
+}
 
+impl Drop for Mp4Sink {
+    fn drop(&mut self) {
         // Wait for ffmpeg to exit
-        self.process.as_mut().unwrap().wait().unwrap();
+        self.process.take().unwrap().wait().unwrap();
     }
 }

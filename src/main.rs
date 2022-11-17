@@ -8,6 +8,7 @@ use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use gst::glib;
 use settings::Settings;
+use signaling::ParticipantId;
 use std::collections::HashSet;
 use std::io;
 use std::sync::Arc;
@@ -103,7 +104,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-type Mixer = compositor::Mixer<compositor::Speaker, compositor::WebRtcSource, compositor::Mp4Sink>;
+type Mixer = compositor::Mixer<
+    compositor::Speaker,
+    compositor::WebRtcSource,
+    compositor::Mp4Sink,
+    ParticipantId,
+>;
 
 async fn record(
     settings: Arc<Settings>,
@@ -130,9 +136,7 @@ async fn record(
     let mut list = HashSet::new();
 
     for id in signaling.publishing_participants() {
-        mixer
-            .add_participant(id.0.to_string(), id.0.to_string(), ())
-            .unwrap();
+        mixer.add_participant(id, id.0.to_string(), ()).unwrap();
         signaling
             .start_subscribe(id, MediaSessionType::Video)
             .await
@@ -155,9 +159,7 @@ async fn record(
             signaling::Event::ParticipantJoined(id) => {
                 if signaling.publishes(id, MediaSessionType::Video) {
                     mixer.pause();
-                    mixer
-                        .add_participant(id.0.to_string(), id.0.to_string(), ())
-                        .unwrap();
+                    mixer.add_participant(id, id.0.to_string(), ()).unwrap();
                     mixer.play();
 
                     signaling
@@ -170,9 +172,7 @@ async fn record(
             signaling::Event::ParticipantUpdated(id) => {
                 if !list.contains(&id) && signaling.publishes(id, MediaSessionType::Video) {
                     mixer.pause();
-                    mixer
-                        .add_participant(id.0.to_string(), id.0.to_string(), ())
-                        .unwrap();
+                    mixer.add_participant(id, id.0.to_string(), ()).unwrap();
                     mixer.play();
 
                     signaling
@@ -186,15 +186,10 @@ async fn record(
                 if list.remove(&id) {
                     mixer.pause();
 
-                    mixer.remove_participant(&id.0.to_string()).unwrap();
+                    mixer.remove_participant(id).unwrap();
 
                     mixer
-                        .set_visibles(
-                            &list
-                                .iter()
-                                .map(|id| id.0.to_string())
-                                .collect::<Vec<String>>(),
-                        )
+                        .set_visibles(&list.iter().copied().collect::<Vec<_>>())
                         .unwrap();
 
                     mixer.play();
@@ -210,26 +205,20 @@ async fn record(
             signaling::Event::SdpOffer(id, typ, offer) => {
                 mixer.pause();
 
-                let answer = mixer.participants[&id.0.to_string()]
-                    .source
-                    .receive_offer(offer)
-                    .await;
+                let answer = mixer.participants[&id].source.receive_offer(offer).await;
 
                 mixer
-                    .set_visibles(
-                        &list
-                            .iter()
-                            .map(|id| id.0.to_string())
-                            .collect::<Vec<String>>(),
-                    )
+                    .set_visibles(&list.iter().copied().collect::<Vec<_>>())
                     .unwrap();
 
                 mixer.play();
 
                 signaling.send_answer(id, typ, answer).await.unwrap();
             }
-            signaling::Event::SdpCandidate(_id, _typ, _candidate) => todo!(),
-            signaling::Event::SdpEndOfCandidates(_id, _typ) => {}
+            signaling::Event::SdpCandidate(id, _typ, candidate) => todo!(),
+            signaling::Event::SdpEndOfCandidates(id, _typ) => {
+                if let Some(participant) = mixer.participants.get_mut(&id) {}
+            }
         }
     }
 }

@@ -19,7 +19,7 @@ impl Source for WebRtcSource {
     type Parameters = ();
 
     /// Create a new WebRTC source
-    fn new(pipeline: &gst::Pipeline, _: String, _: ()) -> Self {
+    fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
         let bin = gst::parse_bin_from_description(
             "
                 name=webrtcbin
@@ -116,5 +116,15 @@ impl WebRtcSource {
         );
 
         recv.await.unwrap()
+    }
+
+    pub async fn receive_candidate(&self, mline: u32, candidate: String) {
+        self.webrtcbin
+            .emit_by_name("add-ice-candidate", &[&mline, &candidate])
+    }
+
+    pub async fn receive_end_of_candidates(&self, mline: u32) {
+        self.webrtcbin
+            .emit_by_name("add-ice-candidate", &[&mline, &None::<String>])
     }
 }

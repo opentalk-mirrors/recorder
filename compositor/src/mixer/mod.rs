@@ -13,7 +13,7 @@ use crate::{Alignment, Error, Layout, Position, Size};
 use participant::VideoLinkStatus;
 
 // what we need from external libraries
-use core::mem::replace;
+use core::{fmt::Debug, hash::Hash, mem::replace};
 use gst::prelude::*;
 use std::collections::HashMap;
 
@@ -22,11 +22,12 @@ use std::collections::HashMap;
 /// - `L`: Layout to use to compose output picture.
 /// - `SRC`: Source type to use when adding participants.
 /// - `SINK`: Sink type to use for output.
-pub struct Mixer<L, SRC, SINK>
+pub struct Mixer<L, SRC, SINK, ID>
 where
     L: Layout,
     SRC: Source,
     SINK: Sink,
+    ID: Eq + Ord + Hash + Copy,
 {
     /// GStreamer element which composes the output video out of the source videos.
     pub compositor: gst::Element,
@@ -47,16 +48,17 @@ where
     /// Layout of the output picture.
     layout: L,
     /// Current participants.
-    pub participants: HashMap<String, Participant<SRC>>,
+    pub participants: HashMap<ID, Participant<SRC>>,
     /// Holds the output sink.
     pub output: SINK,
 }
 
-impl<L, SRC, SINK> Mixer<L, SRC, SINK>
+impl<L, SRC, SINK, ID> Mixer<L, SRC, SINK, ID>
 where
     L: Layout,
     SRC: Source,
     SINK: Sink,
+    ID: Eq + Ord + Hash + Copy + Debug,
 {
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     /// # Arguments
@@ -67,7 +69,7 @@ where
         resolution: Size,
         max_visibles: usize,
         sink_params: SINK::Parameters,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, Error<ID>> {
         // get width/height
         let width = resolution.width;
         let height = resolution.height;
@@ -199,10 +201,10 @@ where
     /// - `params`: Source specific parameters.
     pub fn add_participant(
         &mut self,
-        id: String,
+        id: ID,
         display_name: String,
         params: SRC::Parameters,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error<ID>> {
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -212,12 +214,12 @@ where
         }
 
         // add new participant
-        let participant = Participant::new(&self.pipeline, id.clone(), display_name, params);
-        self.participants.insert(id.to_string(), participant);
+        let participant = Participant::new(&self.pipeline, display_name, params);
+        self.participants.insert(id, participant);
 
         // link new participant
-        self.link_audio(&id)?;
-        self.link_video_to_fakesink(&id)?;
+        self.link_audio(id)?;
+        self.link_video_to_fakesink(id)?;
 
         // re-layout
         self.layout()?;
@@ -228,7 +230,7 @@ where
     /// remove an once added participant from the mixer.
     /// # Arguments
     /// - `id`: Unique identifier of the participant.
-    pub fn remove_participant(&mut self, id: &str) -> Result<(), Error> {
+    pub fn remove_participant(&mut self, id: ID) -> Result<(), Error<ID>> {
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -241,8 +243,8 @@ where
         // remove participant from stored participants
         let participant = self
             .participants
-            .remove(id)
-            .ok_or_else(|| Error::ParticipantNotFound(id.to_owned()))?;
+            .remove(&id)
+            .ok_or(Error::ParticipantNotFound(id))?;
 
         // remove participant's source from pipeline
         participant.source.remove(&self.pipeline);
@@ -257,7 +259,7 @@ where
     /// All previously visible participants get invisible if they are not in the list.
     /// # Arguments
     /// - `ids`: List of identifiers of participants which shall get visible
-    pub fn set_visibles(&mut self, ids: &[String]) -> Result<(), Error> {
+    pub fn set_visibles(&mut self, ids: &[ID]) -> Result<(), Error<ID>> {
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -269,14 +271,14 @@ where
         }
 
         // Unlink all participants
-        for id in self.participants.keys().cloned().collect::<Vec<_>>() {
-            self.link_video_to_fakesink(&id)?;
+        for id in self.participants.keys().copied().collect::<Vec<_>>() {
+            self.link_video_to_fakesink(id)?;
         }
         self.visibles = 0;
 
         // Link all given participants
         for (n, id) in ids.iter().enumerate() {
-            self.link_video_to_compositor(id, n)?;
+            self.link_video_to_compositor(*id, n)?;
             self.visibles += 1;
         }
 
@@ -330,16 +332,9 @@ where
             error!("can not write DOT file. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to a absolute path");
         }
     }
-}
 
-impl<L, SRC, SINK> Mixer<L, SRC, SINK>
-where
-    L: Layout,
-    SRC: Source,
-    SINK: Sink,
-{
     /// Re-layout the current compositor scene.
-    fn layout(&self) -> Result<(), Error> {
+    fn layout(&self) -> Result<(), Error<ID>> {
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -415,13 +410,13 @@ where
     }
 
     /// Link participant's audio source to audio mixer.
-    fn link_audio(&mut self, id: &str) -> Result<(), Error> {
+    fn link_audio(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("linking audio of {:?}...", id);
 
         let participant = self
             .participants
-            .get_mut(id)
-            .ok_or_else(|| Error::ParticipantNotFound(id.to_owned()))?;
+            .get_mut(&id)
+            .ok_or(Error::ParticipantNotFound(id))?;
 
         let mixer_pad = self.audio_mixer.request_pad_simple("sink_%").unwrap();
 
@@ -433,13 +428,13 @@ where
     }
 
     /// Unlink participant's audio from the audiomixer.
-    fn unlink_audio(&mut self, id: &str) -> Result<(), Error> {
+    fn unlink_audio(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("unlinking audio of {id:?}...");
 
         let participant = self
             .participants
-            .get_mut(id)
-            .ok_or_else(|| Error::ParticipantNotFound(id.to_owned()))?;
+            .get_mut(&id)
+            .ok_or(Error::ParticipantNotFound(id))?;
 
         if let Some(pad) = participant.audio_mixer_pad.take() {
             participant.source.audio_src_pad().unlink(&pad).unwrap();
@@ -449,13 +444,13 @@ where
     }
 
     /// Link participant's video source to fake sink (while it's invisible).
-    fn link_video_to_fakesink(&mut self, id: &str) -> Result<(), Error> {
+    fn link_video_to_fakesink(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("linking video of {id:?} to fakesink...");
 
         let participant = self
             .participants
-            .get_mut(id)
-            .ok_or_else(|| Error::ParticipantNotFound(id.to_owned()))?;
+            .get_mut(&id)
+            .ok_or(Error::ParticipantNotFound(id))?;
 
         match &participant.video_link_status {
             VideoLinkStatus::None => {}
@@ -479,13 +474,13 @@ where
     }
 
     /// Link participant's source to video compositor.
-    fn link_video_to_compositor(&mut self, id: &str, n: usize) -> Result<(), Error> {
+    fn link_video_to_compositor(&mut self, id: ID, n: usize) -> Result<(), Error<ID>> {
         trace!("linking video of {id:?} to compositor@{n}...");
 
         let participant = self
             .participants
-            .get_mut(id)
-            .ok_or_else(|| Error::ParticipantNotFound(id.to_owned()))?;
+            .get_mut(&id)
+            .ok_or(Error::ParticipantNotFound(id))?;
 
         match &participant.video_link_status {
             VideoLinkStatus::None => {}
@@ -522,13 +517,13 @@ where
     }
 
     // Unlink participant's video source from compositor.
-    fn unlink_video(&mut self, id: &str) -> Result<(), Error> {
+    fn unlink_video(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("unlinking video of {id:?}...");
 
         let participant = self
             .participants
-            .get_mut(id)
-            .ok_or_else(|| Error::ParticipantNotFound(id.to_owned()))?;
+            .get_mut(&id)
+            .ok_or(Error::ParticipantNotFound(id))?;
 
         match replace(&mut participant.video_link_status, VideoLinkStatus::None) {
             VideoLinkStatus::None => {}
@@ -552,11 +547,12 @@ where
     }
 }
 
-impl<L, SRC, SINK> Drop for Mixer<L, SRC, SINK>
+impl<L, SRC, SINK, ID> Drop for Mixer<L, SRC, SINK, ID>
 where
     L: Layout,
     SRC: Source,
     SINK: Sink,
+    ID: Eq + Ord + Hash + Copy,
 {
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {

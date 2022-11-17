@@ -2,14 +2,13 @@ use crate::*;
 use std::thread::sleep;
 use std::time::Duration;
 
-fn generate_ids(count: usize) -> Vec<String> {
-    // add participant names
-    (0..count).map(|n| format!("Participant {n}")).collect()
+fn generate_ids(count: u32) -> Vec<u32> {
+    (0..count).collect()
 }
 
 #[test]
 fn test_visibles() {
-    env_logger::init();
+    let _ = env_logger::try_init();
     // initialize gstreamer
     gst::init().unwrap();
 
@@ -18,7 +17,7 @@ fn test_visibles() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Grid, TestSource, DisplaySink>::new(resolution, 4, ()).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource, DisplaySink, u32>::new(resolution, 4, ()).unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_visible-0", gst::DebugGraphDetails::ALL);
@@ -29,13 +28,13 @@ fn test_visibles() {
 
     mixer.set_title("add 8 participants");
     mixer.pause();
-    for id in &ids {
+    for &id in &ids {
         let params = TestSourceParameters {
             resolution: Size::FHD,
             ..Default::default()
         };
         mixer
-            .add_participant(id.clone(), id.clone(), params)
+            .add_participant(id, format!("Participant {id}"), params)
             .unwrap();
     }
     mixer.play();
@@ -74,7 +73,7 @@ fn test_visibles() {
 
 #[test]
 fn test_remove() {
-    env_logger::init();
+    let _ = env_logger::try_init();
     // initialize gstreamer
     gst::init().unwrap();
 
@@ -83,7 +82,7 @@ fn test_remove() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Grid, TestSource, FakeSink>::new(resolution, 4, ()).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 4, ()).unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_visible-0", gst::DebugGraphDetails::ALL);
@@ -94,13 +93,13 @@ fn test_remove() {
 
     mixer.set_title("add 8 participants");
     mixer.pause();
-    for id in &ids {
+    for &id in &ids {
         let params = TestSourceParameters {
             resolution: Size::FHD,
             ..Default::default()
         };
         mixer
-            .add_participant(id.clone(), id.into(), params)
+            .add_participant(id, format!("Participant {id}"), params)
             .unwrap();
     }
     mixer.play();
@@ -119,8 +118,8 @@ fn test_remove() {
 
     mixer.set_title("remove 1-2");
     mixer.pause();
-    for name in &ids[0..2] {
-        mixer.remove_participant(name).unwrap();
+    for &id in &ids[0..2] {
+        mixer.remove_participant(id).unwrap();
     }
     mixer.play();
     mixer.generate_dot_file("test_visible-3", gst::DebugGraphDetails::ALL);
@@ -129,8 +128,8 @@ fn test_remove() {
 
     mixer.set_title("show 2-6");
     mixer.pause();
-    for name in &ids[4..8] {
-        mixer.remove_participant(name).unwrap();
+    for &id in &ids[4..8] {
+        mixer.remove_participant(id).unwrap();
     }
     mixer.play();
     mixer.generate_dot_file("test_visible-4", gst::DebugGraphDetails::ALL);

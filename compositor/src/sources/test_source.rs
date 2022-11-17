@@ -5,18 +5,9 @@ use gst::traits::{ElementExt, GstBinExt};
 /// Source that generates dummy picture and sound to simulate a participant's input.
 #[derive(Clone)]
 pub struct TestSource {
-    /// Video source GStreamer pad.
+    bin: gst::Bin,
     pub video_src_pad: gst::Pad,
-    /// Video source GStreamer element pad.
-    pub video_src_element: gst::Element,
-    /// GStreamer element to manage video caps.
-    video_caps: gst::Element,
-    /// Audio source GStreamer pad.
     pub audio_src_pad: gst::Pad,
-    /// Audio source GStreamer element pad.
-    pub audio_src_element: gst::Element,
-    /// GStreamer element to manage audio caps.
-    audio_caps: gst::Element,
 }
 
 /// Specific parameters needed to create a [TestSource]
@@ -44,84 +35,50 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [TestSource] and add it to the given pipeline.
-    fn new(pipeline: &gst::Pipeline, id: String, params: TestSourceParameters) -> TestSource {
-        trace!("create new TestSource '{}'", id);
+    fn new(pipeline: &gst::Pipeline, params: TestSourceParameters) -> TestSource {
+        let bin = format!(
+            r#"
+        videotestsrc pattern={pattern} is-live=true num-buffers=100 !
+            video/x-raw,format=RGB,width={width},height={height} !
+            queue name=video-output
 
-        let width = params.resolution.width;
-        let height = params.resolution.height;
-        let pattern = params.pattern;
-
-        // create video test src
-        let video_test_src = gst::ElementFactory::make_with_name(
-            "videotestsrc",
-            Some(&format!("video-testsrc-{id}")),
-        )
-        .unwrap();
-        video_test_src.set_property_from_str("pattern", &pattern);
-        video_test_src.set_property_from_str("is-live", "true");
-        video_test_src.set_property_from_str("num-buffers", "100");
-
-        // create video caps setter
-        let video_caps =
-            gst::ElementFactory::make_with_name("capssetter", Some(&format!("video-caps-{id}")))
-                .unwrap();
-        video_caps.set_property_from_str(
-            "caps",
-            &format!("video/x-raw,format=RGB,width={width},height={height}",),
+        audiotestsrc volume=0.01 is-live=true !
+            audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000 !
+            queue name=audio-output
+        "#,
+            pattern = params.pattern,
+            width = params.resolution.width,
+            height = params.resolution.height,
         );
 
-        // add video elements to pipeline
-        pipeline.add(&video_test_src).unwrap();
-        pipeline.add(&video_caps).unwrap();
+        let bin = gst::parse_bin_from_description(&bin, false).unwrap();
 
-        // link video elements
-        video_test_src.link(&video_caps).unwrap();
+        let video_output = bin.by_name("video-output").unwrap();
+        let video_output_pad = video_output.static_pad("src").unwrap();
+        let video_output_pad = gst::GhostPad::with_target(None, &video_output_pad)
+            .unwrap()
+            .upcast();
+        bin.add_pad(&video_output_pad).unwrap();
 
-        // create audio test src
-        let audio_test_src = gst::ElementFactory::make_with_name(
-            "audiotestsrc",
-            Some(&format!("audio-testsrc-{id}")),
-        )
-        .unwrap();
-        audio_test_src.set_property_from_str("volume", "0.01");
-        audio_test_src.set_property_from_str("is-live", "true");
+        let audio_output = bin.by_name("audio-output").unwrap();
+        let audio_output_pad = audio_output.static_pad("src").unwrap();
+        let audio_output_pad = gst::GhostPad::with_target(None, &audio_output_pad)
+            .unwrap()
+            .upcast();
+        bin.add_pad(&audio_output_pad).unwrap();
+        pipeline.add(&bin).unwrap();
 
-        // create audio caps setter
-        let audio_caps =
-            gst::ElementFactory::make_with_name("capssetter", Some(&format!("audio-caps-{id}")))
-                .unwrap();
-        audio_caps.set_property_from_str(
-            "caps",
-            "audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000",
-        );
-
-        // add audio elements to pipeline
-        pipeline.add(&audio_test_src).unwrap();
-        pipeline.add(&audio_caps).unwrap();
-
-        // link audio elements
-        audio_test_src.link(&audio_caps).unwrap();
-
-        TestSource {
-            // remember elements and pads for connect/disconnect
-            video_src_pad: video_caps.static_pad("src").unwrap(),
-            video_src_element: video_test_src,
-            video_caps,
-            audio_src_pad: audio_caps.static_pad("src").unwrap(),
-            audio_src_element: audio_test_src,
-            audio_caps,
+        Self {
+            bin,
+            video_src_pad: video_output_pad,
+            audio_src_pad: audio_output_pad,
         }
     }
 
     /// remove elements from pipeline
     fn remove(self, pipeline: &gst::Pipeline) {
-        // remove video elements from pipeline
-        pipeline.remove(&self.video_src_element).unwrap();
-        pipeline.remove(&self.video_caps).unwrap();
-
-        // remove audio elements
-        pipeline.remove(&self.audio_src_element).unwrap();
-        pipeline.remove(&self.audio_caps).unwrap();
+        pipeline.remove(&self.bin).unwrap();
+        self.bin.set_state(gst::State::Null).unwrap();
     }
 
     /// Get video source pad.
