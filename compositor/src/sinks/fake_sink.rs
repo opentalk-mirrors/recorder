@@ -15,7 +15,6 @@ impl Sink for FakeSink {
     type Parameters = ();
 
     /// Create and add new fake sink into existing pipeline.
-    #[allow(dead_code)]
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
         // create video and audio sink
         let video_sink =

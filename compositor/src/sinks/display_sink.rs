@@ -15,7 +15,6 @@ impl Sink for DisplaySink {
     type Parameters = ();
 
     /// Create and add new display sink into existing pipeline.
-    #[allow(dead_code)]
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
         // create video and audio sink
         let video_sink =

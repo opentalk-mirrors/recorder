@@ -20,7 +20,6 @@ pub struct DashSink {
 }
 
 /// DASH segment type
-#[allow(dead_code)]
 #[derive(Clone)]
 pub enum SegmentType {
     /// Select DASH segment files format based on the stream codec.

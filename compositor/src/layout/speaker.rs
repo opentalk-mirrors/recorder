@@ -14,7 +14,6 @@ impl Layout for Speaker {
     /// - `resolution` : dimensions of the output picture in pixels
     /// # Return
     /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
-    #[allow(dead_code)]
     fn new(resolution: &Size) -> Self {
         // calculate layout
         Self {
