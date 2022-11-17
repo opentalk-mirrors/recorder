@@ -1,3 +1,5 @@
+//! Commands this recorder receives via RabbitMQ
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

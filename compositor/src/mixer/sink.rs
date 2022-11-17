@@ -16,5 +16,5 @@ pub trait Sink {
     /// Called by `Mixer::pause()`.
     fn on_pause(&mut self) {}
     /// Called by `Mixer::drop()`.
-    fn on_exit(_pipeline: &gst::Pipeline) {}
+    fn on_exit(&mut self, _pipeline: &gst::Pipeline) {}
 }

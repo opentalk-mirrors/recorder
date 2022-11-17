@@ -1,5 +1,4 @@
-use super::Sink;
-
+use crate::Sink;
 use gst::prelude::*;
 use gstreamer as gst;
 use std::{
@@ -28,7 +27,7 @@ impl Default for MatroskaParameters {
     /// File parameters default
     fn default() -> Self {
         Self {
-            address: "127.0.0.1:0".parse().unwrap(),
+            address: SocketAddr::from(([127, 0, 0, 1], 0)),
         }
     }
 }
@@ -93,7 +92,7 @@ impl Sink for MatroskaSink {
 
         // listen on given TCP port
         let address = params.address.to_string();
-        let (_stop_sender, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
+        let (stop_sender, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
         let listener = TcpListener::bind(address).unwrap();
         let address = listener.local_addr().unwrap();
         trace!("Start listening on {address}",);
@@ -111,7 +110,7 @@ impl Sink for MatroskaSink {
         Self {
             video_sink_pad: video_sink_pad.upcast(),
             audio_sink_pad: audio_sink_pad.upcast(),
-            stop_sender: _stop_sender,
+            stop_sender,
             address,
         }
     }
@@ -125,10 +124,8 @@ impl Sink for MatroskaSink {
     fn audio_sink_pad(&self) -> gst::Pad {
         self.audio_sink_pad.clone()
     }
-}
 
-impl Drop for MatroskaSink {
-    fn drop(&mut self) {
+    fn on_exit(&mut self, _pipeline: &gst::Pipeline) {
         self.stop_sender.send(()).unwrap();
     }
 }

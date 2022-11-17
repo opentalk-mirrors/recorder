@@ -1,12 +1,10 @@
-use super::{
-    matroska_sink::{MatroskaParameters, MatroskaSink},
-    Sink,
-};
-
+use super::matroska_sink::{MatroskaParameters, MatroskaSink};
+use crate::Sink;
 use gst::prelude::*;
 use gstreamer as gst;
 use inotify::{Inotify, WatchMask};
-use std::{ffi::OsStr, path::PathBuf};
+use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
+use tempfile::TempDir;
 
 /// Writes out *DASH* A/V files.
 pub struct DashSink {
@@ -16,6 +14,9 @@ pub struct DashSink {
     params: DashParameters,
     /// FFmpeg process
     process: Option<std::process::Child>,
+    /// Temporary directory to write dash files into.
+    /// Is set if no output directory is specified
+    temp_dir: Option<TempDir>,
 }
 
 /// DASH segment type
@@ -42,12 +43,11 @@ impl SegmentType {
 }
 
 /// Specific parameters needed to create.
-#[derive(Clone)]
 pub struct DashParameters {
-    /// Path, name and extension of the MPD file to create (e.g. `./output/my_media.mpd`).
-    /// All further media files will be created beside the MPD file.
-    /// All files will be overwritten!
-    pub mpd: PathBuf,
+    /// Path to write the dash files to.
+    /// Existing files will be overridden.
+    /// If None a temporary directory will be used.
+    pub output_dir: Option<PathBuf>,
     /// Bitrate to aim in output.
     pub bitrate: usize,
     /// Segment duration in seconds
@@ -66,7 +66,7 @@ impl Default for DashParameters {
     /// File parameters default.
     fn default() -> Self {
         Self {
-            mpd: PathBuf::from("dash.mpd"),
+            output_dir: None,
             bitrate: 0x100000,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
@@ -87,11 +87,12 @@ impl Sink for DashSink {
                 pipeline,
                 MatroskaParameters {
                     // use fixed localhost but with given port
-                    address: format!("127.0.0.1:0").parse().unwrap(),
+                    address: SocketAddr::from(([127, 0, 0, 1], 0)),
                 },
             ),
             params,
             process: None,
+            temp_dir: None,
         }
     }
 
@@ -106,8 +107,6 @@ impl Sink for DashSink {
     }
 
     /// Starts the FFmpeg receiver which catches the output of the matroska sink.
-    /// # Arguments
-    /// - `source`: URL of  
     fn on_play(&mut self) {
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
@@ -116,6 +115,16 @@ impl Sink for DashSink {
                 return;
             }
         }
+
+        let (output_dir, mpd_path) = {
+            if let Some(path) = &self.params.output_dir {
+                (path.as_ref(), path.join("dash.mpd"))
+            } else {
+                let temp_dir = self.temp_dir.insert(tempfile::tempdir().unwrap());
+                (temp_dir.path(), temp_dir.path().join("dash.mpd"))
+            }
+        };
+
         // start ffmpeg to fetch output stream and create DASH files
         self.process = Some(
             std::process::Command::new("ffmpeg")
@@ -143,7 +152,7 @@ impl Sink for DashSink {
                     self.params.seg_type.as_str(),
                     "-f",
                     "dash",
-                    self.params.mpd.to_str().unwrap(),
+                    mpd_path.to_str().unwrap(),
                 ])
                 .spawn()
                 .unwrap(),
@@ -151,13 +160,14 @@ impl Sink for DashSink {
 
         // initialize inotify
         let mut inotify = Inotify::init().unwrap();
-        // get target path from MPD file name
-        let path = self.params.mpd.as_path().parent().unwrap().clone();
-        trace!("Writing DASH files into {}", path.to_str().unwrap());
+
+        trace!("Writing DASH files into {}", output_dir.to_string_lossy());
+
         // add watch to that folder
         inotify
-            .add_watch(path, WatchMask::MOVED_TO | WatchMask::CLOSE)
+            .add_watch(output_dir, WatchMask::MOVED_TO | WatchMask::CLOSE)
             .expect("Failed to add file watch");
+
         let update = self.params.update;
         // spawn a thread which handles the watched events
         std::thread::spawn(move || {
@@ -173,10 +183,10 @@ impl Sink for DashSink {
                 };
 
                 let files: Vec<&OsStr> = events
-                    .filter(|event| event.name.is_some())
-                    .map(|event| event.name.unwrap().clone())
-                    .filter(|name| !str::ends_with(name.to_str().unwrap(), ".tmp"))
+                    .filter_map(|event| event.name)
+                    .filter(|name| !name.to_str().unwrap().ends_with(".tmp"))
                     .collect();
+
                 if !files.is_empty() {
                     update(files);
                 }
@@ -185,7 +195,7 @@ impl Sink for DashSink {
     }
 
     /// Sends EOS into pipeline to flush output before
-    fn on_exit(pipeline: &gst::Pipeline) {
+    fn on_exit(&mut self, pipeline: &gst::Pipeline) {
         // send EOS into pipeline to flush output
         pipeline.send_event(gst::event::Eos::new());
 
@@ -208,5 +218,8 @@ impl Sink for DashSink {
                 _ => (),
             }
         }
+
+        // Drop temp_dir to delete directory
+        self.temp_dir.take();
     }
 }

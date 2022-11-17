@@ -564,7 +564,7 @@ where
         trace!("exiting mixer");
 
         // call sink to prepare for dropping pipeline
-        SINK::on_exit(&self.pipeline);
+        self.output.on_exit(&self.pipeline);
 
         // stop pipeline
         self.pipeline

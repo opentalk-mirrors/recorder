@@ -1,16 +1,13 @@
+use crate::http::HttpClient;
 use crate::settings::Settings;
 use anyhow::{bail, Context, Result};
 use futures::{SinkExt, StreamExt};
-use rand::{distributions::Alphanumeric, Rng};
-use reqwest::header::{
-    CONNECTION, HOST, SEC_WEBSOCKET_KEY, SEC_WEBSOCKET_PROTOCOL, SEC_WEBSOCKET_VERSION, UPGRADE,
-};
-use reqwest::Client;
+use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tt::tungstenite::http::Request;
+use tt::tungstenite::client::IntoClientRequest;
 use tt::tungstenite::Message;
 use tt::{MaybeTlsStream, WebSocketStream};
 use uuid::Uuid;
@@ -42,43 +39,22 @@ pub enum Event {
 }
 
 impl Signaling {
-    pub async fn connect(client: Client, settings: Arc<Settings>, room_id: String) -> Result<Self> {
-        let key: Vec<u8> = rand::thread_rng()
-            .sample_iter(Alphanumeric)
-            .take(32)
-            .collect();
+    pub async fn connect(
+        client: Arc<HttpClient>,
+        settings: Arc<Settings>,
+        room_id: &str,
+    ) -> Result<Self> {
+        let ticket = client.start(&settings.controller, room_id).await?;
 
-        #[derive(Deserialize)]
-        struct StartResponse {
-            ticket: String,
-        }
-
-        let ticket_response = client
-            .post(format!(
-                "{}/rooms/recorder/start",
-                settings.controller.api_base_url()
-            ))
-            .json(&serde_json::json!({ "room_id": room_id }))
-            .send()
-            .await?
-            .json::<StartResponse>()
-            .await?;
-
-        let websocket_request = Request::get(settings.controller.websocket_url())
-            .header(
-                SEC_WEBSOCKET_PROTOCOL,
-                format!("k3k-signaling-json-v1.0,ticket#{}", ticket_response.ticket),
-            )
-            .header(SEC_WEBSOCKET_KEY, key)
-            .header(SEC_WEBSOCKET_VERSION, "13")
-            .header(HOST, &settings.controller.domain)
-            .header(CONNECTION, "Upgrade")
-            .header(UPGRADE, "websocket")
-            .body(())?;
+        let mut websocket_request = settings.controller.websocket_url().into_client_request()?;
+        websocket_request.headers_mut().insert(
+            SEC_WEBSOCKET_PROTOCOL,
+            format!("k3k-signaling-json-v1.0,ticket#{}", ticket).try_into()?,
+        );
 
         let (mut stream, _) = tt::connect_async(websocket_request)
             .await
-            .context("connect")?;
+            .context("failed create websocket connection")?;
 
         stream
             .send(Message::Text(serde_json::to_string(&serde_json::json!({

@@ -2,13 +2,14 @@ use std::{fmt::Display, str::FromStr};
 
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
+use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
-    pub auth: Auth,
+    pub auth: AuthSettings,
     pub controller: ControllerSettings,
-    pub rabbit_mq: RabbitMqSettings,
+    pub rabbitmq: RabbitMqSettings,
 }
 
 impl Settings {
@@ -22,10 +23,10 @@ impl Settings {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Auth {
-    pub issuer: openidconnect::IssuerUrl,
-    pub client_id: openidconnect::ClientId,
-    pub client_secret: openidconnect::ClientSecret,
+pub struct AuthSettings {
+    pub issuer: IssuerUrl,
+    pub client_id: ClientId,
+    pub client_secret: ClientSecret,
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,7 +43,7 @@ impl ControllerSettings {
         format!("{scheme}://{}/signaling", self.domain)
     }
 
-    pub fn api_base_url(&self) -> String {
+    pub fn v1_api_base_url(&self) -> String {
         let scheme = if self.insecure { "http" } else { "https" };
 
         format!("{scheme}://{}/v1", self.domain)

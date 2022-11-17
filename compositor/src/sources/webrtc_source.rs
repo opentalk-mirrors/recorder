@@ -21,27 +21,25 @@ impl Source for WebRtcSource {
     type Parameters = ();
 
     /// Create a new WebRTC source
-    fn new(pipeline: &gst::Pipeline, id: String, _: ()) -> Self {
+    fn new(pipeline: &gst::Pipeline, _: String, _: ()) -> Self {
         let bin = gst::parse_bin_from_description(
-            &format!(
-                "
-                name=webrtcbin-{id}
-                
+            "
+                name=webrtcbin
+
             webrtcbin
-                name=webrtc-{id}
+                name=webrtc
                 bundle-policy=max-bundle
 
             webrtc.
             ! rtpvp8depay
-            ! avdec_vp8 
+            ! avdec_vp8
                 name=video-decode
 
             webrtc.
             ! rtpopusdepay
-            ! opusdec 
+            ! opusdec
                 name=audio-decode
-        "
-            ),
+        ",
             false,
         )
         .unwrap();
@@ -72,6 +70,7 @@ impl Source for WebRtcSource {
 
     fn remove(self, pipeline: &gst::Pipeline) {
         pipeline.remove(&self.bin).unwrap();
+        self.bin.set_state(gst::State::Null).unwrap();
     }
 
     fn video_src_pad(&self) -> gst::Pad {

@@ -1,14 +1,22 @@
+use crate::http::HttpClient;
 use crate::signaling::MediaSessionType;
 use anyhow::Result;
-use core::time::Duration;
+use bytes::Bytes;
+use core::pin::Pin;
+use core::task::{ready, Context, Poll};
 use futures::future::join_all;
-use futures::StreamExt;
-use gst::{glib, DebugGraphDetails};
+use futures::{Stream, StreamExt};
+use gst::glib;
 use settings::Settings;
 use std::collections::HashSet;
+use std::io;
 use std::sync::Arc;
+use tempfile::TempDir;
+use tokio::io::{AsyncRead, ReadBuf};
+use tokio::task::spawn_blocking;
 
 mod commands;
+mod http;
 mod settings;
 mod signaling;
 
@@ -19,10 +27,12 @@ async fn main() -> Result<()> {
 
     let settings = Arc::new(Settings::load("config.toml")?);
 
+    let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
+
     let _main_loop = glib::MainLoop::new(None, false);
 
     let rmq_conn = lapin::Connection::connect_uri(
-        settings.rabbit_mq.uri.clone(),
+        settings.rabbitmq.uri.clone(),
         lapin::ConnectionProperties::default()
             .with_executor(tokio_executor_trait::Tokio::current())
             .with_reactor(tokio_reactor_trait::Tokio),
@@ -33,7 +43,7 @@ async fn main() -> Result<()> {
 
     let queue = rmq_channel
         .queue_declare(
-            &settings.rabbit_mq.queue,
+            &settings.rabbitmq.queue,
             Default::default(),
             Default::default(),
         )
@@ -48,14 +58,12 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    let http_client = reqwest::Client::new();
-
     // TODO: remove me!
     record(
         settings.clone(),
         http_client.clone(),
         commands::StartRecording {
-            room: "f5c0099c-4645-4162-b89c-9b0aeba01600".into(),
+            room: "52657198-e121-4347-9335-d5a26dd31c50".into(),
             breakout: None,
         },
     )
@@ -95,31 +103,27 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+type Mixer = compositor::Mixer<compositor::Speaker, compositor::WebRtcSource, compositor::Mp4Sink>;
+
 async fn record(
     settings: Arc<Settings>,
-    http_client: reqwest::Client,
+    http_client: Arc<HttpClient>,
     command: commands::StartRecording,
 ) {
-    let mut signaling = signaling::Signaling::connect(http_client, settings.clone(), command.room)
-        .await
-        .unwrap();
+    let mut signaling =
+        signaling::Signaling::connect(http_client.clone(), settings.clone(), &command.room)
+            .await
+            .unwrap();
 
-    use compositor::*;
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("out.mp4");
 
-    let sink_params = DashParameters {
-        mpd: std::path::PathBuf::from("./output.mpd"),
-        seg_duration: 5.0,
-        seg_type: SegmentType::AUTO,
-        port: 9000,
-        bitrate: 0x100000,
-    };
-
-    let mut mixer = Mixer::<Speaker, WebRtcSource, DashSink>::new(
-        // resolution
-        Size::FHD,
-        // maximum visibles
+    let mut mixer = Mixer::new(
+        compositor::Size::FHD,
         6,
-        sink_params,
+        compositor::Mp4SinkParams {
+            file_path: file_path.to_str().unwrap().into(),
+        },
     )
     .unwrap();
 
@@ -137,11 +141,6 @@ async fn record(
     }
 
     mixer.play();
-
-    for n in 0..10 {
-        mixer.generate_dot_file(&format!("yoyo_{n}"), DebugGraphDetails::ALL);
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
 
     loop {
         let event = match signaling.run().await {
@@ -200,6 +199,13 @@ async fn record(
 
                     mixer.play();
                 }
+
+                // Finish recording when the last participant leaves
+                if list.is_empty() {
+                    return finish_recording(settings, http_client, &command.room, mixer, temp_dir)
+                        .await
+                        .unwrap();
+                }
             }
             signaling::Event::SdpOffer(id, typ, offer) => {
                 mixer.pause();
@@ -224,6 +230,54 @@ async fn record(
             }
             signaling::Event::SdpCandidate(_id, _typ, _candidate) => todo!(),
             signaling::Event::SdpEndOfCandidates(_id, _typ) => {}
+        }
+    }
+}
+
+async fn finish_recording(
+    settings: Arc<Settings>,
+    http_client: Arc<HttpClient>,
+    room_id: &str,
+    mixer: Mixer,
+    temp_dir: TempDir,
+) -> Result<()> {
+    // Drop mixer in a separate thread to avoid blocking tokio while it waits for the EOS event and ffmpeg to exit
+    spawn_blocking(move || drop(mixer)).await?;
+
+    let file = tokio::fs::File::open(temp_dir.path().join("out.mp4")).await?;
+
+    log::trace!("upload mp4 file");
+
+    http_client
+        .upload_render(&settings.controller, room_id, FileReadStream { file })
+        .await?;
+
+    log::trace!("finished uploading mp4 file");
+
+    Ok(())
+}
+
+pin_project_lite::pin_project! {
+    /// Helper struct which reads an opened file and returns chunks of up to 8kb as Stream
+    struct FileReadStream {
+        #[pin]
+        file: tokio::fs::File,
+    }
+}
+
+impl Stream for FileReadStream {
+    type Item = Result<Bytes, io::Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        let mut buf = [0u8; 8192];
+        let mut read_buf = ReadBuf::new(&mut buf);
+        ready!(this.file.poll_read(cx, &mut read_buf))?;
+
+        if read_buf.filled().is_empty() {
+            Poll::Ready(None)
+        } else {
+            Poll::Ready(Some(Ok(Bytes::copy_from_slice(read_buf.filled()))))
         }
     }
 }

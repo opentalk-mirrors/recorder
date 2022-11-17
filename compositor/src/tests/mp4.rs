@@ -3,7 +3,7 @@ use core::time::Duration;
 use gstreamer as gst;
 
 #[test]
-fn test_dash() {
+fn test_mp4() {
     // init logger
     env_logger::init();
 
@@ -16,14 +16,15 @@ fn test_dash() {
         height: 480,
     };
 
-    // use default parameters for sink
-    let sink_params = DashParameters {
-        output_dir: Some(super::TEST_OUTPUT_DIR.into()),
-        ..Default::default()
-    };
-
     // create grid mixer with test sources for participants and a MatroskaSink
-    let mut mixer = Mixer::<Grid, TestSource, DashSink>::new(resolution, 4, sink_params).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource, Mp4Sink>::new(
+        resolution,
+        4,
+        Mp4SinkParams {
+            file_path: format!("{}/mp4sink.mp4", super::TEST_OUTPUT_DIR),
+        },
+    )
+    .unwrap();
 
     // add a participant
     mixer
@@ -33,8 +34,8 @@ fn test_dash() {
     // start mixer
     mixer.play();
 
-    mixer.generate_dot_file("test_dash", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_mp4", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(20));
+    std::thread::sleep(Duration::from_secs(4));
 }
