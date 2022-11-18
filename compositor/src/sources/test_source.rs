@@ -61,36 +61,36 @@ pub enum Pattern {
     SmpteRp219,
 }
 
-impl Into<&str> for Pattern {
-    fn into(self) -> &'static str {
-        match self {
-            Self::Location(_) => panic!("location can not be used as pattern!"),
-            Self::Smpte => "smpte".into(),
-            Self::Snow => "snow".into(),
-            Self::Black => "black".into(),
-            Self::White => "white".into(),
-            Self::Red => "red".into(),
-            Self::Green => "green".into(),
-            Self::Blue => "blue".into(),
-            Self::Checkers1 => "checkers-1".into(),
-            Self::Checkers2 => "checkers-2".into(),
-            Self::Checkers4 => "checkers-4".into(),
-            Self::Checkers8 => "checkers-8".into(),
-            Self::Circular => "circular".into(),
-            Self::Blink => "blink".into(),
-            Self::Smpte75 => "smpte75".into(),
-            Self::ZonePlate => "zone-plate".into(),
-            Self::Gamut => "gamut".into(),
-            Self::ChromaZonePlate => "chroma-zone-plate".into(),
-            Self::SolidColor => "solid-color".into(),
-            Self::Ball => "ball".into(),
-            Self::Smpte100 => "smpte100".into(),
-            Self::Bar => "bar".into(),
-            Self::PinWheel => "pinwheel".into(),
-            Self::Spokes => "spokes".into(),
-            Self::Gradient => "gradient".into(),
-            Self::Colors => "colors".into(),
-            Self::SmpteRp219 => "smpte-rp-219".into(),
+impl From<Pattern> for &'static str {
+    fn from(s: Pattern) -> &'static str {
+        match s {
+            Pattern::Location(_) => panic!("location can not be used as pattern!"),
+            Pattern::Smpte => "smpte",
+            Pattern::Snow => "snow",
+            Pattern::Black => "black",
+            Pattern::White => "white",
+            Pattern::Red => "red",
+            Pattern::Green => "green",
+            Pattern::Blue => "blue",
+            Pattern::Checkers1 => "checkers-1",
+            Pattern::Checkers2 => "checkers-2",
+            Pattern::Checkers4 => "checkers-4",
+            Pattern::Checkers8 => "checkers-8",
+            Pattern::Circular => "circular",
+            Pattern::Blink => "blink",
+            Pattern::Smpte75 => "smpte75",
+            Pattern::ZonePlate => "zone-plate",
+            Pattern::Gamut => "gamut",
+            Pattern::ChromaZonePlate => "chroma-zone-plate",
+            Pattern::SolidColor => "solid-color",
+            Pattern::Ball => "ball",
+            Pattern::Smpte100 => "smpte100",
+            Pattern::Bar => "bar",
+            Pattern::PinWheel => "pinwheel",
+            Pattern::Spokes => "spokes",
+            Pattern::Gradient => "gradient",
+            Pattern::Colors => "colors",
+            Pattern::SmpteRp219 => "smpte-rp-219",
         }
     }
 }
@@ -222,8 +222,7 @@ impl Source for TestSource {
         video_bin.add_pad(&video_src_ghostpad).unwrap();
 
         let audio_bin = gst::parse_bin_from_description(
-            &format!(
-                r#"
+            r#"
                 audiotestsrc
                     volume=0.01
                     is-live=true
@@ -231,8 +230,7 @@ impl Source for TestSource {
                     caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
                 ! queue
                     name=audio-testsrc
-            "#
-            ),
+            "#,
             false,
         )
         .unwrap();

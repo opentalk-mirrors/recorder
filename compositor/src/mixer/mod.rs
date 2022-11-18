@@ -221,7 +221,7 @@ where
         // add new participant
         let participant = Participant::new(
             &self.pipeline,
-            &self.layout.resolution(),
+            self.layout.resolution(),
             display_name,
             params,
         );
