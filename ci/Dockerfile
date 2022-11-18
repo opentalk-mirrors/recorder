@@ -31,4 +31,3 @@ WORKDIR /recorder
 COPY --from=Builder /recorder/target/release/k3k-recorder .
 
 ENTRYPOINT [ "./k3k-recorder" ]
-

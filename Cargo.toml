@@ -31,7 +31,8 @@ tokio = { version = "1", features = [
     "macros",
     "fs",
 ] }
-lapin = "2.1"
+#lapin = "2.1"
+lapin = { version = "2.1", default-features = false,  features = [ "rustls-webpki-roots-certs" ] }
 tokio-reactor-trait = "1"
 tokio-executor-trait = "2"
 futures = "0.3"
