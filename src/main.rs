@@ -2,18 +2,20 @@ use crate::http::HttpClient;
 use crate::signaling::MediaSessionType;
 use anyhow::Result;
 use bytes::Bytes;
+use compositor::WebRtcSourceParams;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use gst::glib;
 use settings::Settings;
-use signaling::ParticipantId;
+use signaling::{ParticipantId, TrickleCandidate};
 use std::collections::HashSet;
 use std::io;
 use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::io::{AsyncRead, ReadBuf};
+use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 
 mod commands;
@@ -60,15 +62,19 @@ async fn main() -> Result<()> {
         .await?;
 
     // TODO: remove me!
-    record(
+    RecordingSession::create(
         settings.clone(),
         http_client.clone(),
         commands::StartRecording {
-            room: "52657198-e121-4347-9335-d5a26dd31c50".into(),
+            room: "56b4287f-7cb6-4728-bf91-294019362dc4".into(),
             breakout: None,
         },
     )
-    .await;
+    .await
+    .unwrap()
+    .run()
+    .await
+    .unwrap();
 
     // TODO: this grows into infinity
     let mut tasks = vec![];
@@ -80,12 +86,17 @@ async fn main() -> Result<()> {
                     serde_json::from_slice::<commands::StartRecording>(&delivery.data)
                 {
                     log::debug!("Received command {command:?}");
+                    let settings = settings.clone();
+                    let http_client = http_client.clone();
 
-                    tasks.push(tokio::spawn(record(
-                        settings.clone(),
-                        http_client.clone(),
-                        command,
-                    )));
+                    tasks.push(tokio::spawn(async move {
+                        RecordingSession::create(settings, http_client, command)
+                            .await
+                            .unwrap()
+                            .run()
+                            .await
+                            .unwrap();
+                    }));
                 }
             }
             Err(e) => {
@@ -104,6 +115,9 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+// TODO; make this configurable
+const MAX_VISIBLES: usize = 6;
+
 type Mixer = compositor::Mixer<
     compositor::Speaker,
     compositor::WebRtcSource,
@@ -111,139 +125,260 @@ type Mixer = compositor::Mixer<
     ParticipantId,
 >;
 
-async fn record(
+pub struct RecordingSession {
     settings: Arc<Settings>,
-    http_client: Arc<HttpClient>,
-    command: commands::StartRecording,
-) {
-    let mut signaling =
-        signaling::Signaling::connect(http_client.clone(), settings.clone(), &command.room)
-            .await
-            .unwrap();
+    http_client: Arc<http::HttpClient>,
+    signaling: signaling::Signaling,
 
-    let temp_dir = TempDir::new().unwrap();
-    let file_path = temp_dir.path().join("out.mp4");
+    room_id: String,
+    temp_dir: TempDir,
 
-    let mut mixer = Mixer::new(
-        compositor::Size::FHD,
-        6,
-        compositor::Mp4SinkParams {
-            file_path: file_path.to_str().unwrap().into(),
-        },
-    )
-    .unwrap();
+    mixer: Mixer,
 
-    let mut list = HashSet::new();
+    candidate_receiver: mpsc::Receiver<(ParticipantId, u32, Option<String>)>,
+    candidate_sender: mpsc::Sender<(ParticipantId, u32, Option<String>)>,
 
-    for id in signaling.publishing_participants() {
-        mixer.add_participant(id, id.0.to_string(), ()).unwrap();
-        signaling
-            .start_subscribe(id, MediaSessionType::Video)
-            .await
-            .unwrap();
-        list.insert(id);
+    // TODO: remove this: VVV
+    subscribed_participants: HashSet<ParticipantId>,
+
+    done: bool,
+}
+
+impl RecordingSession {
+    pub async fn create(
+        settings: Arc<Settings>,
+        http_client: Arc<HttpClient>,
+        command: commands::StartRecording,
+    ) -> Result<Self> {
+        let mut signaling =
+            signaling::Signaling::connect(http_client.clone(), settings.clone(), &command.room)
+                .await?;
+
+        let temp_dir = TempDir::new()?;
+        let file_path = temp_dir.path().join("out.mp4");
+
+        let (candidate_sender, candidate_receiver) = mpsc::channel(12);
+
+        let mut mixer = Mixer::new(
+            compositor::Size::FHD,
+            MAX_VISIBLES,
+            compositor::Mp4SinkParams {
+                file_path: file_path.to_str().unwrap().into(),
+            },
+        )?;
+
+        let mut subscribed_participants = HashSet::new();
+
+        // find all participants that publish their webcam
+        let publishing_participants = signaling
+            .participants()
+            .iter()
+            .filter_map(|(id, state)| {
+                state
+                    .publishes(MediaSessionType::Video)
+                    .then(|| (*id, state.display_name.clone()))
+            })
+            .collect::<Vec<_>>();
+
+        // Subscribe to above collected participants
+        for (id, display_name) in publishing_participants {
+            mixer.add_participant(
+                id,
+                display_name,
+                participant_params(id, candidate_sender.clone()),
+            )?;
+            signaling
+                .start_subscribe(id, MediaSessionType::Video)
+                .await?;
+            subscribed_participants.insert(id);
+        }
+
+        mixer.play();
+
+        Ok(Self {
+            settings,
+            http_client,
+            signaling,
+            room_id: command.room,
+            temp_dir,
+            mixer,
+            candidate_receiver,
+            candidate_sender,
+            subscribed_participants,
+            done: false,
+        })
     }
 
-    mixer.play();
-
-    loop {
-        let event = match signaling.run().await {
-            Ok(event) => event,
-            Err(e) => {
-                log::error!("signaling error {:?}", e);
-                return;
+    pub async fn run(mut self) -> Result<()> {
+        while !self.done {
+            tokio::select! {
+                event = self.signaling.run() => {
+                    self.handle_signaling_event(event?).await?;
+                }
+                candidate = self.candidate_receiver.recv() => {
+                    self.handle_candidate(candidate.expect("unreachable")).await?;
+                }
             }
-        };
+        }
 
+        self.upload().await?;
+
+        Ok(())
+    }
+
+    async fn handle_signaling_event(&mut self, event: signaling::Event) -> Result<()> {
         match event {
             signaling::Event::ParticipantJoined(id) => {
-                if signaling.publishes(id, MediaSessionType::Video) {
-                    mixer.pause();
-                    mixer.add_participant(id, id.0.to_string(), ()).unwrap();
-                    mixer.play();
+                let state = &self.signaling.participants()[&id];
 
-                    signaling
+                if state.publishes(MediaSessionType::Video) {
+                    self.mixer.pause();
+                    self.mixer.add_participant(
+                        id,
+                        id.0.to_string(),
+                        participant_params(id, self.candidate_sender.clone()),
+                    )?;
+                    self.mixer.play();
+
+                    self.signaling
                         .start_subscribe(id, MediaSessionType::Video)
-                        .await
-                        .unwrap();
-                    list.insert(id);
+                        .await?;
+                    self.subscribed_participants.insert(id);
                 }
             }
             signaling::Event::ParticipantUpdated(id) => {
-                if !list.contains(&id) && signaling.publishes(id, MediaSessionType::Video) {
-                    mixer.pause();
-                    mixer.add_participant(id, id.0.to_string(), ()).unwrap();
-                    mixer.play();
+                let state = &self.signaling.participants()[&id];
 
-                    signaling
+                if state.publishes(MediaSessionType::Video)
+                    && !self.subscribed_participants.contains(&id)
+                {
+                    // Now publishing
+                    self.mixer.pause();
+                    self.mixer.add_participant(
+                        id,
+                        id.0.to_string(),
+                        participant_params(id, self.candidate_sender.clone()),
+                    )?;
+                    self.mixer.play();
+
+                    self.signaling
                         .start_subscribe(id, MediaSessionType::Video)
-                        .await
-                        .unwrap();
-                    list.insert(id);
+                        .await?;
+                    self.subscribed_participants.insert(id);
+                } else if self.subscribed_participants.contains(&id)
+                    && !state.publishes(MediaSessionType::Video)
+                {
+                    // Unpublished
+                    self.subscribed_participants.remove(&id);
+
+                    self.mixer.pause();
+                    self.mixer.remove_participant(id)?;
+                    self.set_visibles()?;
+                    self.mixer.play();
                 }
             }
             signaling::Event::ParticipantLeft(id) => {
-                if list.remove(&id) {
-                    mixer.pause();
-
-                    mixer.remove_participant(id).unwrap();
-
-                    mixer
-                        .set_visibles(&list.iter().copied().collect::<Vec<_>>())
-                        .unwrap();
-
-                    mixer.play();
+                if self.subscribed_participants.remove(&id) {
+                    self.mixer.pause();
+                    self.mixer.remove_participant(id)?;
+                    self.set_visibles()?;
+                    self.mixer.play();
                 }
 
-                // Finish recording when the last participant leaves
-                if list.is_empty() {
-                    return finish_recording(settings, http_client, &command.room, mixer, temp_dir)
-                        .await
-                        .unwrap();
+                if self.signaling.participants().is_empty() {
+                    self.done = true;
                 }
             }
             signaling::Event::SdpOffer(id, typ, offer) => {
-                mixer.pause();
-
-                let answer = mixer.participants[&id].source.receive_offer(offer).await;
-
-                mixer
-                    .set_visibles(&list.iter().copied().collect::<Vec<_>>())
-                    .unwrap();
-
-                mixer.play();
-
-                signaling.send_answer(id, typ, answer).await.unwrap();
+                if let Some(participant) = self.mixer.participants.get_mut(&id) {
+                    let answer = participant.source.receive_offer(offer).await;
+                    self.signaling.send_answer(id, typ, answer).await?;
+                }
             }
-            signaling::Event::SdpCandidate(id, _typ, candidate) => todo!(),
+            signaling::Event::SdpCandidate(id, _typ, candidate) => {
+                if let Some(participant) = self.mixer.participants.get_mut(&id) {
+                    participant
+                        .source
+                        .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
+                        .await;
+                }
+            }
             signaling::Event::SdpEndOfCandidates(id, _typ) => {
-                if let Some(participant) = mixer.participants.get_mut(&id) {}
+                if let Some(participant) = self.mixer.participants.get_mut(&id) {
+                    participant.source.receive_end_of_candidates(0).await;
+                }
             }
+            signaling::Event::Close => self.done = true,
         }
+
+        Ok(())
+    }
+
+    fn set_visibles(&mut self) -> Result<()> {
+        self.mixer.set_visibles(
+            &self
+                .subscribed_participants
+                .iter()
+                .take(MAX_VISIBLES)
+                .copied()
+                .collect::<Vec<_>>(),
+        )?;
+        Ok(())
+    }
+
+    /// Handle SDP candidates generated by us
+    async fn handle_candidate(
+        &mut self,
+        (id, mline, candidate): (ParticipantId, u32, Option<String>),
+    ) -> Result<()> {
+        if let Some(candidate) = candidate {
+            self.signaling
+                .send_candidate(
+                    id,
+                    MediaSessionType::Video,
+                    TrickleCandidate {
+                        candidate,
+                        sdp_m_line_index: mline as u64,
+                    },
+                )
+                .await
+        } else {
+            self.signaling
+                .send_end_of_candidates(id, MediaSessionType::Video)
+                .await
+        }
+    }
+
+    async fn upload(self) -> Result<()> {
+        let mixer = self.mixer;
+
+        spawn_blocking(move || drop(mixer)).await?;
+
+        let file = tokio::fs::File::open(self.temp_dir.path().join("out.mp4")).await?;
+
+        log::trace!("upload mp4 file");
+
+        self.http_client
+            .upload_render(
+                &self.settings.controller,
+                &self.room_id,
+                FileReadStream { file },
+            )
+            .await?;
+
+        log::trace!("finished uploading mp4 file");
+
+        Ok(())
     }
 }
 
-async fn finish_recording(
-    settings: Arc<Settings>,
-    http_client: Arc<HttpClient>,
-    room_id: &str,
-    mixer: Mixer,
-    temp_dir: TempDir,
-) -> Result<()> {
-    // Drop mixer in a separate thread to avoid blocking tokio while it waits for the EOS event and ffmpeg to exit
-    spawn_blocking(move || drop(mixer)).await?;
-
-    let file = tokio::fs::File::open(temp_dir.path().join("out.mp4")).await?;
-
-    log::trace!("upload mp4 file");
-
-    http_client
-        .upload_render(&settings.controller, room_id, FileReadStream { file })
-        .await?;
-
-    log::trace!("finished uploading mp4 file");
-
-    Ok(())
+fn participant_params(
+    id: ParticipantId,
+    sender: mpsc::Sender<(ParticipantId, u32, Option<String>)>,
+) -> WebRtcSourceParams {
+    WebRtcSourceParams::default().on_ice_candidate(move |mline, candidate| {
+        let _ = sender.blocking_send((id, mline, candidate));
+    })
 }
 
 pin_project_lite::pin_project! {

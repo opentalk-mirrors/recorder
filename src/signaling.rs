@@ -22,8 +22,32 @@ pub struct Signaling {
     connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-struct ParticipantState {
+pub struct ParticipantState {
+    pub display_name: String,
     publishing: HashSet<MediaSessionType>,
+}
+
+impl ParticipantState {
+    fn from_incoming(p: incoming::Participant) -> Self {
+        let mut publishing = HashSet::new();
+
+        if p.media.video.is_some() {
+            publishing.insert(MediaSessionType::Video);
+        }
+
+        if p.media.screen.is_some() {
+            publishing.insert(MediaSessionType::Screen);
+        }
+
+        Self {
+            display_name: p.control.display_name,
+            publishing,
+        }
+    }
+
+    pub fn publishes(&self, typ: MediaSessionType) -> bool {
+        self.publishing.contains(&typ)
+    }
 }
 
 /// Event emitted by [`Signaling::run`]
@@ -36,6 +60,8 @@ pub enum Event {
     SdpOffer(ParticipantId, MediaSessionType, String),
     SdpCandidate(ParticipantId, MediaSessionType, TrickleCandidate),
     SdpEndOfCandidates(ParticipantId, MediaSessionType),
+
+    Close,
 }
 
 impl Signaling {
@@ -80,35 +106,10 @@ impl Signaling {
             _id: id,
             participants: participants
                 .into_iter()
-                .map(|p| {
-                    let mut publishing = HashSet::new();
-
-                    if p.media.video.is_some() {
-                        publishing.insert(MediaSessionType::Video);
-                    }
-
-                    if p.media.screen.is_some() {
-                        publishing.insert(MediaSessionType::Screen);
-                    }
-
-                    (p.id, ParticipantState { publishing })
-                })
+                .map(|p| (p.id, ParticipantState::from_incoming(p)))
                 .collect(),
             connection: stream,
         })
-    }
-
-    pub fn publishing_participants(&self) -> Vec<ParticipantId> {
-        self.participants
-            .iter()
-            .filter_map(|(&id, state)| {
-                state
-                    .publishing
-                    .get(&MediaSessionType::Video)
-                    .is_some()
-                    .then_some(id)
-            })
-            .collect()
     }
 
     pub async fn run(&mut self) -> Result<Event> {
@@ -137,7 +138,10 @@ impl Signaling {
                 return Ok(None);
             }
             Message::Pong(_) => return Ok(None),
-            Message::Close(_) => todo!(),
+            Message::Close(_) => {
+                let _ = self.connection.close(None).await;
+                return Ok(Some(Event::Close));
+            }
             Message::Frame(_) => unreachable!("send-only message"),
         };
 
@@ -152,42 +156,29 @@ impl Signaling {
         match msg {
             incoming::Message::Control(msg) => match msg {
                 incoming::ControlMessage::Joined(participant) => {
-                    let mut publishing = HashSet::new();
-
-                    if participant.media.video.is_some() {
-                        publishing.insert(MediaSessionType::Video);
-                    }
-
-                    if participant.media.screen.is_some() {
-                        publishing.insert(MediaSessionType::Screen);
-                    }
+                    let id = participant.id;
 
                     self.participants
-                        .insert(participant.id, ParticipantState { publishing });
+                        .insert(id, ParticipantState::from_incoming(participant));
 
-                    Ok(Some(Event::ParticipantJoined(participant.id)))
+                    Ok(Some(Event::ParticipantJoined(id)))
                 }
                 incoming::ControlMessage::Update(participant) => {
-                    let mut publishing = HashSet::new();
-
-                    if participant.media.video.is_some() {
-                        publishing.insert(MediaSessionType::Video);
-                    }
-
-                    if participant.media.screen.is_some() {
-                        publishing.insert(MediaSessionType::Screen);
-                    }
-
                     if let Some(state) = self.participants.get_mut(&participant.id) {
-                        state.publishing = publishing;
+                        let id = participant.id;
+
+                        *state = ParticipantState::from_incoming(participant);
+
+                        Ok(Some(Event::ParticipantUpdated(id)))
                     } else {
                         log::error!("Got update for unknown participant {}", participant.id.0);
-                        return Ok(None);
+                        Ok(None)
                     }
-
-                    Ok(Some(Event::ParticipantUpdated(participant.id)))
                 }
-                incoming::ControlMessage::Left { id } => Ok(Some(Event::ParticipantLeft(id))),
+                incoming::ControlMessage::Left { id } => {
+                    self.participants.remove(&id);
+                    Ok(Some(Event::ParticipantLeft(id)))
+                }
             },
             incoming::Message::Media(msg) => match msg {
                 incoming::MediaMessage::SdpOffer(sdp) => Ok(Some(Event::SdpOffer(
@@ -209,11 +200,8 @@ impl Signaling {
         }
     }
 
-    pub fn publishes(&self, id: ParticipantId, typ: MediaSessionType) -> bool {
-        self.participants
-            .get(&id)
-            .map(|p| p.publishing.contains(&typ))
-            .unwrap_or_default()
+    pub fn participants(&self) -> &HashMap<ParticipantId, ParticipantState> {
+        &self.participants
     }
 
     pub async fn start_subscribe(
@@ -312,9 +300,14 @@ mod incoming {
     #[derive(Debug, Deserialize)]
     pub struct Participant {
         pub id: ParticipantId,
-
+        pub control: ControlData,
         #[serde(default)]
         pub media: MediaData,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct ControlData {
+        pub display_name: String,
     }
 
     #[derive(Debug, Default, Deserialize)]
@@ -384,6 +377,7 @@ mod outgoing {
     #[derive(Debug, Serialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
     pub enum Message {
+        #[allow(unused)]
         Control(ControlMessage),
         Media(MediaMessage),
     }

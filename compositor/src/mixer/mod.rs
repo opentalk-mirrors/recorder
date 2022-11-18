@@ -440,6 +440,8 @@ where
             participant.source.audio_src_pad().unlink(&pad).unwrap();
         }
 
+        trace!("unlinked audio of {id:?}...");
+
         Ok(())
     }
 

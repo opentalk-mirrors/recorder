@@ -1,4 +1,4 @@
-use super::{Size, Source};
+use crate::{Size, Source};
 use gst::prelude::*;
 use gst::traits::{ElementExt, GstBinExt};
 

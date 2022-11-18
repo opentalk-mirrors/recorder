@@ -14,12 +14,27 @@ pub struct WebRtcSource {
     audio_ghostpad: gst::Pad,
 }
 
-impl Source for WebRtcSource {
-    /// Does no need no parameters
-    type Parameters = ();
+type OnCandidateCallback = Box<dyn Fn(u32, Option<String>) + Send + Sync>;
 
-    /// Create a new WebRTC source
-    fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+#[derive(Default)]
+pub struct WebRtcSourceParams {
+    on_ice_candidate: Option<OnCandidateCallback>,
+}
+
+impl WebRtcSourceParams {
+    pub fn on_ice_candidate<F>(mut self, f: F) -> Self
+    where
+        F: Fn(u32, Option<String>) + Send + Sync + 'static,
+    {
+        self.on_ice_candidate = Some(Box::new(f));
+        self
+    }
+}
+
+impl Source for WebRtcSource {
+    type Parameters = WebRtcSourceParams;
+
+    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
         let bin = gst::parse_bin_from_description(
             "
                 name=webrtcbin
@@ -58,6 +73,17 @@ impl Source for WebRtcSource {
         bin.add_pad(&video_ghostpad).unwrap();
         bin.add_pad(&audio_ghostpad).unwrap();
 
+        if let Some(on_candidate) = params.on_ice_candidate {
+            webrtcbin.connect("on-ice-candidate", true, move |values| {
+                let mline_index = values[1].get::<u32>().expect("mline_index is guint");
+                let candidate = values[2].get::<String>().expect("candidate is gchararray");
+
+                on_candidate(mline_index, Some(candidate));
+
+                None
+            });
+        }
+
         Self {
             bin,
             webrtcbin,
@@ -67,8 +93,12 @@ impl Source for WebRtcSource {
     }
 
     fn remove(self, pipeline: &gst::Pipeline) {
+        assert!(!self.video_ghostpad.is_linked());
+        assert!(!self.audio_ghostpad.is_linked());
+
+        // TODO: gstreamer complains about trying to dispose not-null state elements
+        //self.bin.set_state(gst::State::Null).unwrap();
         pipeline.remove(&self.bin).unwrap();
-        self.bin.set_state(gst::State::Null).unwrap();
     }
 
     fn video_src_pad(&self) -> gst::Pad {

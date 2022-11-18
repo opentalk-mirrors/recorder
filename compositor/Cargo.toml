@@ -16,6 +16,7 @@ glib = "0.16"
 tokio = { version = "1", features = ["sync", "net"] }
 inotify = "0.10"
 tempfile = "3"
+thiserror = "1"
 
 [dev-dependencies]
 env_logger = "0.9.0"
