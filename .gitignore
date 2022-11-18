@@ -1,4 +1,3 @@
 /target
 config.toml
-Cargo.lock
 /test_output
