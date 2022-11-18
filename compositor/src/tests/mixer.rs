@@ -97,7 +97,7 @@ fn test_layout_different_resolutions<L>()
 where
     L: Layout,
 {
-    env_logger::init();
+    let _ = env_logger::try_init();
     // initialize gstreamer
     gst::init().unwrap();
 
