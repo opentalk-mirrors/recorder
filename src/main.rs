@@ -23,16 +23,29 @@ mod http;
 mod settings;
 mod signaling;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     env_logger::init();
     gst::init()?;
 
+    let main_loop = glib::MainLoop::new(None, false);
+
+    std::thread::spawn(move || {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(main2())
+    });
+
+    main_loop.run();
+
+    Ok(())
+}
+
+async fn main2() -> Result<()> {
     let settings = Arc::new(Settings::load("config.toml")?);
 
     let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
-
-    let _main_loop = glib::MainLoop::new(None, false);
 
     let rmq_conn = lapin::Connection::connect_uri(
         settings.rabbitmq.uri.clone(),
@@ -61,27 +74,16 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    // TODO: remove me!
-    RecordingSession::create(
-        settings.clone(),
-        http_client.clone(),
-        commands::StartRecording {
-            room: "56b4287f-7cb6-4728-bf91-294019362dc4".into(),
-            breakout: None,
-        },
-    )
-    .await
-    .unwrap()
-    .run()
-    .await
-    .unwrap();
-
     // TODO: this grows into infinity
     let mut tasks = vec![];
 
     while let Some(delivery) = consumer.next().await {
         match delivery {
             Ok(delivery) => {
+                if let Err(e) = delivery.ack(Default::default()).await {
+                    log::error!("failed to ACK {e:?}");
+                }
+
                 if let Ok(command) =
                     serde_json::from_slice::<commands::StartRecording>(&delivery.data)
                 {
@@ -109,8 +111,6 @@ async fn main() -> Result<()> {
     log::info!("Exiting, waiting for all tasks to finish");
 
     join_all(tasks).await;
-
-    log::info!("Exiting, waiting for all tasks to finish");
 
     Ok(())
 }
