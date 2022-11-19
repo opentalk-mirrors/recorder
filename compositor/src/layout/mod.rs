@@ -94,5 +94,5 @@ pub trait Layout: Send + Sync + 'static {
     fn clock_position(&self, count: usize) -> Position;
 
     #[cfg(test)]
-    const name: &'static str;
+    const NAME: &'static str;
 }

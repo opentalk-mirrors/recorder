@@ -63,7 +63,7 @@ where
         mixer.play();
 
         mixer.generate_dot_file(
-            &format!("test_layout-{}-1.{}", L::name, j),
+            &format!("test_layout-{}-1.{}", L::NAME, j),
             gst::DebugGraphDetails::ALL,
         );
         sleep(Duration::from_millis(time));
@@ -76,7 +76,7 @@ where
         mixer.play();
 
         mixer.generate_dot_file(
-            &format!("test_layout-{}-2.{}", L::name, j),
+            &format!("test_layout-{}-2.{}", L::NAME, j),
             gst::DebugGraphDetails::ALL,
         );
         sleep(Duration::from_millis(time));
@@ -107,7 +107,7 @@ where
     let mut mixer = Mixer::<L, TestSource, DisplaySink, u32>::new(resolution, 5, ()).unwrap();
     mixer.play();
     mixer.generate_dot_file(
-        &format!("test_layout_different_resolutions-{}-0", L::name),
+        &format!("test_layout_different_resolutions-{}-0", L::NAME),
         gst::DebugGraphDetails::ALL,
     );
 
@@ -147,7 +147,7 @@ where
         mixer.play();
 
         mixer.generate_dot_file(
-            &format!("test_layout_different_resolutions-{}-1.{i}", L::name),
+            &format!("test_layout_different_resolutions-{}-1.{i}", L::NAME),
             gst::DebugGraphDetails::ALL,
         );
         sleep(Duration::from_millis(time));

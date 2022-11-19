@@ -9,7 +9,7 @@ pub struct Speaker {
 
 impl Layout for Speaker {
     #[cfg(test)]
-    const name: &'static str = "Speaker";
+    const NAME: &'static str = "Speaker";
 
     /// create a layout where the viewers are vertically distributed at the right side
     /// of the speaker and remaining space is used to display a title and 'who's speaking'
