@@ -115,3 +115,7 @@ fn generate_example_pipeline_picture() {
     // generate pipeline DOT graph
     mixer.generate_dot_file("3_playing", gst::DebugGraphDetails::STATES);
 }
+
+#[allow(dead_code)]
+#[cfg(not(test))]
+fn main() {}
