@@ -23,6 +23,8 @@
       manages a connection to a WebRTC source and provides the content to the internal GStreamer pipeline.
     - [DashSink](sinks::DashSink)
       writes the output into a Dash instance consisting of an MPD file and several audio/video files.
+    - [Mp4Sink](sinks::Mp4Sink)
+      writes the output into a MPEG4 file.
     - [MatroskaSink](sinks::MatroskaSink)
       listens on a TCP port to write the raw output to, after someone connects.
 
