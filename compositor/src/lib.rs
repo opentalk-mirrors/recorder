@@ -19,11 +19,11 @@
 
     To read the input and write the output the following types are used
 
-    - [WebRtcSource](mixer::WebRtcSource)
+    - [WebRtcSource](sources::WebRtcSource)
       manages a connection to a WebRTC source and provides the content to the internal GStreamer pipeline.
-    - [DashSink](mixer::DashSink)
+    - [DashSink](sinks::DashSink)
       writes the output into a Dash instance consisting of an MPD file and several audio/video files.
-    - [MatroskaSink](mixer::MatroskaSink)
+    - [MatroskaSink](sinks::MatroskaSink)
       listens on a TCP port to write the raw output to, after someone connects.
 
     # Layouts
@@ -47,11 +47,11 @@
 
     In addition there are some alternative sources and sinks included which are used for testing purposes.
 
-    - [TestSource](mixer::TestSource)
+    - [TestSource](sources::TestSource)
       which just generates some dummy participant audio and video data.
-    - [FakeSink](mixer::FakeSink)
+    - [FakeSink](sinks::FakeSink)
       is a sink without any output - just to make it run.
-    - [DisplaySink](mixer::DisplaySink)
+    - [DisplaySink](sinks::DisplaySink)
       is a sink which displays the output on the screen.
 */
 
