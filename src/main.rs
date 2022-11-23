@@ -1,5 +1,5 @@
 use crate::http::HttpClient;
-use crate::signaling::MediaSessionType;
+use crate::signaling::{Event, MediaSessionType};
 use anyhow::Result;
 use bytes::Bytes;
 use compositor::WebRtcSourceParams;
@@ -228,7 +228,7 @@ impl RecordingSession {
 
     async fn handle_signaling_event(&mut self, event: signaling::Event) -> Result<()> {
         match event {
-            signaling::Event::ParticipantJoined(id) => {
+            Event::ParticipantJoined(id) => {
                 let state = &self.signaling.participants()[&id];
 
                 if state.publishes(MediaSessionType::Video) {
@@ -246,7 +246,7 @@ impl RecordingSession {
                     self.subscribed_participants.insert(id);
                 }
             }
-            signaling::Event::ParticipantUpdated(id) => {
+            Event::ParticipantUpdated(id) => {
                 let state = &self.signaling.participants()[&id];
 
                 if state.publishes(MediaSessionType::Video)
@@ -277,7 +277,7 @@ impl RecordingSession {
                     self.mixer.play();
                 }
             }
-            signaling::Event::ParticipantLeft(id) => {
+            Event::ParticipantLeft(id) => {
                 if self.subscribed_participants.remove(&id) {
                     self.mixer.pause();
                     self.mixer.remove_participant(id)?;
@@ -289,13 +289,13 @@ impl RecordingSession {
                     self.done = true;
                 }
             }
-            signaling::Event::SdpOffer(id, typ, offer) => {
+            Event::SdpOffer(id, typ, offer) => {
                 if let Some(participant) = self.mixer.participants.get_mut(&id) {
                     let answer = participant.source.receive_offer(offer).await;
                     self.signaling.send_answer(id, typ, answer).await?;
                 }
             }
-            signaling::Event::SdpCandidate(id, _typ, candidate) => {
+            Event::SdpCandidate(id, _typ, candidate) => {
                 if let Some(participant) = self.mixer.participants.get_mut(&id) {
                     participant
                         .source
@@ -303,12 +303,16 @@ impl RecordingSession {
                         .await;
                 }
             }
-            signaling::Event::SdpEndOfCandidates(id, _typ) => {
+            Event::SdpEndOfCandidates(id, _typ) => {
                 if let Some(participant) = self.mixer.participants.get_mut(&id) {
                     participant.source.receive_end_of_candidates(0).await;
                 }
             }
-            signaling::Event::Close => self.done = true,
+            Event::Close => self.done = true,
+            Event::FocusUpdate(focus_change) => {
+                //TODO: Set active speaker accordingly!
+                log::debug!("TODO: Set active speaker to {:?}", focus_change)
+            }
         }
 
         Ok(())

@@ -61,6 +61,8 @@ pub enum Event {
     SdpCandidate(ParticipantId, MediaSessionType, TrickleCandidate),
     SdpEndOfCandidates(ParticipantId, MediaSessionType),
 
+    FocusUpdate(Option<ParticipantId>),
+
     Close,
 }
 
@@ -196,6 +198,17 @@ impl Signaling {
                 )),
                 incoming::MediaMessage::WebRtcUp(_) => Ok(None),
                 incoming::MediaMessage::WebRtcDown(_) => Ok(None),
+
+                incoming::MediaMessage::FocusUpdate(focus) => {
+                    Ok(Some(Event::FocusUpdate(focus.focus)))
+                }
+                incoming::MediaMessage::WebRtcSlow(slow) => {
+                    log::warn!("Slow participant {:?}", slow.source);
+                    Ok(None)
+                }
+                incoming::MediaMessage::Error(error) => {
+                    bail!("Media connection error: {:?}", error)
+                }
             },
         }
     }
@@ -347,6 +360,14 @@ mod incoming {
         WebRtcUp(Source),
         #[serde(rename = "webrtc_down")]
         WebRtcDown(Source),
+        /// A webrtc connection experienced package loss
+        #[serde(rename = "webrtc_slow")]
+        WebRtcSlow(Link),
+
+        #[serde(rename = "focus_update")]
+        FocusUpdate(FocusUpdate),
+        #[serde(rename = "error")]
+        Error(Error),
     }
 
     #[derive(Debug, Deserialize)]
@@ -363,10 +384,42 @@ mod incoming {
         pub source: Source,
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
     pub struct Source {
         pub source: ParticipantId,
         pub media_session_type: MediaSessionType,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[serde(rename_all = "lowercase")]
+    pub enum LinkDirection {
+        Upstream,
+        Downstream,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    pub struct Link {
+        pub direction: LinkDirection,
+        #[serde(flatten)]
+        pub source: Source,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    pub struct FocusUpdate {
+        pub focus: Option<ParticipantId>,
+    }
+
+    /// Represents a error of the janus media module
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[serde(rename_all = "snake_case", tag = "error")]
+    pub enum Error {
+        InvalidSdpOffer,
+        HandleSdpAnswer,
+        InvalidCandidate,
+        InvalidEndOfCandidates,
+        InvalidRequestOffer(Source),
+        InvalidConfigureRequest(Source),
+        PermissionDenied,
     }
 }
 
