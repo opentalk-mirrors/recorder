@@ -10,7 +10,6 @@ use futures::{Stream, StreamExt};
 use gst::glib;
 use settings::Settings;
 use signaling::{ParticipantId, TrickleCandidate};
-use std::collections::HashSet;
 use std::io;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -128,7 +127,7 @@ type Mixer = compositor::Mixer<
 
 pub struct RecordingSession {
     settings: Arc<Settings>,
-    http_client: Arc<http::HttpClient>,
+    http_client: Arc<HttpClient>,
     signaling: signaling::Signaling,
 
     room_id: String,
@@ -138,9 +137,6 @@ pub struct RecordingSession {
 
     candidate_receiver: mpsc::Receiver<(ParticipantId, u32, Option<String>)>,
     candidate_sender: mpsc::Sender<(ParticipantId, u32, Option<String>)>,
-
-    // TODO: remove this: VVV
-    subscribed_participants: HashSet<ParticipantId>,
 
     done: bool,
 }
@@ -169,8 +165,6 @@ impl RecordingSession {
             },
         )?;
 
-        let mut subscribed_participants = HashSet::new();
-
         // find all participants that publish their webcam
         let publishing_participants = signaling
             .participants()
@@ -192,7 +186,6 @@ impl RecordingSession {
             signaling
                 .start_subscribe(id, MediaSessionType::Video)
                 .await?;
-            subscribed_participants.insert(id);
         }
 
         mixer.play();
@@ -206,7 +199,6 @@ impl RecordingSession {
             mixer,
             candidate_receiver,
             candidate_sender,
-            subscribed_participants,
             done: false,
         })
     }
@@ -228,12 +220,13 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_signaling_event(&mut self, event: signaling::Event) -> Result<()> {
+    async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
         match event {
             Event::ParticipantJoined(id) => {
                 let state = &self.signaling.participants()[&id];
 
                 if state.publishes(MediaSessionType::Video) {
+                    log::debug!("Join: subscribe Video of {:?}", id);
                     self.mixer.pause();
                     self.mixer.add_participant(
                         id,
@@ -241,46 +234,53 @@ impl RecordingSession {
                         participant_params(id, self.candidate_sender.clone()),
                     )?;
                     self.mixer.play();
-
                     self.signaling
                         .start_subscribe(id, MediaSessionType::Video)
                         .await?;
-                    self.subscribed_participants.insert(id);
                 }
             }
             Event::ParticipantUpdated(id) => {
                 let state = &self.signaling.participants()[&id];
+                let has_video_feed = state.publishes(MediaSessionType::Video);
+                let is_subscribed = self.mixer.participants.contains_key(&id);
 
-                if state.publishes(MediaSessionType::Video)
-                    && !self.subscribed_participants.contains(&id)
-                {
+                if has_video_feed == is_subscribed {
+                    log::debug!(
+                        "ignore update for {:?}: has_video_feed ({}) == is_subscribed ({})",
+                        id,
+                        has_video_feed,
+                        is_subscribed
+                    );
+                    return Ok(());
+                }
+                self.mixer.pause();
+
+                if !is_subscribed {
                     // Now publishing
-                    self.mixer.pause();
+                    log::debug!("Update: subscribe Video of {:?}", id);
                     self.mixer.add_participant(
                         id,
                         id.0.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
                     )?;
-                    self.mixer.play();
+                    // postpone the real subscription until the pipeline is running again
+                } else {
+                    // Unpublished
+                    log::debug!("Update: unsubscribe Video of {:?}", id);
+                    self.mixer.remove_participant(id)?;
+                    self.set_visibles()?;
+                }
 
+                self.mixer.play();
+
+                if is_subscribed {
                     self.signaling
                         .start_subscribe(id, MediaSessionType::Video)
                         .await?;
-                    self.subscribed_participants.insert(id);
-                } else if self.subscribed_participants.contains(&id)
-                    && !state.publishes(MediaSessionType::Video)
-                {
-                    // Unpublished
-                    self.subscribed_participants.remove(&id);
-
-                    self.mixer.pause();
-                    self.mixer.remove_participant(id)?;
-                    self.set_visibles()?;
-                    self.mixer.play();
                 }
             }
             Event::ParticipantLeft(id) => {
-                if self.subscribed_participants.remove(&id) {
+                if self.mixer.participants.contains_key(&id) {
                     self.mixer.pause();
                     self.mixer.remove_participant(id)?;
                     self.set_visibles()?;
@@ -289,6 +289,7 @@ impl RecordingSession {
 
                 if self.signaling.participants().is_empty() {
                     self.done = true;
+                    log::debug!("Last participant left the session. Stop recording.");
                 }
             }
             Event::SdpOffer(id, typ, offer) => {
@@ -323,8 +324,9 @@ impl RecordingSession {
     fn set_visibles(&mut self) -> Result<()> {
         self.mixer.set_visibles(
             &self
-                .subscribed_participants
-                .iter()
+                .mixer
+                .participants
+                .keys()
                 .take(MAX_VISIBLES)
                 .copied()
                 .collect::<Vec<_>>(),
