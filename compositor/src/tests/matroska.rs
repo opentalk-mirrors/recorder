@@ -20,7 +20,7 @@ fn test_matroska() {
 
     // create grid mixer with test sources for participants and a MatroskaSink
     let mut mixer =
-        Mixer::<Grid, TestSource, MatroskaSink, u32>::new(resolution, 4, sink_params).unwrap();
+        Mixer::<Grid, TestSource, MatroskaSink, u32>::new(resolution, 4, 4, sink_params).unwrap();
 
     // add a participant
     mixer

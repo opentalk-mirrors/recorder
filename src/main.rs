@@ -117,6 +117,7 @@ async fn main2() -> Result<()> {
 
 // TODO; make this configurable
 const MAX_VISIBLES: usize = 6;
+const MAX_PARTICIPANTS: usize = 80;
 
 type Mixer = compositor::Mixer<
     compositor::Speaker,
@@ -162,6 +163,7 @@ impl RecordingSession {
         let mut mixer = Mixer::new(
             compositor::Size::FHD,
             MAX_VISIBLES,
+            MAX_PARTICIPANTS,
             compositor::Mp4SinkParams {
                 file_path: file_path.to_str().unwrap().into(),
             },

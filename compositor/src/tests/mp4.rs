@@ -19,6 +19,7 @@ fn test_mp4() {
     let mut mixer = Mixer::<Grid, TestSource, Mp4Sink, u32>::new(
         resolution,
         4,
+        4,
         Mp4SinkParams {
             file_path: format!("{}/mp4sink.mp4", super::TEST_OUTPUT_DIR),
         },

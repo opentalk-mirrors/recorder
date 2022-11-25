@@ -15,4 +15,6 @@ pub enum Error<ID: Debug> {
     /// Failed to insert a new participant because there is already one in the mixer with the same ID.
     #[error("tried to insert already existing ID ({0:?})")]
     IdDoublet(ID),
+    #[error("cannot link audio for ID ({0:?})")]
+    CannotLinkAudio(ID),
 }

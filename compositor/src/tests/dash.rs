@@ -23,7 +23,7 @@ fn test_dash() {
 
     // create grid mixer with test sources for participants and a MatroskaSink
     let mut mixer =
-        Mixer::<Grid, TestSource, DashSink, u32>::new(resolution, 4, sink_params).unwrap();
+        Mixer::<Grid, TestSource, DashSink, u32>::new(resolution, 4, 4, sink_params).unwrap();
 
     // add a participant
     mixer

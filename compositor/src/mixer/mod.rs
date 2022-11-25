@@ -10,7 +10,7 @@ pub use source::Source;
 
 // what else we need from this lib
 use crate::{Alignment, Error, Layout, Position, Size};
-use participant::VideoLinkStatus;
+use participant::LinkStatus;
 
 // what we need from external libraries
 use core::{fmt::Debug, hash::Hash, mem::replace};
@@ -34,9 +34,13 @@ where
     /// GStreamer element which composes the output audio out of the source audios.
     pub audio_mixer: gst::Element,
     /// Maximum number of visible participants.
-    pub max_visibles: usize,
+    pub max_visible: usize,
     /// Number of currently visible participants.
-    pub visibles: usize,
+    pub max_hearable: usize,
+    /// Number of currently visible participants.
+    pub num_visible: usize,
+    /// Number of currently hearable participants.
+    pub num_hearable: usize,
     /// GStreamer element for rendering a clock into the output picture if whished.
     clock: Option<gst::Element>,
     /// GStreamer element for rendering a title into the output picture if whished.
@@ -45,8 +49,13 @@ where
     speaking: Option<gst::Element>,
     /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
+
     /// Layout of the output picture.
     layout: L,
+    /// Current participants.
+    video_sink_pads: Vec<gst::Pad>,
+    /// sink pads participants can attach to transmit audio
+    audio_sink_pads: Vec<gst::Pad>,
     /// Current participants.
     pub participants: HashMap<ID, Participant<SRC>>,
     /// Holds the output sink.
@@ -67,7 +76,8 @@ where
     /// - `visibles`: Number of currently visible participants.
     pub fn new(
         resolution: Size,
-        max_visibles: usize,
+        max_visible: usize,
+        max_hearable: usize,
         sink_params: SINK::Parameters,
     ) -> Result<Self, Error<ID>> {
         // get width/height
@@ -82,118 +92,117 @@ where
         // create new GStreamer pipeline
         let pipeline = gst::Pipeline::new(None);
 
+        let bin = gst::parse_bin_from_description(
+            &format!(
+                r#"
+                    videotestsrc
+                        name=video-background-src
+                        pattern=black
+                        is-live=true
+                    ! capssetter
+                        name=video-caps
+                        caps=video/x-raw,format=RGB,width={width},height={height}
+                    ! queue
+                        name=video-background
+                    ! compositor
+                        name=video-compositor
+                        ignore-inactive-pads=true
+                    ! clockoverlay
+                        name=video-clock-overlay
+                        font-desc=Sans,14
+                        time-format="%x %X %Z"
+                        xpad=10
+                        ypad=2
+                        color=0xffffffff
+                    ! textoverlay
+                        name=video-title-overlay
+                        font-desc=Sans,16
+                        xpad=10
+                        ypad=2
+                        color=0xffffffff
+                    ! textoverlay
+                        name=video-speaking-overlay
+                        font-desc=Sans,16
+                        xpad=10
+                        ypad=2
+                        color=0xffffffff
+                    ! queue
+                        name=video-out
         // create output link
+                    audiotestsrc
+                        name=audio-background
+                        is-live=true
+                        volume=0.0
+                    ! capssetter
+                        caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
+                    ! audiomixer
+                        name=audio-mixer
+                        ignore-inactive-pads=true
+                    ! queue
+                        name=audio-out
+            "#
+            ),
+            false,
+        )
+        .unwrap();
+
+        pipeline.add(&bin).unwrap();
+        // create video test src to get a picture when no participant is connected
+        let compositor = bin.by_name("video-compositor").unwrap();
+        let clock = bin.by_name("video-clock-overlay").unwrap();
+        let title = bin.by_name("video-title-overlay").unwrap();
+        let speaking = bin.by_name("video-speaking-overlay").unwrap();
+        let video_out = bin.by_name("video-out").unwrap();
+
+        let audio_mixer = bin.by_name("audio-mixer").unwrap();
+        let audio_out = bin.by_name("audio-out").unwrap();
+
         let output = SINK::new(&pipeline, sink_params);
 
-        // create video test src to get a picture when no participant is connected
-        let video_background_src =
-            gst::ElementFactory::make_with_name("videotestsrc", Some("video-background")).unwrap();
-        video_background_src.set_property_from_str("pattern", "black");
-        video_background_src.set_property_from_str("is-live", "true");
+        let video_src_ghostpad =
+            gst::GhostPad::with_target(None, &video_out.static_pad("src").unwrap()).unwrap();
+        bin.add_pad(&video_src_ghostpad).unwrap();
+        let audio_src_ghostpad =
+            gst::GhostPad::with_target(None, &audio_out.static_pad("src").unwrap()).unwrap();
+        bin.add_pad(&audio_src_ghostpad).unwrap();
 
-        // create video caps setter
-        let video_caps =
-            gst::ElementFactory::make_with_name("capssetter", Some("video-caps")).unwrap();
-        video_caps.set_property_from_str(
-            "caps",
-            &format!("video/x-raw,format=RGB,width={width},height={height}",),
-        );
-
-        // create video compositor
-        let compositor =
-            gst::ElementFactory::make_with_name("compositor", Some("video-compositor")).unwrap();
-        compositor.set_property_from_str("ignore-inactive-pads", "true");
-        for _ in 0..max_visibles + 1 {
-            compositor.request_pad_simple("sink_%u").unwrap();
+        let mut video_sink_pads = Vec::new();
+        for i in 0..max_visible {
+            let video_sink_ghostpad = gst::GhostPad::with_target(
+                Some(&format!("video_sink_{i}")),
+                &compositor.request_pad_simple("sink_%u").unwrap(),
+            )
+            .unwrap();
+            bin.add_pad(&video_sink_ghostpad).unwrap();
+            video_sink_pads.push(video_sink_ghostpad.upcast::<gst::Pad>());
         }
 
-        // create video clock overlay
-        let clock_overlay =
-            gst::ElementFactory::make_with_name("clockoverlay", Some("video-clock-overlay"))
-                .unwrap();
-        clock_overlay.set_property_from_str("font-desc", "Sans, 14");
-        clock_overlay.set_property_from_str("time-format", "%x %X %Z");
-        clock_overlay.set_property_from_str("xpad", "10");
-        clock_overlay.set_property_from_str("ypad", "2");
-        clock_overlay.set_property_from_str("color", "0xffffffff");
-
-        // create video title text overlay
-        let title_overlay =
-            gst::ElementFactory::make_with_name("textoverlay", Some("video-title-overlay"))
-                .unwrap();
-        title_overlay.set_property_from_str("font-desc", "Sans, 16");
-        title_overlay.set_property_from_str("xpad", "10");
-        title_overlay.set_property_from_str("ypad", "2");
-        title_overlay.set_property_from_str("color", "0xffffffff");
-
         // create video speaking text overlay
-        let speaking_overlay =
-            gst::ElementFactory::make_with_name("textoverlay", Some("video-speaking-overlay"))
-                .unwrap();
-        speaking_overlay.set_property_from_str("font-desc", "Sans, 16");
-        speaking_overlay.set_property_from_str("xpad", "10");
-        speaking_overlay.set_property_from_str("ypad", "2");
-        speaking_overlay.set_property_from_str("color", "0xffffffff");
-
-        let video_output_pad = speaking_overlay.static_pad("src").unwrap();
-
-        // add video elements to pipeline
-        pipeline.add(&video_background_src).unwrap();
-        pipeline.add(&video_caps).unwrap();
-        pipeline.add(&compositor).unwrap();
-        pipeline.add(&clock_overlay).unwrap();
-        pipeline.add(&title_overlay).unwrap();
-        pipeline.add(&speaking_overlay).unwrap();
-
-        // link video elements
-        video_background_src.link(&video_caps).unwrap();
-        video_caps.link(&compositor).unwrap();
-        compositor.link(&clock_overlay).unwrap();
-        clock_overlay.link(&title_overlay).unwrap();
-        title_overlay.link(&speaking_overlay).unwrap();
-        // link to output sink
-        video_output_pad.link(&output.video_sink_pad()).unwrap();
-
-        // create test src to get a picture when no participant is connected
-        let audio_background_src =
-            gst::ElementFactory::make_with_name("audiotestsrc", Some("audio-background")).unwrap();
-        audio_background_src.set_property_from_str("is-live", "true");
-        audio_background_src.set_property_from_str("volume", "0.0");
-
-        // create audio caps setter
-        let audio_caps =
-            gst::ElementFactory::make_with_name("capssetter", Some("audio-caps")).unwrap();
-        audio_caps.set_property_from_str(
-            "caps",
-            "audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000",
-        );
-
-        // create audio mixer
-        let audio_mixer =
-            gst::ElementFactory::make_with_name("audiomixer", Some("audio-mixer")).unwrap();
-        let audio_output_pad = audio_mixer.static_pad("src").unwrap();
-
-        // link audio elements
-        pipeline.add(&audio_background_src).unwrap();
-        pipeline.add(&audio_caps).unwrap();
-        pipeline.add(&audio_mixer).unwrap();
-
-        // link audio elements
-        audio_background_src.link(&audio_caps).unwrap();
-        audio_caps.link(&audio_mixer).unwrap();
-        // link to output sink
-        audio_output_pad.link(&output.audio_sink_pad()).unwrap();
+        let mut audio_sink_pads = Vec::new();
+        for i in 0..max_hearable {
+            let audio_sink_ghostpad = gst::GhostPad::with_target(
+                Some(&format!("audio_sink_{i}")),
+                &compositor.request_pad_simple("sink_%u").unwrap(),
+            )
+            .unwrap();
+            bin.add_pad(&audio_sink_ghostpad).unwrap();
+            audio_sink_pads.push(audio_sink_ghostpad.upcast::<gst::Pad>());
+        }
 
         Ok(Mixer {
             // remember all those elements and pads
             compositor,
             audio_mixer,
-            max_visibles,
-            visibles: 0,
-            clock: Some(clock_overlay),
-            title: Some(title_overlay),
-            speaking: Some(speaking_overlay),
+            max_visible,
+            max_hearable,
+            num_visible: 0,
+            num_hearable: 0,
+            clock: Some(clock),
+            title: Some(title),
+            speaking: Some(speaking),
             layout,
+            video_sink_pads,
+            audio_sink_pads,
             pipeline,
             participants: HashMap::new(),
             output,
@@ -276,7 +285,7 @@ where
         }
 
         // check if given list exceeds maximum length
-        if ids.len() > self.max_visibles {
+        if ids.len() > self.max_visible {
             return Err(Error::TooManyVisibles);
         }
 
@@ -284,12 +293,12 @@ where
         for id in self.participants.keys().copied().collect::<Vec<_>>() {
             self.link_video_to_fakesink(id)?;
         }
-        self.visibles = 0;
+        self.num_visible = 0;
 
         // Link all given participants
         for (n, id) in ids.iter().enumerate() {
             self.link_video_to_compositor(*id, n)?;
-            self.visibles += 1;
+            self.num_visible += 1;
         }
 
         // re-layout
@@ -353,26 +362,26 @@ where
         // layout overlays
         self.layout_overlay(
             &self.title,
-            self.layout.title_position(self.visibles),
+            self.layout.title_position(self.num_visible),
             self.layout.title_alignment(),
         );
         self.layout_overlay(
             &self.clock,
-            self.layout.clock_position(self.visibles),
+            self.layout.clock_position(self.num_visible),
             self.layout.clock_alignment(),
         );
         self.layout_overlay(
             &self.speaking,
-            self.layout.speaking_position(self.visibles),
-            self.layout.speaking_alignment(self.visibles),
+            self.layout.speaking_position(self.max_visible),
+            self.layout.speaking_alignment(self.num_visible),
         );
 
         // configure compositor sink pads (which might be connected to the participants' sources)
         for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
-            let (pos, size, alpha) = if n < self.visibles {
+            let (pos, size, alpha) = if n < self.num_visible {
                 (
-                    self.layout.position(n, self.visibles),
-                    self.layout.size(n, self.visibles),
+                    self.layout.position(n, self.num_visible),
+                    self.layout.size(n, self.num_visible),
                     1.0,
                 )
             } else {
@@ -428,13 +437,28 @@ where
             .get_mut(&id)
             .ok_or(Error::ParticipantNotFound(id))?;
 
-        let mixer_pad = self.audio_mixer.request_pad_simple("sink_%").unwrap();
+        let sink_pads = &mut self.audio_sink_pads;
+        let src_pad = &mut participant.source.audio_src_pad();
+        let link_status = &mut participant.audio_link_status;
 
-        participant.source.audio_src_pad().link(&mixer_pad).unwrap();
+        match &link_status {
+            LinkStatus::None => {}
+            LinkStatus::Mixer(pad) => {
+                src_pad.unlink(pad).unwrap();
+            }
+            _ => panic!(),
+        }
 
-        participant.audio_mixer_pad = Some(mixer_pad);
+        for sink_pad in sink_pads {
+            if !sink_pad.is_linked() {
+                src_pad.link(sink_pad).unwrap();
+                *link_status = LinkStatus::Mixer(sink_pad.clone());
+                trace!("linked audio of {id:?} to audo-mixer.");
+                return Ok(());
+            }
+        }
 
-        Ok(())
+        Err(Error::CannotLinkAudio(id))
     }
 
     /// Unlink participant's audio from the audiomixer.
@@ -465,11 +489,12 @@ where
             .ok_or(Error::ParticipantNotFound(id))?;
 
         match &participant.video_link_status {
-            VideoLinkStatus::None => {}
-            VideoLinkStatus::Fakesink(_) => return Ok(()),
-            VideoLinkStatus::Compositor(_, pad) => {
+            LinkStatus::None => {}
+            LinkStatus::Fakesink(_) => return Ok(()),
+            LinkStatus::Compositor(_, pad) => {
                 participant.source.video_src_pad().unlink(pad).unwrap()
             }
+            _ => panic!(),
         }
 
         let fakesink = gst::ElementFactory::make_with_name("fakesink", None).unwrap();
@@ -480,7 +505,7 @@ where
             .link(&fakesink.static_pad("sink").unwrap())
             .unwrap();
 
-        participant.video_link_status = VideoLinkStatus::Fakesink(fakesink);
+        participant.video_link_status = LinkStatus::Fakesink(fakesink);
 
         Ok(())
     }
@@ -495,8 +520,8 @@ where
             .ok_or(Error::ParticipantNotFound(id))?;
 
         match &participant.video_link_status {
-            VideoLinkStatus::None => {}
-            VideoLinkStatus::Fakesink(fakesink) => {
+            LinkStatus::None => {}
+            LinkStatus::Fakesink(fakesink) => {
                 participant
                     .source
                     .video_src_pad()
@@ -505,11 +530,12 @@ where
                 fakesink.set_state(gst::State::Null).unwrap();
                 self.pipeline.remove(fakesink).unwrap();
             }
-            VideoLinkStatus::Compositor(curr_n, pad) => {
+            LinkStatus::Compositor(curr_n, pad) => {
                 if *curr_n != n {
                     participant.source.video_src_pad().unlink(pad).unwrap();
                 }
             }
+            _ => panic!(),
         }
 
         let compositor_sink_pads = self.compositor.sink_pads();
@@ -521,7 +547,7 @@ where
             .unwrap();
 
         participant.video_link_status =
-            VideoLinkStatus::Compositor(n, compositor_sink_pads[n + 1].clone());
+            LinkStatus::Compositor(n, compositor_sink_pads[n + 1].clone());
 
         trace!("linked video of {id:?} to compositor@{n}...");
 
@@ -537,9 +563,9 @@ where
             .get_mut(&id)
             .ok_or(Error::ParticipantNotFound(id))?;
 
-        match replace(&mut participant.video_link_status, VideoLinkStatus::None) {
-            VideoLinkStatus::None => {}
-            VideoLinkStatus::Fakesink(fakesink) => {
+        match replace(&mut participant.video_link_status, LinkStatus::None) {
+            LinkStatus::None => {}
+            LinkStatus::Fakesink(fakesink) => {
                 participant
                     .source
                     .video_src_pad()
@@ -548,9 +574,10 @@ where
                 fakesink.set_state(gst::State::Null).unwrap();
                 self.pipeline.remove(&fakesink).unwrap();
             }
-            VideoLinkStatus::Compositor(_, pad) => {
+            LinkStatus::Compositor(_, pad) => {
                 participant.source.video_src_pad().unlink(&pad).unwrap();
             }
+            _ => panic!(),
         }
 
         trace!("unlinked video of {id:?}...");
