@@ -11,17 +11,18 @@ fn generate_ids(count: u32) -> Vec<(u32, String)> {
 
 #[test]
 fn test_speaker() {
-    test_layout::<Speaker>();
+    test_layout::<Speaker, FakeSink>(());
 }
 
 #[test]
 fn test_grid() {
-    test_layout::<Grid>();
+    test_layout::<Grid, FakeSink>(());
 }
 
-fn test_layout<L>()
+fn test_layout<L, SINK>(params: SINK::Parameters)
 where
     L: Layout,
+    SINK: Sink,
 {
     let _ = env_logger::try_init();
 
@@ -34,7 +35,7 @@ where
         height: 480,
     };
 
-    let mut mixer = Mixer::<L, TestSource, DisplaySink, u32>::new(resolution, 6, ()).unwrap();
+    let mut mixer = Mixer::<L, TestSource, SINK, u32>::new(resolution, 6, params).unwrap();
     mixer.play();
     mixer.generate_dot_file("test_layout-0", gst::DebugGraphDetails::ALL);
 
@@ -85,17 +86,18 @@ where
 
 #[test]
 fn test_speaker_different_resolutions() {
-    test_layout_different_resolutions::<Speaker>();
+    test_layout_different_resolutions::<Speaker, FakeSink>(());
 }
 
 #[test]
 fn test_grid_different_resolutions() {
-    test_layout_different_resolutions::<Grid>();
+    test_layout_different_resolutions::<Grid, FakeSink>(());
 }
 
-fn test_layout_different_resolutions<L>()
+fn test_layout_different_resolutions<L, SINK>(params: SINK::Parameters)
 where
     L: Layout,
+    SINK: Sink,
 {
     let _ = env_logger::try_init();
     // initialize gstreamer
@@ -104,7 +106,7 @@ where
     // set output resolution
     let resolution = Size::SD;
 
-    let mut mixer = Mixer::<L, TestSource, DisplaySink, u32>::new(resolution, 5, ()).unwrap();
+    let mut mixer = Mixer::<L, TestSource, SINK, u32>::new(resolution, 5, params).unwrap();
     mixer.play();
     mixer.generate_dot_file(
         &format!("test_layout_different_resolutions-{}-0", L::NAME),
