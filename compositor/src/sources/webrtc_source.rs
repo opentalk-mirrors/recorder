@@ -39,8 +39,6 @@ impl Source for WebRtcSource {
     fn new(pipeline: &gst::Pipeline, _: &Size, params: Self::Parameters) -> Self {
         let bin = gst::parse_bin_from_description(
             "
-                name=webrtcbin
-
             webrtcbin
                 name=webrtc
                 bundle-policy=max-bundle
