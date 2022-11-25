@@ -87,11 +87,13 @@ where
             "Output video resolution (WxH): {width}x{height} = {:2}",
             resolution.ratio()
         );
+
         // create new layout for the given resolution
         let layout = L::new(&resolution);
         // create new GStreamer pipeline
         let pipeline = gst::Pipeline::new(None);
 
+        // create mixer bin
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#"
@@ -128,7 +130,7 @@ where
                         color=0xffffffff
                     ! queue
                         name=video-out
-        // create output link
+        
                     audiotestsrc
                         name=audio-background
                         is-live=true
@@ -146,26 +148,38 @@ where
         )
         .unwrap();
 
+        // add bin to pipeline
         pipeline.add(&bin).unwrap();
-        // create video test src to get a picture when no participant is connected
+
+        // get video elements from bin
         let compositor = bin.by_name("video-compositor").unwrap();
         let clock = bin.by_name("video-clock-overlay").unwrap();
         let title = bin.by_name("video-title-overlay").unwrap();
         let speaking = bin.by_name("video-speaking-overlay").unwrap();
         let video_out = bin.by_name("video-out").unwrap();
 
+        // get audio elements from bin
         let audio_mixer = bin.by_name("audio-mixer").unwrap();
         let audio_out = bin.by_name("audio-out").unwrap();
 
-        let output = SINK::new(&pipeline, sink_params);
-
+        // create ghost pad for video output and add it to pipeline
         let video_src_ghostpad =
             gst::GhostPad::with_target(None, &video_out.static_pad("src").unwrap()).unwrap();
         bin.add_pad(&video_src_ghostpad).unwrap();
+
+        // create ghost pad for audio output and add it to pipeline
         let audio_src_ghostpad =
             gst::GhostPad::with_target(None, &audio_out.static_pad("src").unwrap()).unwrap();
         bin.add_pad(&audio_src_ghostpad).unwrap();
 
+        // create output sink
+        let output = SINK::new(&pipeline, sink_params);
+
+        // connect output pads to output sinks
+        video_src_ghostpad.link(&output.video_sink_pad()).unwrap();
+        audio_src_ghostpad.link(&output.audio_sink_pad()).unwrap();
+
+        // prepare enough sink pads at video compositor to take max_visibles video streams
         let mut video_sink_pads = Vec::new();
         for i in 0..max_visible {
             let video_sink_ghostpad = gst::GhostPad::with_target(
@@ -177,12 +191,12 @@ where
             video_sink_pads.push(video_sink_ghostpad.upcast::<gst::Pad>());
         }
 
-        // create video speaking text overlay
+        // prepare enough sink pads at audio mixer to take max_hearable audio streams
         let mut audio_sink_pads = Vec::new();
         for i in 0..max_hearable {
             let audio_sink_ghostpad = gst::GhostPad::with_target(
                 Some(&format!("audio_sink_{i}")),
-                &compositor.request_pad_simple("sink_%u").unwrap(),
+                &audio_mixer.request_pad_simple("sink_%u").unwrap(),
             )
             .unwrap();
             bin.add_pad(&audio_sink_ghostpad).unwrap();
@@ -538,7 +552,7 @@ where
             _ => panic!(),
         }
 
-        let compositor_sink_pads = self.compositor.sink_pads();
+        let compositor_sink_pads = &self.video_sink_pads;
 
         participant
             .source
