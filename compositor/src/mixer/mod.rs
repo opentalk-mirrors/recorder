@@ -557,11 +557,10 @@ where
         participant
             .source
             .video_src_pad()
-            .link(&compositor_sink_pads[n + 1])
+            .link(&compositor_sink_pads[n])
             .unwrap();
 
-        participant.video_link_status =
-            LinkStatus::Compositor(n, compositor_sink_pads[n + 1].clone());
+        participant.video_link_status = LinkStatus::Compositor(n, compositor_sink_pads[n].clone());
 
         trace!("linked video of {id:?} to compositor@{n}...");
 
