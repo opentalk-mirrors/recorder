@@ -59,7 +59,7 @@ impl Source for WebRtcSource {
             ",
             false,
         )
-        .unwrap();
+        .expect("Failed to parse and load WebRTC pipeline. Is a gst plugin missing?");
 
         pipeline.add(&bin).unwrap();
 
