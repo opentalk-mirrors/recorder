@@ -137,6 +137,7 @@ where
                         volume=0.0
                     ! capssetter
                         caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
+                    ! queue
                     ! audiomixer
                         name=audio-mixer
                         ignore-inactive-pads=true
