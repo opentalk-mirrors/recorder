@@ -38,9 +38,7 @@ where
     /// Number of currently visible participants.
     pub max_hearable: usize,
     /// Number of currently visible participants.
-    pub num_visible: usize,
-    /// Number of currently hearable participants.
-    pub num_hearable: usize,
+    pub visibles: Vec<ID>,
     /// GStreamer element for rendering a clock into the output picture if whished.
     clock: Option<gst::Element>,
     /// GStreamer element for rendering a title into the output picture if whished.
@@ -210,8 +208,7 @@ where
             audio_mixer,
             max_visible,
             max_hearable,
-            num_visible: 0,
-            num_hearable: 0,
+            visibles: Vec::new(),
             clock: Some(clock),
             title: Some(title),
             speaking: Some(speaking),
@@ -241,7 +238,6 @@ where
         if self.participants.contains_key(&id) {
             return Err(Error::IdDoublet(id));
         }
-
         // add new participant
         let participant = Participant::new(
             &self.pipeline,
@@ -254,6 +250,17 @@ where
         // link new participant
         self.link_audio(id)?;
         self.link_video_to_fakesink(id)?;
+
+        // Show visibles if there is unused space
+        if self.visibles.len() < self.max_visible {
+            debug!("automatically making participant {id:?} visible because there are unused visible ports");
+            // get currently visible participants
+            let mut visibles = self.visibles.clone();
+            // make new participant visible
+            visibles.push(id);
+            // update visibles
+            self.set_visibles(&visibles).unwrap();
+        }
 
         // re-layout
         self.layout()?;
@@ -308,13 +315,14 @@ where
         for id in self.participants.keys().copied().collect::<Vec<_>>() {
             self.link_video_to_fakesink(id)?;
         }
-        self.num_visible = 0;
 
         // Link all given participants
         for (n, id) in ids.iter().enumerate() {
             self.link_video_to_compositor(*id, n)?;
-            self.num_visible += 1;
         }
+
+        // copy ID list of visibles
+        self.visibles = ids.into();
 
         // re-layout
         self.layout()?;
@@ -374,29 +382,32 @@ where
             return Err(Error::PlayingPipelineForbidden);
         }
 
+        // get number of visible participants
+        let num_visible = self.visibles.len();
+
         // layout overlays
         self.layout_overlay(
             &self.title,
-            self.layout.title_position(self.num_visible),
+            self.layout.title_position(num_visible),
             self.layout.title_alignment(),
         );
         self.layout_overlay(
             &self.clock,
-            self.layout.clock_position(self.num_visible),
+            self.layout.clock_position(num_visible),
             self.layout.clock_alignment(),
         );
         self.layout_overlay(
             &self.speaking,
             self.layout.speaking_position(self.max_visible),
-            self.layout.speaking_alignment(self.num_visible),
+            self.layout.speaking_alignment(num_visible),
         );
 
         // configure compositor sink pads (which might be connected to the participants' sources)
         for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
-            let (pos, size, alpha) = if n < self.num_visible {
+            let (pos, size, alpha) = if n < num_visible {
                 (
-                    self.layout.position(n, self.num_visible),
-                    self.layout.size(n, self.num_visible),
+                    self.layout.position(n, num_visible),
+                    self.layout.size(n, num_visible),
                     1.0,
                 )
             } else {
