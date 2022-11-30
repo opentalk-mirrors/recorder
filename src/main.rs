@@ -313,8 +313,10 @@ impl RecordingSession {
             }
             Event::Close => self.done = true,
             Event::FocusUpdate(focus_change) => {
-                //TODO: Set active speaker accordingly!
-                log::debug!("TODO: Set active speaker to {:?}", focus_change)
+                log::debug!("Set active speaker to {:?}", focus_change);
+                self.mixer.pause();
+                self.mixer.set_speaker(focus_change)?;
+                self.mixer.play();
             }
         }
 

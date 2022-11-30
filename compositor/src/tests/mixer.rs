@@ -45,7 +45,7 @@ where
 
     sleep(Duration::from_millis(500));
 
-    mixer.set_speaking("Speaking");
+    mixer.set_speaking(participants[0].0);
     mixer.set_title("Add 8 Participants");
     mixer.pause();
     for (id, name) in &participants {

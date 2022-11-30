@@ -120,7 +120,10 @@ impl Sink for Mp4Sink {
 impl Drop for Mp4Sink {
     fn drop(&mut self) {
         // Wait for ffmpeg to exit
-        let mut handle = self.process.take().expect("Failed to get the ffmpeg process handle. Crashed?");
+        let mut handle = self
+            .process
+            .take()
+            .expect("Failed to get the ffmpeg process handle. Crashed?");
         handle.wait().expect("Wait on ffmpeg process failed.");
     }
 }
