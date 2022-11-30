@@ -46,13 +46,17 @@ impl Source for WebRtcSource {
             webrtc.
             ! rtpvp8depay
             ! avdec_vp8
-                name=video-decode
+            ! videoconvert
+            ! queue
+                name=video-output
 
             webrtc.
             ! rtpopusdepay
             ! opusdec
-                name=audio-decode
-        ",
+            ! audioconvert
+            ! queue
+                name=audio-output
+            ",
             false,
         )
         .unwrap();
@@ -61,14 +65,14 @@ impl Source for WebRtcSource {
 
         let webrtcbin = bin.by_name("webrtc").unwrap();
 
-        let video_decode = bin.by_name("video-decode").unwrap();
-        let video_decode_src = video_decode.static_pad("src").unwrap();
+        let video_output = bin.by_name("video-output").unwrap();
+        let video_output_src = video_output.static_pad("src").unwrap();
 
-        let audio_decode = bin.by_name("audio-decode").unwrap();
-        let audio_decode_src = audio_decode.static_pad("src").unwrap();
+        let audio_output = bin.by_name("audio-output").unwrap();
+        let audio_output_src = audio_output.static_pad("src").unwrap();
 
-        let video_ghostpad = gst::GhostPad::with_target(Some("video"), &video_decode_src).unwrap();
-        let audio_ghostpad = gst::GhostPad::with_target(Some("audio"), &audio_decode_src).unwrap();
+        let video_ghostpad = gst::GhostPad::with_target(Some("video"), &video_output_src).unwrap();
+        let audio_ghostpad = gst::GhostPad::with_target(Some("audio"), &audio_output_src).unwrap();
 
         bin.add_pad(&video_ghostpad).unwrap();
         bin.add_pad(&audio_ghostpad).unwrap();
