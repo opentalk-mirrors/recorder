@@ -62,26 +62,32 @@ impl Size {
 /// Text alignment
 #[derive(Debug, Clone)]
 pub struct Alignment {
-    /// horizontal alignment
+    /// Horizontal alignment
     /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayHAlign) for possible values).
     pub horizontal: &'static str,
-    /// vertical alignment
+    /// Vertical alignment
     /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayVAlign) for possible values).
     pub vertical: &'static str,
 }
 
-/// Mode in which the current speaker shall be displayed
+/// Mode in which the current speaker shall be displayed.
 #[derive(Debug, Clone)]
 pub enum SpeakerMode {
+    /// Do not visualize who speaks
     None,
-    First,
+    /// Put the current speaker in front of all others and shift the remaining visible participants down.
+    /// If the maximum of visibles is reached and speaker was not visible before the last visible will be shifted out.
+    FirstShift,
+    /// Put the current speaker in front of all others and if the speaker was visible before swap it with the previous speaker.
+    /// If the maximum of visibles is reached and< speaker was not visible before the last visible will be shifted out.
+    FirstSwap,
 }
 
 /// Video picture layout
 pub trait Layout: Send + Sync + 'static {
     /// Create new layout for the given solution.
-    fn new(resolution: &Size) -> Self;
-    /// Get speaker mode
+    fn new(resolution: Size, speaker_mode: SpeakerMode) -> Self;
+    /// Get speaker mode.
     fn speaker_mode() -> SpeakerMode;
     /// Get setup resolution.
     fn resolution(&self) -> &Size;

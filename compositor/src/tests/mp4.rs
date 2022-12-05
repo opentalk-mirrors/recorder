@@ -23,6 +23,7 @@ fn test_mp4() {
         Mp4SinkParams {
             file_path: format!("{}/mp4sink.mp4", super::TEST_OUTPUT_DIR),
         },
+        SpeakerMode::None,
     )
     .unwrap();
 

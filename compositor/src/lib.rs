@@ -38,12 +38,14 @@
       shows a bigger picture of the first visible participant (so-called *speaker*)
       and uses the rest of the available picture area to arrange all other visibles.
 
-    # Generic source and sink traits
+    # Generic traits for extending capabilities
 
     - [Source](mixer::Source)
-      is a generic trait which the mixer is assuming for an input source.
+      is a trait which the mixer is assuming for an input source.
     - [Sink](mixer::Sink)
-      is a generic trait which the mixer is assuming for an output sink.
+      is a trait which the mixer is assuming for an output sink.
+    - [Layout](layout::Layout)
+      is a trait which the mixer is assuming for display layout of the recording
 
     # Testing
 
@@ -89,7 +91,9 @@ fn generate_example_pipeline_picture() {
     };
 
     // setup mixer
-    let mut mixer = Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 2, 3, ()).unwrap();
+    let mut mixer =
+        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 2, 3, (), SpeakerMode::None)
+            .unwrap();
     // generate pipeline DOT graph of the empty pipeline
     mixer.generate_dot_file("0_init", gst::DebugGraphDetails::STATES);
 

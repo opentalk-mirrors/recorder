@@ -4,7 +4,8 @@ use super::*;
 #[derive(Clone)]
 pub struct Speaker {
     // Size of the target picture in pixels.
-    size: Size,
+    resolution: Size,
+    speaker_mode: SpeakerMode,
 }
 
 impl Layout for Speaker {
@@ -17,20 +18,21 @@ impl Layout for Speaker {
     /// - `resolution` : dimensions of the output picture in pixels
     /// # Return
     /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
-    fn new(resolution: &Size) -> Self {
+    fn new(resolution: Size, speaker_mode: SpeakerMode) -> Self {
         // calculate layout
         Self {
             // overall picture size
-            size: *resolution,
+            resolution,
+            speaker_mode,
         }
     }
 
     fn speaker_mode() -> SpeakerMode {
-        SpeakerMode::First
+        SpeakerMode::FirstShift
     }
 
     fn resolution(&self) -> &Size {
-        &self.size
+        &self.resolution
     }
 
     fn position(&self, n: usize, count: usize) -> Position {
@@ -104,14 +106,14 @@ impl Layout for Speaker {
 }
 impl Speaker {
     fn ratio(&self) -> f64 {
-        self.size.width as f64 / self.size.height as f64
+        self.resolution.width as f64 / self.resolution.height as f64
     }
 
     fn viewers_height(&self, count: usize) -> usize {
         match count {
             0 | 1 => 0,
-            2 => self.size.height / 2,
-            _ => self.size.height / (count - 1),
+            2 => self.resolution.height / 2,
+            _ => self.resolution.height / (count - 1),
         }
     }
 
@@ -121,13 +123,13 @@ impl Speaker {
 
     fn speaker_size(&self, count: usize) -> Size {
         Size {
-            height: self.size.height - self.viewers_height(count),
+            height: self.resolution.height - self.viewers_height(count),
             width: (self.speaker_height(count) as f64 * self.ratio()) as usize,
         }
     }
 
     fn speaker_height(&self, count: usize) -> usize {
-        self.size.height - self.viewers_height(count)
+        self.resolution.height - self.viewers_height(count)
     }
 
     fn speaker_width(&self, count: usize) -> usize {
@@ -140,8 +142,8 @@ impl Speaker {
             0 | 1 => Position { x: 0, y: 0 },
             // place one viewer centered beside the speaker
             2 => Position {
-                x: self.size.width as i64 / 2,
-                y: self.size.height as i64 / 4,
+                x: self.resolution.width as i64 / 2,
+                y: self.resolution.height as i64 / 4,
             },
             // otherwise arrange viewers at the right side of the picture
             _ => Position {
@@ -156,8 +158,8 @@ impl Speaker {
         match count {
             // fit one viewer beside the speaker
             1 => Size {
-                width: self.size.width / 2,
-                height: self.size.height / 2,
+                width: self.resolution.width / 2,
+                height: self.resolution.height / 2,
             },
             // otherwise use viewers' size
             _ => Size {
@@ -173,12 +175,12 @@ impl Speaker {
             // place speaker beside single viewer
             2 => Position {
                 x: 0,
-                y: self.size.height as i64 / 4,
+                y: self.resolution.height as i64 / 4,
             },
             // place speaker beside the viewer arrangement and leave space at top
             _ => Position {
                 x: 0,
-                y: self.size.height as i64 - self.speaker_height(count) as i64,
+                y: self.resolution.height as i64 - self.speaker_height(count) as i64,
             },
         }
     }

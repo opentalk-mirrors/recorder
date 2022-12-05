@@ -2,24 +2,17 @@ use crate::*;
 use std::thread::sleep;
 use std::time::Duration;
 
-fn generate_ids(count: u32) -> Vec<(u32, String)> {
-    // add participant names
-    (0..count)
-        .map(|n| (n, format!("Participant {n}")))
-        .collect()
-}
-
 #[test]
 fn test_speaker() {
-    test_layout::<Speaker, FakeSink>(());
+    test_layout::<Speaker, FakeSink>((), SpeakerMode::FirstShift);
 }
 
 #[test]
 fn test_grid() {
-    test_layout::<Grid, FakeSink>(());
+    test_layout::<Grid, FakeSink>((), SpeakerMode::None);
 }
 
-fn test_layout<L, SINK>(params: SINK::Parameters)
+fn test_layout<L, SINK>(params: SINK::Parameters, speaker_mode: SpeakerMode)
 where
     L: Layout,
     SINK: Sink,
@@ -35,12 +28,13 @@ where
         height: 480,
     };
 
-    let mut mixer = Mixer::<L, TestSource, SINK, u32>::new(resolution, 6, 8, params).unwrap();
+    let mut mixer =
+        Mixer::<L, TestSource, SINK, u32>::new(resolution, 6, 8, params, speaker_mode).unwrap();
     mixer.play();
     mixer.generate_dot_file("test_layout-0", gst::DebugGraphDetails::ALL);
 
     let time = 500;
-    let participants = generate_ids(8);
+    let participants = super::generate_ids(8);
     let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
     sleep(Duration::from_millis(500));
@@ -87,15 +81,15 @@ where
 
 #[test]
 fn test_speaker_different_resolutions() {
-    test_layout_different_resolutions::<Speaker, FakeSink>(());
+    test_layout_different_resolutions::<Speaker, FakeSink>((), SpeakerMode::FirstShift);
 }
 
 #[test]
 fn test_grid_different_resolutions() {
-    test_layout_different_resolutions::<Grid, FakeSink>(());
+    test_layout_different_resolutions::<Grid, FakeSink>((), SpeakerMode::None);
 }
 
-fn test_layout_different_resolutions<L, SINK>(params: SINK::Parameters)
+fn test_layout_different_resolutions<L, SINK>(params: SINK::Parameters, speaker_mode: SpeakerMode)
 where
     L: Layout,
     SINK: Sink,
@@ -107,7 +101,8 @@ where
     // set output resolution
     let resolution = Size::SD;
 
-    let mut mixer = Mixer::<L, TestSource, SINK, u32>::new(resolution, 5, 5, params).unwrap();
+    let mut mixer =
+        Mixer::<L, TestSource, SINK, u32>::new(resolution, 5, 5, params, speaker_mode).unwrap();
     mixer.play();
     mixer.generate_dot_file(
         &format!("test_layout_different_resolutions-{}-0", L::NAME),
@@ -115,7 +110,7 @@ where
     );
 
     let time = 3000;
-    let participants = generate_ids(5);
+    let participants = super::generate_ids(5);
     let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
     sleep(Duration::from_millis(500));
@@ -168,12 +163,14 @@ fn test_remove() {
         width: 640,
         height: 480,
     };
-    let mut mixer = Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 4, 8, ()).unwrap();
+    let mut mixer =
+        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 4, 8, (), SpeakerMode::None)
+            .unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_remove-0", gst::DebugGraphDetails::ALL);
 
-    let participants = generate_ids(8);
+    let participants = super::generate_ids(8);
     let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
     sleep(Duration::from_millis(500));

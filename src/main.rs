@@ -166,6 +166,7 @@ impl RecordingSession {
             compositor::Mp4SinkParams {
                 file_path: file_path.to_str().unwrap().into(),
             },
+            compositor::SpeakerMode::FirstShift,
         )?;
 
         // find all participants that publish their webcam

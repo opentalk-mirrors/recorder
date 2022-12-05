@@ -77,6 +77,7 @@ where
         max_visible: usize,
         max_hearable: usize,
         sink_params: SINK::Parameters,
+        speaker_mode: layout::SpeakerMode,
     ) -> Result<Self, Error<ID>> {
         // get width/height
         let width = resolution.width;
@@ -87,7 +88,7 @@ where
         );
 
         // create new layout for the given resolution
-        let layout = L::new(&resolution);
+        let layout = L::new(resolution, speaker_mode);
         // create new GStreamer pipeline
         let pipeline = gst::Pipeline::new(None);
 
@@ -307,6 +308,7 @@ where
 
     /// Select the participants which are visible.
     /// All previously visible participants get invisible if they are not in the list.
+    /// See set_speaker() for further info about how the order will be interpreted.
     /// # Arguments
     /// - `ids`: List of identifiers of participants which shall get visible
     pub fn set_visibles(&mut self, ids: &[ID]) -> Result<(), Error<ID>> {
@@ -339,6 +341,12 @@ where
         Ok(())
     }
 
+    /// Sets the current speaker
+    /// Visualization of the current speaker depends on the layout's speaker mode
+    /// # Arguments
+    /// - `id`: ID of the participant to mark as speaker
+    /// # Speaker modes
+    /// Depending on the layout::SpeakerMode set in the layout the speaker might be moved into or within the visibles.
     pub fn set_speaker(&mut self, speaker_id: Option<ID>) -> Result<(), Error<ID>> {
         if let Some(speaker_id) = &speaker_id {
             // check if speaker is participant
@@ -347,13 +355,15 @@ where
             }
             use layout::*;
             match L::speaker_mode() {
-                SpeakerMode::First => {
-                    // check if speaker is in visibles an if remove
+                SpeakerMode::FirstShift => {
+                    // check if speaker is in visibles
                     match self.visibles.iter().position(|id| id == speaker_id) {
                         Some(pos) => {
+                            // remove speaker from visibles
                             self.visibles.remove(pos);
                         }
                         None => {
+                            // remove last visible if visbles are filled completely
                             if self.visibles.len() == self.max_visible {
                                 self.visibles.pop();
                             }
@@ -362,10 +372,28 @@ where
                     // insert speaker at first
                     self.visibles.insert(0, *speaker_id);
                 }
+                SpeakerMode::FirstSwap => {
+                    // check if speaker is in visibles
+                    match self.visibles.iter().position(|id| id == speaker_id) {
+                        Some(pos) => {
+                            // swap with previous speaker
+                            self.visibles.swap(0, pos);
+                        }
+                        None => {
+                            // remove last visible if visbles are filled completely
+                            if self.visibles.len() == self.max_visible {
+                                self.visibles.pop();
+                            }
+                            // insert speaker at first
+                            self.visibles.insert(0, *speaker_id);
+                        }
+                    }
+                }
                 _ => (),
             }
         }
         self.speaker = speaker_id;
+        self.layout()?;
         Ok(())
     }
 

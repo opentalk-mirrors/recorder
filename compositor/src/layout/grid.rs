@@ -5,7 +5,8 @@ use super::*;
 #[derive(Clone)]
 pub struct Grid {
     // Size of the target picture in pixels.
-    size: Size,
+    resolution: Size,
+    speaker_mode: SpeakerMode,
 }
 
 impl Layout for Grid {
@@ -18,11 +19,12 @@ impl Layout for Grid {
     /// - `resolution` : dimensions of the output picture in pixels
     /// # Return
     /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
-    fn new(resolution: &Size) -> Self {
+    fn new(resolution: Size, speaker_mode: SpeakerMode) -> Self {
         // calculate layout
         Self {
             // overall picture size
-            size: *resolution,
+            resolution,
+            speaker_mode,
         }
     }
 
@@ -31,7 +33,7 @@ impl Layout for Grid {
     }
 
     fn resolution(&self) -> &Size {
-        &self.size
+        &self.resolution
     }
 
     fn position(&self, n: usize, count: usize) -> Position {
