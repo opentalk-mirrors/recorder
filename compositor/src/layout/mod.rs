@@ -70,10 +70,19 @@ pub struct Alignment {
     pub vertical: &'static str,
 }
 
+/// Mode in which the current speaker shall be displayed
+#[derive(Debug, Clone)]
+pub enum SpeakerMode {
+    None,
+    First,
+}
+
 /// Video picture layout
 pub trait Layout: Send + Sync + 'static {
     /// Create new layout for the given solution.
     fn new(resolution: &Size) -> Self;
+    /// Get speaker mode
+    fn speaker_mode() -> SpeakerMode;
     /// Get setup resolution.
     fn resolution(&self) -> &Size;
     /// Get position of the nth participants video.

@@ -26,6 +26,10 @@ impl Layout for Grid {
         }
     }
 
+    fn speaker_mode() -> SpeakerMode {
+        SpeakerMode::None
+    }
+
     fn resolution(&self) -> &Size {
         &self.size
     }

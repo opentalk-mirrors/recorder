@@ -9,7 +9,7 @@ pub use sink::Sink;
 pub use source::Source;
 
 // what else we need from this lib
-use crate::{Alignment, Error, Layout, Position, Size};
+use crate::{layout, Alignment, Error, Layout, Position, Size};
 use participant::LinkStatus;
 
 // what we need from external libraries
@@ -47,7 +47,6 @@ where
     subtitle: Option<gst::Element>,
     /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
-
     /// Layout of the output picture.
     layout: L,
     /// Current participants.
@@ -56,6 +55,7 @@ where
     audio_sink_pads: Vec<gst::Pad>,
     /// Current participants.
     pub participants: HashMap<ID, Participant<SRC>>,
+    pub speaker: Option<ID>,
     /// Holds the output sink.
     pub output: SINK,
 }
@@ -225,6 +225,7 @@ where
             audio_sink_pads,
             pipeline,
             participants: HashMap::new(),
+            speaker: None,
             output,
         })
     }
@@ -335,6 +336,36 @@ where
         // re-layout
         self.layout()?;
 
+        Ok(())
+    }
+
+    pub fn set_speaker(&mut self, speaker_id: Option<ID>) -> Result<(), Error<ID>> {
+        if let Some(speaker_id) = &speaker_id {
+            // check if speaker is participant
+            if !self.participants.contains_key(speaker_id) {
+                error!("speaker must be a participant");
+            }
+            use layout::*;
+            match L::speaker_mode() {
+                SpeakerMode::First => {
+                    // check if speaker is in visibles an if remove
+                    match self.visibles.iter().position(|id| id == speaker_id) {
+                        Some(pos) => {
+                            self.visibles.remove(pos);
+                        }
+                        None => {
+                            if self.visibles.len() == self.max_visible {
+                                self.visibles.pop();
+                            }
+                        }
+                    }
+                    // insert speaker at first
+                    self.visibles.insert(0, *speaker_id);
+                }
+                _ => (),
+            }
+        }
+        self.speaker = speaker_id;
         Ok(())
     }
 

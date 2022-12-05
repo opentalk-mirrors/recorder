@@ -25,6 +25,10 @@ impl Layout for Speaker {
         }
     }
 
+    fn speaker_mode() -> SpeakerMode {
+        SpeakerMode::First
+    }
+
     fn resolution(&self) -> &Size {
         &self.size
     }
