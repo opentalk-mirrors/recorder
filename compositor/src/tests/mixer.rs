@@ -45,6 +45,7 @@ where
 
     sleep(Duration::from_millis(500));
 
+    mixer.set_subtitle("Sub title");
     mixer.set_title("Add 8 Participants");
     mixer.pause();
     for (id, name) in &participants {
@@ -66,15 +67,6 @@ where
             &format!("test_layout-{}-1.{}", L::NAME, j),
             gst::DebugGraphDetails::ALL,
         );
-        sleep(Duration::from_millis(time));
-    }
-
-    for (i, id) in ids.iter().enumerate() {
-        let j = i + 1;
-        mixer.set_title(&format!("Set speaker to participant nr {j}"));
-        mixer.pause();
-        mixer.set_speaker(Some(*id)).expect("set speaker failed");
-        mixer.play();
         sleep(Duration::from_millis(time));
     }
 
@@ -128,6 +120,7 @@ where
 
     sleep(Duration::from_millis(500));
 
+    mixer.set_subtitle("Sub title");
     mixer.set_title("Add 5 Participants");
     mixer.pause();
     let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
@@ -146,8 +139,6 @@ where
 
         mixer.add_participant(*id, name.clone(), params).unwrap();
     }
-
-    mixer.set_speaker(Some(ids[0])).expect("set speaker failed");
 
     mixer.play();
 

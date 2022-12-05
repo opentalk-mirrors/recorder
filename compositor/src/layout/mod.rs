@@ -84,10 +84,10 @@ pub trait Layout: Send + Sync + 'static {
     fn title_alignment(&self) -> Alignment;
     /// Get position of the title text.
     fn title_position(&self, _count: usize) -> Position;
-    /// Get alignment of the "who's speaking" text.
-    fn speaking_alignment(&self, count: usize) -> Alignment;
-    /// Get position of the "who's speaking" text.
-    fn speaking_position(&self, count: usize) -> Position;
+    /// Get alignment of the sub title text.
+    fn subtitle_alignment(&self, count: usize) -> Alignment;
+    /// Get position of the sub title text.
+    fn subtitle_position(&self, count: usize) -> Position;
     /// Get alignment of the clock display.
     fn clock_alignment(&self) -> Alignment;
     /// Get position of the clock display.

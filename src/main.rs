@@ -319,10 +319,12 @@ impl RecordingSession {
                 }
             }
             Event::FocusUpdate(focus_change) => {
-                log::debug!("Set active speaker to {:?}", focus_change);
-                self.mixer.pause();
-                self.mixer.set_speaker(focus_change)?;
-                self.mixer.play();
+                log::warn!("TODO Set active speaker to {:?}", focus_change);
+                // TODO
+                //log::debug!("Set active speaker to {:?}", focus_change);
+                //self.mixer.pause();
+                //self.mixer.set_speaker(focus_change)?;
+                //self.mixer.play();
             }
             Event::MediaConnectionError(error) => {
                 log::warn!("Skipping media connection error: {:?}", error);

@@ -13,7 +13,7 @@ impl Layout for Grid {
     const NAME: &'static str = "Grid";
 
     /// create a layout where the viewers are vertically distributed at the right side
-    /// of the speaker and remaining space is used to display a title and 'who's speaking'
+    /// of the speaker and remaining space is used to display a title and sub title
     /// # Arguments
     /// - `resolution` : dimensions of the output picture in pixels
     /// # Return
@@ -56,14 +56,14 @@ impl Layout for Grid {
         Position { x: 0, y: 0 }
     }
 
-    fn speaking_alignment(&self, _count: usize) -> Alignment {
+    fn subtitle_alignment(&self, _count: usize) -> Alignment {
         Alignment {
             horizontal: "left",
             vertical: "bottom",
         }
     }
 
-    fn speaking_position(&self, count: usize) -> Position {
+    fn subtitle_position(&self, count: usize) -> Position {
         let pos = self.position(0, count);
         let size = self.size(0, count);
         let res = self.resolution();

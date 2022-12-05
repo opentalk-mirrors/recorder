@@ -21,7 +21,7 @@ pub struct Participant<SRC>
 where
     SRC: Source,
 {
-    /// Name to be displayed within the "who's speaking" text.
+    /// Name to be displayed within the sub title text.
     pub display_name: String,
     /// Wrapped AV source of this participant.
     pub source: SRC,
@@ -43,7 +43,7 @@ where
     /// # Arguments
     /// - `pipeline`: Pipeline to add GStreamer elements into.
     /// - `id`: Unique ID of the participant.
-    /// - `display_name`: Name to be displayed within the "who's speaking" text.
+    /// - `display_name`: Name to be displayed within the sub title text.
     /// - `params`: Parameters that will be forwarded to the source which gets created.
     pub fn new(
         pipeline: &gst::Pipeline,

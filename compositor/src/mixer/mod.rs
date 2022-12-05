@@ -39,14 +39,12 @@ where
     pub max_hearable: usize,
     /// Number of currently visible participants.
     pub visibles: Vec<ID>,
-    /// ID of the currently speaking participant.
-    pub speaker_id: Option<ID>,
     /// GStreamer element for rendering a clock into the output picture if whished.
     clock: Option<gst::Element>,
     /// GStreamer element for rendering a title into the output picture if whished.
     title: Option<gst::Element>,
-    /// GStreamer element for rendering a "who' speaking" display into the output picture if whished.
-    speaking_title: Option<gst::Element>,
+    /// GStreamer element for rendering a sub title display into the output picture if whished.
+    subtitle: Option<gst::Element>,
     /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
 
@@ -73,7 +71,7 @@ where
     /// # Arguments
     /// - `resolution`: Output video resolution.
     /// - `max_visibles`: Maximum number of visible participants.
-    /// - `sink_params`: Number of currently visible participants.
+    /// - `visibles`: Number of currently visible participants.
     pub fn new(
         resolution: Size,
         max_visible: usize,
@@ -124,14 +122,14 @@ where
                         ypad=2
                         color=0xffffffff
                     ! textoverlay
-                        name=video-speaking-overlay
+                        name=video-subtitle-overlay
                         font-desc=Sans,16
                         xpad=10
                         ypad=2
                         color=0xffffffff
                     ! queue
                         name=video-out
-        
+
                     audiotestsrc
                         name=audio-background
                         is-live=true
@@ -157,7 +155,7 @@ where
         let compositor = bin.by_name("video-compositor").unwrap();
         let clock = bin.by_name("video-clock-overlay").unwrap();
         let title = bin.by_name("video-title-overlay").unwrap();
-        let speaking_title = bin.by_name("video-speaking-overlay").unwrap();
+        let subtitle = bin.by_name("video-subtitle-overlay").unwrap();
         let video_out = bin.by_name("video-out").unwrap();
 
         compositor.set_property_from_str("ignore-inactive-pads", "true");
@@ -221,8 +219,7 @@ where
             visibles: Vec::new(),
             clock: Some(clock),
             title: Some(title),
-            speaker_id: None,
-            speaking_title: Some(speaking_title),
+            subtitle: Some(subtitle),
             layout,
             video_sink_pads,
             audio_sink_pads,
@@ -348,37 +345,11 @@ where
         }
     }
 
-    /// set the 'who's speaking?' text within the mixer view if provided
-    pub fn set_speaker(&mut self, id: Option<ID>) -> Result<(), Error<ID>> {
-        if let Some(ref speaker_id) = id {
-            let speaker = self
-                .participants
-                .get(speaker_id)
-                .expect("current speaker is not a participant");
-            self.speaker_id = id;
-            if let Some(speaking) = &self.speaking_title {
-                speaking.set_property("text", speaker.display_name.as_str());
-            }
-
-            let position = self.visibles.iter().position(|&id| id == *speaker_id);
-            if let Some(_speaker_index) = position {
-                //TODO sort by speaker
-            } else {
-                if self.visibles.len() == self.max_visible {
-                    self.visibles.rotate_left(1);
-                    let _ = self.visibles.pop();
-                }
-                self.visibles.push(*speaker_id);
-            }
-        } else {
-            self.speaker_id = None;
-            if let Some(speaking) = &self.speaking_title {
-                speaking.set_property("text", "");
-            }
+    /// set the sub title text within the mixer view if provided
+    pub fn set_subtitle(&self, text: &str) {
+        if let Some(subtitle) = &self.subtitle {
+            subtitle.set_property("text", text);
         }
-
-        self.layout()?;
-        Ok(())
     }
 
     /// start playing of pipeline
@@ -434,24 +405,11 @@ where
             self.layout.clock_alignment(),
         );
 
-        if let Some(speaker_id) = self.speaker_id {
-            let speaker_position = self
-                .visibles
-                .iter()
-                .position(|&id| id == speaker_id)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "speaker({0:?}) must be visible({1:?})",
-                        speaker_id, self.visibles
-                    )
-                });
-
-            self.layout_overlay(
-                &self.speaking_title,
-                self.layout.speaking_position(speaker_position),
-                self.layout.speaking_alignment(num_visible),
-            );
-        }
+        self.layout_overlay(
+            &self.subtitle,
+            self.layout.subtitle_position(self.max_visible),
+            self.layout.subtitle_alignment(num_visible),
+        );
 
         // configure compositor sink pads (which might be connected to the participants' sources)
         for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
