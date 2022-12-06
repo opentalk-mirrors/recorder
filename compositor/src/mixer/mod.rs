@@ -404,7 +404,7 @@ where
                 _ => (),
             }
             self.speaker = Some(*speaker_id);
-            self.set_visibles(&visibles);
+            self.set_visibles(&visibles)?;
             self.layout()?;
         }
         Ok(())
