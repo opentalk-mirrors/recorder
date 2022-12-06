@@ -1,5 +1,6 @@
 use crate::http::HttpClient;
 use crate::settings::Settings;
+use crate::signaling::incoming::Error;
 use anyhow::{bail, Context, Result};
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
@@ -64,7 +65,7 @@ pub enum Event {
     SdpEndOfCandidates(ParticipantId, MediaSessionType),
 
     FocusUpdate(Option<ParticipantId>),
-
+    MediaConnectionError(Error),
     Close,
 }
 
@@ -209,7 +210,7 @@ impl Signaling {
                     Ok(None)
                 }
                 incoming::MediaMessage::Error(error) => {
-                    bail!("Media connection error: {:?}", error)
+                    Ok(Some(Event::MediaConnectionError(error)))
                 }
             },
         }
@@ -284,6 +285,7 @@ impl Signaling {
     }
 
     async fn send(&mut self, msg: outgoing::Message) -> Result<()> {
+        log::trace!("send signaling message {:?}", msg);
         self.connection
             .send(Message::Text(
                 serde_json::to_string(&msg).context("failed to serialize message")?,

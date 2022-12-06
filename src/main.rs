@@ -24,7 +24,7 @@ mod signaling;
 
 fn main() -> Result<()> {
     env_logger::init();
-    gst::init().expect("Failed initialize gstreamer");
+    gst::init()?;
 
     let main_loop = glib::MainLoop::new(None, false);
 
@@ -92,9 +92,7 @@ async fn main2() -> Result<()> {
                     let recording_task = tokio::spawn(async move {
                         RecordingSession::create(settings, http_client, command.clone())
                             .await
-                            .expect(
-                                format!("Failed to start signaling session {:?}", command).as_str(),
-                            )
+                            .expect("Failed to start signaling session")
                             .run()
                             .await
                             .expect("Recording session crashed");
@@ -212,6 +210,7 @@ impl RecordingSession {
         while !self.done {
             tokio::select! {
                 event = self.signaling.run() => {
+                    log::trace!("signaling_event {:?}", event);
                     self.handle_signaling_event(event?).await?;
                 }
                 candidate = self.candidate_receiver.recv() => {
@@ -249,40 +248,36 @@ impl RecordingSession {
                 let has_video_feed = state.publishes(MediaSessionType::Video);
                 let is_subscribed = self.mixer.participants.contains_key(&id);
 
-                if has_video_feed == is_subscribed {
-                    log::debug!(
-                        "ignore update for {:?}: has_video_feed ({}) == is_subscribed ({})",
-                        id,
-                        has_video_feed,
-                        is_subscribed
-                    );
-                    return Ok(());
-                }
-                self.mixer.pause();
-
-                if !is_subscribed {
-                    // Now publishing
+                if !is_subscribed && has_video_feed {
                     log::debug!("Update: subscribe Video of {:?}", id);
+                    self.mixer.pause();
                     self.mixer.add_participant(
                         id,
                         id.0.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
                     )?;
-                    // postpone the real subscription until the pipeline is running again
-                } else {
-                    // Unpublished
-                    log::debug!("Update: unsubscribe Video of {:?}", id);
-                    self.mixer.remove_participant(id)?;
-                    self.set_visibles()?;
-                }
-
-                self.mixer.play();
-
-                if is_subscribed {
+                    self.mixer.play();
                     self.signaling
                         .start_subscribe(id, MediaSessionType::Video)
                         .await?;
+                    return Ok(());
                 }
+
+                if is_subscribed && !has_video_feed {
+                    log::debug!("Update: unsubscribe Video of {:?}", id);
+                    self.mixer.pause();
+                    self.mixer.remove_participant(id)?;
+                    self.set_visibles()?;
+                    self.mixer.play();
+                }
+
+                log::trace!(
+                    "ignore update for {:?}: has_video_feed ({}) == is_subscribed ({})",
+                    id,
+                    has_video_feed,
+                    is_subscribed
+                );
+                return Ok(());
             }
             Event::ParticipantLeft(id) => {
                 if self.mixer.participants.contains_key(&id) {
@@ -295,6 +290,12 @@ impl RecordingSession {
                 if self.signaling.participants().is_empty() {
                     self.done = true;
                     log::debug!("Last participant left the session. Stop recording.");
+                } else {
+                    log::trace!(
+                        "{} remaining participants : {:?}",
+                        self.signaling.participants().len(),
+                        self.signaling.participants().keys()
+                    );
                 }
             }
             Event::SdpOffer(id, typ, offer) => {
@@ -316,13 +317,16 @@ impl RecordingSession {
                     participant.source.receive_end_of_candidates(0).await;
                 }
             }
-            Event::Close => self.done = true,
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Set active speaker to {:?}", focus_change);
                 self.mixer.pause();
                 self.mixer.set_speaker(focus_change)?;
                 self.mixer.play();
             }
+            Event::MediaConnectionError(error) => {
+                log::warn!("Skipping media connection error: {:?}", error);
+            }
+            Event::Close => self.done = true,
         }
 
         Ok(())
