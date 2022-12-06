@@ -24,7 +24,7 @@ mod signaling;
 
 fn main() -> Result<()> {
     env_logger::init();
-    gst::init()?;
+    gst::init().expect("Failed initialize gstreamer");
 
     let main_loop = glib::MainLoop::new(None, false);
 
@@ -32,7 +32,7 @@ fn main() -> Result<()> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
-            .unwrap()
+            .expect("Failed to start tokio async runtime")
             .block_on(main2())
     });
 
@@ -73,12 +73,11 @@ async fn main2() -> Result<()> {
         )
         .await?;
 
-    // TODO: this grows into infinity
     let mut tasks = vec![];
 
     while let Some(delivery) = consumer.next().await {
         match delivery {
-            Ok(delivery) => {
+            Ok(ref delivery) => {
                 if let Err(e) = delivery.ack(Default::default()).await {
                     log::error!("failed to ACK {e:?}");
                 }
@@ -86,18 +85,22 @@ async fn main2() -> Result<()> {
                 if let Ok(command) =
                     serde_json::from_slice::<commands::StartRecording>(&delivery.data)
                 {
-                    log::debug!("Received command {command:?}");
+                    log::debug!("Received start command ({command:?})");
                     let settings = settings.clone();
                     let http_client = http_client.clone();
 
-                    tasks.push(tokio::spawn(async move {
-                        RecordingSession::create(settings, http_client, command)
+                    let recording_task = tokio::spawn(async move {
+                        RecordingSession::create(settings, http_client, command.clone())
                             .await
-                            .unwrap()
+                            .expect(
+                                format!("Failed to start signaling session {:?}", command).as_str(),
+                            )
                             .run()
                             .await
-                            .unwrap();
-                    }));
+                            .expect("Recording session crashed");
+                    });
+
+                    tasks.push(recording_task);
                 }
             }
             Err(e) => {
@@ -105,6 +108,8 @@ async fn main2() -> Result<()> {
                 break;
             }
         }
+
+        tasks.retain(|task| !task.is_finished());
     }
 
     log::info!("Exiting, waiting for all tasks to finish");
@@ -364,9 +369,14 @@ impl RecordingSession {
 
         spawn_blocking(move || drop(mixer)).await?;
 
-        let file = tokio::fs::File::open(self.temp_dir.path().join("out.mp4")).await?;
+        let recording_path = self.temp_dir.path().join("out.mp4");
+        let file = tokio::fs::File::open(&recording_path).await?;
 
-        log::trace!("upload mp4 file");
+        log::debug!(
+            "upload mp4 file '{:?}' for room: {}",
+            recording_path,
+            &self.room_id
+        );
 
         self.http_client
             .upload_render(
@@ -376,7 +386,7 @@ impl RecordingSession {
             )
             .await?;
 
-        log::trace!("finished uploading mp4 file");
+        log::debug!("finished uploading recording for room '{}'", &self.room_id);
 
         Ok(())
     }
