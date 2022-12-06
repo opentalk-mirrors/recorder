@@ -312,6 +312,8 @@ where
     /// # Arguments
     /// - `ids`: List of identifiers of participants which shall get visible
     pub fn set_visibles(&mut self, ids: &[ID]) -> Result<(), Error<ID>> {
+        trace!("set visibiles: {:?}", self.visibles);
+
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -323,8 +325,8 @@ where
         }
 
         // Unlink all participants
-        for id in self.participants.keys().copied().collect::<Vec<_>>() {
-            self.link_video_to_fakesink(id)?;
+        for id in self.visibles.clone().iter().collect::<Vec<_>>() {
+            self.link_video_to_fakesink(*id)?;
         }
 
         // Link all given participants
@@ -348,7 +350,11 @@ where
     /// # Speaker modes
     /// Depending on the layout::SpeakerMode set in the layout the speaker might be moved into or within the visibles.
     pub fn set_speaker(&mut self, speaker_id: Option<ID>) -> Result<(), Error<ID>> {
+        trace!("set speaker {:?}...", speaker_id);
+
         if let Some(speaker_id) = &speaker_id {
+            let mut visibles = self.visibles.clone();
+
             // check if speaker is participant
             if !self.participants.contains_key(speaker_id) {
                 error!("speaker must be a participant");
@@ -357,43 +363,50 @@ where
             match L::speaker_mode() {
                 SpeakerMode::FirstShift => {
                     // check if speaker is in visibles
-                    match self.visibles.iter().position(|id| id == speaker_id) {
+                    match visibles.iter().position(|id| id == speaker_id) {
                         Some(pos) => {
+                            trace!("remove visible at {pos}");
                             // remove speaker from visibles
-                            self.visibles.remove(pos);
+                            visibles.remove(pos);
                         }
                         None => {
                             // remove last visible if visbles are filled completely
-                            if self.visibles.len() == self.max_visible {
-                                self.visibles.pop();
+                            if visibles.len() == self.max_visible {
+                                trace!("remove last visible");
+                                visibles.pop();
                             }
                         }
                     }
+                    trace!("insert speaker {:?} at 0", *speaker_id);
                     // insert speaker at first
-                    self.visibles.insert(0, *speaker_id);
+                    visibles.insert(0, *speaker_id);
                 }
                 SpeakerMode::FirstSwap => {
                     // check if speaker is in visibles
-                    match self.visibles.iter().position(|id| id == speaker_id) {
+                    match visibles.iter().position(|id| id == speaker_id) {
                         Some(pos) => {
+                            trace!("swap visible 0 and {pos}");
                             // swap with previous speaker
-                            self.visibles.swap(0, pos);
+                            visibles.swap(0, pos);
                         }
                         None => {
                             // remove last visible if visbles are filled completely
-                            if self.visibles.len() == self.max_visible {
-                                self.visibles.pop();
+                            if visibles.len() == self.max_visible {
+                                trace!("remove last visible");
+                                visibles.pop();
                             }
                             // insert speaker at first
-                            self.visibles.insert(0, *speaker_id);
+                            trace!("insert speaker {:?} at 0", *speaker_id);
+                            visibles.insert(0, *speaker_id);
                         }
                     }
                 }
                 _ => (),
             }
+            self.speaker = Some(*speaker_id);
+            self.set_visibles(&visibles);
+            self.layout()?;
         }
-        self.speaker = speaker_id;
-        self.layout()?;
         Ok(())
     }
 
