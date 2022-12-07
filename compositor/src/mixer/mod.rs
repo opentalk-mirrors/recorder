@@ -27,7 +27,7 @@ where
     L: Layout,
     SRC: Source,
     SINK: Sink,
-    ID: Eq + Ord + Hash + Copy,
+    ID: Eq + Ord + Hash + Copy + Debug,
 {
     /// GStreamer element which composes the output video out of the source videos.
     pub compositor: gst::Element,
@@ -659,14 +659,24 @@ where
     L: Layout,
     SRC: Source,
     SINK: Sink,
-    ID: Eq + Ord + Hash + Copy,
+    ID: Eq + Ord + Hash + Copy + Debug,
 {
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {
         trace!("exiting mixer");
 
+        if self.pipeline.current_state() == gst::State::Paused {
+            self.pipeline.set_state(gst::State::Playing).unwrap();
+        }
+
         // call sink to prepare for dropping pipeline
         self.output.on_exit(&self.pipeline);
+
+        self.pause();
+
+        for id in self.participants.keys().cloned().collect::<Vec<_>>() {
+            let _ = self.remove_participant(id);
+        }
 
         // stop pipeline
         self.pipeline
