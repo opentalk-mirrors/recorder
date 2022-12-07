@@ -10,7 +10,7 @@ fn test_speaker_mode() {
     // initialize gstreamer
     gst::init().unwrap();
 
-    let mut mixer = Mixer::<Speaker, TestSource, DisplaySink, u32>::new(
+    let mut mixer = Mixer::<Speaker, TestSource, FakeSink, u32>::new(
         Size {
             width: 640,
             height: 480,
