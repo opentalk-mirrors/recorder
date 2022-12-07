@@ -98,6 +98,7 @@ impl From<Pattern> for &'static str {
 /// Source that generates dummy picture and sound to simulate a participant's input.
 #[derive(Clone)]
 pub struct TestSource {
+    /// Video source GStreamer pad.
     pub video_src_pad: gst::Pad,
     /// Video source GStreamer element.
     pub video_bin: gst::Bin,
@@ -114,6 +115,8 @@ pub struct TestSourceParameters {
     pub pattern: Pattern,
     /// Resolution of the generated picture.
     pub resolution: Size,
+    // name that will be display as overlay
+    pub name: Option<String>,
 }
 
 impl Default for TestSourceParameters {
@@ -122,6 +125,7 @@ impl Default for TestSourceParameters {
         Self {
             pattern: Pattern::Smpte,
             resolution: Size::SD,
+            name: None,
         }
     }
 }
@@ -182,9 +186,16 @@ impl Source for TestSource {
                     ! videoscale
                     ! capssetter
                         caps=video/x-raw,format=RGB,width={out_width},height={out_height}
+                    ! textoverlay
+                        font-desc=Sans,25
+                        valignment=center
+                        halignment=center
+                        text="{name}"
+                        color=0xffffff80
                     ! queue
                         name=video-testsrc
-                    "#
+                    "#,
+                    name = params.name.unwrap_or("".to_string())
                 ),
                 false,
             ),
