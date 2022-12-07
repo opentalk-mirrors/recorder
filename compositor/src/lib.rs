@@ -92,7 +92,7 @@ fn generate_example_pipeline_picture() {
 
     // setup mixer
     let mut mixer =
-        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 2, 3, (), SpeakerMode::None)
+        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 2, (), SpeakerMode::None)
             .unwrap();
     // generate pipeline DOT graph of the empty pipeline
     mixer.generate_dot_file("0_init", gst::DebugGraphDetails::STATES);

@@ -22,7 +22,6 @@ fn test_matroska() {
     let mut mixer = Mixer::<Grid, TestSource, MatroskaSink, u32>::new(
         resolution,
         4,
-        4,
         sink_params,
         SpeakerMode::None,
     )

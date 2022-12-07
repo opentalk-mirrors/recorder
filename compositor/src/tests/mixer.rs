@@ -29,7 +29,7 @@ where
     };
 
     let mut mixer =
-        Mixer::<L, TestSource, SINK, u32>::new(resolution, 6, 8, params, speaker_mode).unwrap();
+        Mixer::<L, TestSource, SINK, u32>::new(resolution, 6, params, speaker_mode).unwrap();
     mixer.play();
     mixer.generate_dot_file("test_layout-0", gst::DebugGraphDetails::ALL);
 
@@ -102,7 +102,7 @@ where
     let resolution = Size::SD;
 
     let mut mixer =
-        Mixer::<L, TestSource, SINK, u32>::new(resolution, 5, 5, params, speaker_mode).unwrap();
+        Mixer::<L, TestSource, SINK, u32>::new(resolution, 5, params, speaker_mode).unwrap();
     mixer.play();
     mixer.generate_dot_file(
         &format!("test_layout_different_resolutions-{}-0", L::NAME),
@@ -145,7 +145,7 @@ fn test_remove() {
         height: 480,
     };
     let mut mixer =
-        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 4, 8, (), SpeakerMode::None)
+        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 4, (), SpeakerMode::None)
             .unwrap();
     mixer.play();
 

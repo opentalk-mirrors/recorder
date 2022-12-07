@@ -36,8 +36,6 @@ where
     /// Maximum number of visible participants.
     pub max_visible: usize,
     /// Number of currently visible participants.
-    pub max_hearable: usize,
-    /// Number of currently visible participants.
     pub visibles: Vec<ID>,
     /// GStreamer element for rendering a clock into the output picture if whished.
     clock: Option<gst::Element>,
@@ -71,7 +69,6 @@ where
     pub fn new(
         resolution: Size,
         max_visible: usize,
-        max_hearable: usize,
         sink_params: SINK::Parameters,
         speaker_mode: layout::SpeakerMode,
     ) -> Result<Self, Error<ID>> {
@@ -173,7 +170,6 @@ where
             compositor,
             audio_mixer,
             max_visible,
-            max_hearable,
             visibles: Vec::new(),
             clock: Some(clock),
             title: Some(title),

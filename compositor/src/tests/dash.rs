@@ -25,7 +25,6 @@ fn test_dash() {
     let mut mixer = Mixer::<Grid, TestSource, DashSink, u32>::new(
         resolution,
         4,
-        4,
         sink_params,
         SpeakerMode::None,
     )
