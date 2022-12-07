@@ -131,7 +131,7 @@ where
                         color=0xffffffff
                     ! queue
                         name=video-out
-        
+
                     audiotestsrc
                         name=audio-background
                         is-live=true
@@ -283,6 +283,7 @@ where
             return Err(Error::PlayingPipelineForbidden);
         }
 
+        self.visibles.retain(|visible_id| &id != visible_id);
         // unlink participant from rest of the pipeline
         self.unlink_audio(id)?;
         self.unlink_video(id)?;
