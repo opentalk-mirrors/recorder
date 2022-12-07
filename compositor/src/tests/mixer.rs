@@ -114,7 +114,7 @@ where
     sleep(Duration::from_millis(500));
     mixer.pause();
 
-    let (_, ids) = super::add_participants(&mut mixer, 5);
+    let (_, ids) = super::generate_participants(&mut mixer, 5);
 
     mixer.play();
 

@@ -8,17 +8,17 @@ mod speaker_mode;
 
 use core::{fmt::Debug, hash::Hash};
 
-pub fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
+fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
 where
     ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
 {
-    // add participant names
+    // generate participant IDs and names
     (0..count)
         .map(|n| (n.into(), format!("Participant {n:?}")))
         .collect()
 }
 
-fn add_participants<L, SINK, ID>(
+fn generate_participants<L, SINK, ID>(
     mixer: &mut crate::Mixer<L, crate::TestSource, SINK, ID>,
     n: u32,
 ) -> (Vec<(ID, String)>, Vec<ID>)
@@ -32,7 +32,7 @@ where
     let participants = generate_ids(n);
     let ids: Vec<ID> = participants.iter().map(|p| p.0).collect();
 
-    mixer.set_title("add 8 participants");
+    mixer.set_title(&format!("add {n} participants"));
     mixer.pause();
     let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
     let images = [
@@ -44,8 +44,9 @@ where
     ];
     for (i, (id, name)) in participants.iter().enumerate() {
         let params = TestSourceParameters {
-            resolution: resolutions[i],
+            resolution: resolutions[i % images.len()],
             pattern: Pattern::Location(images[i % images.len()].into()),
+            name: Some(name.clone()),
         };
         mixer.add_participant(*id, name.clone(), params).unwrap();
     }

@@ -195,7 +195,7 @@ impl Source for TestSource {
                     ! queue
                         name=video-testsrc
                     "#,
-                    name = params.name.unwrap_or("".to_string())
+                    name = params.name.unwrap_or_default()
                 ),
                 false,
             ),
