@@ -2,15 +2,13 @@ use super::{Size, Source};
 
 /// Status of a participant if it is linked to a fake sink or the compositor.
 #[derive(Debug)]
-pub enum LinkStatus {
+pub enum VideoLinkStatus {
     /// Video source is unlinked
     None,
     /// Video source is linked to this fakesink
     Fakesink(gst::Element),
     /// Video source is linked to this (nth) pad on the compositor
     Compositor(usize, gst::Pad),
-    /// Audio source is linked to this (nth) pad on the compositor
-    Mixer(gst::Pad),
 }
 
 /// Represents a participant.
@@ -28,9 +26,7 @@ where
     /// Contains the pad this participants audio stream is linked to. None if its not linked.
     pub audio_mixer_pad: Option<gst::Pad>,
     /// Video link status of this participant.
-    pub video_link_status: LinkStatus,
-    /// Audio link status of this participant.
-    pub audio_link_status: LinkStatus,
+    pub video_link_status: VideoLinkStatus,
 }
 
 impl<SRC> Participant<SRC>
@@ -55,8 +51,7 @@ where
             display_name,
             source: SRC::new(pipeline, resolution, src_params),
             audio_mixer_pad: None,
-            video_link_status: LinkStatus::None,
-            audio_link_status: LinkStatus::None,
+            video_link_status: VideoLinkStatus::None,
         }
     }
 }
