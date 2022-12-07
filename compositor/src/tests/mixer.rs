@@ -34,7 +34,7 @@ where
     mixer.generate_dot_file("test_layout-0", gst::DebugGraphDetails::ALL);
 
     let time = 500;
-    let participants = super::generate_ids(8);
+    let participants = super::generate_ids::<u32>(8);
     let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
     sleep(Duration::from_millis(500));
@@ -110,30 +110,11 @@ where
     );
 
     let time = 3000;
-    let participants = super::generate_ids(5);
-    let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
     sleep(Duration::from_millis(500));
-
-    mixer.set_subtitle("Sub title");
-    mixer.set_title("Add 5 Participants");
     mixer.pause();
-    let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
-    let images = [
-        "images/participant_SD.png",
-        "images/participant_HD.png",
-        "images/participant_FHD.png",
-        "images/participant_QHD.png",
-        "images/participant_UHD.png",
-    ];
-    for (i, (id, name)) in participants.iter().enumerate() {
-        let params = TestSourceParameters {
-            resolution: resolutions[i],
-            pattern: Pattern::Location(images[i].into()),
-        };
 
-        mixer.add_participant(*id, name.clone(), params).unwrap();
-    }
+    let (_, ids) = super::add_participants(&mut mixer, 5);
 
     mixer.play();
 

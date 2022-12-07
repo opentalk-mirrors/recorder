@@ -360,7 +360,7 @@ where
                 error!("speaker must be a participant");
             }
             use layout::*;
-            match L::speaker_mode() {
+            match self.layout.speaker_mode() {
                 SpeakerMode::FirstShift => {
                     // check if speaker is in visibles
                     match visibles.iter().position(|id| id == speaker_id) {

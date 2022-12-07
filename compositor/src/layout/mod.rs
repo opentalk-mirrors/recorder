@@ -70,25 +70,12 @@ pub struct Alignment {
     pub vertical: &'static str,
 }
 
-/// Mode in which the current speaker shall be displayed.
-#[derive(Debug, Clone)]
-pub enum SpeakerMode {
-    /// Do not visualize who speaks
-    None,
-    /// Put the current speaker in front of all others and shift the remaining visible participants down.
-    /// If the maximum of visibles is reached and speaker was not visible before the last visible will be shifted out.
-    FirstShift,
-    /// Put the current speaker in front of all others and if the speaker was visible before swap it with the previous speaker.
-    /// If the maximum of visibles is reached and< speaker was not visible before the last visible will be shifted out.
-    FirstSwap,
-}
-
 /// Video picture layout
 pub trait Layout: Send + Sync + 'static {
     /// Create new layout for the given solution.
     fn new(resolution: Size, speaker_mode: SpeakerMode) -> Self;
     /// Get speaker mode.
-    fn speaker_mode() -> SpeakerMode;
+    fn speaker_mode(&self) -> &SpeakerMode;
     /// Get setup resolution.
     fn resolution(&self) -> &Size;
     /// Get position of the nth participants video.
