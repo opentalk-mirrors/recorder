@@ -107,13 +107,13 @@ where
                         color=0xffffffff
                     ! textoverlay
                         name=video-title-overlay
-                        font-desc=Sans,16
+                        font-desc="Helvetica Bold 25"
                         xpad=10
                         ypad=2
                         color=0xffffffff
                     ! textoverlay
                         name=video-subtitle-overlay
-                        font-desc=Sans,16
+                        font-desc="Helvetica Bold 25"
                         xpad=10
                         ypad=2
                         color=0xffffffff

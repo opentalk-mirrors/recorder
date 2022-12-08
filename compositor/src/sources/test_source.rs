@@ -187,7 +187,7 @@ impl Source for TestSource {
                     ! capssetter
                         caps=video/x-raw,format=RGB,width={out_width},height={out_height}
                     ! textoverlay
-                        font-desc=Sans,25
+                        font-desc="Helvetica Bold 25"
                         valignment=center
                         halignment=center
                         text="{name}"
