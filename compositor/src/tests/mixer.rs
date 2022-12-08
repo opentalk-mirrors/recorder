@@ -41,7 +41,7 @@ where
 
     let time = 500;
     let participants = generate_ids(8);
-    let ids: Vec<u32> = participants.iter().map(|p| p.0.clone()).collect();
+    let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
     sleep(Duration::from_millis(500));
 
@@ -69,11 +69,11 @@ where
         sleep(Duration::from_millis(time));
     }
 
-    for i in 0..6 {
+    for (i, id) in ids.iter().enumerate() {
         let j = i + 1;
         mixer.set_title(&format!("Set speaker to participant nr {j}"));
         mixer.pause();
-        mixer.set_speaker(Some(ids[i])).expect("set speaker failed");
+        mixer.set_speaker(Some(*id)).expect("set speaker failed");
         mixer.play();
         sleep(Duration::from_millis(time));
     }
@@ -124,7 +124,7 @@ where
 
     let time = 3000;
     let participants = generate_ids(5);
-    let ids: Vec<u32> = participants.iter().map(|p| p.0.clone()).collect();
+    let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
     sleep(Duration::from_millis(500));
 
@@ -142,11 +142,9 @@ where
         let params = TestSourceParameters {
             resolution: resolutions[i],
             pattern: Pattern::Location(images[i].into()),
-            ..Default::default()
         };
-        mixer
-            .add_participant(id.clone(), name.clone(), params)
-            .unwrap();
+
+        mixer.add_participant(*id, name.clone(), params).unwrap();
     }
 
     mixer.set_speaker(Some(ids[0])).expect("set speaker failed");
