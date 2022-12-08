@@ -3,10 +3,6 @@ name = "compositor"
 version = "0.1.1"
 edition = "2021"
 
-[[bin]]
-name = "compositor"
-path = "src/lib.rs"
-
 [dependencies]
 gst = { package = "gstreamer", version = "0.19", features = ["v1_20"] }
 gst-sdp = { package = "gstreamer-sdp", version = "0.19" }
