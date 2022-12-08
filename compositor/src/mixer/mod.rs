@@ -191,7 +191,7 @@ where
         display_name: String,
         params: SRC::Parameters,
     ) -> Result<(), Error<ID>> {
-        trace!("add participant( '{display_name}' )");
+        debug!("add participant( '{display_name}' ({id:?})");
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -233,6 +233,8 @@ where
     /// # Arguments
     /// - `id`: Unique identifier of the participant.
     pub fn remove_participant(&mut self, id: ID) -> Result<(), Error<ID>> {
+        debug!("remove participant {id:?}");
+
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -263,7 +265,7 @@ where
     /// # Arguments
     /// - `ids`: List of identifiers of participants which shall get visible
     pub fn set_visibles(&mut self, ids: &[ID]) -> Result<(), Error<ID>> {
-        trace!("set visibiles: {:?}", self.visibles);
+        debug!("set visibiles: {:?}", self.visibles);
 
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
@@ -301,7 +303,7 @@ where
     /// # Speaker modes
     /// Depending on the layout::SpeakerMode set in the layout the speaker might be moved into or within the visibles.
     pub fn set_speaker(&mut self, speaker_id: Option<ID>) -> Result<(), Error<ID>> {
-        trace!("set speaker {:?}...", speaker_id);
+        debug!("set speaker {:?}...", speaker_id);
 
         if let Some(speaker_id) = &speaker_id {
             let mut visibles = self.visibles.clone();
@@ -363,6 +365,8 @@ where
 
     /// set the title text within the mixer view if provided
     pub fn set_title(&self, text: &str) {
+        debug!("set title {text}");
+
         if let Some(title) = &self.title {
             title.set_property("text", text);
         }
@@ -370,6 +374,8 @@ where
 
     /// set the sub title text within the mixer view if provided
     pub fn set_subtitle(&self, text: &str) {
+        debug!("set subtitle {text}");
+
         if let Some(subtitle) = &self.subtitle {
             subtitle.set_property("text", text);
         }
@@ -377,6 +383,7 @@ where
 
     /// start playing of pipeline
     pub fn play(&mut self) {
+        debug!("start playing");
         self.pipeline.set_state(gst::State::Playing).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_play();
@@ -384,6 +391,7 @@ where
 
     /// pause playing of pipeline
     pub fn pause(&mut self) {
+        debug!("pause playing");
         self.pipeline.set_state(gst::State::Paused).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_pause();

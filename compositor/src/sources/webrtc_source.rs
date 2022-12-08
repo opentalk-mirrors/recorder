@@ -37,6 +37,8 @@ impl Source for WebRtcSource {
 
     /// Create a new WebRTC source
     fn new(pipeline: &gst::Pipeline, _: &Size, params: Self::Parameters) -> Self {
+        debug!("create new TestSource");
+
         let bin = gst::parse_bin_from_description(
             "
             webrtcbin

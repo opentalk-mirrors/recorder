@@ -1,5 +1,6 @@
 use super::matroska_sink::{MatroskaParameters, MatroskaSink};
 use crate::Sink;
+use derivative::Derivative;
 use gst::prelude::*;
 use inotify::{Inotify, WatchMask};
 use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
@@ -19,7 +20,7 @@ pub struct DashSink {
 }
 
 /// DASH segment type
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SegmentType {
     /// Select DASH segment files format based on the stream codec.
     AUTO,
@@ -41,6 +42,8 @@ impl SegmentType {
 }
 
 /// Specific parameters needed to create.
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct DashParameters {
     /// Path to write the dash files to.
     /// Existing files will be overridden.
@@ -53,6 +56,7 @@ pub struct DashParameters {
     /// DASH segment type
     pub seg_type: SegmentType,
     /// Called when new files are ready
+    #[derivative(Debug = "ignore")]
     pub update_callback: fn(files: Vec<&OsStr>),
 }
 
@@ -78,6 +82,8 @@ impl Sink for DashSink {
 
     /// Create and add new DASH sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: DashParameters) -> Self {
+        debug!("create new DashSink: {params:?}");
+
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {

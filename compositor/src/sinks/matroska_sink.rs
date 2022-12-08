@@ -16,8 +16,8 @@ pub struct MatroskaSink {
     pub address: SocketAddr,
 }
 
-/// Specific parameters needed to create a MatroskaSink
-#[derive(Clone)]
+/// Specific parameters needed to create a Matroska sink
+#[derive(Clone, Debug)]
 pub struct MatroskaParameters {
     pub address: SocketAddr,
 }
@@ -34,9 +34,11 @@ impl Default for MatroskaParameters {
 impl Sink for MatroskaSink {
     type Parameters = MatroskaParameters;
 
-    /// Create and add new Dash sink into existing pipeline.
+    /// Create and add new Matroska sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: MatroskaParameters) -> Self {
-        // create bin including codecs and the dash sink
+        debug!("create new MatroskaSink: {params:?}");
+
+        // create bin including codecs and the Matroska sink
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#"
@@ -104,7 +106,7 @@ impl Sink for MatroskaSink {
             trace!("Stopped sending matroska data");
         });
 
-        // return new Dash sink
+        // return new Matroska sink
         Self {
             video_sink_pad: video_sink_pad.upcast(),
             audio_sink_pad: audio_sink_pad.upcast(),

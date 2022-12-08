@@ -140,10 +140,9 @@ impl Source for TestSource {
         resolution: &Size,
         params: TestSourceParameters,
     ) -> TestSource {
-        trace!(
+        debug!(
             "create new TestSource, resolution: (WxH){}:{}",
-            params.resolution.width,
-            params.resolution.height
+            params.resolution.width, params.resolution.height
         );
 
         // substitute parameters for easy us with format!()

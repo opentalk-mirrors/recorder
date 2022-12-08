@@ -15,6 +15,7 @@ tokio = { version = "1", features = ["sync", "net"] }
 inotify = "0.10"
 tempfile = "3"
 thiserror = "1"
+derivative = "2.2"
 
 [dev-dependencies]
 env_logger = "0.10.0"

@@ -14,6 +14,7 @@ pub struct Mp4Sink {
     file_path: String,
 }
 
+#[derive(Debug)]
 pub struct Mp4SinkParams {
     pub file_path: String,
 }
@@ -23,6 +24,8 @@ impl Sink for Mp4Sink {
 
     /// Create and add new MP4 sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
+        debug!("create new DashSink: {params:?}");
+
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
