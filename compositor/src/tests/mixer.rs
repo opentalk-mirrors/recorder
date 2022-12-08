@@ -44,7 +44,7 @@ where
     let ids: Vec<u32> = participants.iter().map(|p| p.0.clone()).collect();
 
     sleep(Duration::from_millis(500));
-    
+
     mixer.set_title("Add 8 Participants");
     mixer.pause();
     for (id, name) in &participants {
@@ -127,7 +127,7 @@ where
     let ids: Vec<u32> = participants.iter().map(|p| p.0.clone()).collect();
 
     sleep(Duration::from_millis(500));
-    
+
     mixer.set_title("Add 5 Participants");
     mixer.pause();
     let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
@@ -148,7 +148,7 @@ where
             .add_participant(id.clone(), name.clone(), params)
             .unwrap();
     }
-    
+
     mixer.set_speaker(Some(ids[0])).expect("set speaker failed");
 
     mixer.play();
