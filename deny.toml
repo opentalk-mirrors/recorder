@@ -178,7 +178,7 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     { name = "spin",  version= "=0.5.2"},
-    { name = "concurrent-queue",  version= "=1.2.4"}
+    { name = "hermit-abi", version= "=0.1.19"}
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
