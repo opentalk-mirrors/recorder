@@ -160,6 +160,11 @@ where
         let speaking_title = bin.by_name("video-speaking-overlay").unwrap();
         let video_out = bin.by_name("video-out").unwrap();
 
+        compositor.set_property_from_str("ignore-inactive-pads", "true");
+        for _ in 0..max_visible + 1 {
+            let pad = compositor.request_pad_simple("sink_%u").unwrap();
+            pad.set_property_from_str("sizing-policy", "keep-aspect-ratio")
+        }
         // get audio elements from bin
         let audio_mixer = bin.by_name("audio-mixer").unwrap();
         let audio_out = bin.by_name("audio-out").unwrap();
