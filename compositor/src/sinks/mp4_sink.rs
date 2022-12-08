@@ -55,12 +55,18 @@ impl Sink for Mp4Sink {
             }
         }
 
+        let address = &format!("tcp://{}", self.matroska_sink.address);
+
         // TODO: use free codecs instead of ffmpeg's mp4 default.
         // using the commented out codec settings often leads to errors when ending the recording and 10-20 seconds
         // missing in the end. following errors are printed:
         //
         // [matroska,webm @ 0x557819b598c0] File ended prematurely
         // [matroska,webm @ 0x557819b598c0] Seek to desired resync point failed. Seeking to earliest point available instead.
+        debug!(
+            "Starting ffmpeg to process into output DASH into \"{}\", connection is: {address}",
+            self.file_path
+        );
         self.process = Some(
             std::process::Command::new("ffmpeg")
                 .args([
@@ -70,7 +76,7 @@ impl Sink for Mp4Sink {
                     "-nostdin",
                     "-i",
                     // read from localhost and given port
-                    &format!("tcp://{}", self.matroska_sink.address),
+                    address,
                     // set video codec
                     //"-codec:v:0",
                     //"libvpx-vp9",

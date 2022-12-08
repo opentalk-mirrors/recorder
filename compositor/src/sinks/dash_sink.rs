@@ -61,7 +61,7 @@ pub struct DashParameters {
 }
 
 fn update(files: Vec<&OsStr>) {
-    trace!("updated files: {:?}", files);
+    debug!("updated files: {:?}", files);
 }
 
 impl Default for DashParameters {
@@ -231,7 +231,6 @@ impl Sink for DashSink {
                 _ => (),
             }
         }
-
         // Drop temp_dir to delete directory
         self.temp_dir.take();
     }

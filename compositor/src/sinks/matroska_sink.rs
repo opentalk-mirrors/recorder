@@ -95,7 +95,7 @@ impl Sink for MatroskaSink {
         let (stop_listen, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
         let listener = TcpListener::bind(params.address).unwrap();
         let address = listener.local_addr().unwrap();
-        trace!("Start listening on {address}",);
+        debug!("Start listening on {address}",);
 
         // spawn a thread which waits until the channel
         std::thread::spawn(move || loop {
