@@ -431,7 +431,13 @@ where
                 .visibles
                 .iter()
                 .position(|&id| id == speaker_id)
-                .expect(&format!("speaker({0:?}) must be visible({1:?})", speaker_id, self.visibles));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "speaker({0:?}) must be visible({1:?})",
+                        speaker_id, self.visibles
+                    )
+                });
+
             self.layout_overlay(
                 &self.speaking_title,
                 self.layout.speaking_position(speaker_position),
