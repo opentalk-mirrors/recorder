@@ -58,19 +58,19 @@ lint:yaml:
     - pacman -Syy --noconfirm yamllint
   script: yamllint .
 
-test:cargo_test:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-    - if: $CI_PIPELINE_SOURCE == 'schedule'
-    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-  stage: test
-  before_script:
-    - >
-      apk add --no-cache
-      musl-dev glib-dev openssl-dev
-      gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev gst-plugins-good
-  script:
-    - cargo test --workspace --locked
+# test:cargo_test:
+#  rules:
+#    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+#    - if: $CI_PIPELINE_SOURCE == 'schedule'
+#    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+#  stage: test
+#  before_script:
+#    - >
+#      apk add --no-cache
+#      musl-dev glib-dev openssl-dev
+#      gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev gst-plugins-good
+#  script:
+#    - cargo test --workspace --locked
 
 test:doc:
   rules:

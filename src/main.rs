@@ -269,6 +269,7 @@ impl RecordingSession {
                     self.mixer.remove_participant(id)?;
                     self.set_visibles()?;
                     self.mixer.play();
+                    return Ok(());
                 }
 
                 log::trace!(
