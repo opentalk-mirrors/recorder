@@ -8,6 +8,8 @@ mod speaker_mode;
 
 use core::{fmt::Debug, hash::Hash};
 
+use crate::*;
+
 fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
 where
     ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
@@ -19,16 +21,14 @@ where
 }
 
 fn generate_participants<L, SINK, ID>(
-    mixer: &mut crate::Mixer<L, crate::TestSource, SINK, ID>,
+    mixer: &mut Mixer<L, TestSource, SINK, ID>,
     n: u32,
 ) -> (Vec<(ID, String)>, Vec<ID>)
 where
-    L: crate::Layout,
+    L: Layout,
     SINK: crate::Sink,
     ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
 {
-    use crate::{Pattern, Size, TestSourceParameters};
-
     let participants = generate_ids(n);
     let ids: Vec<ID> = participants.iter().map(|p| p.0).collect();
 

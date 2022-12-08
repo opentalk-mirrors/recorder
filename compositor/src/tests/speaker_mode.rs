@@ -1,5 +1,7 @@
+use super::*;
 use crate::*;
 
+// what we need from external libraries
 use core::time::Duration;
 use std::thread::sleep;
 
@@ -23,7 +25,7 @@ fn test_speaker_mode() {
 
     mixer.generate_dot_file("test_speaker_mode-0", gst::DebugGraphDetails::ALL);
 
-    super::generate_participants(&mut mixer, 8);
+    generate_participants(&mut mixer, 8);
 
     mixer.play();
 
