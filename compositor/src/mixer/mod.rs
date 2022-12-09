@@ -109,6 +109,7 @@ where
                     ! compositor
                         name=video-compositor
                         ignore-inactive-pads=true
+                        zero-size-is-unscaled=true
                     ! clockoverlay
                         name=video-clock-overlay
                         font-desc=Sans,14
@@ -183,11 +184,13 @@ where
         // prepare enough sink pads at video compositor to take max_visibles video streams
         let mut video_sink_pads = Vec::new();
         for i in 0..max_visible {
-            let video_sink_ghostpad = gst::GhostPad::with_target(
-                Some(&format!("video_sink_{i}")),
-                &compositor.request_pad_simple("sink_%u").unwrap(),
-            )
-            .unwrap();
+            // create sink pad at compositor
+            let pad = compositor.request_pad_simple("sink_%u").unwrap();
+            // set sizing policy to get automatic padding from compositor
+            pad.set_property_from_str("sizing-policy", "keep-aspect-ratio");
+            // add and link ghost pad for this sink
+            let video_sink_ghostpad =
+                gst::GhostPad::with_target(Some(&format!("video_sink_{i}")), &pad).unwrap();
             bin.add_pad(&video_sink_ghostpad).unwrap();
             video_sink_pads.push(video_sink_ghostpad.upcast::<gst::Pad>());
         }
