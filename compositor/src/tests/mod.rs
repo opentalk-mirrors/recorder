@@ -6,7 +6,7 @@ mod mixer;
 mod mp4;
 mod speaker_mode;
 
-use core::{fmt::Debug, hash::Hash};
+use core::{fmt::Debug, hash::Hash, time::Duration};
 
 use crate::*;
 
@@ -51,4 +51,16 @@ where
         mixer.add_participant(*id, name.clone(), params).unwrap();
     }
     (participants, ids)
+}
+
+fn wait_secs(sec: u64) {
+    debug!("waiting {sec} second(s)...");
+    std::thread::sleep(Duration::from_secs(sec));
+    debug!("...waited {sec} second(s).");
+}
+
+fn wait_millis(milli_sec: u64) {
+    debug!("waiting {milli_sec} millisecond(s)...");
+    std::thread::sleep(Duration::from_millis(milli_sec));
+    debug!("...waited {milli_sec} millisecond(s).");
 }

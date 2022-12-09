@@ -1,5 +1,5 @@
+use super::*;
 use crate::*;
-use core::time::Duration;
 
 #[test]
 fn test_mp4() {
@@ -37,5 +37,5 @@ fn test_mp4() {
     mixer.generate_dot_file("test_mp4", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(4));
+    wait_secs(4);
 }

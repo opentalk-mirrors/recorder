@@ -745,7 +745,7 @@ where
 {
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {
-        trace!("exiting mixer");
+        debug!("exiting mixer...");
 
         if self.pipeline.current_state() == gst::State::Paused {
             self.pipeline
@@ -753,20 +753,20 @@ where
                 .expect("failed to set pipeline state to playing");
         }
 
-        // call sink to prepare for dropping pipeline
-        self.output.on_exit(&self.pipeline);
-
         self.pause();
 
         for id in self.participants.keys().cloned().collect::<Vec<_>>() {
             let _ = self.remove_participant(id);
         }
 
+        // call sink to prepare for dropping pipeline
+        self.output.on_exit(&self.pipeline);
+
         // stop pipeline
         self.pipeline
             .set_state(gst::State::Null)
-            .expect("Unable to set the pipeline to the `Null` state");
+            .expect("unable to set the pipeline to the `Null` state");
 
-        trace!("Mixer exited successfully");
+        debug!("...mixer exited successfully.");
     }
 }

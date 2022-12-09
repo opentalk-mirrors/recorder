@@ -1,5 +1,5 @@
+use super::*;
 use crate::*;
-use core::time::Duration;
 
 #[test]
 fn test_dash() {
@@ -41,5 +41,5 @@ fn test_dash() {
     mixer.generate_dot_file("test_dash", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(20));
+    wait_secs(20);
 }

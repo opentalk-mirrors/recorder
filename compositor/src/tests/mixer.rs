@@ -1,6 +1,5 @@
+use super::*;
 use crate::*;
-use std::thread::sleep;
-use std::time::Duration;
 
 #[test]
 fn test_speaker_layout() {
@@ -37,7 +36,7 @@ where
     let participants = super::generate_ids::<u32>(8);
     let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
 
-    sleep(Duration::from_millis(500));
+    wait_millis(500);
 
     mixer.set_subtitle("Sub title");
     mixer.set_title("Add 8 Participants");
@@ -62,7 +61,7 @@ where
             &format!("test_layout-{}-1.{}", L::NAME, j),
             gst::DebugGraphDetails::ALL,
         );
-        sleep(Duration::from_millis(time));
+        wait_millis(time);
     }
 
     for i in 0..6 {
@@ -76,7 +75,7 @@ where
             &format!("test_layout-{}-2.{}", L::NAME, j),
             gst::DebugGraphDetails::ALL,
         );
-        sleep(Duration::from_millis(time));
+        wait_millis(time);
     }
 }
 
@@ -111,8 +110,7 @@ where
     );
 
     let time = 3000;
-
-    sleep(Duration::from_millis(500));
+    wait_millis(500);
     mixer.pause();
 
     let (_, ids) = super::generate_participants(&mut mixer, 5);
@@ -129,9 +127,9 @@ where
             &format!("test_layout_different_resolutions-{}-1.{i}", L::NAME),
             gst::DebugGraphDetails::ALL,
         );
-        sleep(Duration::from_millis(time));
+        wait_millis(time);
     }
-    sleep(Duration::from_millis(time));
+    wait_millis(time);
 }
 
 #[test]
@@ -155,12 +153,12 @@ fn test_remove() {
 
         mixer.generate_dot_file(&format!("test_remove-{i}-0"), gst::DebugGraphDetails::ALL);
 
-        sleep(Duration::from_millis(100));
+        wait_millis(500);
 
         mixer.play();
         mixer.generate_dot_file(&format!("test_remove-{i}-1"), gst::DebugGraphDetails::ALL);
 
-        sleep(Duration::from_millis(100));
+        wait_millis(100);
 
         mixer.set_title("remove 0 (left 1-7)");
         mixer.pause();
@@ -170,7 +168,7 @@ fn test_remove() {
 
         mixer.generate_dot_file(&format!("test_remove-{i}-2"), gst::DebugGraphDetails::ALL);
 
-        sleep(Duration::from_millis(100));
+        wait_millis(100);
 
         mixer.set_title("remove 1-2 (left 3-7)");
         mixer.pause();
@@ -179,7 +177,7 @@ fn test_remove() {
         mixer.play();
         mixer.generate_dot_file(&format!("test_remove-{i}-3"), gst::DebugGraphDetails::ALL);
 
-        sleep(Duration::from_millis(100));
+        wait_millis(100);
 
         mixer.set_title("remove 3-6 (left 7)");
         mixer.pause();
@@ -190,7 +188,7 @@ fn test_remove() {
         mixer.play();
         mixer.generate_dot_file(&format!("test_remove-{i}-4"), gst::DebugGraphDetails::ALL);
 
-        sleep(Duration::from_millis(100));
+        wait_millis(100);
 
         mixer.set_title("remove 7 (none left)");
         mixer.pause();
@@ -208,6 +206,6 @@ fn test_remove() {
         assert!(mixer.remove_participant(6).is_err());
         assert!(mixer.remove_participant(7).is_err());
 
-        sleep(Duration::from_millis(100));
+        wait_millis(100);
     }
 }

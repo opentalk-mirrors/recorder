@@ -1,5 +1,5 @@
+use super::*;
 use crate::*;
-use core::time::Duration;
 
 #[test]
 fn test_matroska() {
@@ -38,5 +38,5 @@ fn test_matroska() {
     mixer.generate_dot_file("test_matroska", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(3));
+    wait_secs(3);
 }
