@@ -8,6 +8,7 @@
         "avdec_vp8",
         "avenc",
         "blocksize",
+        "canonicalize",
         "capssetter",
         "clockoverlay",
         "dashsink",

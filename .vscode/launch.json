@@ -23,7 +23,7 @@
             },
             "args": [],
             "env": {
-                "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor/pipelines",
+                "GST_DEBUG_DUMP_DOT_DIR": "${workspaceFolder}/compositor/pipelines",
                 "RUST_LOG": "trace"
             },
             "cwd": "${workspaceFolder}/compositor"
@@ -57,7 +57,8 @@
                 "grid"
             ],
             "env": {
-                "GST_DEBUG_DUMP_DOT_DIR": "/home/pat/git/heinlein/recorder/compositor/pipelines",
+                "GST_DEBUG": "4",
+                "GST_DEBUG_DUMP_DOT_DIR": "${workspaceFolder}/compositor/pipelines",
                 "RUST_LOG": "trace"
             },
             "cwd": "${workspaceFolder}/compositor"
