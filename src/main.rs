@@ -334,15 +334,24 @@ impl RecordingSession {
     }
 
     fn set_visibles(&mut self) -> Result<()> {
-        self.mixer.set_visibles(
-            &self
-                .mixer
-                .participants
-                .keys()
-                .take(MAX_VISIBLES)
-                .copied()
-                .collect::<Vec<_>>(),
-        )?;
+        let visibles = self
+            .mixer
+            .participants
+            .keys()
+            .filter(|id| {
+                // check with the signaling's participant-list if the participant's video is enabled
+                self.signaling
+                    .participants()
+                    .get(id)
+                    .map(|state| state.is_showing_video(MediaSessionType::Video))
+                    .unwrap_or_default()
+            })
+            .take(MAX_VISIBLES)
+            .copied()
+            .collect::<Vec<_>>();
+
+        self.mixer.set_visibles(&visibles)?;
+
         Ok(())
     }
 
