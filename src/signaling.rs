@@ -24,6 +24,7 @@ pub struct Signaling {
 
 pub struct ParticipantState {
     pub display_name: String,
+    pub consents: bool,
     publishing: HashSet<MediaSessionType>,
 }
 
@@ -41,12 +42,13 @@ impl ParticipantState {
 
         Self {
             display_name: p.control.display_name,
+            consents: p.recording.consents_recording,
             publishing,
         }
     }
 
     pub fn publishes(&self, typ: MediaSessionType) -> bool {
-        self.publishing.contains(&typ)
+        self.publishing.contains(&typ) && self.consents
     }
 }
 
@@ -316,6 +318,8 @@ mod incoming {
         pub control: ControlData,
         #[serde(default)]
         pub media: MediaData,
+        #[serde(default)]
+        pub recording: RecordingData,
     }
 
     #[derive(Debug, Deserialize)]
@@ -327,6 +331,12 @@ mod incoming {
     pub struct MediaData {
         pub video: Option<MediaSessionState>,
         pub screen: Option<MediaSessionState>,
+    }
+
+    #[derive(Debug, Default, Deserialize)]
+    pub struct RecordingData {
+        #[serde(default)]
+        pub consents_recording: bool,
     }
 
     #[derive(Debug, Deserialize)]
