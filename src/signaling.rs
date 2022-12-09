@@ -488,8 +488,9 @@ pub struct TrickleCandidate {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[serde(rename_all = "snake_case")]
 pub enum MediaSessionType {
-    Video,
-    Screen,
+    #[serde(rename = "video")]
+    Camera,
+    #[serde(rename = "screen")]
+    ScreenCapture,
 }

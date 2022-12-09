@@ -174,7 +174,7 @@ impl RecordingSession {
             .iter()
             .filter_map(|(id, state)| {
                 state
-                    .publishes(MediaSessionType::Video)
+                    .publishes(MediaSessionType::Camera)
                     .then(|| (*id, state.display_name.clone()))
             })
             .collect::<Vec<_>>();
@@ -187,7 +187,7 @@ impl RecordingSession {
                 participant_params(id, candidate_sender.clone()),
             )?;
             signaling
-                .start_subscribe(id, MediaSessionType::Video)
+                .start_subscribe(id, MediaSessionType::Camera)
                 .await?;
         }
 
@@ -229,7 +229,7 @@ impl RecordingSession {
             Event::ParticipantJoined(id) => {
                 let state = &self.signaling.participants()[&id];
 
-                if state.publishes(MediaSessionType::Video) {
+                if state.publishes(MediaSessionType::Camera) {
                     log::debug!("Join: subscribe Video of {:?}", id);
                     self.mixer.pause();
                     self.mixer.add_participant(
@@ -239,13 +239,13 @@ impl RecordingSession {
                     )?;
                     self.mixer.play();
                     self.signaling
-                        .start_subscribe(id, MediaSessionType::Video)
+                        .start_subscribe(id, MediaSessionType::Camera)
                         .await?;
                 }
             }
             Event::ParticipantUpdated(id) => {
                 let state = &self.signaling.participants()[&id];
-                let has_video_feed = state.publishes(MediaSessionType::Video);
+                let has_video_feed = state.publishes(MediaSessionType::Camera);
                 let is_subscribed = self.mixer.participants.contains_key(&id);
 
                 if !is_subscribed && has_video_feed {
@@ -258,7 +258,7 @@ impl RecordingSession {
                     )?;
                     self.mixer.play();
                     self.signaling
-                        .start_subscribe(id, MediaSessionType::Video)
+                        .start_subscribe(id, MediaSessionType::Camera)
                         .await?;
                     return Ok(());
                 }
@@ -343,7 +343,7 @@ impl RecordingSession {
                 self.signaling
                     .participants()
                     .get(id)
-                    .map(|state| state.is_showing_video(MediaSessionType::Video))
+                    .map(|state| state.is_showing_video(MediaSessionType::Camera))
                     .unwrap_or_default()
             })
             .take(MAX_VISIBLES)
@@ -364,7 +364,7 @@ impl RecordingSession {
             self.signaling
                 .send_candidate(
                     id,
-                    MediaSessionType::Video,
+                    MediaSessionType::Camera,
                     TrickleCandidate {
                         candidate,
                         sdp_m_line_index: mline as u64,
@@ -373,7 +373,7 @@ impl RecordingSession {
                 .await
         } else {
             self.signaling
-                .send_end_of_candidates(id, MediaSessionType::Video)
+                .send_end_of_candidates(id, MediaSessionType::Camera)
                 .await
         }
     }
