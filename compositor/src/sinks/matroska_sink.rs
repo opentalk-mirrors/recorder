@@ -44,7 +44,7 @@ impl Sink for MatroskaSink {
                     name=matroska-video
                 ! videorate
                 ! videoscale
-                ! video/x-raw,format=I420,framerate=25/1,pixel-aspect-ratio=1/1
+                ! video/x-raw,format=I420,framerate=25/1,pixel-aspect-ratio=1/1,colorimetry=bt709
                 ! matroska-mux.
 
                 audioconvert
