@@ -32,7 +32,7 @@ fn main() -> Result<()> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
-            .unwrap()
+            .expect("Failed to start tokio async runtime")
             .block_on(main2())
     });
 
@@ -73,12 +73,11 @@ async fn main2() -> Result<()> {
         )
         .await?;
 
-    // TODO: this grows into infinity
     let mut tasks = vec![];
 
     while let Some(delivery) = consumer.next().await {
         match delivery {
-            Ok(delivery) => {
+            Ok(ref delivery) => {
                 if let Err(e) = delivery.ack(Default::default()).await {
                     log::error!("failed to ACK {e:?}");
                 }
@@ -86,18 +85,20 @@ async fn main2() -> Result<()> {
                 if let Ok(command) =
                     serde_json::from_slice::<commands::StartRecording>(&delivery.data)
                 {
-                    log::debug!("Received command {command:?}");
+                    log::debug!("Received start command ({command:?})");
                     let settings = settings.clone();
                     let http_client = http_client.clone();
 
-                    tasks.push(tokio::spawn(async move {
-                        RecordingSession::create(settings, http_client, command)
+                    let recording_task = tokio::spawn(async move {
+                        RecordingSession::create(settings, http_client, command.clone())
                             .await
-                            .unwrap()
+                            .expect("Failed to start signaling session")
                             .run()
                             .await
-                            .unwrap();
-                    }));
+                            .expect("Recording session crashed");
+                    });
+
+                    tasks.push(recording_task);
                 }
             }
             Err(e) => {
@@ -105,6 +106,8 @@ async fn main2() -> Result<()> {
                 break;
             }
         }
+
+        tasks.retain(|task| !task.is_finished());
     }
 
     log::info!("Exiting, waiting for all tasks to finish");
@@ -207,6 +210,7 @@ impl RecordingSession {
         while !self.done {
             tokio::select! {
                 event = self.signaling.run() => {
+                    log::trace!("signaling_event {:?}", event);
                     self.handle_signaling_event(event?).await?;
                 }
                 candidate = self.candidate_receiver.recv() => {
@@ -244,40 +248,37 @@ impl RecordingSession {
                 let has_video_feed = state.publishes(MediaSessionType::Video);
                 let is_subscribed = self.mixer.participants.contains_key(&id);
 
-                if has_video_feed == is_subscribed {
-                    log::debug!(
-                        "ignore update for {:?}: has_video_feed ({}) == is_subscribed ({})",
-                        id,
-                        has_video_feed,
-                        is_subscribed
-                    );
-                    return Ok(());
-                }
-                self.mixer.pause();
-
-                if !is_subscribed {
-                    // Now publishing
+                if !is_subscribed && has_video_feed {
                     log::debug!("Update: subscribe Video of {:?}", id);
+                    self.mixer.pause();
                     self.mixer.add_participant(
                         id,
                         id.0.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
                     )?;
-                    // postpone the real subscription until the pipeline is running again
-                } else {
-                    // Unpublished
-                    log::debug!("Update: unsubscribe Video of {:?}", id);
-                    self.mixer.remove_participant(id)?;
-                    self.set_visibles()?;
-                }
-
-                self.mixer.play();
-
-                if is_subscribed {
+                    self.mixer.play();
                     self.signaling
                         .start_subscribe(id, MediaSessionType::Video)
                         .await?;
+                    return Ok(());
                 }
+
+                if is_subscribed && !has_video_feed {
+                    log::debug!("Update: unsubscribe Video of {:?}", id);
+                    self.mixer.pause();
+                    self.mixer.remove_participant(id)?;
+                    self.set_visibles()?;
+                    self.mixer.play();
+                    return Ok(());
+                }
+
+                log::trace!(
+                    "ignore update for {:?}: has_video_feed ({}) == is_subscribed ({})",
+                    id,
+                    has_video_feed,
+                    is_subscribed
+                );
+                return Ok(());
             }
             Event::ParticipantLeft(id) => {
                 if self.mixer.participants.contains_key(&id) {
@@ -290,6 +291,12 @@ impl RecordingSession {
                 if self.signaling.participants().is_empty() {
                     self.done = true;
                     log::debug!("Last participant left the session. Stop recording.");
+                } else {
+                    log::trace!(
+                        "{} remaining participants : {:?}",
+                        self.signaling.participants().len(),
+                        self.signaling.participants().keys()
+                    );
                 }
             }
             Event::SdpOffer(id, typ, offer) => {
@@ -311,13 +318,16 @@ impl RecordingSession {
                     participant.source.receive_end_of_candidates(0).await;
                 }
             }
-            Event::Close => self.done = true,
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Set active speaker to {:?}", focus_change);
                 self.mixer.pause();
                 self.mixer.set_speaker(focus_change)?;
                 self.mixer.play();
             }
+            Event::MediaConnectionError(error) => {
+                log::warn!("Skipping media connection error: {:?}", error);
+            }
+            Event::Close => self.done = true,
         }
 
         Ok(())
@@ -364,9 +374,14 @@ impl RecordingSession {
 
         spawn_blocking(move || drop(mixer)).await?;
 
-        let file = tokio::fs::File::open(self.temp_dir.path().join("out.mp4")).await?;
+        let recording_path = self.temp_dir.path().join("out.mp4");
+        let file = tokio::fs::File::open(&recording_path).await?;
 
-        log::trace!("upload mp4 file");
+        log::debug!(
+            "upload mp4 file '{:?}' for room: {}",
+            recording_path,
+            &self.room_id
+        );
 
         self.http_client
             .upload_render(
@@ -376,7 +391,7 @@ impl RecordingSession {
             )
             .await?;
 
-        log::trace!("finished uploading mp4 file");
+        log::debug!("finished uploading recording for room '{}'", &self.room_id);
 
         Ok(())
     }
