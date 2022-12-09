@@ -123,6 +123,8 @@ impl Sink for DashSink {
             }
         };
 
+        trace!("Current directory {:?}", std::env::current_dir());
+
         // start ffmpeg to fetch output stream and create DASH files
         self.process = Some(
             std::process::Command::new("ffmpeg")
@@ -156,12 +158,16 @@ impl Sink for DashSink {
                 .unwrap(),
         );
 
+        // check if the output directory exists
+        let output_dir = output_dir
+            .canonicalize()
+            .unwrap_or_else(|_| panic!("invalid DASH target path {output_dir:?}"));
+
         // spawn a thread which checks for file updates
         std::thread::spawn({
             // initialize inotify
             let mut inotify = Inotify::init().unwrap();
-
-            trace!("Writing DASH files into {}", output_dir.to_string_lossy());
+            debug!("Writing DASH files into {}", output_dir.to_string_lossy());
 
             // add watch to that folder
             inotify
