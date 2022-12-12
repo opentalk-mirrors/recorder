@@ -149,53 +149,62 @@ fn test_remove() {
             .unwrap();
     mixer.play();
 
-    mixer.generate_dot_file("test_remove-0", gst::DebugGraphDetails::ALL);
+    super::generate_participants(&mut mixer, 8);
 
-    let participants = super::generate_ids(8);
-    let ids: Vec<u32> = participants.iter().map(|p| p.0).collect();
+    mixer.generate_dot_file("test_remove-0", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_millis(500));
 
-    mixer.set_title("add 8 participants");
-    mixer.pause();
-    for (id, name) in &participants {
-        let params = TestSourceParameters {
-            resolution: Size::FHD,
-            ..Default::default()
-        };
-        mixer.add_participant(*id, name.into(), params).unwrap();
-    }
     mixer.play();
     mixer.generate_dot_file("test_remove-1", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_millis(500));
 
-    mixer.set_title("show 1-4");
+    mixer.set_title("remove 0 (left 1-7)");
     mixer.pause();
-    mixer.set_visibles(&ids[0..4]).unwrap();
+    mixer.remove_participant(0).unwrap();
+    //    mixer.set_visibles(&ids[1..5]).unwrap();
     mixer.play();
 
     mixer.generate_dot_file("test_remove-2", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 
-    mixer.set_title("remove 1-2");
+    mixer.set_title("remove 1-2 (left 3-7)");
     mixer.pause();
-    for (id, _) in &participants[0..2] {
-        mixer.remove_participant(*id).unwrap();
-    }
+    mixer.remove_participant(1).unwrap();
+    mixer.remove_participant(2).unwrap();
     mixer.play();
     mixer.generate_dot_file("test_remove-3", gst::DebugGraphDetails::ALL);
 
     sleep(Duration::from_secs(1));
 
-    mixer.set_title("show 2-6");
+    mixer.set_title("remove 3-6 (left 7)");
     mixer.pause();
-    for (id, _) in &participants[4..8] {
-        mixer.remove_participant(*id).unwrap();
-    }
+    mixer.remove_participant(3).unwrap();
+    mixer.remove_participant(4).unwrap();
+    mixer.remove_participant(5).unwrap();
+    mixer.remove_participant(6).unwrap();
     mixer.play();
     mixer.generate_dot_file("test_remove-4", gst::DebugGraphDetails::ALL);
+
+    sleep(Duration::from_secs(1));
+
+    mixer.set_title("remove 7 (none left)");
+    mixer.pause();
+    mixer.remove_participant(7).unwrap();
+    mixer.play();
+    mixer.generate_dot_file("test_remove-5", gst::DebugGraphDetails::ALL);
+
+    // check if we cannot remove any of which we removed before
+    assert!(mixer.remove_participant(0).is_err());
+    assert!(mixer.remove_participant(1).is_err());
+    assert!(mixer.remove_participant(2).is_err());
+    assert!(mixer.remove_participant(3).is_err());
+    assert!(mixer.remove_participant(4).is_err());
+    assert!(mixer.remove_participant(5).is_err());
+    assert!(mixer.remove_participant(6).is_err());
+    assert!(mixer.remove_participant(7).is_err());
 
     sleep(Duration::from_secs(1));
 }

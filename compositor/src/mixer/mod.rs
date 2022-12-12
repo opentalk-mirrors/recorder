@@ -148,11 +148,6 @@ where
         let video_out = pipeline.by_name("video-out").unwrap();
         let video_output_pad = video_out.static_pad("src").unwrap();
 
-        compositor.set_property_from_str("ignore-inactive-pads", "true");
-        for _ in 0..max_visible + 1 {
-            let pad = compositor.request_pad_simple("sink_%u").unwrap();
-            pad.set_property_from_str("sizing-policy", "keep-aspect-ratio")
-        }
         // get audio elements from bin
         let audio_mixer = pipeline.by_name("audio-mixer").unwrap();
         let audio_out = pipeline.by_name("audio-out").unwrap();
@@ -232,8 +227,8 @@ where
     /// remove an once added participant from the mixer.
     /// # Arguments
     /// - `id`: Unique identifier of the participant.
-    pub fn remove_participant(&mut self, id: ID) -> Result<(), Error<ID>> {
-        debug!("remove participant {id:?}");
+    pub fn remove_participant(&mut self, remove_id: ID) -> Result<(), Error<ID>> {
+        debug!("remove participant {remove_id:?}");
 
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
@@ -241,17 +236,42 @@ where
         }
 
         // unlink participant from rest of the pipeline
-        self.unlink_audio(id)?;
-        self.unlink_video(id)?;
+        self.unlink_audio(remove_id)?;
+        self.unlink_video(remove_id)?;
 
         // remove participant from stored participants
         let participant = self
             .participants
-            .remove(&id)
-            .ok_or(Error::ParticipantNotFound(id))?;
+            .remove(&remove_id)
+            .ok_or(Error::ParticipantNotFound(remove_id))?;
 
-        // remove participant's source from pipeline
         participant.source.remove(&self.pipeline);
+
+        // check if participant is visible
+        if let Some(pos) = self.visibles.iter().position(|i| i == &remove_id) {
+            self.visibles.remove(pos);
+        }
+
+        // fill up visibles with invisible participants
+        if self.visibles.len() < self.max_visible {
+            // clone currently visible participants to make a new list
+            let mut visibles = self.visibles.clone();
+            // add all participants to this list which are invisible and not the removed one
+            for id in self.participants.keys() {
+                if !self.visibles.contains(id) {
+                    visibles.push(*id);
+                    // stop if we reach max_visible
+                    if visibles.len() == self.max_visible {
+                        break;
+                    }
+                }
+            }
+            debug!(
+                "automatically filling up visibles with former invisible participants {visibles:?}"
+            );
+            // update visibles
+            self.set_visibles(&visibles).unwrap();
+        }
 
         // re-layout
         self.layout()?;
@@ -265,7 +285,7 @@ where
     /// # Arguments
     /// - `ids`: List of identifiers of participants which shall get visible
     pub fn set_visibles(&mut self, ids: &[ID]) -> Result<(), Error<ID>> {
-        debug!("set visibiles: {:?}", self.visibles);
+        debug!("set visibles: {:?} -> {:?}", self.visibles, ids);
 
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
@@ -283,8 +303,8 @@ where
         }
 
         // Link all given participants
-        for (n, id) in ids.iter().enumerate() {
-            self.link_video_to_compositor(*id, n)?;
+        for id in ids {
+            self.link_video_to_compositor(*id)?;
         }
 
         // copy ID list of visibles
@@ -541,9 +561,13 @@ where
 
         match &participant.video_link_status {
             VideoLinkStatus::None => {}
-            VideoLinkStatus::Fakesink(_) => return Ok(()),
-            VideoLinkStatus::Compositor(_, pad) => {
-                participant.source.video_src_pad().unlink(pad).unwrap()
+            VideoLinkStatus::Fakesink(_) => {
+                warn!("trying to link participant {id:?} to fakesink when it is already linked");
+                return Ok(());
+            }
+            VideoLinkStatus::Compositor(pad) => {
+                participant.source.video_src_pad().unlink(pad).unwrap();
+                self.compositor.release_request_pad(pad);
             }
         }
 
@@ -554,15 +578,14 @@ where
             .video_src_pad()
             .link(&fakesink.static_pad("sink").unwrap())
             .unwrap();
-
         participant.video_link_status = VideoLinkStatus::Fakesink(fakesink);
 
         Ok(())
     }
 
     /// Link participant's source to video compositor.
-    fn link_video_to_compositor(&mut self, id: ID, n: usize) -> Result<(), Error<ID>> {
-        trace!("linking video of {id:?} to compositor@{n}...");
+    fn link_video_to_compositor(&mut self, id: ID) -> Result<(), Error<ID>> {
+        trace!("linking video of {id:?} to compositor...");
 
         let participant = self
             .participants
@@ -580,25 +603,22 @@ where
                 fakesink.set_state(gst::State::Null).unwrap();
                 self.pipeline.remove(fakesink).unwrap();
             }
-            VideoLinkStatus::Compositor(curr_n, pad) => {
-                if *curr_n != n {
-                    participant.source.video_src_pad().unlink(pad).unwrap();
-                }
+            VideoLinkStatus::Compositor(_) => {
+                warn!("trying to link participant {id:?} to compositor when it is already linked");
+                return Ok(());
             }
         }
 
-        let compositor_sink_pads = self.compositor.sink_pads();
+        trace!("creating compositor sink for participant {id:?}");
+        let pad = self
+            .compositor
+            .request_pad_simple("sink_%u")
+            .expect("cannot create sink pad");
+        pad.set_property_from_str("sizing-policy", "keep-aspect-ratio");
+        participant.source.video_src_pad().link(&pad).unwrap();
+        participant.video_link_status = VideoLinkStatus::Compositor(pad);
 
-        participant
-            .source
-            .video_src_pad()
-            .link(&compositor_sink_pads[n + 1])
-            .unwrap();
-
-        participant.video_link_status =
-            VideoLinkStatus::Compositor(n, compositor_sink_pads[n + 1].clone());
-
-        trace!("linked video of {id:?} to compositor@{n}...");
+        trace!("successfully linked video of {id:?} to compositor.");
 
         Ok(())
     }
@@ -623,8 +643,9 @@ where
                 fakesink.set_state(gst::State::Null).unwrap();
                 self.pipeline.remove(&fakesink).unwrap();
             }
-            VideoLinkStatus::Compositor(_, pad) => {
+            VideoLinkStatus::Compositor(pad) => {
                 participant.source.video_src_pad().unlink(&pad).unwrap();
+                self.compositor.release_request_pad(&pad);
             }
         }
 

@@ -7,8 +7,8 @@ pub enum VideoLinkStatus {
     None,
     /// Video source is linked to this fakesink
     Fakesink(gst::Element),
-    /// Video source is linked to this (nth) pad on the compositor
-    Compositor(usize, gst::Pad),
+    /// Video source is linked to the compositor
+    Compositor(gst::Pad),
 }
 
 /// Represents a participant.
