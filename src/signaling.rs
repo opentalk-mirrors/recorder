@@ -5,7 +5,7 @@ use anyhow::{bail, Context, Result};
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tt::tungstenite::client::IntoClientRequest;
@@ -26,30 +26,27 @@ pub struct Signaling {
 pub struct ParticipantState {
     pub display_name: String,
     pub consents: bool,
-    publishing: HashSet<MediaSessionType>,
+    publishing: HashMap<MediaSessionType, incoming::MediaSessionState>,
 }
 
 impl ParticipantState {
     fn from_incoming(p: incoming::Participant) -> Self {
-        let mut publishing = HashSet::new();
-
-        if p.media.video.is_some() {
-            publishing.insert(MediaSessionType::Video);
-        }
-
-        if p.media.screen.is_some() {
-            publishing.insert(MediaSessionType::Screen);
-        }
-
         Self {
             display_name: p.control.display_name,
             consents: p.recording.consents_recording,
-            publishing,
+            publishing: p.media.data,
         }
     }
 
     pub fn publishes(&self, typ: MediaSessionType) -> bool {
-        self.publishing.contains(&typ) && self.consents
+        self.publishing.contains_key(&typ) && self.consents
+    }
+
+    pub fn is_showing_video(&self, typ: MediaSessionType) -> bool {
+        self.publishing
+            .get(&typ)
+            .map(|state| state.video)
+            .unwrap_or_default()
     }
 }
 
@@ -305,6 +302,8 @@ struct Payload<'s, T> {
 pub struct ParticipantId(pub Uuid);
 
 mod incoming {
+    use std::collections::HashMap;
+
     use super::{MediaSessionType, ParticipantId, TrickleCandidate};
     use serde::Deserialize;
 
@@ -331,8 +330,8 @@ mod incoming {
 
     #[derive(Debug, Default, Deserialize)]
     pub struct MediaData {
-        pub video: Option<MediaSessionState>,
-        pub screen: Option<MediaSessionState>,
+        #[serde(flatten)]
+        pub data: HashMap<MediaSessionType, MediaSessionState>,
     }
 
     #[derive(Debug, Default, Deserialize)]
@@ -341,7 +340,7 @@ mod incoming {
         pub consents_recording: bool,
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Deserialize, Copy, Clone)]
     pub struct MediaSessionState {
         pub video: bool,
         pub audio: bool,
@@ -489,8 +488,9 @@ pub struct TrickleCandidate {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[serde(rename_all = "snake_case")]
 pub enum MediaSessionType {
-    Video,
-    Screen,
+    #[serde(rename = "video")]
+    Camera,
+    #[serde(rename = "screen")]
+    ScreenCapture,
 }
