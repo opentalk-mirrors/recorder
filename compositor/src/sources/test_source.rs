@@ -177,11 +177,6 @@ impl Source for TestSource {
                     ! videoconvert
                     ! imagefreeze
                         is-live=true
-                    ! videobox
-                        fill=black
-                        autocrop=true
-                    ! capssetter
-                        caps=video/x-raw,format=RGB,width={width},height={height}
                     ! videoscale
                     ! capssetter
                         caps=video/x-raw,format=RGB,width={out_width},height={out_height}
