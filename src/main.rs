@@ -160,7 +160,7 @@ impl RecordingSession {
 
         let mut mixer = Mixer::new(
             compositor::Size::FHD,
-            MAX_VISIBLES,
+            Some(MAX_VISIBLES),
             compositor::Mp4SinkParams {
                 file_path: file_path.to_str().unwrap().into(),
             },

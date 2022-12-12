@@ -17,7 +17,7 @@ fn test_speaker_mode() {
             width: 640,
             height: 480,
         },
-        4,
+        None,
         (),
         SpeakerMode::FirstShift,
     )

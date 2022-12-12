@@ -34,7 +34,7 @@ where
     /// GStreamer element which composes the output audio out of the source audios.
     pub audio_mixer: gst::Element,
     /// Maximum number of visible participants.
-    pub max_visible: usize,
+    pub max_visible: Option<usize>,
     /// Number of currently visible participants.
     pub visibles: Vec<ID>,
     /// GStreamer element for rendering a clock into the output picture if whished.
@@ -64,11 +64,11 @@ where
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     /// # Arguments
     /// - `resolution`: Output video resolution.
-    /// - `max_visibles`: Maximum number of visible participants.
+    /// - `max_visible`: Maximum number of visible participants.
     /// - `visibles`: Number of currently visible participants.
     pub fn new(
         resolution: Size,
-        max_visible: usize,
+        max_visible: Option<usize>,
         sink_params: SINK::Parameters,
         speaker_mode: layout::SpeakerMode,
     ) -> Result<Self, Error<ID>> {
@@ -207,17 +207,18 @@ where
         self.link_audio(id)?;
         self.link_video_to_fakesink(id)?;
 
-        // Show visibles if there is unused space
-        if self.visibles.len() < self.max_visible {
-            debug!("automatically making participant {id:?} visible because there are unused visible ports");
-            // get currently visible participants
-            let mut visibles = self.visibles.clone();
-            // make new participant visible
-            visibles.push(id);
-            // update visibles
-            self.set_visibles(&visibles).unwrap();
+        if let Some(max_visible) = self.max_visible {
+            // Show visibles if there is unused space
+            if self.visibles.len() < max_visible {
+                debug!("automatically making participant {id:?} visible because there are unused visible ports");
+                // get currently visible participants
+                let mut visibles = self.visibles.clone();
+                // make new participant visible
+                visibles.push(id);
+                // update visibles
+                self.set_visibles(&visibles).unwrap();
+            }
         }
-
         // re-layout
         self.layout()?;
 
@@ -252,25 +253,27 @@ where
             self.visibles.remove(pos);
         }
 
-        // fill up visibles with invisible participants
-        if self.visibles.len() < self.max_visible {
-            // clone currently visible participants to make a new list
-            let mut visibles = self.visibles.clone();
-            // add all participants to this list which are invisible and not the removed one
-            for id in self.participants.keys() {
-                if !self.visibles.contains(id) {
-                    visibles.push(*id);
-                    // stop if we reach max_visible
-                    if visibles.len() == self.max_visible {
-                        break;
+        if let Some(max_visible) = self.max_visible {
+            // fill up visibles with invisible participants
+            if self.visibles.len() < max_visible {
+                // clone currently visible participants to make a new list
+                let mut visibles = self.visibles.clone();
+                // add all participants to this list which are invisible and not the removed one
+                for id in self.participants.keys() {
+                    if !self.visibles.contains(id) {
+                        visibles.push(*id);
+                        // stop if we reach max_visible
+                        if visibles.len() == max_visible {
+                            break;
+                        }
                     }
                 }
-            }
-            debug!(
+                debug!(
                 "automatically filling up visibles with former invisible participants {visibles:?}"
             );
-            // update visibles
-            self.set_visibles(&visibles).unwrap();
+                // update visibles
+                self.set_visibles(&visibles).unwrap();
+            }
         }
 
         // re-layout
@@ -292,9 +295,11 @@ where
             return Err(Error::PlayingPipelineForbidden);
         }
 
-        // check if given list exceeds maximum length
-        if ids.len() > self.max_visible {
-            return Err(Error::TooManyVisibles);
+        if let Some(max_visible) = self.max_visible {
+            // check if given list exceeds maximum length
+            if ids.len() > max_visible {
+                return Err(Error::TooManyVisibles);
+            }
         }
 
         // Unlink all participants
@@ -343,10 +348,12 @@ where
                             visibles.remove(pos);
                         }
                         None => {
-                            // remove last visible if visibles are filled completely
-                            if visibles.len() == self.max_visible {
-                                trace!("remove last visible");
-                                visibles.pop();
+                            if let Some(max_visible) = self.max_visible {
+                                // remove last visible if visibles are filled completely
+                                if visibles.len() == max_visible {
+                                    trace!("remove last visible");
+                                    visibles.pop();
+                                }
                             }
                         }
                     }
@@ -363,10 +370,12 @@ where
                             visibles.swap(0, pos);
                         }
                         None => {
-                            // remove last visible if visibles are filled completely
-                            if visibles.len() == self.max_visible {
-                                trace!("remove last visible");
-                                visibles.pop();
+                            if let Some(max_visible) = self.max_visible {
+                                // remove last visible if visibles are filled completely
+                                if visibles.len() == max_visible {
+                                    trace!("remove last visible");
+                                    visibles.pop();
+                                }
                             }
                             // insert speaker at first
                             trace!("insert speaker {:?} at 0", *speaker_id);
@@ -458,7 +467,7 @@ where
 
         self.layout_overlay(
             &self.subtitle,
-            self.layout.subtitle_position(self.max_visible),
+            self.layout.subtitle_position(num_visible),
             self.layout.subtitle_alignment(num_visible),
         );
 

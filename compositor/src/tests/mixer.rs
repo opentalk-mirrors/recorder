@@ -3,12 +3,12 @@ use std::thread::sleep;
 use std::time::Duration;
 
 #[test]
-fn test_speaker() {
+fn test_speaker_layout() {
     test_layout::<Speaker, FakeSink>((), SpeakerMode::FirstShift);
 }
 
 #[test]
-fn test_grid() {
+fn test_grid_layout() {
     test_layout::<Grid, FakeSink>((), SpeakerMode::None);
 }
 
@@ -29,7 +29,7 @@ where
     };
 
     let mut mixer =
-        Mixer::<L, TestSource, SINK, u32>::new(resolution, 6, params, speaker_mode).unwrap();
+        Mixer::<L, TestSource, SINK, u32>::new(resolution, None, params, speaker_mode).unwrap();
     mixer.play();
     mixer.generate_dot_file("test_layout-0", gst::DebugGraphDetails::ALL);
 
@@ -41,13 +41,14 @@ where
 
     mixer.set_subtitle("Sub title");
     mixer.set_title("Add 8 Participants");
-    mixer.pause();
     for (id, name) in &participants {
         let params = TestSourceParameters {
             resolution: Size::SD,
             ..Default::default()
         };
+        mixer.pause();
         mixer.add_participant(*id, name.clone(), params).unwrap();
+        mixer.play();
     }
 
     for i in 0..6 {
@@ -102,7 +103,7 @@ where
     let resolution = Size::SD;
 
     let mut mixer =
-        Mixer::<L, TestSource, SINK, u32>::new(resolution, 5, params, speaker_mode).unwrap();
+        Mixer::<L, TestSource, SINK, u32>::new(resolution, None, params, speaker_mode).unwrap();
     mixer.play();
     mixer.generate_dot_file(
         &format!("test_layout_different_resolutions-{}-0", L::NAME),
@@ -145,66 +146,68 @@ fn test_remove() {
         height: 480,
     };
     let mut mixer =
-        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, 4, (), SpeakerMode::None)
+        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, Some(6), (), SpeakerMode::None)
             .unwrap();
     mixer.play();
 
-    super::generate_participants(&mut mixer, 8);
+    for i in 0..2 {
+        super::generate_participants(&mut mixer, 8);
 
-    mixer.generate_dot_file("test_remove-0", gst::DebugGraphDetails::ALL);
+        mixer.generate_dot_file(&format!("test_remove-{i}-0"), gst::DebugGraphDetails::ALL);
 
-    sleep(Duration::from_millis(500));
+        sleep(Duration::from_millis(100));
 
-    mixer.play();
-    mixer.generate_dot_file("test_remove-1", gst::DebugGraphDetails::ALL);
+        mixer.play();
+        mixer.generate_dot_file(&format!("test_remove-{i}-1"), gst::DebugGraphDetails::ALL);
 
-    sleep(Duration::from_millis(500));
+        sleep(Duration::from_millis(100));
 
-    mixer.set_title("remove 0 (left 1-7)");
-    mixer.pause();
-    mixer.remove_participant(0).unwrap();
-    //    mixer.set_visibles(&ids[1..5]).unwrap();
-    mixer.play();
+        mixer.set_title("remove 0 (left 1-7)");
+        mixer.pause();
+        mixer.remove_participant(0).unwrap();
 
-    mixer.generate_dot_file("test_remove-2", gst::DebugGraphDetails::ALL);
+        mixer.play();
 
-    sleep(Duration::from_secs(1));
+        mixer.generate_dot_file(&format!("test_remove-{i}-2"), gst::DebugGraphDetails::ALL);
 
-    mixer.set_title("remove 1-2 (left 3-7)");
-    mixer.pause();
-    mixer.remove_participant(1).unwrap();
-    mixer.remove_participant(2).unwrap();
-    mixer.play();
-    mixer.generate_dot_file("test_remove-3", gst::DebugGraphDetails::ALL);
+        sleep(Duration::from_millis(100));
 
-    sleep(Duration::from_secs(1));
+        mixer.set_title("remove 1-2 (left 3-7)");
+        mixer.pause();
+        mixer.remove_participant(1).unwrap();
+        mixer.remove_participant(2).unwrap();
+        mixer.play();
+        mixer.generate_dot_file(&format!("test_remove-{i}-3"), gst::DebugGraphDetails::ALL);
 
-    mixer.set_title("remove 3-6 (left 7)");
-    mixer.pause();
-    mixer.remove_participant(3).unwrap();
-    mixer.remove_participant(4).unwrap();
-    mixer.remove_participant(5).unwrap();
-    mixer.remove_participant(6).unwrap();
-    mixer.play();
-    mixer.generate_dot_file("test_remove-4", gst::DebugGraphDetails::ALL);
+        sleep(Duration::from_millis(100));
 
-    sleep(Duration::from_secs(1));
+        mixer.set_title("remove 3-6 (left 7)");
+        mixer.pause();
+        mixer.remove_participant(3).unwrap();
+        mixer.remove_participant(4).unwrap();
+        mixer.remove_participant(5).unwrap();
+        mixer.remove_participant(6).unwrap();
+        mixer.play();
+        mixer.generate_dot_file(&format!("test_remove-{i}-4"), gst::DebugGraphDetails::ALL);
 
-    mixer.set_title("remove 7 (none left)");
-    mixer.pause();
-    mixer.remove_participant(7).unwrap();
-    mixer.play();
-    mixer.generate_dot_file("test_remove-5", gst::DebugGraphDetails::ALL);
+        sleep(Duration::from_millis(100));
 
-    // check if we cannot remove any of which we removed before
-    assert!(mixer.remove_participant(0).is_err());
-    assert!(mixer.remove_participant(1).is_err());
-    assert!(mixer.remove_participant(2).is_err());
-    assert!(mixer.remove_participant(3).is_err());
-    assert!(mixer.remove_participant(4).is_err());
-    assert!(mixer.remove_participant(5).is_err());
-    assert!(mixer.remove_participant(6).is_err());
-    assert!(mixer.remove_participant(7).is_err());
+        mixer.set_title("remove 7 (none left)");
+        mixer.pause();
+        mixer.remove_participant(7).unwrap();
+        mixer.play();
+        mixer.generate_dot_file(&format!("test_remove-{i}-5"), gst::DebugGraphDetails::ALL);
 
-    sleep(Duration::from_secs(1));
+        // check if we cannot remove any of which we removed before
+        assert!(mixer.remove_participant(0).is_err());
+        assert!(mixer.remove_participant(1).is_err());
+        assert!(mixer.remove_participant(2).is_err());
+        assert!(mixer.remove_participant(3).is_err());
+        assert!(mixer.remove_participant(4).is_err());
+        assert!(mixer.remove_participant(5).is_err());
+        assert!(mixer.remove_participant(6).is_err());
+        assert!(mixer.remove_participant(7).is_err());
+
+        sleep(Duration::from_millis(100));
+    }
 }
