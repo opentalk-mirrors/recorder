@@ -343,7 +343,7 @@ where
                             visibles.remove(pos);
                         }
                         None => {
-                            // remove last visible if visbles are filled completely
+                            // remove last visible if visibles are filled completely
                             if visibles.len() == self.max_visible {
                                 trace!("remove last visible");
                                 visibles.pop();
@@ -363,7 +363,7 @@ where
                             visibles.swap(0, pos);
                         }
                         None => {
-                            // remove last visible if visbles are filled completely
+                            // remove last visible if visibles are filled completely
                             if visibles.len() == self.max_visible {
                                 trace!("remove last visible");
                                 visibles.pop();
