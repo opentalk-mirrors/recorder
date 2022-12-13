@@ -1,6 +1,6 @@
 use crate::http::HttpClient;
 use crate::signaling::{Event, MediaSessionType};
-use anyhow::Result;
+use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::WebRtcSourceParams;
 use core::pin::Pin;
@@ -8,6 +8,7 @@ use core::task::{ready, Context, Poll};
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use gst::glib;
+use lapin::Consumer;
 use settings::Settings;
 use signaling::{ParticipantId, TrickleCandidate};
 use std::io;
@@ -28,12 +29,19 @@ fn main() -> Result<()> {
 
     let main_loop = glib::MainLoop::new(None, false);
 
-    std::thread::spawn(move || {
-        tokio::runtime::Builder::new_multi_thread()
+    let main_loop_clone = main_loop.clone();
+    let _recorder = std::thread::spawn(move || {
+        let res = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to start tokio async runtime")
-            .block_on(main2())
+            .block_on(main2());
+
+        if let Err(e) = res {
+            eprintln!("Exit on failure: {:?}", e);
+            std::process::exit(-1);
+        }
+        main_loop_clone.quit();
     });
 
     main_loop.run();
@@ -41,11 +49,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-async fn main2() -> Result<()> {
-    let settings = Arc::new(Settings::load("config.toml")?);
-
-    let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
-
+async fn connect_rabbitmq(settings: &Settings) -> Result<Consumer> {
     let rmq_conn = lapin::Connection::connect_uri(
         settings.rabbitmq.uri.clone(),
         lapin::ConnectionProperties::default()
@@ -64,15 +68,23 @@ async fn main2() -> Result<()> {
         )
         .await?;
 
-    let mut consumer = rmq_channel
+    rmq_channel
         .basic_consume(
             queue.name().as_str(),
             "",
             Default::default(),
             Default::default(),
         )
-        .await?;
+        .await
+        .context("Failed to create consumer for RMQ channel")
+}
 
+async fn main2() -> Result<()> {
+    let settings = Arc::new(Settings::load("config.toml")?);
+
+    let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
+
+    let mut consumer = connect_rabbitmq(&settings).await?;
     let mut tasks = vec![];
 
     while let Some(delivery) = consumer.next().await {
@@ -90,12 +102,15 @@ async fn main2() -> Result<()> {
                     let http_client = http_client.clone();
 
                     let recording_task = tokio::spawn(async move {
-                        RecordingSession::create(settings, http_client, command.clone())
-                            .await
-                            .expect("Failed to start signaling session")
-                            .run()
-                            .await
-                            .expect("Recording session crashed");
+                        let session_result =
+                            RecordingSession::create(settings, http_client, command)
+                                .await
+                                .expect("Failed to start signaling session")
+                                .run()
+                                .await;
+                        if let Err(e) = session_result {
+                            log::error!("Recording session failed: {:?}", e);
+                        }
                     });
 
                     tasks.push(recording_task);
@@ -103,7 +118,10 @@ async fn main2() -> Result<()> {
             }
             Err(e) => {
                 log::error!("RabbitMQ consumer returned error: {}", e);
-                break;
+                for task in tasks {
+                    task.abort();
+                }
+                bail!("RabbitMQ consumer returned error: {}", e);
             }
         }
 
