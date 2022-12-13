@@ -49,7 +49,11 @@ impl Sink for Mp4Sink {
     fn on_play(&mut self) {
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
-            if process.try_wait().unwrap().is_none() {
+            if process
+                .try_wait()
+                .expect("failed to get FFmpeg process status")
+                .is_none()
+            {
                 // then skip any further action
                 return;
             }
@@ -94,7 +98,7 @@ impl Sink for Mp4Sink {
                     &self.file_path,
                 ])
                 .spawn()
-                .unwrap(),
+                .expect("failed to spawn FFmpeg process"),
         );
     }
 
@@ -103,7 +107,7 @@ impl Sink for Mp4Sink {
         pipeline.send_event(gst::event::Eos::new());
 
         // wait until error or EOS
-        let bus = pipeline.bus().unwrap();
+        let bus = pipeline.bus().expect("failed to get bus of pipeline");
         for msg in bus.iter_timed(gst::ClockTime::from_seconds(1)) {
             use gst::MessageView;
 

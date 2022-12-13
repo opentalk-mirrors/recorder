@@ -214,17 +214,29 @@ impl Source for TestSource {
                 )
             }
         }
-        .unwrap();
+        .expect("failed to create test source sink bin");
+
         // add video elements to pipeline
-        pipeline.add(&video_bin).unwrap();
+        pipeline
+            .add(&video_bin)
+            .expect("failed to add test source video bin to pipeline");
 
         // get elements from bin
-        let video = video_bin.by_name("video-testsrc").unwrap();
+        let video = video_bin
+            .by_name("video-testsrc")
+            .expect("failed to get video-testsrc from pipeline");
 
         // create ghost pads which link to codecs
-        let video_src_ghostpad =
-            gst::GhostPad::with_target(None, &video.static_pad("src").unwrap()).unwrap();
-        video_bin.add_pad(&video_src_ghostpad).unwrap();
+        let video_src_ghostpad = gst::GhostPad::with_target(
+            None,
+            &video
+                .static_pad("src")
+                .expect("failed to get sink pad of video test source sink"),
+        )
+        .expect("failed to create ghost pad for video test source sink");
+        video_bin
+            .add_pad(&video_src_ghostpad)
+            .expect("failed to add test source video ghost pad to pipeline");
 
         let audio_bin = gst::parse_bin_from_description(
             r#"
@@ -238,17 +250,28 @@ impl Source for TestSource {
             "#,
             false,
         )
-        .unwrap();
+        .expect("failed to create test source sink bin");
         // add audio elements to pipeline
-        pipeline.add(&audio_bin).unwrap();
+        pipeline
+            .add(&audio_bin)
+            .expect("failed to add test source audio bin to pipeline");
 
         // get elements from bin
-        let audio = audio_bin.by_name("audio-testsrc").unwrap();
+        let audio = audio_bin
+            .by_name("audio-testsrc")
+            .expect("failed to get audio-testsrc from pipeline");
 
         // create ghost pads which link to codecs
-        let audio_src_ghostpad =
-            gst::GhostPad::with_target(None, &audio.static_pad("src").unwrap()).unwrap();
-        audio_bin.add_pad(&audio_src_ghostpad).unwrap();
+        let audio_src_ghostpad = gst::GhostPad::with_target(
+            None,
+            &audio
+                .static_pad("src")
+                .expect("failed to get sink pad of audio test source sink"),
+        )
+        .expect("failed to create ghost pad for audio test source sink");
+        audio_bin
+            .add_pad(&audio_src_ghostpad)
+            .expect("failed to add test source audio ghost pad to pipeline");
 
         TestSource {
             // remember elements and pads for connect/disconnect
@@ -262,11 +285,19 @@ impl Source for TestSource {
     /// remove elements from pipeline
     fn remove(self, pipeline: &gst::Pipeline) {
         // remove video elements from pipeline
-        pipeline.remove(&self.video_bin).unwrap();
-        self.video_bin.set_state(gst::State::Null).unwrap();
+        pipeline
+            .remove(&self.video_bin)
+            .expect("failed to remove test source video bin from pipeline");
+        self.video_bin
+            .set_state(gst::State::Null)
+            .expect("failed to set test source video bin state to Null");
         // remove audio elements
-        pipeline.remove(&self.audio_bin).unwrap();
-        self.audio_bin.set_state(gst::State::Null).unwrap();
+        pipeline
+            .remove(&self.audio_bin)
+            .expect("failed to remove test source audio bin from pipeline");
+        self.audio_bin
+            .set_state(gst::State::Null)
+            .expect("failed to set test source audio bin state to Null");
     }
 
     /// Get video source pad.

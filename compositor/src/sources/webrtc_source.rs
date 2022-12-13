@@ -61,23 +61,39 @@ impl Source for WebRtcSource {
             ",
             false,
         )
-        .expect("Failed to parse and load WebRTC pipeline. Is a gst plugin missing?");
+        .expect("Failed to parse and load WebRtc pipeline. Is a gst plugin missing?");
 
-        pipeline.add(&bin).unwrap();
+        pipeline
+            .add(&bin)
+            .expect("failed to add WebRtc bin to pipeline");
 
-        let webrtcbin = bin.by_name("webrtc").unwrap();
+        let webrtcbin = bin
+            .by_name("webrtc")
+            .expect("failed to find webrtc in pipeline");
 
-        let video_output = bin.by_name("video-output").unwrap();
-        let video_output_src = video_output.static_pad("src").unwrap();
+        let video_output = bin
+            .by_name("video-output")
+            .expect("failed to find webrtc video-output in pipeline");
+        let video_output_src = video_output
+            .static_pad("src")
+            .expect("failed to get static source pad from webrtc video output");
 
-        let audio_output = bin.by_name("audio-output").unwrap();
-        let audio_output_src = audio_output.static_pad("src").unwrap();
+        let audio_output = bin
+            .by_name("audio-output")
+            .expect("failed to find webrtc audio-output in pipeline");
+        let audio_output_src = audio_output
+            .static_pad("src")
+            .expect("failed to get static source pad from webrtc audio output");
 
-        let video_ghostpad = gst::GhostPad::with_target(Some("video"), &video_output_src).unwrap();
-        let audio_ghostpad = gst::GhostPad::with_target(Some("audio"), &audio_output_src).unwrap();
+        let video_ghostpad = gst::GhostPad::with_target(Some("video"), &video_output_src)
+            .expect("failed to create ghost pad for webrtc video output");
+        let audio_ghostpad = gst::GhostPad::with_target(Some("audio"), &audio_output_src)
+            .expect("failed to create ghost pad for webrtc audio output");
 
-        bin.add_pad(&video_ghostpad).unwrap();
-        bin.add_pad(&audio_ghostpad).unwrap();
+        bin.add_pad(&video_ghostpad)
+            .expect("failed to add video output ghost pad to webrtc bin");
+        bin.add_pad(&audio_ghostpad)
+            .expect("failed to add audio output ghost pad to webrtc bin");
 
         if let Some(on_candidate) = params.on_ice_candidate {
             webrtcbin.connect("on-ice-candidate", true, move |values| {
@@ -104,7 +120,9 @@ impl Source for WebRtcSource {
 
         // TODO: gstreamer complains about trying to dispose not-null state elements
         // self.bin.set_state(gst::State::Null).unwrap();
-        pipeline.remove(&self.bin).unwrap();
+        pipeline
+            .remove(&self.bin)
+            .expect("failed to remove webrtc bin from pipeline");
     }
 
     fn video_src_pad(&self) -> gst::Pad {
@@ -120,7 +138,8 @@ impl WebRtcSource {
     pub async fn receive_offer(&self, offer: String) -> String {
         let offer = gst_webrtc::WebRTCSessionDescription::new(
             gst_webrtc::WebRTCSDPType::Offer,
-            gst_sdp::SDPMessage::parse_buffer(offer.as_bytes()).unwrap(),
+            gst_sdp::SDPMessage::parse_buffer(offer.as_bytes())
+                .expect("failed to parse webrtc offer"),
         );
 
         self.webrtcbin
@@ -133,15 +152,16 @@ impl WebRtcSource {
 
             gst::Promise::with_change_func(move |answer| {
                 let answer = answer
-                    .unwrap()
-                    .unwrap()
+                    .expect("with_change_func() error")
+                    .expect("with_change_func() no result")
                     .get::<gst_webrtc::WebRTCSessionDescription>("answer")
-                    .unwrap();
+                    .expect("webrtc answer seems to be no answer");
 
                 webrtcbin
                     .emit_by_name::<()>("set-local-description", &[&answer, &None::<gst::Promise>]);
 
-                send.send(answer.sdp().to_string()).unwrap();
+                send.send(answer.sdp().to_string())
+                    .expect("failed to send answer SDP to main webrtc main thread");
             })
         };
 
@@ -151,7 +171,7 @@ impl WebRtcSource {
             &[&None::<gst::Structure>, &on_create_answer],
         );
 
-        recv.await.unwrap()
+        recv.await.expect("failed waiting for SDP answer")
     }
 
     pub async fn receive_candidate(&self, mline: u32, candidate: String) {

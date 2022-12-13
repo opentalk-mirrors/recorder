@@ -162,7 +162,10 @@ impl RecordingSession {
             compositor::Size::FHD,
             Some(MAX_VISIBLES),
             compositor::Mp4SinkParams {
-                file_path: file_path.to_str().unwrap().into(),
+                file_path: file_path
+                    .to_str()
+                    .expect("failed to convert MP4 file path into string")
+                    .into(),
             },
             compositor::SpeakerMode::FirstShift,
         )?;

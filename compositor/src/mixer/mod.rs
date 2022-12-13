@@ -141,24 +141,46 @@ where
             .expect("not a pipeline");
 
         // get video elements from bin
-        let compositor = pipeline.by_name("video-compositor").unwrap();
-        let clock = pipeline.by_name("video-clock-overlay").unwrap();
-        let title = pipeline.by_name("video-title-overlay").unwrap();
-        let subtitle = pipeline.by_name("video-subtitle-overlay").unwrap();
-        let video_out = pipeline.by_name("video-out").unwrap();
-        let video_output_pad = video_out.static_pad("src").unwrap();
+        let compositor = pipeline
+            .by_name("video-compositor")
+            .expect("failed to get compositor from pipeline");
+        let clock = pipeline
+            .by_name("video-clock-overlay")
+            .expect("failed to get clock overlay from pipeline");
+        let title = pipeline
+            .by_name("video-title-overlay")
+            .expect("failed to get title overlay from pipeline");
+        let subtitle = pipeline
+            .by_name("video-subtitle-overlay")
+            .expect("failed to ger subtitle overlay from pipeline");
+        let video_out = pipeline
+            .by_name("video-out")
+            .expect("failed to get video output from pipeline");
+        let video_output_pad = video_out
+            .static_pad("src")
+            .expect("failed to get source pad from video output");
 
         // get audio elements from bin
-        let audio_mixer = pipeline.by_name("audio-mixer").unwrap();
-        let audio_out = pipeline.by_name("audio-out").unwrap();
-        let audio_output_pad = audio_out.static_pad("src").unwrap();
+        let audio_mixer = pipeline
+            .by_name("audio-mixer")
+            .expect("failed to get audio mixer from pipeline");
+        let audio_out = pipeline
+            .by_name("audio-out")
+            .expect("failed to ger audio output from pipeline");
+        let audio_output_pad = audio_out
+            .static_pad("src")
+            .expect("failed to get source pad from audio output");
 
         // create output sink
         let output = SINK::new(&pipeline, sink_params);
 
         // connect output pads to output sinks
-        video_output_pad.link(&output.video_sink_pad()).unwrap();
-        audio_output_pad.link(&output.audio_sink_pad()).unwrap();
+        video_output_pad
+            .link(&output.video_sink_pad())
+            .expect("failed to link output pad to video output sink");
+        audio_output_pad
+            .link(&output.audio_sink_pad())
+            .expect("failed to link output pad to audio output sink");
 
         Ok(Mixer {
             // remember all those elements and pads
@@ -216,7 +238,7 @@ where
                 // make new participant visible
                 visibles.push(id);
                 // update visibles
-                self.set_visibles(&visibles).unwrap();
+                self.set_visibles(&visibles)?;
             }
         }
         // re-layout
@@ -272,7 +294,7 @@ where
                 "automatically filling up visibles with former invisible participants {visibles:?}"
             );
                 // update visibles
-                self.set_visibles(&visibles).unwrap();
+                self.set_visibles(&visibles)?;
             }
         }
 
@@ -412,16 +434,20 @@ where
 
     /// start playing of pipeline
     pub fn play(&mut self) {
-        debug!("start playing");
-        self.pipeline.set_state(gst::State::Playing).unwrap();
+        debug!("play pipeline");
+        self.pipeline
+            .set_state(gst::State::Playing)
+            .expect("failed to set pipeline state to playing");
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_play();
     }
 
     /// pause playing of pipeline
     pub fn pause(&mut self) {
-        debug!("pause playing");
-        self.pipeline.set_state(gst::State::Paused).unwrap();
+        debug!("pause pipeline");
+        self.pipeline
+            .set_state(gst::State::Paused)
+            .expect("failed to set pipeline state to paused");
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_pause();
     }
@@ -532,9 +558,16 @@ where
             .get_mut(&id)
             .ok_or(Error::ParticipantNotFound(id))?;
 
-        let mixer_pad = self.audio_mixer.request_pad_simple("sink_%").unwrap();
+        let mixer_pad = self
+            .audio_mixer
+            .request_pad_simple("sink_%")
+            .expect("Failed to request sink pad from audio mixer");
 
-        participant.source.audio_src_pad().link(&mixer_pad).unwrap();
+        participant
+            .source
+            .audio_src_pad()
+            .link(&mixer_pad)
+            .expect("Failed to link participant's audio source to audio mixer sink pad");
 
         participant.audio_mixer_pad = Some(mixer_pad);
 
@@ -551,7 +584,11 @@ where
             .ok_or(Error::ParticipantNotFound(id))?;
 
         if let Some(pad) = participant.audio_mixer_pad.take() {
-            participant.source.audio_src_pad().unlink(&pad).unwrap();
+            participant
+                .source
+                .audio_src_pad()
+                .unlink(&pad)
+                .expect("Failed to unlink participant's audio source from audio mixer sink pad");
         }
 
         trace!("unlinked audio of {id:?}...");
@@ -575,18 +612,29 @@ where
                 return Ok(());
             }
             VideoLinkStatus::Compositor(pad) => {
-                participant.source.video_src_pad().unlink(pad).unwrap();
+                participant
+                    .source
+                    .video_src_pad()
+                    .unlink(pad)
+                    .expect("failed to unlink participant's video source from compositor");
                 self.compositor.release_request_pad(pad);
             }
         }
 
-        let fakesink = gst::ElementFactory::make_with_name("fakesink", None).unwrap();
-        self.pipeline.add(&fakesink).unwrap();
+        let fakesink = gst::ElementFactory::make_with_name("fakesink", None)
+            .expect("failed to create new fake sink");
+        self.pipeline
+            .add(&fakesink)
+            .expect("failed to add fakesink to pipeline");
         participant
             .source
             .video_src_pad()
-            .link(&fakesink.static_pad("sink").unwrap())
-            .unwrap();
+            .link(
+                &fakesink
+                    .static_pad("sink")
+                    .expect("failed to get static sink pad from fake sink"),
+            )
+            .expect("failed to link participant's video source to fake sink");
         participant.video_link_status = VideoLinkStatus::Fakesink(fakesink);
 
         Ok(())
@@ -607,10 +655,18 @@ where
                 participant
                     .source
                     .video_src_pad()
-                    .unlink(&fakesink.static_pad("sink").unwrap())
-                    .unwrap();
-                fakesink.set_state(gst::State::Null).unwrap();
-                self.pipeline.remove(fakesink).unwrap();
+                    .unlink(
+                        &fakesink
+                            .static_pad("sink")
+                            .expect("failed to get static sink pad from fake sink"),
+                    )
+                    .expect("failed to unlink participant's video source from fake sink");
+                fakesink
+                    .set_state(gst::State::Null)
+                    .expect("failed to set fake sink into Null state");
+                self.pipeline
+                    .remove(fakesink)
+                    .expect("failed to remove fake sink from pipeline");
             }
             VideoLinkStatus::Compositor(_) => {
                 warn!("trying to link participant {id:?} to compositor when it is already linked");
@@ -624,7 +680,11 @@ where
             .request_pad_simple("sink_%u")
             .expect("cannot create sink pad");
         pad.set_property_from_str("sizing-policy", "keep-aspect-ratio");
-        participant.source.video_src_pad().link(&pad).unwrap();
+        participant
+            .source
+            .video_src_pad()
+            .link(&pad)
+            .expect("failed to link participant's video source pad to compositor pad");
         participant.video_link_status = VideoLinkStatus::Compositor(pad);
 
         trace!("successfully linked video of {id:?} to compositor.");
@@ -647,13 +707,25 @@ where
                 participant
                     .source
                     .video_src_pad()
-                    .unlink(&fakesink.static_pad("sink").unwrap())
-                    .unwrap();
-                fakesink.set_state(gst::State::Null).unwrap();
-                self.pipeline.remove(&fakesink).unwrap();
+                    .unlink(
+                        &fakesink
+                            .static_pad("sink")
+                            .expect("failed to get static sink pad from fake sink"),
+                    )
+                    .expect("failed to unlink participant's video source pad from fake sink");
+                fakesink
+                    .set_state(gst::State::Null)
+                    .expect("failed to set fake sink to Null state");
+                self.pipeline
+                    .remove(&fakesink)
+                    .expect("failed to remove fake sink from pipeline");
             }
             VideoLinkStatus::Compositor(pad) => {
-                participant.source.video_src_pad().unlink(&pad).unwrap();
+                participant
+                    .source
+                    .video_src_pad()
+                    .unlink(&pad)
+                    .expect("failed to unlink participant's video source pad from compositor");
                 self.compositor.release_request_pad(&pad);
             }
         }
@@ -676,7 +748,9 @@ where
         trace!("exiting mixer");
 
         if self.pipeline.current_state() == gst::State::Paused {
-            self.pipeline.set_state(gst::State::Playing).unwrap();
+            self.pipeline
+                .set_state(gst::State::Playing)
+                .expect("failed to set pipeline state to playing");
         }
 
         // call sink to prepare for dropping pipeline

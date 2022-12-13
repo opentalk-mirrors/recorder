@@ -114,7 +114,11 @@ impl Sink for DashSink {
     fn on_play(&mut self) {
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
-            if process.try_wait().unwrap().is_none() {
+            if process
+                .try_wait()
+                .expect("failed to get FFmpeg process status")
+                .is_none()
+            {
                 // then skip any further action
                 return;
             }
@@ -124,7 +128,9 @@ impl Sink for DashSink {
             if let Some(path) = &self.params.output_dir {
                 (path.as_ref(), path.join("dash.mpd"))
             } else {
-                let temp_dir = self.temp_dir.insert(tempfile::tempdir().unwrap());
+                let temp_dir = self
+                    .temp_dir
+                    .insert(tempfile::tempdir().expect("failed to find tmpdir"));
                 (temp_dir.path(), temp_dir.path().join("dash.mpd"))
             }
         };
@@ -158,21 +164,21 @@ impl Sink for DashSink {
                     self.params.seg_type.as_str(),
                     "-f",
                     "dash",
-                    mpd_path.to_str().unwrap(),
+                    mpd_path
+                        .to_str()
+                        .expect("failed to convert MPD path into printable string"),
                 ])
                 .spawn()
-                .unwrap(),
+                .expect("failed to spawn FFmpeg process"),
         );
 
         // check if the output directory exists
-        let output_dir = output_dir
-            .canonicalize()
-            .unwrap_or_else(|_| panic!("invalid DASH target path {output_dir:?}"));
+        let output_dir = output_dir.canonicalize().expect("invalid DASH target path");
 
         // spawn a thread which checks for file updates
         std::thread::spawn({
             // initialize inotify
-            let mut inotify = Inotify::init().unwrap();
+            let mut inotify = Inotify::init().expect("failed to initialize Inotify");
             debug!("Writing DASH files into {}", output_dir.to_string_lossy());
 
             // add watch to that folder
@@ -197,7 +203,12 @@ impl Sink for DashSink {
 
                     let files: Vec<&OsStr> = events
                         .filter_map(|event| event.name)
-                        .filter(|name| !name.to_str().unwrap().ends_with(".tmp"))
+                        .filter(|name| {
+                            !name
+                                .to_str()
+                                .expect("failed to convert Inotify event name into string")
+                                .ends_with(".tmp")
+                        })
                         .collect();
                     if !files.is_empty() {
                         update(files);
@@ -213,7 +224,7 @@ impl Sink for DashSink {
         pipeline.send_event(gst::event::Eos::new());
 
         // wait until error or EOS
-        let bus = pipeline.bus().unwrap();
+        let bus = pipeline.bus().expect("failed to get bus of pipeline");
         for msg in bus.iter_timed(gst::ClockTime::NONE) {
             use gst::MessageView;
 
