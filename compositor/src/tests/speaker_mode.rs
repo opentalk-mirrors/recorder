@@ -1,10 +1,6 @@
 use super::*;
 use crate::*;
 
-// what we need from external libraries
-use core::time::Duration;
-use std::thread::sleep;
-
 #[test]
 fn test_speaker_mode() {
     // init logger
@@ -29,6 +25,8 @@ fn test_speaker_mode() {
 
     mixer.play();
 
+    wait_millis(500);
+
     for i in 0..6 {
         mixer.set_title(&format!("Speaker {i}"));
         mixer.pause();
@@ -40,6 +38,6 @@ fn test_speaker_mode() {
             gst::DebugGraphDetails::ALL,
         );
 
-        sleep(Duration::from_millis(500));
+        wait_millis(500);
     }
 }

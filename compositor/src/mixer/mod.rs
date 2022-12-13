@@ -5,6 +5,7 @@ mod source;
 
 // forward useful sub-module stuff as public
 pub use participant::Participant;
+pub use participant::ParticipantStatus;
 pub use sink::Sink;
 pub use source::Source;
 
@@ -247,6 +248,10 @@ where
         Ok(())
     }
 
+    pub fn state(&self) -> gst::State {
+        self.pipeline.current_state()
+    }
+
     /// remove an once added participant from the mixer.
     /// # Arguments
     /// - `id`: Unique identifier of the participant.
@@ -415,9 +420,49 @@ where
         Ok(())
     }
 
+    /// set status of a participant
+    pub fn set_status(&mut self, id: ID, new_status: ParticipantStatus) -> Result<(), Error<ID>> {
+        debug!("set participant {id:?} status to {new_status:?}");
+
+        // check preconditions
+        if self.pipeline.current_state() == gst::State::Playing {
+            return Err(Error::PlayingPipelineForbidden);
+        }
+
+        // get old participant's status
+        let old_status = self
+            .participants
+            .get(&id)
+            .ok_or(Error::ParticipantNotFound(id))?
+            .status
+            .clone();
+
+        // unlink participant's video/audio  from rest of the pipeline according to new status
+        if !new_status.has_audio && old_status.has_audio {
+            self.unlink_audio(id)?;
+        } else if new_status.has_audio && !old_status.has_audio {
+            self.link_audio(id)?;
+        }
+        if !new_status.has_video && old_status.has_video {
+            self.unlink_video(id)?;
+        } else if new_status.has_video && !old_status.has_video {
+            self.link_video_to_fakesink(id)?;
+        }
+
+        // set participant's new status
+        self.participants
+            .get_mut(&id)
+            .ok_or(Error::ParticipantNotFound(id))?
+            .status = new_status;
+
+        self.set_speaker(self.speaker)?;
+
+        Ok(())
+    }
+
     /// set the title text within the mixer view if provided
     pub fn set_title(&self, text: &str) {
-        debug!("set title {text}");
+        debug!("set title '{text}'");
 
         if let Some(title) = &self.title {
             title.set_property("text", text);
@@ -426,7 +471,7 @@ where
 
     /// set the sub title text within the mixer view if provided
     pub fn set_subtitle(&self, text: &str) {
-        debug!("set subtitle {text}");
+        debug!("set subtitle '{text}'");
 
         if let Some(subtitle) = &self.subtitle {
             subtitle.set_property("text", text);

@@ -11,6 +11,12 @@ pub enum VideoLinkStatus {
     Compositor(gst::Pad),
 }
 
+#[derive(Debug, Clone)]
+pub struct ParticipantStatus {
+    pub has_audio: bool,
+    pub has_video: bool,
+}
+
 /// Represents a participant.
 /// # Types
 /// - `SRC`: Source type which implements trait [Source]
@@ -27,6 +33,8 @@ where
     pub audio_mixer_pad: Option<gst::Pad>,
     /// Video link status of this participant.
     pub video_link_status: VideoLinkStatus,
+    /// current participants status
+    pub status: ParticipantStatus,
 }
 
 impl<SRC> Participant<SRC>
@@ -52,6 +60,10 @@ where
             source: SRC::new(pipeline, resolution, src_params),
             audio_mixer_pad: None,
             video_link_status: VideoLinkStatus::None,
+            status: ParticipantStatus {
+                has_audio: true,
+                has_video: true,
+            },
         }
     }
 }
