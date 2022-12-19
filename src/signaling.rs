@@ -31,10 +31,19 @@ pub struct ParticipantState {
 
 impl ParticipantState {
     fn from_incoming(p: incoming::Participant) -> Self {
+        let mut publishing = HashMap::new();
+        if let Some(camera) = p.media.video {
+            publishing.insert(MediaSessionType::Camera, camera);
+        }
+
+        if let Some(screen) = p.media.screen {
+            publishing.insert(MediaSessionType::ScreenCapture, screen);
+        }
+
         Self {
             display_name: p.control.display_name,
             consents: p.recording.consents_recording,
-            publishing: p.media.data,
+            publishing,
         }
     }
 
@@ -302,7 +311,6 @@ struct Payload<'s, T> {
 pub struct ParticipantId(pub Uuid);
 
 mod incoming {
-    use std::collections::HashMap;
 
     use super::{MediaSessionType, ParticipantId, TrickleCandidate};
     use serde::Deserialize;
@@ -330,8 +338,9 @@ mod incoming {
 
     #[derive(Debug, Default, Deserialize)]
     pub struct MediaData {
-        #[serde(flatten)]
-        pub data: HashMap<MediaSessionType, MediaSessionState>,
+        pub video: Option<MediaSessionState>,
+        pub screen: Option<MediaSessionState>,
+        pub is_presenter: bool,
     }
 
     #[derive(Debug, Default, Deserialize)]

@@ -100,8 +100,7 @@ impl Source for WebRtcSource {
         assert!(!self.video_ghostpad.is_linked());
         assert!(!self.audio_ghostpad.is_linked());
 
-        // TODO: gstreamer complains about trying to dispose not-null state elements
-        // self.bin.set_state(gst::State::Null).unwrap();
+        self.bin.set_state(gst::State::Null).unwrap();
         pipeline.remove(&self.bin).unwrap();
     }
 
