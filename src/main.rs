@@ -224,7 +224,7 @@ impl RecordingSession {
 
         // Subscribe to above collected participants
         for (id, display_name) in publishing_participants {
-            mixer.add_participant(
+            mixer.add_stream(
                 id,
                 display_name,
                 participant_params(id, candidate_sender.clone()),
@@ -275,7 +275,7 @@ impl RecordingSession {
                 if state.publishes(MediaSessionType::Camera) {
                     log::debug!("Join: subscribe Video of {:?}", id);
                     self.mixer.pause();
-                    self.mixer.add_participant(
+                    self.mixer.add_stream(
                         id,
                         id.0.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
@@ -289,12 +289,12 @@ impl RecordingSession {
             Event::ParticipantUpdated(id) => {
                 let state = &self.signaling.participants()[&id];
                 let has_video_feed = state.publishes(MediaSessionType::Camera);
-                let is_subscribed = self.mixer.participants.contains_key(&id);
+                let is_subscribed = self.mixer.streams.contains_key(&id);
 
                 if !is_subscribed && has_video_feed {
                     log::debug!("Update: subscribe Video of {:?}", id);
                     self.mixer.pause();
-                    self.mixer.add_participant(
+                    self.mixer.add_stream(
                         id,
                         id.0.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
@@ -309,7 +309,7 @@ impl RecordingSession {
                 if is_subscribed && !has_video_feed {
                     log::debug!("Update: unsubscribe Video of {:?}", id);
                     self.mixer.pause();
-                    self.mixer.remove_participant(id)?;
+                    self.mixer.remove_stream(id)?;
                     self.set_visibles()?;
                     self.mixer.play();
                     return Ok(());
@@ -324,9 +324,9 @@ impl RecordingSession {
                 return Ok(());
             }
             Event::ParticipantLeft(id) => {
-                if self.mixer.participants.contains_key(&id) {
+                if self.mixer.streams.contains_key(&id) {
                     self.mixer.pause();
-                    self.mixer.remove_participant(id)?;
+                    self.mixer.remove_stream(id)?;
                     self.set_visibles()?;
                     self.mixer.play();
                 }
@@ -343,13 +343,13 @@ impl RecordingSession {
                 }
             }
             Event::SdpOffer(id, typ, offer) => {
-                if let Some(participant) = self.mixer.participants.get_mut(&id) {
+                if let Some(participant) = self.mixer.streams.get_mut(&id) {
                     let answer = participant.source.receive_offer(offer).await;
                     self.signaling.send_answer(id, typ, answer).await?;
                 }
             }
             Event::SdpCandidate(id, _typ, candidate) => {
-                if let Some(participant) = self.mixer.participants.get_mut(&id) {
+                if let Some(participant) = self.mixer.streams.get_mut(&id) {
                     participant
                         .source
                         .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
@@ -357,7 +357,7 @@ impl RecordingSession {
                 }
             }
             Event::SdpEndOfCandidates(id, _typ) => {
-                if let Some(participant) = self.mixer.participants.get_mut(&id) {
+                if let Some(participant) = self.mixer.streams.get_mut(&id) {
                     participant.source.receive_end_of_candidates(0).await;
                 }
             }
@@ -379,7 +379,7 @@ impl RecordingSession {
     fn set_visibles(&mut self) -> Result<()> {
         let visibles = self
             .mixer
-            .participants
+            .streams
             .keys()
             .filter(|id| {
                 // check with the signaling's participant-list if the participant's video is enabled

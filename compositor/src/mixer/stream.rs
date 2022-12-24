@@ -1,6 +1,6 @@
 use super::{Size, Source};
 
-/// Status of a participant if it is linked to a fake sink or the compositor.
+/// Status of a stream if it is linked to a fake sink or the compositor.
 #[derive(Debug)]
 pub enum VideoLinkStatus {
     /// Video source is unlinked
@@ -12,41 +12,41 @@ pub enum VideoLinkStatus {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParticipantStatus {
+pub struct StreamStatus {
     pub has_audio: bool,
     pub has_video: bool,
 }
 
-/// Represents a participant.
+/// Represents a stream.
 /// # Types
 /// - `SRC`: Source type which implements trait [Source]
 #[derive(Debug)]
-pub struct Participant<SRC>
+pub struct Stream<SRC>
 where
     SRC: Source,
 {
     /// Name to be displayed within the sub title text.
     pub display_name: String,
-    /// Wrapped AV source of this participant.
+    /// Wrapped AV source of this stream.
     pub source: SRC,
-    /// Contains the pad this participants audio stream is linked to. None if its not linked.
+    /// Contains the pad this streams audio stream is linked to. None if its not linked.
     pub audio_mixer_pad: Option<gst::Pad>,
-    /// Video link status of this participant.
+    /// Video link status of this stream.
     pub video_link_status: VideoLinkStatus,
-    /// current participants status
-    pub status: ParticipantStatus,
+    /// current streams status
+    pub status: StreamStatus,
 }
 
-impl<SRC> Participant<SRC>
+impl<SRC> Stream<SRC>
 where
     SRC: Source,
 {
-    /// Create new participant and a source of type `SRC` into the given GStreamer pipeline.
+    /// Create new stream and a source of type `SRC` into the given GStreamer pipeline.
     /// # Types
     /// - `SRC`: Source type which implements trait [Source]
     /// # Arguments
     /// - `pipeline`: Pipeline to add GStreamer elements into.
-    /// - `id`: Unique ID of the participant.
+    /// - `id`: Unique ID of the stream.
     /// - `display_name`: Name to be displayed within the sub title text.
     /// - `params`: Parameters that will be forwarded to the source which gets created.
     pub fn new(
@@ -60,7 +60,7 @@ where
             source: SRC::new(pipeline, resolution, src_params),
             audio_mixer_pad: None,
             video_link_status: VideoLinkStatus::None,
-            status: ParticipantStatus {
+            status: StreamStatus {
                 has_audio: true,
                 has_video: true,
             },

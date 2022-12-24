@@ -4,8 +4,8 @@ mod dash;
 mod matroska;
 mod mixer;
 mod mp4;
-mod participant_status;
 mod speaker_mode;
+mod stream_status;
 
 use core::{fmt::Debug, hash::Hash, time::Duration};
 
@@ -15,13 +15,13 @@ fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
 where
     ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
 {
-    // generate participant IDs and names
+    // generate stream IDs and names
     (0..count)
         .map(|n| (n.into(), format!("Participant {n:?}")))
         .collect()
 }
 
-fn generate_participants<L, SINK, ID>(
+fn generate_streams<L, SINK, ID>(
     mixer: &mut Mixer<L, TestSource, SINK, ID>,
     n: u32,
 ) -> (Vec<(ID, String)>, Vec<ID>)
@@ -30,10 +30,10 @@ where
     SINK: crate::Sink,
     ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
 {
-    let participants = generate_ids(n);
-    let ids: Vec<ID> = participants.iter().map(|p| p.0).collect();
+    let streams = generate_ids(n);
+    let ids: Vec<ID> = streams.iter().map(|p| p.0).collect();
 
-    mixer.set_title(&format!("add {n} participants"));
+    mixer.set_title(&format!("add {n} streams"));
     let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
     let images = [
         "images/participant_SD.png",
@@ -42,15 +42,15 @@ where
         "images/participant_QHD.png",
         "images/participant_UHD.png",
     ];
-    for (i, (id, name)) in participants.iter().enumerate() {
+    for (i, (id, name)) in streams.iter().enumerate() {
         let params = TestSourceParameters {
             resolution: resolutions[i % images.len()],
             pattern: Pattern::Location(images[i % images.len()].into()),
             name: Some(name.clone()),
         };
-        mixer.add_participant(*id, name.clone(), params).unwrap();
+        mixer.add_stream(*id, name.clone(), params).unwrap();
     }
-    (participants, ids)
+    (streams, ids)
 }
 
 fn wait_secs(sec: u64) {

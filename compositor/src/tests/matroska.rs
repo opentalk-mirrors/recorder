@@ -18,7 +18,7 @@ fn test_matroska() {
     // use default parameters for sink
     let sink_params = MatroskaParameters::default();
 
-    // create grid mixer with test sources for participants and a MatroskaSink
+    // create grid mixer with test sources for streams and a MatroskaSink
     let mut mixer = Mixer::<Grid, TestSource, MatroskaSink, u32>::new(
         resolution,
         None,
@@ -27,9 +27,9 @@ fn test_matroska() {
     )
     .unwrap();
 
-    // add a participant
+    // add a stream
     mixer
-        .add_participant(0, "Participant 0".into(), Default::default())
+        .add_stream(0, "Participant 0".into(), Default::default())
         .unwrap();
 
     // start mixer

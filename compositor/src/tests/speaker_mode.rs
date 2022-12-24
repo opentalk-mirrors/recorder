@@ -21,7 +21,7 @@ fn test_speaker_mode() {
 
     mixer.generate_dot_file("test_speaker_mode-0", gst::DebugGraphDetails::ALL);
 
-    generate_participants(&mut mixer, 8);
+    generate_streams(&mut mixer, 8);
 
     mixer.play();
 

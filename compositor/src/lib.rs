@@ -1,14 +1,14 @@
 /*!
     # Purpose
     The *compositor* crate manages a [GStreamer](https://gstreamer.freedesktop.org/) pipeline which receives [WebRTC](https://webrtc.org/) input audio and video streams
-    of so-called *participants* and mixes them together using the so-called *mixer*.
+    of so-called *streams* and mixes them together using the so-called *mixer*.
 
     - [Mixer](mixer::Mixer)
     - [Participant](mixer::Participant)
 
     It then composes an output image showing some of them (so-called *visibles*) in the output picture.
 
-    All incoming audio of all the participants will be mixed together independent of if they are invisible or not.
+    All incoming audio of all the streams will be mixed together independent of if they are invisible or not.
     The output then will be written onto disk into a
     [MPEG-DASH](https://de.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP (Dynamic Adaptive Streaming over HTTP))
     instance which consists of several files including the
@@ -33,9 +33,9 @@
     Several so-called *layouts* can be used to control the output composite.
 
     - [Grid](layout::Grid)
-      shows a grid of all visible participants
+      shows a grid of all visible streams
     - [Speaker](layout::Speaker)
-      shows a bigger picture of the first visible participant (so-called *speaker*)
+      shows a bigger picture of the first visible stream (so-called *speaker*)
       and uses the rest of the available picture area to arrange all other visibles.
 
     # Generic traits for extending capabilities
@@ -52,7 +52,7 @@
     In addition there are some alternative sources and sinks included which are used for testing purposes.
 
     - [TestSource](sources::TestSource)
-      which just generates some dummy participant audio and video data.
+      which just generates some dummy stream audio and video data.
     - [FakeSink](sinks::FakeSink)
       is a sink without any output - just to make it run.
     - [DisplaySink](sinks::DisplaySink)
@@ -100,18 +100,14 @@ fn generate_example_pipeline_picture() {
     // prepare test source parameters
     let params = TestSourceParameters::default();
 
-    // add three participants
-    mixer
-        .add_participant(1, "P1".into(), params.clone())
-        .unwrap();
-    mixer
-        .add_participant(2, "P2".into(), params.clone())
-        .unwrap();
-    mixer.add_participant(3, "P3".into(), params).unwrap();
+    // add three streams
+    mixer.add_stream(1, "P1".into(), params.clone()).unwrap();
+    mixer.add_stream(2, "P2".into(), params.clone()).unwrap();
+    mixer.add_stream(3, "P3".into(), params).unwrap();
     // generate pipeline DOT graph
-    mixer.generate_dot_file("1_add_participants", gst::DebugGraphDetails::STATES);
+    mixer.generate_dot_file("1_add_streams", gst::DebugGraphDetails::STATES);
 
-    // set two participants to be visible
+    // set two streams to be visible
     mixer.set_visibles(&[1, 2]).unwrap();
     // generate pipeline DOT graph
     mixer.generate_dot_file("2_set_visibles", gst::DebugGraphDetails::STATES);

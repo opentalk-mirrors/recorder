@@ -2,7 +2,7 @@ use super::*;
 use crate::*;
 
 #[test]
-fn test_participant_status() {
+fn test_stream_status() {
     // init logger
     let _ = env_logger::try_init();
     // initialize gstreamer
@@ -19,24 +19,24 @@ fn test_participant_status() {
     )
     .unwrap();
 
-    mixer.generate_dot_file("test_participant_status-0", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_stream_status-0", gst::DebugGraphDetails::ALL);
 
     trace!("Mixer State: {:?}", mixer.state());
-    generate_participants(&mut mixer, 8);
+    generate_streams(&mut mixer, 8);
 
     mixer.play();
 
     wait_millis(500);
 
     for i in 0..5 {
-        debug!("testing participant {i}");
+        debug!("testing stream {i}");
 
         mixer.set_title(&format!("Speaker {i} (audio off)"));
         mixer.pause();
         mixer
             .set_status(
                 i,
-                ParticipantStatus {
+                StreamStatus {
                     has_audio: false,
                     has_video: true,
                 },
@@ -44,7 +44,7 @@ fn test_participant_status() {
             .unwrap();
         mixer.play();
         mixer.generate_dot_file(
-            &format!("test_participant_status-{}-audio-off", i + 1),
+            &format!("test_stream_status-{}-audio-off", i + 1),
             gst::DebugGraphDetails::ALL,
         );
         wait_millis(500);
@@ -54,7 +54,7 @@ fn test_participant_status() {
         mixer
             .set_status(
                 i,
-                ParticipantStatus {
+                StreamStatus {
                     has_audio: true,
                     has_video: false,
                 },
@@ -62,7 +62,7 @@ fn test_participant_status() {
             .unwrap();
         mixer.play();
         mixer.generate_dot_file(
-            &format!("test_participant_status-{}-video-off", i + 1),
+            &format!("test_stream_status-{}-video-off", i + 1),
             gst::DebugGraphDetails::ALL,
         );
         wait_millis(500);
@@ -72,7 +72,7 @@ fn test_participant_status() {
         mixer
             .set_status(
                 i,
-                ParticipantStatus {
+                StreamStatus {
                     has_audio: false,
                     has_video: false,
                 },
@@ -80,7 +80,7 @@ fn test_participant_status() {
             .unwrap();
         mixer.play();
         mixer.generate_dot_file(
-            &format!("test_participant_status-{}-av-off", i + 1),
+            &format!("test_stream_status-{}-av-off", i + 1),
             gst::DebugGraphDetails::ALL,
         );
         wait_millis(500);
@@ -90,7 +90,7 @@ fn test_participant_status() {
         mixer
             .set_status(
                 i,
-                ParticipantStatus {
+                StreamStatus {
                     has_audio: true,
                     has_video: true,
                 },
@@ -98,7 +98,7 @@ fn test_participant_status() {
             .unwrap();
         mixer.play();
         mixer.generate_dot_file(
-            &format!("test_participant_status-{}-av-on", i + 1),
+            &format!("test_stream_status-{}-av-on", i + 1),
             gst::DebugGraphDetails::ALL,
         );
         wait_millis(500);

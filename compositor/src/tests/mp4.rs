@@ -15,7 +15,7 @@ fn test_mp4() {
         height: 480,
     };
 
-    // create grid mixer with test sources for participants and a MatroskaSink
+    // create grid mixer with test sources for streams and a MatroskaSink
     let mut mixer = Mixer::<Grid, TestSource, Mp4Sink, u32>::new(
         resolution,
         None,
@@ -26,9 +26,9 @@ fn test_mp4() {
     )
     .unwrap();
 
-    // add a participant
+    // add a stream
     mixer
-        .add_participant(0, "Participant 0".into(), Default::default())
+        .add_stream(0, "Participant 0".into(), Default::default())
         .unwrap();
 
     // start mixer
