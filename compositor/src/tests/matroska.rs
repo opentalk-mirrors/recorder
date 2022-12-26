@@ -1,28 +1,15 @@
-use super::*;
 use crate::*;
 
 #[test]
 fn test_matroska() {
-    // init logger
-    let _ = env_logger::try_init();
-
-    // initialize gstreamer
-    gst::init().unwrap();
-
-    // get output resolution from arguments
-    let resolution = Size {
-        width: 640,
-        height: 480,
-    };
-
-    // use default parameters for sink
-    let sink_params = MatroskaParameters::default();
+    // initialize for testing
+    testing::init();
 
     // create grid mixer with test sources for streams and a MatroskaSink
     let mut mixer = Mixer::<Grid, TestSource, MatroskaSink, u32>::new(
-        resolution,
+        testing::RESOLUTION,
         None,
-        sink_params,
+        MatroskaParameters::default(),
         SpeakerMode::None,
     )
     .unwrap();
@@ -35,8 +22,8 @@ fn test_matroska() {
     // start mixer
     mixer.play();
 
-    mixer.generate_dot_file("test_matroska", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_matroska", testing::DOT_DETAILS);
 
     // stir until done
-    wait_secs(3);
+    testing::wait_secs(3);
 }

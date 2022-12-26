@@ -1,34 +1,25 @@
-use super::*;
 use crate::*;
 
 #[test]
 fn test_overlay() {
-    let _ = env_logger::try_init();
-    // initialize gstreamer
-    gst::init().unwrap();
+    // initialize for testing
+    testing::init();
 
     // get output resolution from arguments
-    let resolution = Size {
-        width: 640,
-        height: 480,
-    };
-    let mut mixer = Mixer::<Speaker, TestSource, TestSink, u32>::new(
-        resolution,
+    let mut mixer = Mixer::<Speaker, TestSource, testing::TestSink, u32>::new(
+        testing::RESOLUTION,
         Some(6),
         (),
         SpeakerMode::None,
     )
     .unwrap();
 
-    mixer
-        .push_overlay(TextOverlay::new("test_overlay", test_name_format()).overlay())
-        .unwrap();
+    testing::add_overlay_name(&mut mixer, "test_overlay");
 
     mixer.play();
-    mixer.generate_dot_file("test_overlay-0", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_overlay-0", testing::DOT_DETAILS);
 
-    let time = 500;
-    wait_millis(500);
+    testing::wait();
 
     // add clock overlay
     mixer.pause();
@@ -38,18 +29,18 @@ fn test_overlay() {
             TextFormat::default(),
         ))
         .unwrap();
-    mixer.generate_dot_file("test_overlay-1", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_overlay-1", testing::DOT_DETAILS);
     mixer.play();
 
-    wait_millis(time);
+    testing::wait();
 
     // add text overlay
     mixer.pause();
     mixer
         .push_overlay(TextOverlay::new("Text Overlay", TextFormat::default()).into())
         .unwrap();
-    mixer.generate_dot_file("test_overlay-2", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_overlay-2", testing::DOT_DETAILS);
     mixer.play();
 
-    wait_millis(time);
+    testing::wait();
 }

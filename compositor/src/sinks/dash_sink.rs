@@ -135,8 +135,6 @@ impl Sink for DashSink {
             }
         };
 
-        trace!("Current directory {:?}", std::env::current_dir());
-
         // start ffmpeg to fetch output stream and create DASH files
         self.process = Some(
             std::process::Command::new("ffmpeg")
@@ -171,6 +169,8 @@ impl Sink for DashSink {
                 .spawn()
                 .expect("failed to spawn FFmpeg process"),
         );
+
+        debug!("Setting up DASH target path: {output_dir:?}");
 
         // check if the output directory exists
         let output_dir = output_dir.canonicalize().expect("invalid DASH target path");
@@ -223,25 +223,8 @@ impl Sink for DashSink {
         // send EOS into pipeline to flush output
         pipeline.send_event(gst::event::Eos::new());
 
-        // wait until error or EOS
-        let bus = pipeline.bus().expect("failed to get bus of pipeline");
-        for msg in bus.iter_timed(gst::ClockTime::NONE) {
-            use gst::MessageView;
+        while pipeline.current_state() == gst::State::Null {}
 
-            match msg.view() {
-                MessageView::Error(err) => {
-                    error!(
-                        "Error received from element {:?}: {}",
-                        err.src().map(|s| s.path_string()),
-                        err.error()
-                    );
-                    debug!("Debugging information: {:?}", err.debug());
-                    break;
-                }
-                MessageView::Eos(..) => break,
-                _ => (),
-            }
-        }
         // Drop temp_dir to delete directory
         self.temp_dir.take();
     }

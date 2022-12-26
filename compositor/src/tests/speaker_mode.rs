@@ -1,38 +1,30 @@
-use super::*;
 use crate::*;
 
 #[test]
 fn test_speaker_mode() {
-    // init logger
-    let _ = env_logger::try_init();
-    // initialize gstreamer
-    gst::init().unwrap();
+    // initialize for testing
+    testing::init();
 
-    let mut mixer = Mixer::<Speaker, TestSource, TestSink, u32>::new(
-        Size {
-            width: 640,
-            height: 480,
-        },
+    let mut mixer = Mixer::<Speaker, TestSource, testing::TestSink, u32>::new(
+        testing::RESOLUTION,
         None,
         (),
         SpeakerMode::FirstShift,
     )
     .unwrap();
 
-    mixer
-        .push_overlay(TextOverlay::new("test_speaker_mode", test_name_format()).overlay())
-        .unwrap();
+    testing::add_overlay_name(&mut mixer, "test_speaker_mode");
 
     let title = TextOverlay::new("", TextFormat::default());
     mixer.push_overlay(title.overlay()).unwrap();
 
-    mixer.generate_dot_file("test_speaker_mode-0", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_speaker_mode-0", testing::DOT_DETAILS);
 
-    generate_streams(&mut mixer, 8);
+    testing::generate_streams(&mut mixer, 8);
 
     mixer.play();
 
-    wait_millis(500);
+    testing::wait();
 
     for i in 0..6 {
         title.set(&format!("Speaker {i}"));
@@ -42,9 +34,9 @@ fn test_speaker_mode() {
 
         mixer.generate_dot_file(
             &format!("test_speaker_mode-{}", i + 1),
-            gst::DebugGraphDetails::ALL,
+            testing::DOT_DETAILS,
         );
 
-        wait_millis(500);
+        testing::wait();
     }
 }

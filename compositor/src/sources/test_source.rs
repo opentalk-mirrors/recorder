@@ -174,18 +174,18 @@ impl Source for TestSource {
                     filesrc
                         location={location}
                     ! pngdec
-                    ! videoconvert
-                    ! imagefreeze
-                        is-live=true
-                    ! videoscale
-                    ! capssetter
-                        caps=video/x-raw,format=RGB,width={out_width},height={out_height}
                     ! textoverlay
                         font-desc="Helvetica Bold 25"
                         valignment=center
                         halignment=center
                         text="{name}"
                         color=0xffffff80
+                    ! videoconvert
+                    ! imagefreeze
+                        is-live=true
+                    ! videoscale
+                    ! capssetter
+                        caps=video/x-raw,format=RGB,width={out_width},height={out_height}
                     ! queue
                         name=video-testsrc
                     "#,

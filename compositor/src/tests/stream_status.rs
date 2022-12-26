@@ -1,39 +1,30 @@
-use super::*;
 use crate::*;
 
 #[test]
 fn test_stream_status() {
-    // init logger
-    let _ = env_logger::try_init();
-    // initialize gstreamer
-    gst::init().unwrap();
+    // initialize for testing
+    testing::init();
 
-    let mut mixer = Mixer::<Speaker, TestSource, TestSink, u32>::new(
-        Size {
-            width: 640,
-            height: 480,
-        },
+    let mut mixer = Mixer::<Speaker, TestSource, testing::TestSink, u32>::new(
+        testing::RESOLUTION,
         Some(5),
         (),
         SpeakerMode::FirstShift,
     )
     .unwrap();
 
-    mixer
-        .push_overlay(TextOverlay::new("test_stream_status", test_name_format()).overlay())
-        .unwrap();
+    testing::add_overlay_name(&mut mixer, "test_stream_status");
 
     let title = TextOverlay::new("", TextFormat::default());
     mixer.push_overlay(title.overlay()).unwrap();
 
-    mixer.generate_dot_file("test_stream_status-0", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_stream_status-0", testing::DOT_DETAILS);
 
-    trace!("Mixer State: {:?}", mixer.state());
-    generate_streams(&mut mixer, 8);
+    testing::generate_streams(&mut mixer, 8);
 
     mixer.play();
 
-    wait_millis(500);
+    testing::wait_millis(500);
 
     for i in 0..5 {
         debug!("testing stream {i}");
@@ -52,9 +43,10 @@ fn test_stream_status() {
         mixer.play();
         mixer.generate_dot_file(
             &format!("test_stream_status-{}-audio-off", i + 1),
-            gst::DebugGraphDetails::ALL,
+            testing::DOT_DETAILS,
         );
-        wait_millis(500);
+
+        testing::wait();
 
         title.set(&format!("Speaker {i} (video off)"));
         mixer.pause();
@@ -70,9 +62,10 @@ fn test_stream_status() {
         mixer.play();
         mixer.generate_dot_file(
             &format!("test_stream_status-{}-video-off", i + 1),
-            gst::DebugGraphDetails::ALL,
+            testing::DOT_DETAILS,
         );
-        wait_millis(500);
+
+        testing::wait();
 
         title.set(&format!("Speaker {i} (a/v off)"));
         mixer.pause();
@@ -88,9 +81,10 @@ fn test_stream_status() {
         mixer.play();
         mixer.generate_dot_file(
             &format!("test_stream_status-{}-av-off", i + 1),
-            gst::DebugGraphDetails::ALL,
+            testing::DOT_DETAILS,
         );
-        wait_millis(500);
+
+        testing::wait();
 
         title.set(&format!("Speaker {i} (a/v on)"));
         mixer.pause();
@@ -106,8 +100,9 @@ fn test_stream_status() {
         mixer.play();
         mixer.generate_dot_file(
             &format!("test_stream_status-{}-av-on", i + 1),
-            gst::DebugGraphDetails::ALL,
+            testing::DOT_DETAILS,
         );
-        wait_millis(500);
+
+        testing::wait();
     }
 }

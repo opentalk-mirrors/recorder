@@ -190,7 +190,7 @@ where
         display_name: String,
         params: SRC::Parameters,
     ) -> Result<(), Error<ID>> {
-        debug!("add stream( '{display_name}' ({id:?})");
+        debug!("add stream '{display_name}' ({id:?})");
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
