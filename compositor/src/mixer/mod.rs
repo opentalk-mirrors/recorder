@@ -1,9 +1,12 @@
 // sub-modules
+mod overlay;
 mod sink;
 mod source;
 mod stream;
 
 // forward useful sub-module stuff as public
+pub use super::overlays::Overlay;
+pub use overlay::OverlayTrait;
 pub use sink::Sink;
 pub use source::Source;
 pub use stream::Stream;
@@ -38,16 +41,15 @@ where
     pub max_visible: Option<usize>,
     /// Number of currently visible streams.
     pub visibles: Vec<ID>,
-    /// GStreamer element for rendering a clock into the output picture if whished.
-    clock: Option<gst::Element>,
-    /// GStreamer element for rendering a title into the output picture if whished.
-    title: Option<gst::Element>,
-    /// GStreamer element for rendering a sub title display into the output picture if whished.
-    subtitle: Option<gst::Element>,
     /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
     /// Layout of the output picture.
     layout: L,
+    /// pad on which the first (lowest z-order) overlay's sink pad has to be attached to
+    overlay_src: gst::Pad,
+    /// pad on which the last (highest z-order) overlay's src pad has to be attached to
+    overlay_sink: gst::Pad,
+    overlays: Vec<Overlay>,
     /// Current streams.
     pub streams: HashMap<ID, Stream<SRC>>,
     pub speaker: Option<ID>,
@@ -99,25 +101,6 @@ where
                         name=video-compositor
                         ignore-inactive-pads=true
                         zero-size-is-unscaled=true
-                    ! clockoverlay
-                        name=video-clock-overlay
-                        font-desc=Sans,14
-                        time-format="%x %X %Z"
-                        xpad=10
-                        ypad=2
-                        color=0xffffffff
-                    ! textoverlay
-                        name=video-title-overlay
-                        font-desc="Helvetica Bold 25"
-                        xpad=10
-                        ypad=2
-                        color=0xffffffff
-                    ! textoverlay
-                        name=video-subtitle-overlay
-                        font-desc="Helvetica Bold 25"
-                        xpad=10
-                        ypad=2
-                        color=0xffffffff
                     ! queue
                         name=video-out
 
@@ -145,15 +128,6 @@ where
         let compositor = pipeline
             .by_name("video-compositor")
             .expect("failed to get compositor from pipeline");
-        let clock = pipeline
-            .by_name("video-clock-overlay")
-            .expect("failed to get clock overlay from pipeline");
-        let title = pipeline
-            .by_name("video-title-overlay")
-            .expect("failed to get title overlay from pipeline");
-        let subtitle = pipeline
-            .by_name("video-subtitle-overlay")
-            .expect("failed to ger subtitle overlay from pipeline");
         let video_out = pipeline
             .by_name("video-out")
             .expect("failed to get video output from pipeline");
@@ -183,15 +157,22 @@ where
             .link(&output.audio_sink_pad())
             .expect("failed to link output pad to audio output sink");
 
+        let overlay_src = compositor
+            .static_pad("src")
+            .expect("failed to get src pad from compositor");
+        let overlay_sink = video_out
+            .static_pad("sink")
+            .expect("failed to get src pad from video_out ");
+
         Ok(Mixer {
             // remember all those elements and pads
             compositor,
             audio_mixer,
             max_visible,
             visibles: Vec::new(),
-            clock: Some(clock),
-            title: Some(title),
-            subtitle: Some(subtitle),
+            overlay_src,
+            overlay_sink,
+            overlays: Vec::new(),
             layout,
             pipeline,
             streams: HashMap::new(),
@@ -305,6 +286,51 @@ where
 
         // re-layout
         self.layout()?;
+
+        Ok(())
+    }
+
+    /// push new overlay on top of output video within the pipeline
+    /// # Arguments
+    /// - `overlay`: new overlay to push
+    pub fn push_overlay(&mut self, overlay: Overlay) -> Result<(), Error<ID>> {
+        debug!("add overlay: {:?}", overlay);
+
+        // check preconditions
+        if self.pipeline.current_state() == gst::State::Playing {
+            return Err(Error::PlayingPipelineForbidden);
+        }
+
+        // get compositor or last overlay source
+        let last_src = match self.overlays.last() {
+            Some(overlay) => overlay.src(),
+            None => self.overlay_src.clone(),
+        };
+        // get sink the overall output goes to
+        let output_sink = &self.overlay_sink;
+
+        // add new element to pipeline
+        self.pipeline
+            .add(overlay.element())
+            .expect("failed to add overlay element");
+
+        // unlink last overlay (or compositor) source pad from output sink
+        if let Some(last) = output_sink.peer() {
+            last.unlink(output_sink)
+                .expect("failed to unlink last overlay element or compositor from output sink");
+            // link previous overlay (or compositor) source pad to the new overlay's sink
+            last_src
+                .link(&overlay.sink())
+                .expect("failed to link previous src to new overlay's sink");
+        }
+        // link new overlay's source pad to output sink
+        overlay
+            .src()
+            .link(output_sink)
+            .expect("failed to link new overlay source pad to output sink");
+
+        // remember this overlay
+        self.overlays.push(overlay);
 
         Ok(())
     }
@@ -459,24 +485,6 @@ where
         Ok(())
     }
 
-    /// set the title text within the mixer view if provided
-    pub fn set_title(&self, text: &str) {
-        debug!("set title '{text}'");
-
-        if let Some(title) = &self.title {
-            title.set_property("text", text);
-        }
-    }
-
-    /// set the sub title text within the mixer view if provided
-    pub fn set_subtitle(&self, text: &str) {
-        debug!("set subtitle '{text}'");
-
-        if let Some(subtitle) = &self.subtitle {
-            subtitle.set_property("text", text);
-        }
-    }
-
     /// start playing of pipeline
     pub fn play(&mut self) {
         debug!("play pipeline");
@@ -524,24 +532,6 @@ where
         // get number of visible streams
         let num_visible = self.visibles.len();
 
-        // layout overlays
-        self.layout_overlay(
-            &self.title,
-            self.layout.title_position(num_visible),
-            self.layout.title_alignment(),
-        );
-        self.layout_overlay(
-            &self.clock,
-            self.layout.clock_position(num_visible),
-            self.layout.clock_alignment(),
-        );
-
-        self.layout_overlay(
-            &self.subtitle,
-            self.layout.subtitle_position(num_visible),
-            self.layout.subtitle_alignment(num_visible),
-        );
-
         // configure compositor sink pads (which might be connected to the streams' sources)
         for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
             let (pos, size, alpha) = if n < num_visible {
@@ -579,7 +569,7 @@ where
     }
 
     /// Layout an GstBaseTextOverlay derivate.
-    fn layout_overlay(
+    fn _layout_overlay(
         &self,
         element: &Option<gst::Element>,
         position: Position,

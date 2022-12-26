@@ -8,7 +8,7 @@ fn test_stream_status() {
     // initialize gstreamer
     gst::init().unwrap();
 
-    let mut mixer = Mixer::<Speaker, TestSource, FakeSink, u32>::new(
+    let mut mixer = Mixer::<Speaker, TestSource, TestSink, u32>::new(
         Size {
             width: 640,
             height: 480,
@@ -18,6 +18,13 @@ fn test_stream_status() {
         SpeakerMode::FirstShift,
     )
     .unwrap();
+
+    mixer
+        .push_overlay(TextOverlay::new("test_stream_status", test_name_format()).overlay())
+        .unwrap();
+
+    let title = TextOverlay::new("", TextFormat::default());
+    mixer.push_overlay(title.overlay()).unwrap();
 
     mixer.generate_dot_file("test_stream_status-0", gst::DebugGraphDetails::ALL);
 
@@ -31,7 +38,7 @@ fn test_stream_status() {
     for i in 0..5 {
         debug!("testing stream {i}");
 
-        mixer.set_title(&format!("Speaker {i} (audio off)"));
+        title.set(&format!("Speaker {i} (audio off)"));
         mixer.pause();
         mixer
             .set_status(
@@ -49,7 +56,7 @@ fn test_stream_status() {
         );
         wait_millis(500);
 
-        mixer.set_title(&format!("Speaker {i} (video off)"));
+        title.set(&format!("Speaker {i} (video off)"));
         mixer.pause();
         mixer
             .set_status(
@@ -67,7 +74,7 @@ fn test_stream_status() {
         );
         wait_millis(500);
 
-        mixer.set_title(&format!("Speaker {i} (a/v off)"));
+        title.set(&format!("Speaker {i} (a/v off)"));
         mixer.pause();
         mixer
             .set_status(
@@ -85,7 +92,7 @@ fn test_stream_status() {
         );
         wait_millis(500);
 
-        mixer.set_title(&format!("Speaker {i} (a/v on)"));
+        title.set(&format!("Speaker {i} (a/v on)"));
         mixer.pause();
         mixer
             .set_status(

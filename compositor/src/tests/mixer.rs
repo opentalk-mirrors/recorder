@@ -3,18 +3,17 @@ use crate::*;
 
 #[test]
 fn test_speaker_layout() {
-    test_layout::<Speaker, FakeSink>((), SpeakerMode::FirstShift);
+    test_layout::<Speaker>(SpeakerMode::FirstShift);
 }
 
 #[test]
 fn test_grid_layout() {
-    test_layout::<Grid, FakeSink>((), SpeakerMode::None);
+    test_layout::<Grid>(SpeakerMode::None);
 }
 
-fn test_layout<L, SINK>(params: SINK::Parameters, speaker_mode: SpeakerMode)
+fn test_layout<L>(speaker_mode: SpeakerMode)
 where
     L: Layout,
-    SINK: Sink,
 {
     let _ = env_logger::try_init();
 
@@ -28,7 +27,11 @@ where
     };
 
     let mut mixer =
-        Mixer::<L, TestSource, SINK, u32>::new(resolution, None, params, speaker_mode).unwrap();
+        Mixer::<L, TestSource, TestSink, u32>::new(resolution, None, (), speaker_mode).unwrap();
+
+    let title = TextOverlay::new("", &Font::default(), &Padding::default(), &Color::default());
+    mixer.push_overlay(title.overlay()).unwrap();
+
     mixer.play();
     mixer.generate_dot_file("test_layout-0", gst::DebugGraphDetails::ALL);
 
@@ -38,8 +41,7 @@ where
 
     wait_millis(500);
 
-    mixer.set_subtitle("Sub title");
-    mixer.set_title("Add 8 Participants");
+    title.set("Add 8 Participants");
     for (id, name) in &streams {
         let params = TestSourceParameters {
             resolution: Size::SD,
@@ -52,7 +54,7 @@ where
 
     for i in 0..6 {
         let j = i + 1;
-        mixer.set_title(&format!("Showing {j} Participants"));
+        title.set(&format!("Showing {j} Participants"));
         mixer.pause();
         mixer.set_visibles(&ids[0..j]).unwrap();
         mixer.play();
@@ -66,7 +68,7 @@ where
 
     for i in 0..6 {
         let j = 6 - i - 1;
-        mixer.set_title(&format!("Showing {j} Participants"));
+        title.set(&format!("Showing {j} Participants"));
         mixer.pause();
         mixer.set_visibles(&ids[0..j]).unwrap();
         mixer.play();
@@ -81,18 +83,17 @@ where
 
 #[test]
 fn test_speaker_different_resolutions() {
-    test_layout_different_resolutions::<Speaker, FakeSink>((), SpeakerMode::FirstShift);
+    test_layout_different_resolutions::<Speaker>(SpeakerMode::FirstShift);
 }
 
 #[test]
 fn test_grid_different_resolutions() {
-    test_layout_different_resolutions::<Grid, FakeSink>((), SpeakerMode::None);
+    test_layout_different_resolutions::<Grid>(SpeakerMode::None);
 }
 
-fn test_layout_different_resolutions<L, SINK>(params: SINK::Parameters, speaker_mode: SpeakerMode)
+fn test_layout_different_resolutions<L>(speaker_mode: SpeakerMode)
 where
     L: Layout,
-    SINK: Sink,
 {
     let _ = env_logger::try_init();
     // initialize gstreamer
@@ -102,7 +103,17 @@ where
     let resolution = Size::SD;
 
     let mut mixer =
-        Mixer::<L, TestSource, SINK, u32>::new(resolution, None, params, speaker_mode).unwrap();
+        Mixer::<L, TestSource, TestSink, u32>::new(resolution, None, (), speaker_mode).unwrap();
+
+    mixer
+        .push_overlay(
+            TextOverlay::new(&format!("test_layout_{}", L::NAME), test_name_format()).overlay(),
+        )
+        .unwrap();
+
+    let title = TextOverlay::new("", TextFormat::default());
+    mixer.push_overlay(title.overlay()).unwrap();
+
     mixer.play();
     mixer.generate_dot_file(
         &format!("test_layout_different_resolutions-{}-0", L::NAME),
@@ -118,7 +129,7 @@ where
     mixer.play();
 
     for i in 1..6 {
-        mixer.set_title(&format!("Showing {i} Participants"));
+        title.set(&format!("Showing {i} Participants"));
         mixer.pause();
         mixer.set_visibles(&ids[0..i]).unwrap();
         mixer.play();
@@ -144,9 +155,15 @@ fn test_remove() {
         height: 480,
     };
     let mut mixer =
-        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, Some(6), (), SpeakerMode::None)
+        Mixer::<Grid, TestSource, TestSink, u32>::new(resolution, Some(6), (), SpeakerMode::None)
             .unwrap();
-    mixer.play();
+
+    mixer
+        .push_overlay(TextOverlay::new("test_remove", test_name_format()).overlay())
+        .unwrap();
+
+    let title = TextOverlay::new("", TextFormat::default());
+    mixer.push_overlay(title.overlay()).unwrap();
 
     for i in 0..2 {
         super::generate_streams(&mut mixer, 8);
@@ -160,7 +177,7 @@ fn test_remove() {
 
         wait_millis(100);
 
-        mixer.set_title("remove 0 (left 1-7)");
+        title.set("remove 0 (left 1-7)");
         mixer.pause();
         mixer.remove_stream(0).unwrap();
 
@@ -170,7 +187,7 @@ fn test_remove() {
 
         wait_millis(100);
 
-        mixer.set_title("remove 1-2 (left 3-7)");
+        title.set("remove 1-2 (left 3-7)");
         mixer.pause();
         mixer.remove_stream(1).unwrap();
         mixer.remove_stream(2).unwrap();
@@ -179,7 +196,7 @@ fn test_remove() {
 
         wait_millis(100);
 
-        mixer.set_title("remove 3-6 (left 7)");
+        title.set("remove 3-6 (left 7)");
         mixer.pause();
         mixer.remove_stream(3).unwrap();
         mixer.remove_stream(4).unwrap();
@@ -190,7 +207,7 @@ fn test_remove() {
 
         wait_millis(100);
 
-        mixer.set_title("remove 7 (none left)");
+        title.set("remove 7 (none left)");
         mixer.pause();
         mixer.remove_stream(7).unwrap();
         mixer.play();
