@@ -76,9 +76,8 @@ pub mod testing {
     }
 
     /// create a text overlay which displays the given text which shall be the test name
-    pub fn add_overlay_name<L, SRC, SINK, ID>(mixer: &mut Mixer<L, SRC, SINK, ID>, name: &str)
+    pub fn add_overlay_name<SRC, SINK, ID>(mixer: &mut Mixer<SRC, SINK, ID>, name: &str)
     where
-        L: Layout,
         SRC: Source,
         SINK: Sink,
         ID: Eq + Ord + Hash + Copy + Debug,
@@ -116,12 +115,12 @@ pub mod testing {
     }
 
     /// generate given number of participant streams
-    pub fn generate_streams<L, SINK, ID>(
-        mixer: &mut Mixer<L, TestSource, SINK, ID>,
+    pub fn generate_streams<SINK, ID>(
+        mixer: &mut Mixer<TestSource, SINK, ID>,
         n: u32,
+        visibles: usize,
     ) -> (Vec<(ID, String)>, Vec<ID>)
     where
-        L: Layout,
         SINK: crate::Sink,
         ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
     {
@@ -136,17 +135,28 @@ pub mod testing {
             "participant_QHD.png",
             "participant_UHD.png",
         ];
+
         for (i, (id, name)) in streams.iter().enumerate() {
             let params = TestSourceParameters {
                 resolution: resolutions[i % images.len()],
                 pattern: Pattern::Location(testing::image_file(images[i % images.len()])),
                 name: Some(name.clone()),
             };
-            mixer.pause();
             mixer.add_stream(*id, name.clone(), params).unwrap();
-            mixer.play();
         }
+        mixer
+            .set_visibles(&ids.iter().take(visibles).copied().collect::<Vec<_>>())
+            .unwrap();
+
         (streams, ids)
+    }
+
+    pub fn set_visibles<SINK, ID>(mixer: &mut Mixer<TestSource, SINK, ID>, visibles: &[ID])
+    where
+        SINK: crate::Sink,
+        ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
+    {
+        mixer.set_visibles(visibles).unwrap();
     }
 
     /// wait the given amount of seconds

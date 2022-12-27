@@ -6,13 +6,8 @@ fn test_overlay() {
     testing::init();
 
     // get output resolution from arguments
-    let mut mixer = Mixer::<Speaker, TestSource, testing::TestSink, u32>::new(
-        testing::RESOLUTION,
-        Some(6),
-        (),
-        SpeakerMode::None,
-    )
-    .unwrap();
+    let mut mixer =
+        Mixer::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, ()).unwrap();
 
     testing::add_overlay_name(&mut mixer, "test_overlay");
 

@@ -161,12 +161,8 @@ async fn main2() -> Result<()> {
 // TODO; make this configurable
 const MAX_VISIBLES: usize = 6;
 
-type Mixer = compositor::Mixer<
-    compositor::Speaker,
-    compositor::WebRtcSource,
-    compositor::Mp4Sink,
-    ParticipantId,
->;
+type Mixer = compositor::Talk<compositor::WebRtcSource, compositor::Mp4Sink, ParticipantId>;
+type Layout = compositor::Grid;
 
 pub struct RecordingSession {
     settings: Arc<Settings>,
@@ -201,14 +197,13 @@ impl RecordingSession {
 
         let mut mixer = Mixer::new(
             compositor::Size::FHD,
-            Some(MAX_VISIBLES),
             compositor::Mp4SinkParams {
                 file_path: file_path
                     .to_str()
                     .expect("failed to convert MP4 file path into string")
                     .into(),
             },
-            compositor::SpeakerMode::FirstShift,
+            Some(MAX_VISIBLES),
         )?;
 
         // find all participants that publish their webcam
@@ -224,7 +219,7 @@ impl RecordingSession {
 
         // Subscribe to above collected participants
         for (id, display_name) in publishing_participants {
-            mixer.add_stream(
+            mixer.add_participant::<Layout>(
                 id,
                 display_name,
                 participant_params(id, candidate_sender.clone()),
@@ -233,6 +228,8 @@ impl RecordingSession {
                 .start_subscribe(id, MediaSessionType::Camera)
                 .await?;
         }
+
+        mixer.layout::<Layout>().unwrap();
 
         mixer.play();
 
@@ -275,7 +272,7 @@ impl RecordingSession {
                 if state.publishes(MediaSessionType::Camera) {
                     log::debug!("Join: subscribe Video of {:?}", id);
                     self.mixer.pause();
-                    self.mixer.add_stream(
+                    self.mixer.add_participant::<Layout>(
                         id,
                         id.0.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
@@ -289,12 +286,12 @@ impl RecordingSession {
             Event::ParticipantUpdated(id) => {
                 let state = &self.signaling.participants()[&id];
                 let has_video_feed = state.publishes(MediaSessionType::Camera);
-                let is_subscribed = self.mixer.streams.contains_key(&id);
+                let is_subscribed = self.mixer.contains_key(&id);
 
                 if !is_subscribed && has_video_feed {
                     log::debug!("Update: subscribe Video of {:?}", id);
                     self.mixer.pause();
-                    self.mixer.add_stream(
+                    self.mixer.add_participant::<Layout>(
                         id,
                         id.0.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
@@ -310,7 +307,7 @@ impl RecordingSession {
                     log::debug!("Update: unsubscribe Video of {:?}", id);
                     self.mixer.pause();
                     self.mixer.remove_stream(id)?;
-                    self.set_visibles()?;
+                    self.mixer.layout::<Layout>()?;
                     self.mixer.play();
                     return Ok(());
                 }
@@ -324,10 +321,10 @@ impl RecordingSession {
                 return Ok(());
             }
             Event::ParticipantLeft(id) => {
-                if self.mixer.streams.contains_key(&id) {
+                if self.mixer.contains_key(&id) {
                     self.mixer.pause();
                     self.mixer.remove_stream(id)?;
-                    self.set_visibles()?;
+                    self.mixer.layout::<Layout>()?;
                     self.mixer.play();
                 }
 
@@ -343,28 +340,29 @@ impl RecordingSession {
                 }
             }
             Event::SdpOffer(id, typ, offer) => {
-                if let Some(participant) = self.mixer.streams.get_mut(&id) {
-                    let answer = participant.source.receive_offer(offer).await;
+                if let Some(source) = self.mixer.get_source(&id) {
+                    let answer = source.receive_offer(offer).await;
                     self.signaling.send_answer(id, typ, answer).await?;
                 }
             }
             Event::SdpCandidate(id, _typ, candidate) => {
-                if let Some(participant) = self.mixer.streams.get_mut(&id) {
-                    participant
-                        .source
+                if let Some(source) = self.mixer.get_source(&id) {
+                    source
                         .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
                         .await;
                 }
             }
             Event::SdpEndOfCandidates(id, _typ) => {
-                if let Some(participant) = self.mixer.streams.get_mut(&id) {
-                    participant.source.receive_end_of_candidates(0).await;
+                if let Some(source) = self.mixer.get_source(&id) {
+                    source.receive_end_of_candidates(0).await;
                 }
             }
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Set active speaker to {:?}", focus_change);
                 self.mixer.pause();
-                self.mixer.set_speaker(focus_change)?;
+                self.mixer
+                    .set_speaker(focus_change, &compositor::SpeakerMode::FirstShift)?;
+                self.mixer.layout::<Layout>().unwrap();
                 self.mixer.play();
             }
             Event::MediaConnectionError(error) => {
@@ -372,28 +370,6 @@ impl RecordingSession {
             }
             Event::Close => self.done = true,
         }
-
-        Ok(())
-    }
-
-    fn set_visibles(&mut self) -> Result<()> {
-        let visibles = self
-            .mixer
-            .streams
-            .keys()
-            .filter(|id| {
-                // check with the signaling's participant-list if the participant's video is enabled
-                self.signaling
-                    .participants()
-                    .get(id)
-                    .map(|state| state.is_showing_video(MediaSessionType::Camera))
-                    .unwrap_or_default()
-            })
-            .take(MAX_VISIBLES)
-            .copied()
-            .collect::<Vec<_>>();
-
-        self.mixer.set_visibles(&visibles)?;
 
         Ok(())
     }

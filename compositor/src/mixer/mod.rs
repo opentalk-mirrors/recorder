@@ -3,17 +3,18 @@ mod overlay;
 mod sink;
 mod source;
 mod stream;
+mod talk;
 
 // forward useful sub-module stuff as public
 pub use super::overlays::Overlay;
 pub use overlay::OverlayTrait;
 pub use sink::Sink;
 pub use source::Source;
-pub use stream::Stream;
-pub use stream::StreamStatus;
+pub use stream::{Stream, StreamStatus};
+pub use talk::{SpeakerMode, Talk};
 
 // what else we need from this lib
-use crate::{layout, Alignment, Error, Layout, Position, Size};
+use crate::{Error, Layout, Size};
 use stream::VideoLinkStatus;
 
 // what we need from external libraries
@@ -26,40 +27,36 @@ use std::collections::HashMap;
 /// - `L`: Layout to use to compose output picture.
 /// - `SRC`: Source type to use when adding streams.
 /// - `SINK`: Sink type to use for output.
-pub struct Mixer<L, SRC, SINK, ID>
+pub struct Mixer<SRC, SINK, ID>
 where
-    L: Layout,
     SRC: Source,
     SINK: Sink,
     ID: Eq + Ord + Hash + Copy + Debug,
 {
     /// GStreamer element which composes the output video out of the source videos.
-    pub compositor: gst::Element,
+    compositor: gst::Element,
     /// GStreamer element which composes the output audio out of the source audios.
-    pub audio_mixer: gst::Element,
-    /// Maximum number of visible streams.
-    pub max_visible: Option<usize>,
+    audio_mixer: gst::Element,
     /// Number of currently visible streams.
-    pub visibles: Vec<ID>,
+    visibles: Vec<ID>,
     /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
-    /// Layout of the output picture.
-    layout: L,
     /// pad on which the first (lowest z-order) overlay's sink pad has to be attached to
     overlay_src: gst::Pad,
     /// pad on which the last (highest z-order) overlay's src pad has to be attached to
     overlay_sink: gst::Pad,
+    /// on top overlays
     overlays: Vec<Overlay>,
     /// Current streams.
-    pub streams: HashMap<ID, Stream<SRC>>,
-    pub speaker: Option<ID>,
+    streams: HashMap<ID, Stream<SRC>>,
     /// Holds the output sink.
-    pub output: SINK,
+    output: SINK,
+    /// over all generated output resolution
+    output_resolution: Size,
 }
 
-impl<L, SRC, SINK, ID> Mixer<L, SRC, SINK, ID>
+impl<SRC, SINK, ID> Mixer<SRC, SINK, ID>
 where
-    L: Layout,
     SRC: Source,
     SINK: Sink,
     ID: Eq + Ord + Hash + Copy + Debug,
@@ -67,14 +64,8 @@ where
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     /// # Arguments
     /// - `resolution`: Output video resolution.
-    /// - `max_visible`: Maximum number of visible streams.
-    /// - `visibles`: Number of currently visible streams.
-    pub fn new(
-        resolution: Size,
-        max_visible: Option<usize>,
-        sink_params: SINK::Parameters,
-        speaker_mode: layout::SpeakerMode,
-    ) -> Result<Self, Error<ID>> {
+    /// - `sink_params`: Parameters to create the output sink.
+    pub fn new(resolution: Size, sink_params: SINK::Parameters) -> Result<Self, Error<ID>> {
         // get width/height
         let width = resolution.width;
         let height = resolution.height;
@@ -83,8 +74,6 @@ where
             resolution.ratio()
         );
 
-        // create new layout for the given resolution
-        let layout = L::new(resolution, speaker_mode);
         // create new GStreamer pipeline
         let pipeline = gst::parse_launch(&format!(
             r#"
@@ -168,16 +157,14 @@ where
             // remember all those elements and pads
             compositor,
             audio_mixer,
-            max_visible,
             visibles: Vec::new(),
             overlay_src,
             overlay_sink,
             overlays: Vec::new(),
-            layout,
             pipeline,
             streams: HashMap::new(),
-            speaker: None,
             output,
+            output_resolution: resolution,
         })
     }
     /// Add a new stream to the mixer.
@@ -201,7 +188,7 @@ where
         // add new stream
         let stream = Stream::new(
             &self.pipeline,
-            self.layout.resolution(),
+            &self.output_resolution,
             display_name,
             params,
         );
@@ -210,21 +197,6 @@ where
         // link new stream
         self.link_audio(id)?;
         self.link_video_to_fakesink(id)?;
-
-        if let Some(max_visible) = self.max_visible {
-            // Show visibles if there is unused space
-            if self.visibles.len() < max_visible {
-                debug!("automatically making stream {id:?} visible because there are unused visible ports");
-                // get currently visible streams
-                let mut visibles = self.visibles.clone();
-                // make new stream visible
-                visibles.push(id);
-                // update visibles
-                self.set_visibles(&visibles)?;
-            }
-        }
-        // re-layout
-        self.layout()?;
 
         Ok(())
     }
@@ -255,37 +227,6 @@ where
             .ok_or(Error::ParticipantNotFound(remove_id))?;
 
         stream.source.remove(&self.pipeline);
-
-        // check if stream is visible
-        if let Some(pos) = self.visibles.iter().position(|i| i == &remove_id) {
-            self.visibles.remove(pos);
-        }
-
-        if let Some(max_visible) = self.max_visible {
-            // fill up visibles with invisible streams
-            if self.visibles.len() < max_visible {
-                // clone currently visible streams to make a new list
-                let mut visibles = self.visibles.clone();
-                // add all streams to this list which are invisible and not the removed one
-                for id in self.streams.keys() {
-                    if !self.visibles.contains(id) {
-                        visibles.push(*id);
-                        // stop if we reach max_visible
-                        if visibles.len() == max_visible {
-                            break;
-                        }
-                    }
-                }
-                debug!(
-                    "automatically filling up visibles with former invisible streams {visibles:?}"
-                );
-                // update visibles
-                self.set_visibles(&visibles)?;
-            }
-        }
-
-        // re-layout
-        self.layout()?;
 
         Ok(())
     }
@@ -348,12 +289,12 @@ where
             return Err(Error::PlayingPipelineForbidden);
         }
 
-        if let Some(max_visible) = self.max_visible {
-            // check if given list exceeds maximum length
-            if ids.len() > max_visible {
-                return Err(Error::TooManyVisibles);
-            }
-        }
+        //    if let Some(max_visible) = self.max_visible {
+        //        // check if given list exceeds maximum length
+        //        if ids.len() > max_visible {
+        //            return Err(Error::TooManyVisibles);
+        //        }
+        //    }
 
         // Unlink all participants
         for id in self.visibles.clone() {
@@ -368,83 +309,81 @@ where
         // copy ID list of visibles
         self.visibles = ids.into();
 
-        // re-layout
-        self.layout()?;
-
         Ok(())
     }
 
-    /// Sets the current speaker
-    /// Visualization of the current speaker depends on the layout's speaker mode
-    /// # Arguments
-    /// - `id`: ID of the stream to mark as speaker
-    /// # Speaker modes
-    /// Depending on the layout::SpeakerMode set in the layout the speaker might be moved into or within the visibles.
-    pub fn set_speaker(&mut self, speaker_id: Option<ID>) -> Result<(), Error<ID>> {
-        debug!("set speaker {:?}...", speaker_id);
+    /*
+       /// Sets the current speaker
+       /// Visualization of the current speaker depends on the layout's speaker mode
+       /// # Arguments
+       /// - `id`: ID of the stream to mark as speaker
+       /// # Speaker modes
+       /// Depending on the layout::SpeakerMode set in the layout the speaker might be moved into or within the visibles.
+       pub fn set_speaker(&mut self, speaker_id: Option<ID>) -> Result<(), Error<ID>> {
+           debug!("set speaker {:?}...", speaker_id);
 
-        if let Some(speaker_id) = &speaker_id {
-            let mut visibles = self.visibles.clone();
+           if let Some(speaker_id) = &speaker_id {
+               let mut visibles = self.visibles.clone();
 
-            // check if speaker is stream
-            if !self.streams.contains_key(speaker_id) {
-                error!("speaker must be a stream");
-            }
-            use layout::*;
-            match self.layout.speaker_mode() {
-                SpeakerMode::FirstShift => {
-                    // check if speaker is in visibles
-                    match visibles.iter().position(|id| id == speaker_id) {
-                        Some(pos) => {
-                            trace!("remove visible at {pos}");
-                            // remove speaker from visibles
-                            visibles.remove(pos);
-                        }
-                        None => {
-                            if let Some(max_visible) = self.max_visible {
-                                // remove last visible if visibles are filled completely
-                                if visibles.len() == max_visible {
-                                    trace!("remove last visible");
-                                    visibles.pop();
-                                }
-                            }
-                        }
-                    }
-                    trace!("insert speaker {:?} at 0", *speaker_id);
-                    // insert speaker at first
-                    visibles.insert(0, *speaker_id);
-                }
-                SpeakerMode::FirstSwap => {
-                    // check if speaker is in visibles
-                    match visibles.iter().position(|id| id == speaker_id) {
-                        Some(pos) => {
-                            trace!("swap visible 0 and {pos}");
-                            // swap with previous speaker
-                            visibles.swap(0, pos);
-                        }
-                        None => {
-                            if let Some(max_visible) = self.max_visible {
-                                // remove last visible if visibles are filled completely
-                                if visibles.len() == max_visible {
-                                    trace!("remove last visible");
-                                    visibles.pop();
-                                }
-                            }
-                            // insert speaker at first
-                            trace!("insert speaker {:?} at 0", *speaker_id);
-                            visibles.insert(0, *speaker_id);
-                        }
-                    }
-                }
-                _ => (),
-            }
-            self.speaker = Some(*speaker_id);
-            self.set_visibles(&visibles)?;
-            self.layout()?;
-        }
-        Ok(())
-    }
-
+               // check if speaker is stream
+               if !self.streams.contains_key(speaker_id) {
+                   error!("speaker must be a stream");
+               }
+               use layout::*;
+               match self.layout.speaker_mode() {
+                   SpeakerMode::FirstShift => {
+                       // check if speaker is in visibles
+                       match visibles.iter().position(|id| id == speaker_id) {
+                           Some(pos) => {
+                               trace!("remove visible at {pos}");
+                               // remove speaker from visibles
+                               visibles.remove(pos);
+                           }
+                           None => {
+                               if let Some(max_visible) = self.max_visible {
+                                   // remove last visible if visibles are filled completely
+                                   if visibles.len() == max_visible {
+                                       trace!("remove last visible");
+                                       visibles.pop();
+                                   }
+                               }
+                           }
+                       }
+                       trace!("insert speaker {:?} at 0", *speaker_id);
+                       // insert speaker at first
+                       visibles.insert(0, *speaker_id);
+                   }
+                   SpeakerMode::FirstSwap => {
+                       // check if speaker is in visibles
+                       match visibles.iter().position(|id| id == speaker_id) {
+                           Some(pos) => {
+                               trace!("swap visible 0 and {pos}");
+                               // swap with previous speaker
+                               visibles.swap(0, pos);
+                           }
+                           None => {
+                               if let Some(max_visible) = self.max_visible {
+                                   // remove last visible if visibles are filled completely
+                                   if visibles.len() == max_visible {
+                                       trace!("remove last visible");
+                                       visibles.pop();
+                                   }
+                               }
+                               // insert speaker at first
+                               trace!("insert speaker {:?} at 0", *speaker_id);
+                               visibles.insert(0, *speaker_id);
+                           }
+                       }
+                   }
+                   _ => (),
+               }
+               self.speaker = Some(*speaker_id);
+               self.set_visibles(&visibles)?;
+               self.layout()?;
+           }
+           Ok(())
+       }
+    */
     /// set status of a stream
     pub fn set_status(&mut self, id: ID, new_status: StreamStatus) -> Result<(), Error<ID>> {
         debug!("set stream {id:?} status to {new_status:?}");
@@ -480,8 +419,9 @@ where
             .ok_or(Error::ParticipantNotFound(id))?
             .status = new_status;
 
-        self.set_speaker(self.speaker)?;
-
+        /*
+               self.set_speaker(self.speaker)?;
+        */
         Ok(())
     }
 
@@ -523,66 +463,51 @@ where
     }
 
     /// Re-layout the current compositor scene.
-    fn layout(&self) -> Result<(), Error<ID>> {
+    pub fn layout<L>(&self) -> Result<(), Error<ID>>
+    where
+        L: Layout,
+    {
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
         }
 
-        // get number of visible streams
-        let num_visible = self.visibles.len();
+        // initialize the layout with mixer setup
+        let layout = L::new(self.visibles.len(), self.output_resolution);
 
         // configure compositor sink pads (which might be connected to the streams' sources)
         for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
-            let (pos, size, alpha) = if n < num_visible {
-                (
-                    self.layout.position(n, num_visible),
-                    self.layout.size(n, num_visible),
-                    1.0,
-                )
-            } else {
-                (
-                    Position { x: 0, y: 0 },
-                    Size {
-                        width: 0,
-                        height: 0,
-                    },
-                    0.0,
-                )
-            };
-            trace!(
-                "{name}: xpos={xpos}, ypos={ypos}, width={width}, height={height}",
-                xpos = pos.x as i32,
-                ypos = pos.y as i32,
-                width = size.width as i32,
-                height = size.height as i32,
-                name = pad.name()
-            );
-            pad.set_property("xpos", pos.x as i32);
-            pad.set_property("ypos", pos.y as i32);
-            pad.set_property("width", size.width as i32);
-            pad.set_property("height", size.height as i32);
-            pad.set_property("alpha", alpha);
+            self.layout_stream(&layout.view(n), pad);
         }
 
         Ok(())
     }
 
     /// Layout an GstBaseTextOverlay derivate.
-    fn _layout_overlay(
-        &self,
-        element: &Option<gst::Element>,
-        position: Position,
-        alignment: Alignment,
-    ) {
-        if let Some(element) = element {
-            element.set_property_from_str("halignment", alignment.horizontal);
-            element.set_property_from_str("valignment", alignment.vertical);
-            element.set_property_from_str("line-alignment", alignment.horizontal);
-            element.set_property_from_str("deltax", &position.x.to_string());
-            element.set_property_from_str("deltay", &position.y.to_string());
-        }
+    fn layout_stream(&self, view: &crate::View, pad: &gst::Pad) {
+        trace!("{name}: {view:?}", name = pad.name());
+        pad.set_property("xpos", view.pos.x as i32);
+        pad.set_property("ypos", view.pos.y as i32);
+        pad.set_property("width", view.size.width as i32);
+        pad.set_property("height", view.size.height as i32);
+        pad.set_property("alpha", view.alpha);
     }
+
+    // /// Layout an GstBaseTextOverlay derivate.
+    // fn layout_overlay(
+    //     &self,
+    //     element: &Option<gst::Element>,
+    //     position: Position,
+    //     alignment: Alignment,
+    // ) {
+    //     if let Some(element) = element {
+    //         element.set_property_from_str("halignment", alignment.horizontal);
+    //         element.set_property_from_str("valignment", alignment.vertical);
+    //         element.set_property_from_str("line-alignment", alignment.horizontal);
+    //         element.set_property_from_str("deltax", &position.x.to_string());
+    //         element.set_property_from_str("deltay", &position.y.to_string());
+    //     }
+    // }
 
     /// Link stream's audio source to audio mixer.
     fn link_audio(&mut self, id: ID) -> Result<(), Error<ID>> {
@@ -771,9 +696,8 @@ where
     }
 }
 
-impl<L, SRC, SINK, ID> Drop for Mixer<L, SRC, SINK, ID>
+impl<SRC, SINK, ID> Drop for Mixer<SRC, SINK, ID>
 where
-    L: Layout,
     SRC: Source,
     SINK: Sink,
     ID: Eq + Ord + Hash + Copy + Debug,

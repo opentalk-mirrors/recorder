@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{testing::RESOLUTION, *};
 
 /// generate an example of a usual pipeline
 #[test]
@@ -9,16 +9,8 @@ fn generate_example_pipeline_picture() {
     // initialize GStreamer
     gst::init().unwrap();
 
-    // get output resolution from arguments
-    let resolution = Size {
-        width: 640,
-        height: 480,
-    };
-
     // setup mixer
-    let mut mixer =
-        Mixer::<Grid, TestSource, FakeSink, u32>::new(resolution, Some(2), (), SpeakerMode::None)
-            .unwrap();
+    let mut mixer = Mixer::<TestSource, FakeSink, u32>::new(RESOLUTION, ()).unwrap();
     // generate pipeline DOT graph of the empty pipeline
     mixer.generate_dot_file("0_init", gst::DebugGraphDetails::STATES);
 
@@ -34,6 +26,7 @@ fn generate_example_pipeline_picture() {
 
     // set two streams to be visible
     mixer.set_visibles(&[1, 2]).unwrap();
+    mixer.layout::<Grid>().unwrap();
     // generate pipeline DOT graph
     mixer.generate_dot_file("2_set_visibles", gst::DebugGraphDetails::STATES);
 

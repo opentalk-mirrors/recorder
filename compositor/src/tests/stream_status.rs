@@ -5,13 +5,8 @@ fn test_stream_status() {
     // initialize for testing
     testing::init();
 
-    let mut mixer = Mixer::<Speaker, TestSource, testing::TestSink, u32>::new(
-        testing::RESOLUTION,
-        Some(5),
-        (),
-        SpeakerMode::FirstShift,
-    )
-    .unwrap();
+    let mut mixer =
+        Mixer::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, ()).unwrap();
 
     testing::add_overlay_name(&mut mixer, "test_stream_status");
 
@@ -20,7 +15,7 @@ fn test_stream_status() {
 
     mixer.generate_dot_file("test_stream_status-0", testing::DOT_DETAILS);
 
-    testing::generate_streams(&mut mixer, 8);
+    testing::generate_streams(&mut mixer, 8, 5);
 
     mixer.play();
 
