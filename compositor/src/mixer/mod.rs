@@ -11,7 +11,7 @@ pub use overlay::OverlayTrait;
 pub use sink::Sink;
 pub use source::Source;
 pub use stream::{Stream, StreamStatus};
-pub use talk::{SpeakerMode, Talk};
+pub use talk::{SpeakerMode, StreamId, Talk};
 
 // what else we need from this lib
 use crate::{Error, Layout, Size};

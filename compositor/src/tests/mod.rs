@@ -146,6 +146,8 @@ pub mod testing {
             .set_visibles(&ids.iter().take(visibles).copied().collect::<Vec<_>>())
             .unwrap();
 
+        mixer.layout::<Speaker>().unwrap();
+
         (streams, ids)
     }
 

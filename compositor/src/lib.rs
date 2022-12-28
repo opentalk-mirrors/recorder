@@ -1,8 +1,9 @@
 /*!
     # Purpose
     The *compositor* crate manages a [GStreamer](https://gstreamer.freedesktop.org/) pipeline which receives [WebRTC](https://webrtc.org/) input audio and video streams
-    of so-called *streams* and mixes them together using the so-called *mixer*.
+    of so-called *streams* and mixes them together using the so-called *mixer*. While *talk* manages multi stream participants and visibility.
 
+    - [Talk](mixer::Talk)
     - [Mixer](mixer::Mixer)
     - [Stream](mixer::Stream)
 

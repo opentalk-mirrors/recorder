@@ -1,6 +1,62 @@
 use crate::*;
 use core::{fmt::Debug, hash::Hash};
 
+/// sub stream ID for testing purposes.
+#[allow(dead_code)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SubStreamId {
+    /// participant's picture
+    Main,
+    /// participant's screen share
+    Screen,
+}
+
+impl Default for SubStreamId {
+    fn default() -> Self {
+        Self::Main
+    }
+}
+
+/// Stream ID consisting of one main ID and a sub ID for participants having multiple streams (e.g. Camera and Slides)
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StreamId<ID>
+where
+    ID: Eq + Ord + Hash + Copy + Debug,
+{
+    /// ID identifying the participant
+    pub id: ID,
+    /// sub ID identifying the stream of the participant
+    pub stream: SubStreamId,
+}
+
+impl<ID> StreamId<ID>
+where
+    ID: Eq + Ord + Hash + Copy + Debug,
+{
+    pub fn new(id: ID, stream: SubStreamId) -> Self {
+        Self { id, stream }
+    }
+    pub fn new_main(id: ID) -> Self {
+        Self {
+            id,
+            stream: SubStreamId::Main,
+        }
+    }
+}
+
+#[cfg(test)]
+impl<ID> From<u32> for StreamId<ID>
+where
+    ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
+{
+    fn from(number: u32) -> Self {
+        Self {
+            id: number.into(),
+            stream: SubStreamId::default(),
+        }
+    }
+}
+
 /// A talk consisting of participants and managing maximum amount of visibles
 pub struct Talk<SRC, SINK, ID>
 where
@@ -8,7 +64,7 @@ where
     SINK: crate::Sink,
     ID: Eq + Ord + Hash + Copy + Debug,
 {
-    pub mixer: crate::Mixer<SRC, SINK, ID>,
+    pub mixer: crate::Mixer<SRC, SINK, StreamId<ID>>,
     max_visibles: Option<usize>,
 }
 
@@ -27,20 +83,20 @@ where
         resolution: Size,
         sink_params: SINK::Parameters,
         max_visibles: Option<usize>,
-    ) -> Result<Self, Error<ID>> {
+    ) -> Result<Self, Error<StreamId<ID>>> {
         Ok(Self {
-            mixer: crate::Mixer::<SRC, SINK, ID>::new(resolution, sink_params)?,
+            mixer: crate::Mixer::<SRC, SINK, StreamId<ID>>::new(resolution, sink_params)?,
             max_visibles,
         })
     }
 
-    /// add participant
+    /// add participant with a stream with stream number 0.
     pub fn add_participant<L>(
         &mut self,
-        id: ID,
+        id: StreamId<ID>,
         display_name: String,
         params: SRC::Parameters,
-    ) -> Result<(), crate::Error<ID>>
+    ) -> Result<(), crate::Error<StreamId<ID>>>
     where
         L: Layout,
     {
@@ -71,29 +127,56 @@ where
         Ok(())
     }
 
-    pub fn remove_stream(&mut self, remove_id: ID) -> Result<(), crate::Error<ID>> {
+    /// add another stream with the given number to an existing participant.
+    pub fn add_stream<L>(
+        &mut self,
+        id: StreamId<ID>,
+        display_name: String,
+        params: SRC::Parameters,
+    ) -> Result<(), crate::Error<StreamId<ID>>>
+    where
+        L: Layout,
+    {
+        self.mixer.add_stream(id, display_name, params)
+    }
+
+    pub fn remove_stream(
+        &mut self,
+        remove_id: StreamId<ID>,
+    ) -> Result<(), crate::Error<StreamId<ID>>> {
         self.mixer.remove_stream(remove_id)
     }
 
-    pub fn contains_key(&self, id: &ID) -> bool {
+    pub fn contains_stream(&self, id: &StreamId<ID>) -> bool {
         self.mixer.streams.contains_key(id)
     }
 
-    pub fn push_overlay(&mut self, overlay: crate::Overlay) -> Result<(), crate::Error<ID>> {
+    pub fn push_overlay_text(
+        &mut self,
+        text: &str,
+        text_format: TextFormat,
+    ) -> Result<TextOverlay, crate::Error<StreamId<ID>>> {
+        let overlay = TextOverlay::new(text, text_format);
+        self.push_overlay(overlay.overlay())?;
+        Ok(overlay)
+    }
+
+    fn push_overlay(&mut self, overlay: crate::Overlay) -> Result<(), crate::Error<StreamId<ID>>> {
         self.mixer.push_overlay(overlay)
     }
+
     pub fn set_speaker(
         &mut self,
-        speaker: Option<ID>,
+        speaker: Option<StreamId<ID>>,
         mode: &SpeakerMode,
-    ) -> Result<(), crate::Error<ID>> {
+    ) -> Result<(), crate::Error<StreamId<ID>>> {
         debug!("set speaker {:?}...", speaker);
 
         if let Some(speaker) = &speaker {
             let mut visibles = self.mixer.visibles.clone();
 
             // check if speaker is stream
-            if !self.contains_key(speaker) {
+            if !self.contains_stream(speaker) {
                 error!("speaker must be a stream");
             }
 
@@ -149,14 +232,14 @@ where
         Ok(())
     }
 
-    pub fn layout<L>(&self) -> Result<(), crate::Error<ID>>
+    pub fn layout<L>(&self) -> Result<(), crate::Error<StreamId<ID>>>
     where
         L: Layout,
     {
         self.mixer.layout::<L>()
     }
 
-    pub fn get_source(&mut self, id: &ID) -> Option<&mut SRC> {
+    pub fn get_source(&mut self, id: &StreamId<ID>) -> Option<&mut SRC> {
         if let Some(participant) = self.mixer.streams.get_mut(id) {
             Some(&mut participant.source)
         } else {
