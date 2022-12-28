@@ -427,7 +427,7 @@ where
 
     /// start playing of pipeline
     pub fn play(&mut self) {
-        debug!("play pipeline");
+        trace!("play pipeline");
         self.pipeline
             .set_state(gst::State::Playing)
             .expect("failed to set pipeline state to playing");
@@ -437,7 +437,7 @@ where
 
     /// pause playing of pipeline
     pub fn pause(&mut self) {
-        debug!("pause pipeline");
+        trace!("pause pipeline");
         self.pipeline
             .set_state(gst::State::Paused)
             .expect("failed to set pipeline state to paused");

@@ -7,61 +7,26 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug Compositor",
-            "relativePathBase": "compositor",
+            "name": "Debug unit tests in library 'compositor'",
             "cargo": {
                 "args": [
-                    "build",
-                    "--bin=compositor",
-                    "--package=compositor",
-                    "--manifest-path=${workspaceFolder}/compositor/Cargo.toml"
+                    "test",
+                    //"--jobs=1",
+                    "--lib",
+                    "--package=compositor"
                 ],
                 "filter": {
                     "name": "compositor",
-                    "kind": "bin"
-                }
+                    "kind": "lib"
+                },
+                "env": {
+                    "GST_DEBUG": "2",
+                    "GST_DEBUG_DUMP_DOT_DIR": "${workspaceFolder}/compositor/pipelines",
+                    "RUST_LOG": "debug"
+                },
             },
             "args": [],
-            "env": {
-                "GST_DEBUG_DUMP_DOT_DIR": "${workspaceFolder}/compositor/pipelines",
-                "RUST_LOG": "trace"
-            },
-            "cwd": "${workspaceFolder}/compositor"
+            "cwd": "${workspaceFolder}"
         },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug Compositor Display",
-            "relativePathBase": "compositor",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=compositor",
-                    "--package=compositor",
-                    "--manifest-path=${workspaceFolder}/compositor/Cargo.toml"
-                ],
-                "filter": {
-                    "name": "compositor",
-                    "kind": "bin"
-                }
-            },
-            "args": [
-                "-D",
-                "-t",
-                "-d",
-                "-p",
-                "80",
-                "-v",
-                "80",
-                "-l",
-                "grid"
-            ],
-            "env": {
-                "GST_DEBUG": "4",
-                "GST_DEBUG_DUMP_DOT_DIR": "${workspaceFolder}/compositor/pipelines",
-                "RUST_LOG": "trace"
-            },
-            "cwd": "${workspaceFolder}/compositor"
-        }
     ]
 }

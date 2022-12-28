@@ -20,8 +20,6 @@ pub mod testing {
     pub fn init() {
         // initialize gstreamer
         gst::init().unwrap();
-        // set debug level for tests
-        gst::debug_set_default_threshold(gst::DebugLevel::Warning);
         // init logger
         let _ = env_logger::try_init();
 
@@ -161,24 +159,21 @@ pub mod testing {
 
     /// wait the given amount of seconds
     pub fn wait_secs(sec: u64) {
-        debug!("waiting {sec} second(s)...");
+        trace!("-- waiting {sec} second(s) --");
         std::thread::sleep(Duration::from_secs(sec));
-        debug!("...waited {sec} second(s).");
     }
 
     /// wait the given amount of milliseconds
     pub fn wait_millis(milliseconds: u64) {
-        debug!("waiting {milliseconds} millisecond(s)...");
+        trace!("-- waiting {milliseconds} millisecond(s) --");
         std::thread::sleep(Duration::from_millis(milliseconds));
-        debug!("...waited {milliseconds} millisecond(s).");
     }
 
     /// wait 3s if display is present, else wait 200ms
     pub fn wait() {
         let milliseconds = if be_slow() { 3000 } else { 200 };
-        debug!("waiting {milliseconds} millisecond(s)...");
+        trace!("-- waiting {milliseconds} millisecond(s) --");
         std::thread::sleep(Duration::from_millis(milliseconds));
-        debug!("...waited {milliseconds} millisecond(s).");
     }
 
     /// Fake sink to catch the compositor output without any further processing.

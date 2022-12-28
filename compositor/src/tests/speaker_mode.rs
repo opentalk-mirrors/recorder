@@ -13,10 +13,10 @@ fn test_speaker_mode() {
     let title = TextOverlay::new("", TextFormat::default());
     talk.push_overlay(title.overlay()).unwrap();
 
+    let (streams, _) = testing::generate_streams(&mut talk.mixer, 8, 5);
+
     talk.mixer
         .generate_dot_file("test_speaker_mode-0", testing::DOT_DETAILS);
-
-    let (streams, _) = testing::generate_streams(&mut talk.mixer, 8, 5);
 
     talk.play();
 
@@ -25,6 +25,7 @@ fn test_speaker_mode() {
     for mode in [SpeakerMode::FirstShift, SpeakerMode::FirstSwap] {
         for i in &streams[0..7] {
             title.set(&format!("Speaker: {} ({mode:?})", i.1));
+
             talk.pause();
 
             talk.set_speaker(Some(i.0), &mode).unwrap();
