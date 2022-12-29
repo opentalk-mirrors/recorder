@@ -157,7 +157,7 @@ where
         text_format: TextFormat,
     ) -> Result<TextOverlay, crate::Error<StreamId<ID>>> {
         let overlay = TextOverlay::new(text, text_format);
-        self.push_overlay(overlay.overlay())?;
+        self.push_overlay(Overlay::Text(overlay.clone()))?;
         Ok(overlay)
     }
 

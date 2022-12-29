@@ -23,7 +23,7 @@ where
     testing::add_overlay_name(&mut mixer, &format!("test_layout_{}", L::NAME));
 
     let title = TextOverlay::new("", TextFormat::default());
-    mixer.push_overlay(title.overlay()).unwrap();
+    mixer.push_overlay(title.clone().into()).unwrap();
 
     let (_, ids) = testing::generate_streams(&mut mixer, 5, 5);
 
@@ -62,7 +62,7 @@ fn test_remove() {
     testing::add_overlay_name(&mut mixer, "test_remove");
 
     let title = TextOverlay::new("", TextFormat::default());
-    mixer.push_overlay(title.overlay()).unwrap();
+    mixer.push_overlay(title.clone().into()).unwrap();
 
     for i in 0..2 {
         testing::generate_streams(&mut mixer, 8, 5);

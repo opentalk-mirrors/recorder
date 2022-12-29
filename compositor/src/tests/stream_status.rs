@@ -11,7 +11,7 @@ fn test_stream_status() {
     testing::add_overlay_name(&mut mixer, "test_stream_status");
 
     let title = TextOverlay::new("", TextFormat::default());
-    mixer.push_overlay(title.overlay()).unwrap();
+    mixer.push_overlay(title.clone().into()).unwrap();
 
     mixer.generate_dot_file("test_stream_status-0", testing::DOT_DETAILS);
 

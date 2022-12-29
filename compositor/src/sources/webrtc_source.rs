@@ -1,4 +1,4 @@
-use crate::{Size, Source};
+use crate::*;
 
 use gst::prelude::*;
 use tokio::sync::oneshot;
@@ -13,6 +13,8 @@ pub struct WebRtcSource {
     video_ghostpad: gst::Pad,
     /// GStreamer audio ghost pad to connect from the outside of the bin.
     audio_ghostpad: gst::Pad,
+    /// Source side overlays
+    overlays: Overlays,
 }
 
 type OnCandidateCallback = Box<dyn Fn(u32, Option<String>) + Send + Sync>;
@@ -49,6 +51,7 @@ impl Source for WebRtcSource {
             ! rtpvp8depay
             ! avdec_vp8
             ! videoconvert
+                name=overlays
             ! queue
                 name=video-output
 
@@ -106,11 +109,27 @@ impl Source for WebRtcSource {
             });
         }
 
+        // get elements from bin
+        let overlays = bin
+            .by_name("overlays")
+            .expect("failed to get overlays from pipeline");
+
+        let overlays = Overlays::new(
+            pipeline,
+            overlays
+                .static_pad("src")
+                .expect("failed to get src pad from overlays"),
+            video_output
+                .static_pad("sink")
+                .expect("failed to get src pad from video_out "),
+        );
+
         Self {
             bin,
             webrtcbin,
             video_ghostpad: video_ghostpad.upcast::<gst::Pad>(),
             audio_ghostpad: audio_ghostpad.upcast::<gst::Pad>(),
+            overlays,
         }
     }
 
@@ -132,6 +151,10 @@ impl Source for WebRtcSource {
 
     fn audio_src_pad(&self) -> gst::Pad {
         self.audio_ghostpad.clone()
+    }
+
+    fn overlays(&mut self) -> &mut Overlays {
+        &mut self.overlays
     }
 }
 

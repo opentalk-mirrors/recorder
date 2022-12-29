@@ -1,4 +1,4 @@
-use crate::{Size, Source};
+use crate::*;
 use gst::prelude::*;
 use gst::traits::{ElementExt, GstBinExt};
 
@@ -99,13 +99,15 @@ impl From<Pattern> for &'static str {
 #[derive(Clone)]
 pub struct TestSource {
     /// Video source GStreamer pad.
-    pub video_src_pad: gst::Pad,
+    video_src_pad: gst::Pad,
     /// Video source GStreamer element.
-    pub video_bin: gst::Bin,
+    video_bin: gst::Bin,
     /// Audio source GStreamer pad.
-    pub audio_src_pad: gst::Pad,
+    audio_src_pad: gst::Pad,
     /// Audio source GStreamer element.
-    pub audio_bin: gst::Bin,
+    audio_bin: gst::Bin,
+    /// Source side overlays
+    overlays: Overlays,
 }
 
 /// Specific parameters needed to create a [TestSource]
@@ -185,6 +187,7 @@ impl Source for TestSource {
                         is-live=true
                     ! videoscale
                     ! capssetter
+                        name=overlays
                         caps=video/x-raw,format=RGB,width={out_width},height={out_height}
                     ! queue
                         name=video-testsrc
@@ -205,6 +208,7 @@ impl Source for TestSource {
                             caps=video/x-raw,format=RGB,width={width},height={height}
                         ! videoscale
                         ! capssetter
+                            name=overlays
                             caps=video/x-raw,format=RGB,width={out_width},height={out_height}
                         ! queue
                             name=video-testsrc
@@ -222,14 +226,14 @@ impl Source for TestSource {
             .expect("failed to add test source video bin to pipeline");
 
         // get elements from bin
-        let video = video_bin
+        let video_output = video_bin
             .by_name("video-testsrc")
             .expect("failed to get video-testsrc from pipeline");
 
         // create ghost pads which link to codecs
         let video_src_ghostpad = gst::GhostPad::with_target(
             None,
-            &video
+            &video_output
                 .static_pad("src")
                 .expect("failed to get sink pad of video test source sink"),
         )
@@ -257,14 +261,14 @@ impl Source for TestSource {
             .expect("failed to add test source audio bin to pipeline");
 
         // get elements from bin
-        let audio = audio_bin
+        let audio_output = audio_bin
             .by_name("audio-testsrc")
             .expect("failed to get audio-testsrc from pipeline");
 
         // create ghost pads which link to codecs
         let audio_src_ghostpad = gst::GhostPad::with_target(
             None,
-            &audio
+            &audio_output
                 .static_pad("src")
                 .expect("failed to get sink pad of audio test source sink"),
         )
@@ -273,16 +277,31 @@ impl Source for TestSource {
             .add_pad(&audio_src_ghostpad)
             .expect("failed to add test source audio ghost pad to pipeline");
 
+        // get elements from bin
+        let overlays = video_bin
+            .by_name("overlays")
+            .expect("failed to get overlays from pipeline");
+
+        let overlays = Overlays::new(
+            pipeline,
+            overlays
+                .static_pad("src")
+                .expect("failed to get src pad from overlays"),
+            video_output
+                .static_pad("sink")
+                .expect("failed to get src pad from video_out "),
+        );
+
         TestSource {
             // remember elements and pads for connect/disconnect
             video_src_pad: video_src_ghostpad.upcast::<gst::Pad>(),
             video_bin,
             audio_src_pad: audio_src_ghostpad.upcast::<gst::Pad>(),
             audio_bin,
+            overlays,
         }
     }
 
-    /// remove elements from pipeline
     fn remove(self, pipeline: &gst::Pipeline) {
         // remove video elements from pipeline
         pipeline
@@ -300,13 +319,15 @@ impl Source for TestSource {
             .expect("failed to set test source audio bin state to Null");
     }
 
-    /// Get video source pad.
     fn video_src_pad(&self) -> gst::Pad {
         self.video_src_pad.clone()
     }
 
-    /// Get audio source pad.
     fn audio_src_pad(&self) -> gst::Pad {
         self.audio_src_pad.clone()
+    }
+
+    fn overlays(&mut self) -> &mut Overlays {
+        &mut self.overlays
     }
 }

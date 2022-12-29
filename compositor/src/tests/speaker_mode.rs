@@ -14,6 +14,18 @@ fn test_speaker_mode() {
     let (streams, _) = testing::generate_streams(&mut talk.mixer, 8, 5);
 
     talk.mixer
+        .add_stream(
+            StreamId::new(streams[0].0.id, SubStreamId::Screen),
+            format!("{}'s screen", streams[0].1),
+            TestSourceParameters {
+                resolution: Size::SD,
+                name: Some(format!("{}'s screen", streams[0].1)),
+                pattern: Pattern::Location(testing::image_file("screen_SD.png")),
+            },
+        )
+        .unwrap();
+
+    talk.mixer
         .generate_dot_file("test_speaker_mode-0", testing::DOT_DETAILS);
 
     talk.play();

@@ -96,7 +96,7 @@ pub mod testing {
                         ..Default::default()
                     },
                 )
-                .overlay(),
+                .into(),
             )
             .unwrap();
     }
