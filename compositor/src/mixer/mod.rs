@@ -148,9 +148,13 @@ where
             .expect("failed to get src pad from compositor");
         let overlay_sink = video_out
             .static_pad("sink")
-            .expect("failed to get src pad from video_out ");
+            .expect("failed to get sink pad from video_out ");
 
-        let overlays = Overlays::new(&pipeline, overlay_src, overlay_sink);
+        let overlays = Overlays::new(
+            &pipeline.clone().upcast::<gst::Bin>(),
+            overlay_src,
+            overlay_sink,
+        );
 
         Ok(Mixer {
             // remember all those elements and pads
@@ -221,7 +225,7 @@ where
         let stream = self
             .streams
             .remove(&remove_id)
-            .ok_or(Error::ParticipantNotFound(remove_id))?;
+            .ok_or(Error::StreamNotFound(remove_id))?;
 
         stream.source.remove(&self.pipeline);
 
@@ -240,6 +244,27 @@ where
         }
 
         self.overlays.push(overlay);
+
+        Ok(())
+    }
+
+    /// push new overlay on top of source video within the pipeline
+    /// # Arguments
+    /// - `overlay`: new overlay to push
+    pub fn push_source_overlay(&mut self, id: ID, overlay: Overlay) -> Result<(), Error<ID>> {
+        debug!("add overlay {:?} to source {:?}", overlay, id);
+
+        let stream = self.streams.get_mut(&id);
+
+        if let Some(stream) = stream {
+            // check preconditions
+            if self.pipeline.current_state() == gst::State::Playing {
+                return Err(Error::PlayingPipelineForbidden);
+            }
+            stream.push_overlay(overlay);
+        } else {
+            return Err(Error::StreamNotFound(id));
+        }
 
         Ok(())
     }
@@ -293,7 +318,7 @@ where
         let old_status = self
             .streams
             .get(&id)
-            .ok_or(Error::ParticipantNotFound(id))?
+            .ok_or(Error::StreamNotFound(id))?
             .status
             .clone();
 
@@ -312,7 +337,7 @@ where
         // set stream's new status
         self.streams
             .get_mut(&id)
-            .ok_or(Error::ParticipantNotFound(id))?
+            .ok_or(Error::StreamNotFound(id))?
             .status = new_status;
 
         /*
@@ -409,10 +434,7 @@ where
     fn link_audio(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("linking audio of {:?}...", id);
 
-        let stream = self
-            .streams
-            .get_mut(&id)
-            .ok_or(Error::ParticipantNotFound(id))?;
+        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
 
         let mixer_pad = self
             .audio_mixer
@@ -434,10 +456,7 @@ where
     fn unlink_audio(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("unlinking audio of {id:?}...");
 
-        let stream = self
-            .streams
-            .get_mut(&id)
-            .ok_or(Error::ParticipantNotFound(id))?;
+        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
 
         if let Some(pad) = stream.audio_mixer_pad.take() {
             stream
@@ -456,10 +475,7 @@ where
     fn link_video_to_fakesink(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("linking video of {id:?} to fakesink...");
 
-        let stream = self
-            .streams
-            .get_mut(&id)
-            .ok_or(Error::ParticipantNotFound(id))?;
+        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
 
         match &stream.video_link_status {
             VideoLinkStatus::None => {}
@@ -500,10 +516,7 @@ where
     fn link_video_to_compositor(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("linking video of {id:?} to compositor...");
 
-        let stream = self
-            .streams
-            .get_mut(&id)
-            .ok_or(Error::ParticipantNotFound(id))?;
+        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
 
         match &stream.video_link_status {
             VideoLinkStatus::None => {}
@@ -552,10 +565,7 @@ where
     fn unlink_video(&mut self, id: ID) -> Result<(), Error<ID>> {
         trace!("unlinking video of {id:?}...");
 
-        let stream = self
-            .streams
-            .get_mut(&id)
-            .ok_or(Error::ParticipantNotFound(id))?;
+        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
 
         match replace(&mut stream.video_link_status, VideoLinkStatus::None) {
             VideoLinkStatus::None => {}

@@ -1,3 +1,5 @@
+use crate::Overlay;
+
 use super::{Size, Source};
 
 /// Status of a stream if it is linked to a fake sink or the compositor.
@@ -55,9 +57,10 @@ where
         display_name: String,
         src_params: SRC::Parameters,
     ) -> Self {
+        let source = SRC::new(pipeline, resolution, src_params);
         Self {
             display_name,
-            source: SRC::new(pipeline, resolution, src_params),
+            source,
             audio_mixer_pad: None,
             video_link_status: VideoLinkStatus::None,
             status: StreamStatus {
@@ -65,5 +68,8 @@ where
                 has_video: true,
             },
         }
+    }
+    pub fn push_overlay(&mut self, overlay: Overlay) {
+        self.source.overlays().push(overlay);
     }
 }

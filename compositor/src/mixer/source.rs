@@ -1,4 +1,6 @@
-use super::{Overlays, Size};
+use crate::Overlays;
+
+use super::Size;
 
 /// Trait of a participant's audio/video source.
 pub trait Source {
@@ -14,6 +16,6 @@ pub trait Source {
     fn video_src_pad(&self) -> gst::Pad;
     /// Get source pad of the audio source.
     fn audio_src_pad(&self) -> gst::Pad;
-    /// Access overlays.
+    /// Get overlays.
     fn overlays(&mut self) -> &mut Overlays;
 }

@@ -106,7 +106,7 @@ pub struct TestSource {
     audio_src_pad: gst::Pad,
     /// Audio source GStreamer element.
     audio_bin: gst::Bin,
-    /// Source side overlays
+    /// source overlays.
     overlays: Overlays,
 }
 
@@ -282,15 +282,14 @@ impl Source for TestSource {
             .by_name("overlays")
             .expect("failed to get overlays from pipeline");
 
-        let overlays = Overlays::new(
-            pipeline,
-            overlays
-                .static_pad("src")
-                .expect("failed to get src pad from overlays"),
-            video_output
-                .static_pad("sink")
-                .expect("failed to get src pad from video_out "),
-        );
+        let overlay_src = overlays
+            .static_pad("src")
+            .expect("failed to get src pad from overlays");
+        let overlay_sink = video_output
+            .static_pad("sink")
+            .expect("failed to get sink pad from video_output ");
+
+        let overlays = Overlays::new(&video_bin, overlay_src, overlay_sink);
 
         TestSource {
             // remember elements and pads for connect/disconnect

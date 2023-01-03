@@ -32,10 +32,44 @@ fn test_overlay() {
     // add text overlay
     mixer.pause();
     mixer
-        .push_overlay(TextOverlay::new("Text Overlay", TextFormat::default()).into())
+        .push_overlay(
+            TextOverlay::new(
+                "Text Overlay",
+                TextFormat {
+                    align: Align {
+                        vertical: VAlign::Top,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            )
+            .into(),
+        )
         .unwrap();
     mixer.generate_dot_file("test_overlay-2", testing::DOT_DETAILS);
     mixer.play();
 
     testing::wait();
+
+    // add participants
+    mixer.pause();
+    let (_, ids) = testing::generate_streams(&mut mixer, 3, 3);
+    mixer.generate_dot_file("test_overlay-3", testing::DOT_DETAILS);
+    mixer.play();
+
+    testing::wait();
+
+    for id in ids {
+        // add text overlay to source
+        mixer.pause();
+        mixer
+            .push_source_overlay(
+                id,
+                TextOverlay::new("Source Text Overlay", TextFormat::default()).into(),
+            )
+            .unwrap();
+        mixer.generate_dot_file("test_overlay-4", testing::DOT_DETAILS);
+        mixer.play();
+        testing::wait();
+    }
 }

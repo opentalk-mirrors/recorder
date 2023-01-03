@@ -38,14 +38,12 @@ impl TextOverlay {
 }
 
 impl OverlayTrait for TextOverlay {
-    fn add_to(&self, pipeline: &gst::Pipeline) {
-        pipeline
-            .add(&self.element)
+    fn add_to(&self, bin: &gst::Bin) {
+        bin.add(&self.element)
             .expect("failed to add text overlay to pipeline");
     }
-    fn remove(&self, pipeline: &gst::Pipeline) {
-        pipeline
-            .remove(&self.element)
+    fn remove(&self, bin: &gst::Bin) {
+        bin.remove(&self.element)
             .expect("failed to remove text overlay to pipeline");
     }
     fn src(&self) -> gst::Pad {

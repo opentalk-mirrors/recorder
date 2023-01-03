@@ -13,7 +13,7 @@ pub struct WebRtcSource {
     video_ghostpad: gst::Pad,
     /// GStreamer audio ghost pad to connect from the outside of the bin.
     audio_ghostpad: gst::Pad,
-    /// Source side overlays
+    /// Sourec overlays.
     overlays: Overlays,
 }
 
@@ -114,15 +114,14 @@ impl Source for WebRtcSource {
             .by_name("overlays")
             .expect("failed to get overlays from pipeline");
 
-        let overlays = Overlays::new(
-            pipeline,
-            overlays
-                .static_pad("src")
-                .expect("failed to get src pad from overlays"),
-            video_output
-                .static_pad("sink")
-                .expect("failed to get src pad from video_out "),
-        );
+        let overlay_src = overlays
+            .static_pad("src")
+            .expect("failed to get src pad from overlays");
+        let overlay_sink = video_output
+            .static_pad("sink")
+            .expect("failed to get src pad from video_out ");
+
+        let overlays = Overlays::new(&bin, overlay_src, overlay_sink);
 
         Self {
             bin,
@@ -153,6 +152,7 @@ impl Source for WebRtcSource {
         self.audio_ghostpad.clone()
     }
 
+    /// Get source pad after overlays shall be inserted.
     fn overlays(&mut self) -> &mut Overlays {
         &mut self.overlays
     }
