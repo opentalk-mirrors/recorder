@@ -66,7 +66,7 @@ extern crate log;
 mod error;
 mod layout;
 mod mixer;
-mod overlay;
+mod overlays;
 mod sinks;
 mod sources;
 
@@ -76,7 +76,7 @@ mod tests;
 pub use error::*;
 pub use layout::*;
 pub use mixer::*;
-pub use overlay::*;
+pub use overlays::*;
 pub use sinks::*;
 pub use sources::*;
 

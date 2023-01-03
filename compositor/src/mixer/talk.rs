@@ -64,7 +64,10 @@ where
     SINK: crate::Sink,
     ID: Eq + Ord + Hash + Copy + Debug,
 {
+    #[cfg(test)]
     pub mixer: crate::Mixer<SRC, SINK, StreamId<ID>>,
+    #[cfg(not(test))]
+    mixer: crate::Mixer<SRC, SINK, StreamId<ID>>,
     max_visibles: Option<usize>,
 }
 
@@ -84,8 +87,9 @@ where
         sink_params: SINK::Parameters,
         max_visibles: Option<usize>,
     ) -> Result<Self, Error<StreamId<ID>>> {
+        let mixer = crate::Mixer::<SRC, SINK, StreamId<ID>>::new(resolution, sink_params)?;
         Ok(Self {
-            mixer: crate::Mixer::<SRC, SINK, StreamId<ID>>::new(resolution, sink_params)?,
+            mixer,
             max_visibles,
         })
     }

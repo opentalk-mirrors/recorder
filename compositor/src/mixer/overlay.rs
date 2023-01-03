@@ -4,7 +4,7 @@ use gst::prelude::*;
 /// Trait of overlays as the mixer sees it.
 pub trait OverlayTrait {
     /// Add overlay element
-    fn add(&self, pipeline: &gst::Pipeline);
+    fn add_to(&self, pipeline: &gst::Pipeline);
     fn remove(&self, pipeline: &gst::Pipeline);
     fn src(&self) -> gst::Pad;
     fn sink(&self) -> gst::Pad;
@@ -18,10 +18,10 @@ pub enum Overlay {
 }
 
 impl OverlayTrait for Overlay {
-    fn add(&self, pipeline: &gst::Pipeline) {
+    fn add_to(&self, pipeline: &gst::Pipeline) {
         match self {
-            Self::Text(o) => o.add(pipeline),
-            Self::Clock(o) => o.add(pipeline),
+            Self::Text(o) => o.add_to(pipeline),
+            Self::Clock(o) => o.add_to(pipeline),
         }
     }
     fn remove(&self, pipeline: &gst::Pipeline) {
@@ -77,20 +77,14 @@ impl Overlays {
             overlays: Vec::new(),
         }
     }
-
+    pub fn last(&self) -> Option<&Overlay> {
+        self.overlays.last()
+    }
     /// push new overlay on top of output video within the pipeline
     /// # Arguments
     /// - `overlay`: new overlay to push
-    pub fn push_overlay<ID>(&mut self, overlay: Overlay) -> Result<(), Error<ID>>
-    where
-        ID: std::fmt::Debug,
-    {
+    pub fn push(&mut self, overlay: Overlay) {
         debug!("add overlay: {:?}", overlay);
-
-        // check preconditions
-        if self.pipeline.current_state() == gst::State::Playing {
-            return Err(Error::PlayingPipelineForbidden);
-        }
 
         // get compositor or last overlay source
         let last_src = match self.overlays.last() {
@@ -100,8 +94,8 @@ impl Overlays {
         // get sink the overall output goes to
         let output_sink = &self.overlay_sink;
 
-        // add new overlay to pipeline
-        overlay.add(&self.pipeline);
+        // add new element to pipeline
+        overlay.add_to(&self.pipeline);
 
         // unlink last overlay (or compositor) source pad from output sink
         if let Some(last) = output_sink.peer() {
@@ -120,7 +114,5 @@ impl Overlays {
 
         // remember this overlay
         self.overlays.push(overlay);
-
-        Ok(())
     }
 }

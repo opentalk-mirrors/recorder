@@ -38,7 +38,7 @@ impl TextOverlay {
 }
 
 impl OverlayTrait for TextOverlay {
-    fn add(&self, pipeline: &gst::Pipeline) {
+    fn add_to(&self, pipeline: &gst::Pipeline) {
         pipeline
             .add(&self.element)
             .expect("failed to add text overlay to pipeline");
