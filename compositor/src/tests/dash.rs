@@ -1,5 +1,5 @@
+use super::*;
 use crate::*;
-use core::time::Duration;
 
 #[test]
 fn test_dash() {
@@ -22,8 +22,13 @@ fn test_dash() {
     };
 
     // create grid mixer with test sources for participants and a MatroskaSink
-    let mut mixer =
-        Mixer::<Grid, TestSource, DashSink, u32>::new(resolution, 4, 4, sink_params).unwrap();
+    let mut mixer = Mixer::<Grid, TestSource, DashSink, u32>::new(
+        resolution,
+        None,
+        sink_params,
+        SpeakerMode::None,
+    )
+    .unwrap();
 
     // add a participant
     mixer
@@ -36,5 +41,5 @@ fn test_dash() {
     mixer.generate_dot_file("test_dash", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(20));
+    wait_secs(20);
 }

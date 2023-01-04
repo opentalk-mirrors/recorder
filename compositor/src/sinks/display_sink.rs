@@ -17,18 +17,28 @@ impl Sink for DisplaySink {
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
         // create video and audio sink
         let video_sink =
-            gst::ElementFactory::make_with_name("xvimagesink", Some("display-video-sink")).unwrap();
+            gst::ElementFactory::make_with_name("xvimagesink", Some("display-video-sink"))
+                .expect("failed to create xvimagesink");
         let audio_sink =
-            gst::ElementFactory::make_with_name("pulsesink", Some("display-audio-sink")).unwrap();
+            gst::ElementFactory::make_with_name("pulsesink", Some("display-audio-sink"))
+                .expect("failed to create pulsesink");
 
         // add sinks to pipeline
-        pipeline.add(&video_sink).unwrap();
-        pipeline.add(&audio_sink).unwrap();
+        pipeline
+            .add(&video_sink)
+            .expect("failed to add video display sink to pipeline");
+        pipeline
+            .add(&audio_sink)
+            .expect("failed to add audio display sink to pipeline");
 
         // return new display sink
         DisplaySink {
-            video_sink_pad: video_sink.static_pad("sink").unwrap(),
-            audio_sink_pad: audio_sink.static_pad("sink").unwrap(),
+            video_sink_pad: video_sink
+                .static_pad("sink")
+                .expect("failed to get sink pad of video display sink"),
+            audio_sink_pad: audio_sink
+                .static_pad("sink")
+                .expect("failed to get sink pad of audio display sink"),
         }
     }
 

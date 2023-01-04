@@ -62,10 +62,10 @@ impl Size {
 /// Text alignment
 #[derive(Debug, Clone)]
 pub struct Alignment {
-    /// horizontal alignment
+    /// Horizontal alignment
     /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayHAlign) for possible values).
     pub horizontal: &'static str,
-    /// vertical alignment
+    /// Vertical alignment
     /// (see [this list](https://gstreamer.freedesktop.org/documentation/pango/GstBaseTextOverlay.html?gi-language=c#GstBaseTextOverlayVAlign) for possible values).
     pub vertical: &'static str,
 }
@@ -73,7 +73,9 @@ pub struct Alignment {
 /// Video picture layout
 pub trait Layout: Send + Sync + 'static {
     /// Create new layout for the given solution.
-    fn new(resolution: &Size) -> Self;
+    fn new(resolution: Size, speaker_mode: SpeakerMode) -> Self;
+    /// Get speaker mode.
+    fn speaker_mode(&self) -> &SpeakerMode;
     /// Get setup resolution.
     fn resolution(&self) -> &Size;
     /// Get position of the nth participants video.
@@ -84,10 +86,10 @@ pub trait Layout: Send + Sync + 'static {
     fn title_alignment(&self) -> Alignment;
     /// Get position of the title text.
     fn title_position(&self, _count: usize) -> Position;
-    /// Get alignment of the "who's speaking" text.
-    fn speaking_alignment(&self, count: usize) -> Alignment;
-    /// Get position of the "who's speaking" text.
-    fn speaking_position(&self, count: usize) -> Position;
+    /// Get alignment of the sub title text.
+    fn subtitle_alignment(&self, count: usize) -> Alignment;
+    /// Get position of the sub title text.
+    fn subtitle_position(&self, count: usize) -> Position;
     /// Get alignment of the clock display.
     fn clock_alignment(&self) -> Alignment;
     /// Get position of the clock display.

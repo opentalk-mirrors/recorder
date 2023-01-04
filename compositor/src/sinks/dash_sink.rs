@@ -1,5 +1,6 @@
 use super::matroska_sink::{MatroskaParameters, MatroskaSink};
 use crate::Sink;
+use derivative::Derivative;
 use gst::prelude::*;
 use inotify::{Inotify, WatchMask};
 use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
@@ -19,7 +20,7 @@ pub struct DashSink {
 }
 
 /// DASH segment type
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SegmentType {
     /// Select DASH segment files format based on the stream codec.
     AUTO,
@@ -41,6 +42,8 @@ impl SegmentType {
 }
 
 /// Specific parameters needed to create.
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct DashParameters {
     /// Path to write the dash files to.
     /// Existing files will be overridden.
@@ -53,11 +56,12 @@ pub struct DashParameters {
     /// DASH segment type
     pub seg_type: SegmentType,
     /// Called when new files are ready
+    #[derivative(Debug = "ignore")]
     pub update_callback: fn(files: Vec<&OsStr>),
 }
 
 fn update(files: Vec<&OsStr>) {
-    trace!("updated files: {:?}", files);
+    debug!("updated files: {:?}", files);
 }
 
 impl Default for DashParameters {
@@ -78,6 +82,8 @@ impl Sink for DashSink {
 
     /// Create and add new DASH sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: DashParameters) -> Self {
+        debug!("create new DashSink: {params:?}");
+
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
@@ -108,7 +114,11 @@ impl Sink for DashSink {
     fn on_play(&mut self) {
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
-            if process.try_wait().unwrap().is_none() {
+            if process
+                .try_wait()
+                .expect("failed to get FFmpeg process status")
+                .is_none()
+            {
                 // then skip any further action
                 return;
             }
@@ -118,7 +128,9 @@ impl Sink for DashSink {
             if let Some(path) = &self.params.output_dir {
                 (path.as_ref(), path.join("dash.mpd"))
             } else {
-                let temp_dir = self.temp_dir.insert(tempfile::tempdir().unwrap());
+                let temp_dir = self
+                    .temp_dir
+                    .insert(tempfile::tempdir().expect("failed to find tmpdir"));
                 (temp_dir.path(), temp_dir.path().join("dash.mpd"))
             }
         };
@@ -152,21 +164,21 @@ impl Sink for DashSink {
                     self.params.seg_type.as_str(),
                     "-f",
                     "dash",
-                    mpd_path.to_str().unwrap(),
+                    mpd_path
+                        .to_str()
+                        .expect("failed to convert MPD path into printable string"),
                 ])
                 .spawn()
-                .unwrap(),
+                .expect("failed to spawn FFmpeg process"),
         );
 
         // check if the output directory exists
-        let output_dir = output_dir
-            .canonicalize()
-            .unwrap_or_else(|_| panic!("invalid DASH target path {output_dir:?}"));
+        let output_dir = output_dir.canonicalize().expect("invalid DASH target path");
 
         // spawn a thread which checks for file updates
         std::thread::spawn({
             // initialize inotify
-            let mut inotify = Inotify::init().unwrap();
+            let mut inotify = Inotify::init().expect("failed to initialize Inotify");
             debug!("Writing DASH files into {}", output_dir.to_string_lossy());
 
             // add watch to that folder
@@ -191,7 +203,12 @@ impl Sink for DashSink {
 
                     let files: Vec<&OsStr> = events
                         .filter_map(|event| event.name)
-                        .filter(|name| !name.to_str().unwrap().ends_with(".tmp"))
+                        .filter(|name| {
+                            !name
+                                .to_str()
+                                .expect("failed to convert Inotify event name into string")
+                                .ends_with(".tmp")
+                        })
                         .collect();
                     if !files.is_empty() {
                         update(files);
@@ -207,7 +224,7 @@ impl Sink for DashSink {
         pipeline.send_event(gst::event::Eos::new());
 
         // wait until error or EOS
-        let bus = pipeline.bus().unwrap();
+        let bus = pipeline.bus().expect("failed to get bus of pipeline");
         for msg in bus.iter_timed(gst::ClockTime::NONE) {
             use gst::MessageView;
 
@@ -225,7 +242,6 @@ impl Sink for DashSink {
                 _ => (),
             }
         }
-
         // Drop temp_dir to delete directory
         self.temp_dir.take();
     }

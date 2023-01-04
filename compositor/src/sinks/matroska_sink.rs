@@ -16,8 +16,8 @@ pub struct MatroskaSink {
     pub address: SocketAddr,
 }
 
-/// Specific parameters needed to create a MatroskaSink
-#[derive(Clone)]
+/// Specific parameters needed to create a Matroska sink
+#[derive(Clone, Debug)]
 pub struct MatroskaParameters {
     pub address: SocketAddr,
 }
@@ -34,9 +34,11 @@ impl Default for MatroskaParameters {
 impl Sink for MatroskaSink {
     type Parameters = MatroskaParameters;
 
-    /// Create and add new Dash sink into existing pipeline.
+    /// Create and add new Matroska sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: MatroskaParameters) -> Self {
-        // create bin including codecs and the dash sink
+        debug!("create new MatroskaSink: {params:?}");
+
+        // create bin including codecs and the Matroska sink
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#"
@@ -69,45 +71,72 @@ impl Sink for MatroskaSink {
             ),
             false,
         )
-        .unwrap();
+        .expect("failed to create matroska sink pipeline");
 
         // add sink to pipeline
-        pipeline.add(&bin).unwrap();
+        pipeline
+            .add(&bin)
+            .expect("failed to add matroska sink's bin into pipeline");
 
         // get elements from bin
-        let audio = bin.by_name("matroska-audio").unwrap();
-        let video = bin.by_name("matroska-video").unwrap();
-        let sink = bin.by_name("matroska-sink").unwrap();
+        let audio = bin
+            .by_name("matroska-audio")
+            .expect("failed to get matroska-audio from pipeline");
+        let video = bin
+            .by_name("matroska-video")
+            .expect("failed to get matroska-video from pipeline");
+        let sink = bin
+            .by_name("matroska-sink")
+            .expect("failed to get matroska-sink from pipeline");
 
         // create ghost pads which link to codecs
-        let audio_sink_pad =
-            gst::GhostPad::with_target(None, &audio.static_pad("sink").unwrap()).unwrap();
-        let video_sink_pad =
-            gst::GhostPad::with_target(None, &video.static_pad("sink").unwrap()).unwrap();
+        let audio_ghost_pad = gst::GhostPad::with_target(
+            None,
+            &audio
+                .static_pad("sink")
+                .expect("failed to get sink pad of audio matroska sink"),
+        )
+        .expect("failed to create ghost pad for audio matroska sink");
+        let video_ghost_pad = gst::GhostPad::with_target(
+            None,
+            &video
+                .static_pad("sink")
+                .expect("failed to get sink pad of video matroska sink"),
+        )
+        .expect("failed to create ghost pad for video matroska sink");
 
         // add ghost pads to bin
-        bin.add_pad(&audio_sink_pad).unwrap();
-        bin.add_pad(&video_sink_pad).unwrap();
+        bin.add_pad(&audio_ghost_pad)
+            .expect("failed to add matroska audio ghost pad to pipeline");
+        bin.add_pad(&video_ghost_pad)
+            .expect("failed to add matroska audio ghost pad to pipeline");
 
         // listen on given TCP port
         let (stop_listen, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
-        let listener = TcpListener::bind(params.address).unwrap();
-        let address = listener.local_addr().unwrap();
-        trace!("Start listening on {address}",);
+        let listener =
+            TcpListener::bind(params.address).expect("failed to bind matroska's TCP listener");
+        let address = listener
+            .local_addr()
+            .expect("failed to get  matroska's local listening address");
+        debug!("Start listening on {address}");
 
         // spawn a thread which waits until the channel
         std::thread::spawn(move || loop {
-            let (socket, _) = listener.accept().unwrap();
+            let (socket, _) = listener
+                .accept()
+                .expect("failed to accept incoming TCP connection in matroska");
             trace!("Start sending matroska data");
             sink.emit_by_name_with_values("add", &[socket.as_raw_fd().to_value()]);
-            stop_receiver.recv().unwrap();
+            stop_receiver
+                .recv()
+                .expect("failed to wait for TCP receiver stop");
             trace!("Stopped sending matroska data");
         });
 
-        // return new Dash sink
+        // return new Matroska sink
         Self {
-            video_sink_pad: video_sink_pad.upcast(),
-            audio_sink_pad: audio_sink_pad.upcast(),
+            video_sink_pad: video_ghost_pad.upcast(),
+            audio_sink_pad: audio_ghost_pad.upcast(),
             stop_listen,
             address,
         }
@@ -124,12 +153,16 @@ impl Sink for MatroskaSink {
     }
 
     fn on_exit(&mut self, _pipeline: &gst::Pipeline) {
-        self.stop_listen.send(()).unwrap();
+        self.stop_listen
+            .send(())
+            .expect("failed to send stop to TCP listener");
     }
 }
 
 impl Drop for MatroskaSink {
     fn drop(&mut self) {
-        self.stop_listen.send(()).unwrap();
+        self.stop_listen
+            .send(())
+            .expect("failed to send stop to TCP listener");
     }
 }

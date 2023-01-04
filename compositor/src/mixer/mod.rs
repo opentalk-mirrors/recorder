@@ -9,8 +9,8 @@ pub use sink::Sink;
 pub use source::Source;
 
 // what else we need from this lib
-use crate::{Alignment, Error, Layout, Position, Size};
-use participant::LinkStatus;
+use crate::{layout, Alignment, Error, Layout, Position, Size};
+use participant::VideoLinkStatus;
 
 // what we need from external libraries
 use core::{fmt::Debug, hash::Hash, mem::replace};
@@ -34,30 +34,22 @@ where
     /// GStreamer element which composes the output audio out of the source audios.
     pub audio_mixer: gst::Element,
     /// Maximum number of visible participants.
-    pub max_visible: usize,
-    /// Number of currently visible participants.
-    pub max_hearable: usize,
+    pub max_visible: Option<usize>,
     /// Number of currently visible participants.
     pub visibles: Vec<ID>,
-    /// ID of the currently speaking participant.
-    pub speaker_id: Option<ID>,
     /// GStreamer element for rendering a clock into the output picture if whished.
     clock: Option<gst::Element>,
     /// GStreamer element for rendering a title into the output picture if whished.
     title: Option<gst::Element>,
-    /// GStreamer element for rendering a "who' speaking" display into the output picture if whished.
-    speaking_title: Option<gst::Element>,
+    /// GStreamer element for rendering a sub title display into the output picture if whished.
+    subtitle: Option<gst::Element>,
     /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
-
     /// Layout of the output picture.
     layout: L,
     /// Current participants.
-    video_sink_pads: Vec<gst::Pad>,
-    /// sink pads participants can attach to transmit audio
-    audio_sink_pads: Vec<gst::Pad>,
-    /// Current participants.
     pub participants: HashMap<ID, Participant<SRC>>,
+    pub speaker: Option<ID>,
     /// Holds the output sink.
     pub output: SINK,
 }
@@ -72,13 +64,13 @@ where
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     /// # Arguments
     /// - `resolution`: Output video resolution.
-    /// - `max_visibles`: Maximum number of visible participants.
-    /// - `sink_params`: Number of currently visible participants.
+    /// - `max_visible`: Maximum number of visible participants.
+    /// - `visibles`: Number of currently visible participants.
     pub fn new(
         resolution: Size,
-        max_visible: usize,
-        max_hearable: usize,
+        max_visible: Option<usize>,
         sink_params: SINK::Parameters,
+        speaker_mode: layout::SpeakerMode,
     ) -> Result<Self, Error<ID>> {
         // get width/height
         let width = resolution.width;
@@ -89,14 +81,10 @@ where
         );
 
         // create new layout for the given resolution
-        let layout = L::new(&resolution);
+        let layout = L::new(resolution, speaker_mode);
         // create new GStreamer pipeline
-        let pipeline = gst::Pipeline::new(None);
-
-        // create mixer bin
-        let bin = gst::parse_bin_from_description(
-            &format!(
-                r#"
+        let pipeline = gst::parse_launch(&format!(
+            r#"
                     videotestsrc
                         name=video-background-src
                         pattern=black
@@ -119,13 +107,13 @@ where
                         color=0xffffffff
                     ! textoverlay
                         name=video-title-overlay
-                        font-desc=Sans,16
+                        font-desc="Helvetica Bold 25"
                         xpad=10
                         ypad=2
                         color=0xffffffff
                     ! textoverlay
-                        name=video-speaking-overlay
-                        font-desc=Sans,16
+                        name=video-subtitle-overlay
+                        font-desc="Helvetica Bold 25"
                         xpad=10
                         ypad=2
                         color=0xffffffff
@@ -145,84 +133,68 @@ where
                     ! queue
                         name=audio-out
             "#
-            ),
-            false,
-        )
-        .unwrap();
+        ))
+        .expect("can not create pipeline");
 
-        // add bin to pipeline
-        pipeline.add(&bin).unwrap();
+        let pipeline = pipeline
+            .downcast::<gst::Pipeline>()
+            .expect("not a pipeline");
 
         // get video elements from bin
-        let compositor = bin.by_name("video-compositor").unwrap();
-        let clock = bin.by_name("video-clock-overlay").unwrap();
-        let title = bin.by_name("video-title-overlay").unwrap();
-        let speaking_title = bin.by_name("video-speaking-overlay").unwrap();
-        let video_out = bin.by_name("video-out").unwrap();
+        let compositor = pipeline
+            .by_name("video-compositor")
+            .expect("failed to get compositor from pipeline");
+        let clock = pipeline
+            .by_name("video-clock-overlay")
+            .expect("failed to get clock overlay from pipeline");
+        let title = pipeline
+            .by_name("video-title-overlay")
+            .expect("failed to get title overlay from pipeline");
+        let subtitle = pipeline
+            .by_name("video-subtitle-overlay")
+            .expect("failed to ger subtitle overlay from pipeline");
+        let video_out = pipeline
+            .by_name("video-out")
+            .expect("failed to get video output from pipeline");
+        let video_output_pad = video_out
+            .static_pad("src")
+            .expect("failed to get source pad from video output");
 
         // get audio elements from bin
-        let audio_mixer = bin.by_name("audio-mixer").unwrap();
-        let audio_out = bin.by_name("audio-out").unwrap();
-
-        // create ghost pad for video output and add it to pipeline
-        let video_src_ghostpad =
-            gst::GhostPad::with_target(None, &video_out.static_pad("src").unwrap()).unwrap();
-        bin.add_pad(&video_src_ghostpad).unwrap();
-
-        // create ghost pad for audio output and add it to pipeline
-        let audio_src_ghostpad =
-            gst::GhostPad::with_target(None, &audio_out.static_pad("src").unwrap()).unwrap();
-        bin.add_pad(&audio_src_ghostpad).unwrap();
+        let audio_mixer = pipeline
+            .by_name("audio-mixer")
+            .expect("failed to get audio mixer from pipeline");
+        let audio_out = pipeline
+            .by_name("audio-out")
+            .expect("failed to ger audio output from pipeline");
+        let audio_output_pad = audio_out
+            .static_pad("src")
+            .expect("failed to get source pad from audio output");
 
         // create output sink
         let output = SINK::new(&pipeline, sink_params);
 
         // connect output pads to output sinks
-        video_src_ghostpad.link(&output.video_sink_pad()).unwrap();
-        audio_src_ghostpad.link(&output.audio_sink_pad()).unwrap();
-
-        // prepare enough sink pads at video compositor to take max_visibles video streams
-        let mut video_sink_pads = Vec::new();
-        for i in 0..max_visible {
-            // create sink pad at compositor
-            let pad = compositor.request_pad_simple("sink_%u").unwrap();
-            // set sizing policy to get automatic padding from compositor
-            pad.set_property_from_str("sizing-policy", "keep-aspect-ratio");
-            // add and link ghost pad for this sink
-            let video_sink_ghostpad =
-                gst::GhostPad::with_target(Some(&format!("video_sink_{i}")), &pad).unwrap();
-            bin.add_pad(&video_sink_ghostpad).unwrap();
-            video_sink_pads.push(video_sink_ghostpad.upcast::<gst::Pad>());
-        }
-
-        // prepare enough sink pads at audio mixer to take max_hearable audio streams
-        let mut audio_sink_pads = Vec::new();
-        for i in 0..max_hearable {
-            let audio_sink_ghostpad = gst::GhostPad::with_target(
-                Some(&format!("audio_sink_{i}")),
-                &audio_mixer.request_pad_simple("sink_%u").unwrap(),
-            )
-            .unwrap();
-            bin.add_pad(&audio_sink_ghostpad).unwrap();
-            audio_sink_pads.push(audio_sink_ghostpad.upcast::<gst::Pad>());
-        }
+        video_output_pad
+            .link(&output.video_sink_pad())
+            .expect("failed to link output pad to video output sink");
+        audio_output_pad
+            .link(&output.audio_sink_pad())
+            .expect("failed to link output pad to audio output sink");
 
         Ok(Mixer {
             // remember all those elements and pads
             compositor,
             audio_mixer,
             max_visible,
-            max_hearable,
             visibles: Vec::new(),
             clock: Some(clock),
             title: Some(title),
-            speaker_id: None,
-            speaking_title: Some(speaking_title),
+            subtitle: Some(subtitle),
             layout,
-            video_sink_pads,
-            audio_sink_pads,
             pipeline,
             participants: HashMap::new(),
+            speaker: None,
             output,
         })
     }
@@ -236,7 +208,7 @@ where
         display_name: String,
         params: SRC::Parameters,
     ) -> Result<(), Error<ID>> {
-        trace!("add participant( '{display_name}' )");
+        debug!("add participant( '{display_name}' ({id:?})");
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
@@ -257,17 +229,18 @@ where
         self.link_audio(id)?;
         self.link_video_to_fakesink(id)?;
 
-        // Show visibles if there is unused space
-        if self.visibles.len() < self.max_visible {
-            debug!("automatically making participant {id:?} visible because there are unused visible ports");
-            // get currently visible participants
-            let mut visibles = self.visibles.clone();
-            // make new participant visible
-            visibles.push(id);
-            // update visibles
-            self.set_visibles(&visibles).unwrap();
+        if let Some(max_visible) = self.max_visible {
+            // Show visibles if there is unused space
+            if self.visibles.len() < max_visible {
+                debug!("automatically making participant {id:?} visible because there are unused visible ports");
+                // get currently visible participants
+                let mut visibles = self.visibles.clone();
+                // make new participant visible
+                visibles.push(id);
+                // update visibles
+                self.set_visibles(&visibles)?;
+            }
         }
-
         // re-layout
         self.layout()?;
 
@@ -277,25 +250,54 @@ where
     /// remove an once added participant from the mixer.
     /// # Arguments
     /// - `id`: Unique identifier of the participant.
-    pub fn remove_participant(&mut self, id: ID) -> Result<(), Error<ID>> {
+    pub fn remove_participant(&mut self, remove_id: ID) -> Result<(), Error<ID>> {
+        debug!("remove participant {remove_id:?}");
+
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
         }
 
-        self.visibles.retain(|visible_id| &id != visible_id);
+        self.visibles.retain(|id| id != &remove_id);
         // unlink participant from rest of the pipeline
-        self.unlink_audio(id)?;
-        self.unlink_video(id)?;
+        self.unlink_audio(remove_id)?;
+        self.unlink_video(remove_id)?;
 
         // remove participant from stored participants
         let participant = self
             .participants
-            .remove(&id)
-            .ok_or(Error::ParticipantNotFound(id))?;
+            .remove(&remove_id)
+            .ok_or(Error::ParticipantNotFound(remove_id))?;
 
-        // remove participant's source from pipeline
         participant.source.remove(&self.pipeline);
+
+        // check if participant is visible
+        if let Some(pos) = self.visibles.iter().position(|i| i == &remove_id) {
+            self.visibles.remove(pos);
+        }
+
+        if let Some(max_visible) = self.max_visible {
+            // fill up visibles with invisible participants
+            if self.visibles.len() < max_visible {
+                // clone currently visible participants to make a new list
+                let mut visibles = self.visibles.clone();
+                // add all participants to this list which are invisible and not the removed one
+                for id in self.participants.keys() {
+                    if !self.visibles.contains(id) {
+                        visibles.push(*id);
+                        // stop if we reach max_visible
+                        if visibles.len() == max_visible {
+                            break;
+                        }
+                    }
+                }
+                debug!(
+                "automatically filling up visibles with former invisible participants {visibles:?}"
+            );
+                // update visibles
+                self.set_visibles(&visibles)?;
+            }
+        }
 
         // re-layout
         self.layout()?;
@@ -305,27 +307,32 @@ where
 
     /// Select the participants which are visible.
     /// All previously visible participants get invisible if they are not in the list.
+    /// See set_speaker() for further info about how the order will be interpreted.
     /// # Arguments
     /// - `ids`: List of identifiers of participants which shall get visible
     pub fn set_visibles(&mut self, ids: &[ID]) -> Result<(), Error<ID>> {
+        debug!("set visibles: {:?} -> {:?}", self.visibles, ids);
+
         // check preconditions
         if self.pipeline.current_state() == gst::State::Playing {
             return Err(Error::PlayingPipelineForbidden);
         }
 
-        // check if given list exceeds maximum length
-        if ids.len() > self.max_visible {
-            return Err(Error::TooManyVisibles);
+        if let Some(max_visible) = self.max_visible {
+            // check if given list exceeds maximum length
+            if ids.len() > max_visible {
+                return Err(Error::TooManyVisibles);
+            }
         }
 
         // Unlink all participants
-        for id in self.participants.keys().copied().collect::<Vec<_>>() {
+        for id in self.visibles.clone() {
             self.link_video_to_fakesink(id)?;
         }
 
         // Link all given participants
-        for (n, id) in ids.iter().enumerate() {
-            self.link_video_to_compositor(*id, n)?;
+        for id in ids {
+            self.link_video_to_compositor(*id)?;
         }
 
         // copy ID list of visibles
@@ -337,56 +344,111 @@ where
         Ok(())
     }
 
+    /// Sets the current speaker
+    /// Visualization of the current speaker depends on the layout's speaker mode
+    /// # Arguments
+    /// - `id`: ID of the participant to mark as speaker
+    /// # Speaker modes
+    /// Depending on the layout::SpeakerMode set in the layout the speaker might be moved into or within the visibles.
+    pub fn set_speaker(&mut self, speaker_id: Option<ID>) -> Result<(), Error<ID>> {
+        debug!("set speaker {:?}...", speaker_id);
+
+        if let Some(speaker_id) = &speaker_id {
+            let mut visibles = self.visibles.clone();
+
+            // check if speaker is participant
+            if !self.participants.contains_key(speaker_id) {
+                error!("speaker must be a participant");
+            }
+            use layout::*;
+            match self.layout.speaker_mode() {
+                SpeakerMode::FirstShift => {
+                    // check if speaker is in visibles
+                    match visibles.iter().position(|id| id == speaker_id) {
+                        Some(pos) => {
+                            trace!("remove visible at {pos}");
+                            // remove speaker from visibles
+                            visibles.remove(pos);
+                        }
+                        None => {
+                            if let Some(max_visible) = self.max_visible {
+                                // remove last visible if visibles are filled completely
+                                if visibles.len() == max_visible {
+                                    trace!("remove last visible");
+                                    visibles.pop();
+                                }
+                            }
+                        }
+                    }
+                    trace!("insert speaker {:?} at 0", *speaker_id);
+                    // insert speaker at first
+                    visibles.insert(0, *speaker_id);
+                }
+                SpeakerMode::FirstSwap => {
+                    // check if speaker is in visibles
+                    match visibles.iter().position(|id| id == speaker_id) {
+                        Some(pos) => {
+                            trace!("swap visible 0 and {pos}");
+                            // swap with previous speaker
+                            visibles.swap(0, pos);
+                        }
+                        None => {
+                            if let Some(max_visible) = self.max_visible {
+                                // remove last visible if visibles are filled completely
+                                if visibles.len() == max_visible {
+                                    trace!("remove last visible");
+                                    visibles.pop();
+                                }
+                            }
+                            // insert speaker at first
+                            trace!("insert speaker {:?} at 0", *speaker_id);
+                            visibles.insert(0, *speaker_id);
+                        }
+                    }
+                }
+                _ => (),
+            }
+            self.speaker = Some(*speaker_id);
+            self.set_visibles(&visibles)?;
+            self.layout()?;
+        }
+        Ok(())
+    }
+
     /// set the title text within the mixer view if provided
     pub fn set_title(&self, text: &str) {
+        debug!("set title {text}");
+
         if let Some(title) = &self.title {
             title.set_property("text", text);
         }
     }
 
-    /// set the 'who's speaking?' text within the mixer view if provided
-    pub fn set_speaker(&mut self, id: Option<ID>) -> Result<(), Error<ID>> {
-        if let Some(ref speaker_id) = id {
-            let speaker = self
-                .participants
-                .get(speaker_id)
-                .expect("current speaker is not a participant");
-            self.speaker_id = id;
-            if let Some(speaking) = &self.speaking_title {
-                speaking.set_property("text", speaker.display_name.as_str());
-            }
+    /// set the sub title text within the mixer view if provided
+    pub fn set_subtitle(&self, text: &str) {
+        debug!("set subtitle {text}");
 
-            let position = self.visibles.iter().position(|&id| id == *speaker_id);
-            if let Some(_speaker_index) = position {
-                //TODO sort by speaker
-            } else {
-                if self.visibles.len() == self.max_visible {
-                    self.visibles.rotate_left(1);
-                    let _ = self.visibles.pop();
-                }
-                self.visibles.push(*speaker_id);
-            }
-        } else {
-            self.speaker_id = None;
-            if let Some(speaking) = &self.speaking_title {
-                speaking.set_property("text", "");
-            }
+        if let Some(subtitle) = &self.subtitle {
+            subtitle.set_property("text", text);
         }
-
-        self.layout()?;
-        Ok(())
     }
 
     /// start playing of pipeline
     pub fn play(&mut self) {
-        self.pipeline.set_state(gst::State::Playing).unwrap();
+        debug!("play pipeline");
+        self.pipeline
+            .set_state(gst::State::Playing)
+            .expect("failed to set pipeline state to playing");
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_play();
     }
 
     /// pause playing of pipeline
     pub fn pause(&mut self) {
-        self.pipeline.set_state(gst::State::Paused).unwrap();
+        debug!("pause pipeline");
+        self.pipeline
+            .set_state(gst::State::Paused)
+            .expect("failed to set pipeline state to paused");
         std::thread::sleep(std::time::Duration::from_millis(100));
         self.output.on_pause();
     }
@@ -430,24 +492,11 @@ where
             self.layout.clock_alignment(),
         );
 
-        if let Some(speaker_id) = self.speaker_id {
-            let speaker_position = self
-                .visibles
-                .iter()
-                .position(|&id| id == speaker_id)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "speaker({0:?}) must be visible({1:?})",
-                        speaker_id, self.visibles
-                    )
-                });
-
-            self.layout_overlay(
-                &self.speaking_title,
-                self.layout.speaking_position(speaker_position),
-                self.layout.speaking_alignment(num_visible),
-            );
-        }
+        self.layout_overlay(
+            &self.subtitle,
+            self.layout.subtitle_position(num_visible),
+            self.layout.subtitle_alignment(num_visible),
+        );
 
         // configure compositor sink pads (which might be connected to the participants' sources)
         for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
@@ -510,28 +559,20 @@ where
             .get_mut(&id)
             .ok_or(Error::ParticipantNotFound(id))?;
 
-        let sink_pads = &mut self.audio_sink_pads;
-        let src_pad = &mut participant.source.audio_src_pad();
-        let link_status = &mut participant.audio_link_status;
+        let mixer_pad = self
+            .audio_mixer
+            .request_pad_simple("sink_%")
+            .expect("Failed to request sink pad from audio mixer");
 
-        match &link_status {
-            LinkStatus::None => {}
-            LinkStatus::Mixer(pad) => {
-                src_pad.unlink(pad).unwrap();
-            }
-            _ => panic!(),
-        }
+        participant
+            .source
+            .audio_src_pad()
+            .link(&mixer_pad)
+            .expect("Failed to link participant's audio source to audio mixer sink pad");
 
-        for sink_pad in sink_pads {
-            if !sink_pad.is_linked() {
-                src_pad.link(sink_pad).unwrap();
-                *link_status = LinkStatus::Mixer(sink_pad.clone());
-                trace!("linked audio of {id:?} to audo-mixer.");
-                return Ok(());
-            }
-        }
+        participant.audio_mixer_pad = Some(mixer_pad);
 
-        Err(Error::CannotLinkAudio(id))
+        Ok(())
     }
 
     /// Unlink participant's audio from the audiomixer.
@@ -544,7 +585,11 @@ where
             .ok_or(Error::ParticipantNotFound(id))?;
 
         if let Some(pad) = participant.audio_mixer_pad.take() {
-            participant.source.audio_src_pad().unlink(&pad).unwrap();
+            participant
+                .source
+                .audio_src_pad()
+                .unlink(&pad)
+                .expect("Failed to unlink participant's audio source from audio mixer sink pad");
         }
 
         trace!("unlinked audio of {id:?}...");
@@ -562,30 +607,43 @@ where
             .ok_or(Error::ParticipantNotFound(id))?;
 
         match &participant.video_link_status {
-            LinkStatus::None => {}
-            LinkStatus::Fakesink(_) => return Ok(()),
-            LinkStatus::Compositor(_, pad) => {
-                participant.source.video_src_pad().unlink(pad).unwrap()
+            VideoLinkStatus::None => {}
+            VideoLinkStatus::Fakesink(_) => {
+                warn!("trying to link participant {id:?} to fakesink when it is already linked");
+                return Ok(());
             }
-            _ => panic!(),
+            VideoLinkStatus::Compositor(pad) => {
+                participant
+                    .source
+                    .video_src_pad()
+                    .unlink(pad)
+                    .expect("failed to unlink participant's video source from compositor");
+                self.compositor.release_request_pad(pad);
+            }
         }
 
-        let fakesink = gst::ElementFactory::make_with_name("fakesink", None).unwrap();
-        self.pipeline.add(&fakesink).unwrap();
+        let fakesink = gst::ElementFactory::make_with_name("fakesink", None)
+            .expect("failed to create new fake sink");
+        self.pipeline
+            .add(&fakesink)
+            .expect("failed to add fakesink to pipeline");
         participant
             .source
             .video_src_pad()
-            .link(&fakesink.static_pad("sink").unwrap())
-            .unwrap();
-
-        participant.video_link_status = LinkStatus::Fakesink(fakesink);
+            .link(
+                &fakesink
+                    .static_pad("sink")
+                    .expect("failed to get static sink pad from fake sink"),
+            )
+            .expect("failed to link participant's video source to fake sink");
+        participant.video_link_status = VideoLinkStatus::Fakesink(fakesink);
 
         Ok(())
     }
 
     /// Link participant's source to video compositor.
-    fn link_video_to_compositor(&mut self, id: ID, n: usize) -> Result<(), Error<ID>> {
-        trace!("linking video of {id:?} to compositor@{n}...");
+    fn link_video_to_compositor(&mut self, id: ID) -> Result<(), Error<ID>> {
+        trace!("linking video of {id:?} to compositor...");
 
         let participant = self
             .participants
@@ -593,35 +651,44 @@ where
             .ok_or(Error::ParticipantNotFound(id))?;
 
         match &participant.video_link_status {
-            LinkStatus::None => {}
-            LinkStatus::Fakesink(fakesink) => {
+            VideoLinkStatus::None => {}
+            VideoLinkStatus::Fakesink(fakesink) => {
                 participant
                     .source
                     .video_src_pad()
-                    .unlink(&fakesink.static_pad("sink").unwrap())
-                    .unwrap();
-                fakesink.set_state(gst::State::Null).unwrap();
-                self.pipeline.remove(fakesink).unwrap();
+                    .unlink(
+                        &fakesink
+                            .static_pad("sink")
+                            .expect("failed to get static sink pad from fake sink"),
+                    )
+                    .expect("failed to unlink participant's video source from fake sink");
+                fakesink
+                    .set_state(gst::State::Null)
+                    .expect("failed to set fake sink into Null state");
+                self.pipeline
+                    .remove(fakesink)
+                    .expect("failed to remove fake sink from pipeline");
             }
-            LinkStatus::Compositor(curr_n, pad) => {
-                if *curr_n != n {
-                    participant.source.video_src_pad().unlink(pad).unwrap();
-                }
+            VideoLinkStatus::Compositor(_) => {
+                warn!("trying to link participant {id:?} to compositor when it is already linked");
+                return Ok(());
             }
-            _ => panic!(),
         }
 
-        let compositor_sink_pads = &self.video_sink_pads;
-
+        trace!("creating compositor sink for participant {id:?}");
+        let pad = self
+            .compositor
+            .request_pad_simple("sink_%u")
+            .expect("cannot create sink pad");
+        pad.set_property_from_str("sizing-policy", "keep-aspect-ratio");
         participant
             .source
             .video_src_pad()
-            .link(&compositor_sink_pads[n])
-            .unwrap();
+            .link(&pad)
+            .expect("failed to link participant's video source pad to compositor pad");
+        participant.video_link_status = VideoLinkStatus::Compositor(pad);
 
-        participant.video_link_status = LinkStatus::Compositor(n, compositor_sink_pads[n].clone());
-
-        trace!("linked video of {id:?} to compositor@{n}...");
+        trace!("successfully linked video of {id:?} to compositor.");
 
         Ok(())
     }
@@ -635,21 +702,33 @@ where
             .get_mut(&id)
             .ok_or(Error::ParticipantNotFound(id))?;
 
-        match replace(&mut participant.video_link_status, LinkStatus::None) {
-            LinkStatus::None => {}
-            LinkStatus::Fakesink(fakesink) => {
+        match replace(&mut participant.video_link_status, VideoLinkStatus::None) {
+            VideoLinkStatus::None => {}
+            VideoLinkStatus::Fakesink(fakesink) => {
                 participant
                     .source
                     .video_src_pad()
-                    .unlink(&fakesink.static_pad("sink").unwrap())
-                    .unwrap();
-                fakesink.set_state(gst::State::Null).unwrap();
-                self.pipeline.remove(&fakesink).unwrap();
+                    .unlink(
+                        &fakesink
+                            .static_pad("sink")
+                            .expect("failed to get static sink pad from fake sink"),
+                    )
+                    .expect("failed to unlink participant's video source pad from fake sink");
+                fakesink
+                    .set_state(gst::State::Null)
+                    .expect("failed to set fake sink to Null state");
+                self.pipeline
+                    .remove(&fakesink)
+                    .expect("failed to remove fake sink from pipeline");
             }
-            LinkStatus::Compositor(_, pad) => {
-                participant.source.video_src_pad().unlink(&pad).unwrap();
+            VideoLinkStatus::Compositor(pad) => {
+                participant
+                    .source
+                    .video_src_pad()
+                    .unlink(&pad)
+                    .expect("failed to unlink participant's video source pad from compositor");
+                self.compositor.release_request_pad(&pad);
             }
-            _ => panic!(),
         }
 
         trace!("unlinked video of {id:?}...");
@@ -667,14 +746,13 @@ where
 {
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {
-        trace!("exiting mixer");
+        debug!("exiting mixer...");
 
         if self.pipeline.current_state() == gst::State::Paused {
-            self.pipeline.set_state(gst::State::Playing).unwrap();
+            self.pipeline
+                .set_state(gst::State::Playing)
+                .expect("failed to set pipeline state to playing");
         }
-
-        // call sink to prepare for dropping pipeline
-        self.output.on_exit(&self.pipeline);
 
         self.pause();
 
@@ -682,11 +760,14 @@ where
             let _ = self.remove_participant(id);
         }
 
+        // call sink to prepare for dropping pipeline
+        self.output.on_exit(&self.pipeline);
+
         // stop pipeline
         self.pipeline
             .set_state(gst::State::Null)
-            .expect("Unable to set the pipeline to the `Null` state");
+            .expect("unable to set the pipeline to the `Null` state");
 
-        trace!("Mixer exited successfully");
+        debug!("...mixer exited successfully.");
     }
 }

@@ -1,5 +1,5 @@
+use super::*;
 use crate::*;
-use core::time::Duration;
 
 #[test]
 fn test_mp4() {
@@ -18,11 +18,11 @@ fn test_mp4() {
     // create grid mixer with test sources for participants and a MatroskaSink
     let mut mixer = Mixer::<Grid, TestSource, Mp4Sink, u32>::new(
         resolution,
-        4,
-        4,
+        None,
         Mp4SinkParams {
             file_path: format!("{}/mp4sink.mp4", super::TEST_OUTPUT_DIR),
         },
+        SpeakerMode::None,
     )
     .unwrap();
 
@@ -37,5 +37,5 @@ fn test_mp4() {
     mixer.generate_dot_file("test_mp4", gst::DebugGraphDetails::ALL);
 
     // stir until done
-    std::thread::sleep(Duration::from_secs(4));
+    wait_secs(4);
 }

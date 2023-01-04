@@ -14,6 +14,7 @@ pub struct Mp4Sink {
     file_path: String,
 }
 
+#[derive(Debug)]
 pub struct Mp4SinkParams {
     pub file_path: String,
 }
@@ -23,6 +24,8 @@ impl Sink for Mp4Sink {
 
     /// Create and add new MP4 sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
+        debug!("create new MP4Sink: {params:?}");
+
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
@@ -46,11 +49,17 @@ impl Sink for Mp4Sink {
     fn on_play(&mut self) {
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
-            if process.try_wait().unwrap().is_none() {
+            if process
+                .try_wait()
+                .expect("failed to get FFmpeg process status")
+                .is_none()
+            {
                 // then skip any further action
                 return;
             }
         }
+
+        let address = &format!("tcp://{}", self.matroska_sink.address);
 
         // TODO: use free codecs instead of ffmpeg's mp4 default.
         // using the commented out codec settings often leads to errors when ending the recording and 10-20 seconds
@@ -58,6 +67,10 @@ impl Sink for Mp4Sink {
         //
         // [matroska,webm @ 0x557819b598c0] File ended prematurely
         // [matroska,webm @ 0x557819b598c0] Seek to desired resync point failed. Seeking to earliest point available instead.
+        debug!(
+            "Starting ffmpeg to process into output DASH into \"{}\", connection is: {address}",
+            self.file_path
+        );
         self.process = Some(
             std::process::Command::new("ffmpeg")
                 .args([
@@ -67,7 +80,7 @@ impl Sink for Mp4Sink {
                     "-nostdin",
                     "-i",
                     // read from localhost and given port
-                    &format!("tcp://{}", self.matroska_sink.address),
+                    address,
                     // set video codec
                     //"-codec:v:0",
                     //"libvpx-vp9",
@@ -85,7 +98,7 @@ impl Sink for Mp4Sink {
                     &self.file_path,
                 ])
                 .spawn()
-                .unwrap(),
+                .expect("failed to spawn FFmpeg process"),
         );
     }
 
@@ -94,7 +107,7 @@ impl Sink for Mp4Sink {
         pipeline.send_event(gst::event::Eos::new());
 
         // wait until error or EOS
-        let bus = pipeline.bus().unwrap();
+        let bus = pipeline.bus().expect("failed to get bus of pipeline");
         for msg in bus.iter_timed(gst::ClockTime::from_seconds(1)) {
             use gst::MessageView;
 

@@ -5,7 +5,7 @@ use super::*;
 #[derive(Clone)]
 pub struct Grid {
     // Size of the target picture in pixels.
-    size: Size,
+    resolution: Size,
 }
 
 impl Layout for Grid {
@@ -13,21 +13,25 @@ impl Layout for Grid {
     const NAME: &'static str = "Grid";
 
     /// create a layout where the viewers are vertically distributed at the right side
-    /// of the speaker and remaining space is used to display a title and 'who's speaking'
+    /// of the speaker and remaining space is used to display a title and sub title
     /// # Arguments
     /// - `resolution` : dimensions of the output picture in pixels
     /// # Return
     /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
-    fn new(resolution: &Size) -> Self {
+    fn new(resolution: Size, _: SpeakerMode) -> Self {
         // calculate layout
         Self {
             // overall picture size
-            size: *resolution,
+            resolution,
         }
     }
 
+    fn speaker_mode(&self) -> &SpeakerMode {
+        &SpeakerMode::None
+    }
+
     fn resolution(&self) -> &Size {
-        &self.size
+        &self.resolution
     }
 
     fn position(&self, n: usize, count: usize) -> Position {
@@ -56,14 +60,14 @@ impl Layout for Grid {
         Position { x: 0, y: 0 }
     }
 
-    fn speaking_alignment(&self, _count: usize) -> Alignment {
+    fn subtitle_alignment(&self, _count: usize) -> Alignment {
         Alignment {
             horizontal: "left",
             vertical: "bottom",
         }
     }
 
-    fn speaking_position(&self, count: usize) -> Position {
+    fn subtitle_position(&self, count: usize) -> Position {
         let pos = self.position(0, count);
         let size = self.size(0, count);
         let res = self.resolution();

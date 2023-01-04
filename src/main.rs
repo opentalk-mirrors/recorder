@@ -119,7 +119,6 @@ async fn main2() -> Result<()> {
 
 // TODO; make this configurable
 const MAX_VISIBLES: usize = 6;
-const MAX_PARTICIPANTS: usize = 80;
 
 type Mixer = compositor::Mixer<
     compositor::Speaker,
@@ -161,11 +160,14 @@ impl RecordingSession {
 
         let mut mixer = Mixer::new(
             compositor::Size::FHD,
-            MAX_VISIBLES,
-            MAX_PARTICIPANTS,
+            Some(MAX_VISIBLES),
             compositor::Mp4SinkParams {
-                file_path: file_path.to_str().unwrap().into(),
+                file_path: file_path
+                    .to_str()
+                    .expect("failed to convert MP4 file path into string")
+                    .into(),
             },
+            compositor::SpeakerMode::FirstShift,
         )?;
 
         // find all participants that publish their webcam

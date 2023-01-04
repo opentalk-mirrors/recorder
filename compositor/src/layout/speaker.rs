@@ -1,10 +1,24 @@
 use super::*;
 
+/// Mode in which the current speaker shall be displayed.
+#[derive(Debug, Clone)]
+pub enum SpeakerMode {
+    /// Do not visualize who speaks
+    None,
+    /// Put the current speaker in front of all others and shift the remaining visible participants down.
+    /// If the maximum of visibles is reached and speaker was not visible before the last visible will be shifted out.
+    FirstShift,
+    /// Put the current speaker in front of all others and if the speaker was visible before swap it with the previous speaker.
+    /// If the maximum of visibles is reached and< speaker was not visible before the last visible will be shifted out.
+    FirstSwap,
+}
+
 /// Speaker layout
 #[derive(Clone)]
 pub struct Speaker {
     // Size of the target picture in pixels.
-    size: Size,
+    resolution: Size,
+    speaker_mode: SpeakerMode,
 }
 
 impl Layout for Speaker {
@@ -12,21 +26,26 @@ impl Layout for Speaker {
     const NAME: &'static str = "Speaker";
 
     /// create a layout where the viewers are vertically distributed at the right side
-    /// of the speaker and remaining space is used to display a title and 'who's speaking'
+    /// of the speaker and remaining space is used to display a title and sub title
     /// # Arguments
     /// - `resolution` : dimensions of the output picture in pixels
     /// # Return
     /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
-    fn new(resolution: &Size) -> Self {
+    fn new(resolution: Size, speaker_mode: SpeakerMode) -> Self {
         // calculate layout
         Self {
             // overall picture size
-            size: *resolution,
+            resolution,
+            speaker_mode,
         }
     }
 
+    fn speaker_mode(&self) -> &SpeakerMode {
+        &self.speaker_mode
+    }
+
     fn resolution(&self) -> &Size {
-        &self.size
+        &self.resolution
     }
 
     fn position(&self, n: usize, count: usize) -> Position {
@@ -56,14 +75,14 @@ impl Layout for Speaker {
         Position { x: 0, y: 0 }
     }
 
-    fn speaking_alignment(&self, _count: usize) -> Alignment {
+    fn subtitle_alignment(&self, _count: usize) -> Alignment {
         Alignment {
             horizontal: "left",
             vertical: "bottom",
         }
     }
 
-    fn speaking_position(&self, count: usize) -> Position {
+    fn subtitle_position(&self, count: usize) -> Position {
         let pos = self.speaker_position(count);
         let size = self.speaker_size(count);
         let res = self.resolution();
@@ -100,14 +119,14 @@ impl Layout for Speaker {
 }
 impl Speaker {
     fn ratio(&self) -> f64 {
-        self.size.width as f64 / self.size.height as f64
+        self.resolution.width as f64 / self.resolution.height as f64
     }
 
     fn viewers_height(&self, count: usize) -> usize {
         match count {
             0 | 1 => 0,
-            2 => self.size.height / 2,
-            _ => self.size.height / (count - 1),
+            2 => self.resolution.height / 2,
+            _ => self.resolution.height / (count - 1),
         }
     }
 
@@ -117,13 +136,13 @@ impl Speaker {
 
     fn speaker_size(&self, count: usize) -> Size {
         Size {
-            height: self.size.height - self.viewers_height(count),
+            height: self.resolution.height - self.viewers_height(count),
             width: (self.speaker_height(count) as f64 * self.ratio()) as usize,
         }
     }
 
     fn speaker_height(&self, count: usize) -> usize {
-        self.size.height - self.viewers_height(count)
+        self.resolution.height - self.viewers_height(count)
     }
 
     fn speaker_width(&self, count: usize) -> usize {
@@ -136,8 +155,8 @@ impl Speaker {
             0 | 1 => Position { x: 0, y: 0 },
             // place one viewer centered beside the speaker
             2 => Position {
-                x: self.size.width as i64 / 2,
-                y: self.size.height as i64 / 4,
+                x: self.resolution.width as i64 / 2,
+                y: self.resolution.height as i64 / 4,
             },
             // otherwise arrange viewers at the right side of the picture
             _ => Position {
@@ -152,8 +171,8 @@ impl Speaker {
         match count {
             // fit one viewer beside the speaker
             1 => Size {
-                width: self.size.width / 2,
-                height: self.size.height / 2,
+                width: self.resolution.width / 2,
+                height: self.resolution.height / 2,
             },
             // otherwise use viewers' size
             _ => Size {
@@ -169,12 +188,12 @@ impl Speaker {
             // place speaker beside single viewer
             2 => Position {
                 x: 0,
-                y: self.size.height as i64 / 4,
+                y: self.resolution.height as i64 / 4,
             },
             // place speaker beside the viewer arrangement and leave space at top
             _ => Position {
                 x: 0,
-                y: self.size.height as i64 - self.speaker_height(count) as i64,
+                y: self.resolution.height as i64 - self.speaker_height(count) as i64,
             },
         }
     }

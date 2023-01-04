@@ -16,19 +16,27 @@ impl Sink for FakeSink {
     /// Create and add new fake sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
         // create video and audio sink
-        let video_sink =
-            gst::ElementFactory::make_with_name("fakesink", Some("fake-video-sink")).unwrap();
-        let audio_sink =
-            gst::ElementFactory::make_with_name("fakesink", Some("fake-audio-sink")).unwrap();
+        let video_sink = gst::ElementFactory::make_with_name("fakesink", Some("fake-video-sink"))
+            .expect("failed to create video fakesink");
+        let audio_sink = gst::ElementFactory::make_with_name("fakesink", Some("fake-audio-sink"))
+            .expect("failed to create audio fakesink");
 
         // add sinks to pipeline
-        pipeline.add(&video_sink).unwrap();
-        pipeline.add(&audio_sink).unwrap();
+        pipeline
+            .add(&video_sink)
+            .expect("failed to add video fake sink to pipeline");
+        pipeline
+            .add(&audio_sink)
+            .expect("failed to add video fake sink to pipeline");
 
         // return new display sink
         Self {
-            video_sink_pad: video_sink.static_pad("sink").unwrap(),
-            audio_sink_pad: audio_sink.static_pad("sink").unwrap(),
+            video_sink_pad: video_sink
+                .static_pad("sink")
+                .expect("failed to get sink pad of video fake sink"),
+            audio_sink_pad: audio_sink
+                .static_pad("sink")
+                .expect("failed to get sink pad of audio fake sink"),
         }
     }
 
