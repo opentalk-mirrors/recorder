@@ -1,6 +1,6 @@
 use crate::http::HttpClient;
 use crate::signaling::{Event, MediaSessionType};
-use anyhow::Result;
+use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::WebRtcSourceParams;
 use core::pin::Pin;
@@ -8,6 +8,8 @@ use core::task::{ready, Context, Poll};
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use gst::glib;
+use lapin::message::Delivery;
+use lapin::Consumer;
 use settings::Settings;
 use signaling::{ParticipantId, TrickleCandidate};
 use std::io;
@@ -15,12 +17,15 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::io::{AsyncRead, ReadBuf};
 use tokio::sync::mpsc;
-use tokio::task::spawn_blocking;
+use tokio::task::{spawn_blocking, JoinHandle};
+use tokio::time::{sleep, Duration};
 
 mod commands;
 mod http;
 mod settings;
 mod signaling;
+
+const RECONNECT_INTERVAL: Duration = Duration::from_millis(3_000); //ms
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -28,12 +33,19 @@ fn main() -> Result<()> {
 
     let main_loop = glib::MainLoop::new(None, false);
 
-    std::thread::spawn(move || {
-        tokio::runtime::Builder::new_multi_thread()
+    let main_loop_clone = main_loop.clone();
+    let _recorder = std::thread::spawn(move || {
+        let res = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to start tokio async runtime")
-            .block_on(main2())
+            .block_on(main2());
+
+        if let Err(e) = res {
+            eprintln!("Exit on failure: {:?}", e);
+            std::process::exit(-1);
+        }
+        main_loop_clone.quit();
     });
 
     main_loop.run();
@@ -41,11 +53,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-async fn main2() -> Result<()> {
-    let settings = Arc::new(Settings::load("config.toml")?);
-
-    let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
-
+async fn connect_rabbitmq(settings: &Settings) -> Result<Consumer> {
     let rmq_conn = lapin::Connection::connect_uri(
         settings.rabbitmq.uri.clone(),
         lapin::ConnectionProperties::default()
@@ -64,53 +72,86 @@ async fn main2() -> Result<()> {
         )
         .await?;
 
-    let mut consumer = rmq_channel
+    rmq_channel
         .basic_consume(
             queue.name().as_str(),
             "",
             Default::default(),
             Default::default(),
         )
-        .await?;
+        .await
+        .context("Failed to create consumer for RMQ channel")
+}
 
+async fn handle_rabbitmq_delivery(
+    delivery: &Delivery,
+    http_client: Arc<HttpClient>,
+    settings: Arc<Settings>,
+) -> Result<JoinHandle<()>> {
+    delivery
+        .ack(Default::default())
+        .await
+        .context("failed to ACK")?;
+
+    let command = serde_json::from_slice::<commands::StartRecording>(&delivery.data)
+        .with_context(|| format!("Failed to parse RMQ message {:?}", &delivery.data))?;
+
+    log::debug!("Received start command ({command:?})");
+
+    let recording_task = tokio::spawn(async move {
+        let session_result = RecordingSession::create(settings, http_client, command)
+            .await
+            .expect("Failed to start signaling session")
+            .run()
+            .await;
+        if let Err(e) = session_result {
+            log::error!("Recording session failed: {:?}", e);
+        }
+    });
+
+    Ok(recording_task)
+}
+
+async fn main2() -> Result<()> {
+    let settings = Arc::new(Settings::load("config.toml")?);
+    let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
     let mut tasks = vec![];
 
-    while let Some(delivery) = consumer.next().await {
-        match delivery {
-            Ok(ref delivery) => {
-                if let Err(e) = delivery.ack(Default::default()).await {
-                    log::error!("failed to ACK {e:?}");
-                }
-
-                if let Ok(command) =
-                    serde_json::from_slice::<commands::StartRecording>(&delivery.data)
-                {
-                    log::debug!("Received start command ({command:?})");
-                    let settings = settings.clone();
-                    let http_client = http_client.clone();
-
-                    let recording_task = tokio::spawn(async move {
-                        RecordingSession::create(settings, http_client, command.clone())
-                            .await
-                            .expect("Failed to start signaling session")
-                            .run()
-                            .await
-                            .expect("Recording session crashed");
-                    });
-
-                    tasks.push(recording_task);
+    // TODO react to SIGTERM
+    loop {
+        match connect_rabbitmq(&settings).await {
+            Ok(mut consumer) => {
+                while let Some(delivery) = consumer.next().await {
+                    match delivery {
+                        Ok(ref delivery) => {
+                            let task = handle_rabbitmq_delivery(
+                                delivery,
+                                http_client.clone(),
+                                settings.clone(),
+                            )
+                            .await?;
+                            tasks.push(task);
+                        }
+                        Err(e) => {
+                            log::error!("RabbitMQ consumer returned error: {}", e);
+                            break;
+                        }
+                    }
+                    tasks.retain(|task| !task.is_finished());
                 }
             }
             Err(e) => {
-                log::error!("RabbitMQ consumer returned error: {}", e);
-                break;
+                log::error!("RMQ connect error: {:?}", e);
+                tasks.retain(|task| !task.is_finished());
+                if tasks.is_empty() {
+                    log::info!("Exiting after error as all tasks are finished");
+                    break;
+                }
+                log::info!("Retry RMQ connect in {:?}", RECONNECT_INTERVAL);
+                sleep(RECONNECT_INTERVAL).await;
             }
         }
-
-        tasks.retain(|task| !task.is_finished());
     }
-
-    log::info!("Exiting, waiting for all tasks to finish");
 
     join_all(tasks).await;
 
