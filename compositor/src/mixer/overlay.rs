@@ -60,9 +60,9 @@ impl From<ClockOverlay> for Overlay {
 pub struct Overlays {
     /// The mixer GStreamer pipeline.
     bin: gst::Bin,
-    /// pad on which the first (lowest z-order) overlay's sink pad has to be attached to
+    /// pad to which the first (lowest z-order in composite) overlay shall be linked to
     overlay_src: gst::Pad,
-    /// pad on which the last (highest z-order) overlay's src pad has to be attached to
+    /// pad to which the last (highest z-order in composite) overlay shall be linked to
     overlay_sink: gst::Pad,
     /// on top overlays
     overlays: Vec<Overlay>,
