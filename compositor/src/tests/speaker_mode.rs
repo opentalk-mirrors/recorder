@@ -15,7 +15,7 @@ fn test_speaker_mode() {
 
     talk.mixer
         .add_stream(
-            StreamId::new(streams[0].0.id, SubStreamId::Screen),
+            StreamId::new(streams[0].0.id, MediaSessionType::ScreenCapture),
             format!("{}'s screen", streams[0].1),
             TestSourceParameters {
                 resolution: Size::SD,

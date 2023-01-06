@@ -4,16 +4,16 @@ use core::{fmt::Debug, hash::Hash};
 /// sub stream ID for testing purposes.
 #[allow(dead_code)]
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SubStreamId {
+pub enum MediaSessionType {
     /// participant's picture
-    Main,
+    Camera,
     /// participant's screen share
-    Screen,
+    ScreenCapture,
 }
 
-impl Default for SubStreamId {
+impl Default for MediaSessionType {
     fn default() -> Self {
-        Self::Main
+        Self::Camera
     }
 }
 
@@ -26,20 +26,20 @@ where
     /// ID identifying the participant
     pub id: ID,
     /// sub ID identifying the stream of the participant
-    pub stream: SubStreamId,
+    pub stream: MediaSessionType,
 }
 
 impl<ID> StreamId<ID>
 where
     ID: Eq + Ord + Hash + Copy + Debug,
 {
-    pub fn new(id: ID, stream: SubStreamId) -> Self {
+    pub fn new(id: ID, stream: MediaSessionType) -> Self {
         Self { id, stream }
     }
     pub fn new_main(id: ID) -> Self {
         Self {
             id,
-            stream: SubStreamId::Main,
+            stream: MediaSessionType::Camera,
         }
     }
 }
@@ -52,7 +52,7 @@ where
     fn from(number: u32) -> Self {
         Self {
             id: number.into(),
-            stream: SubStreamId::default(),
+            stream: MediaSessionType::default(),
         }
     }
 }
