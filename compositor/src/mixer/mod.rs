@@ -282,13 +282,6 @@ where
             return Err(Error::PlayingPipelineForbidden);
         }
 
-        //    if let Some(max_visible) = self.max_visible {
-        //        // check if given list exceeds maximum length
-        //        if ids.len() > max_visible {
-        //            return Err(Error::TooManyVisibles);
-        //        }
-        //    }
-
         // Unlink all streams
         for id in self.visibles.clone().iter().collect::<Vec<_>>() {
             self.link_video_to_fakesink(*id)?;
