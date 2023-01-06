@@ -54,8 +54,8 @@ impl Speaker {
 
     fn speaker_size(&self) -> Size {
         Size {
-            height: self.resolution.height - self.viewers_height(),
-            width: (self.speaker_height() as f64 * self.ratio()) as usize,
+            height: self.speaker_height(),
+            width: self.speaker_width(),
         }
     }
 
