@@ -1,12 +1,11 @@
 use crate::http::HttpClient;
-use crate::settings::Settings;
+use crate::settings::ControllerSettings;
 use crate::signaling::incoming::Error;
 use anyhow::{bail, Context, Result};
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::net::TcpStream;
 use tt::tungstenite::client::IntoClientRequest;
 use tt::tungstenite::Message;
@@ -76,13 +75,13 @@ pub enum Event {
 
 impl Signaling {
     pub async fn connect(
-        client: Arc<HttpClient>,
-        settings: Arc<Settings>,
+        client: &HttpClient,
+        settings: &ControllerSettings,
         room_id: &str,
     ) -> Result<Self> {
-        let ticket = client.start(&settings.controller, room_id).await?;
+        let ticket = client.start(settings, room_id).await?;
 
-        let mut websocket_request = settings.controller.websocket_url().into_client_request()?;
+        let mut websocket_request = settings.websocket_url().into_client_request()?;
         websocket_request.headers_mut().insert(
             SEC_WEBSOCKET_PROTOCOL,
             format!("opentalk-signaling-json-v1.0,ticket#{}", ticket).try_into()?,

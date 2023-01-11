@@ -69,6 +69,14 @@ There are some integration and a few unit tests.
 
 The starting point to that documentation will then be `/recorder/target/doc/compositor/index.html`.
 
+### ENV variables
+
+- `DISPLAY`
+- `GST_DEBUG_DUMP_DOT_DIR`
+- `USER_TEST`
+- `USE_DISPLAY`
+- `BE_SLOW`
+
 ## Links
 
 Helpful links are listed here:
