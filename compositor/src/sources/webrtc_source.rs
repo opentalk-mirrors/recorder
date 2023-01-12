@@ -13,7 +13,7 @@ pub struct WebRtcSource {
     video_ghostpad: gst::Pad,
     /// GStreamer audio ghost pad to connect from the outside of the bin.
     audio_ghostpad: gst::Pad,
-    /// Sourec overlays.
+    /// Source overlays.
     overlays: Overlays,
 }
 
