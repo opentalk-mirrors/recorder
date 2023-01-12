@@ -1,45 +1,54 @@
-use super::*;
 use crate::*;
-
-// what we need from external libraries
-use core::time::Duration;
-use std::thread::sleep;
 
 #[test]
 fn test_speaker_mode() {
-    // init logger
-    let _ = env_logger::try_init();
-    // initialize gstreamer
-    gst::init().unwrap();
+    // initialize for testing
+    testing::init();
 
-    let mut mixer = Mixer::<Speaker, TestSource, FakeSink, u32>::new(
-        Size {
-            width: 640,
-            height: 480,
-        },
-        None,
-        (),
-        SpeakerMode::FirstShift,
-    )
-    .unwrap();
+    let mut talk =
+        Talk::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, (), Some(5)).unwrap();
 
-    mixer.generate_dot_file("test_speaker_mode-0", gst::DebugGraphDetails::ALL);
+    // initialize scene
+    testing::add_overlay_name(&mut talk.mixer, "test_speaker_mode");
+    let title = talk.push_overlay_text("", TextFormat::default()).unwrap();
+    let (streams, _) = testing::generate_streams(&mut talk.mixer, 8, 5);
 
-    generate_participants(&mut mixer, 8);
+    talk.mixer
+        .add_stream(
+            StreamId::new(streams[0].0.id, MediaSessionType::ScreenCapture),
+            format!("{}'s screen", streams[0].1),
+            TestSourceParameters {
+                resolution: Size::SD,
+                name: Some(format!("{}'s screen", streams[0].1)),
+                pattern: Pattern::Location(testing::image_file("screen_SD.png")),
+            },
+        )
+        .unwrap();
 
-    mixer.play();
+    talk.mixer
+        .generate_dot_file("test_speaker_mode-0", testing::DOT_DETAILS);
 
-    for i in 0..6 {
-        mixer.set_title(&format!("Speaker {i}"));
-        mixer.pause();
-        mixer.set_speaker(Some(i)).unwrap();
-        mixer.play();
+    talk.play();
 
-        mixer.generate_dot_file(
-            &format!("test_speaker_mode-{}", i + 1),
-            gst::DebugGraphDetails::ALL,
-        );
+    testing::wait();
 
-        sleep(Duration::from_millis(500));
+    for mode in [SpeakerMode::FirstShift, SpeakerMode::FirstSwap] {
+        for stream in &streams[0..7] {
+            title.set(&format!("Speaker: {} ({mode:?})", stream.1));
+
+            talk.pause();
+
+            talk.set_speaker(Some(stream.0), &mode).unwrap();
+            talk.layout::<Speaker>().unwrap();
+
+            talk.play();
+
+            talk.mixer.generate_dot_file(
+                &format!("test_speaker_mode-{}-{mode:?}", stream.0.id + 1),
+                testing::DOT_DETAILS,
+            );
+
+            testing::wait();
+        }
     }
 }

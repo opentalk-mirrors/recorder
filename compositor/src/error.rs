@@ -6,9 +6,9 @@ pub enum Error<ID: Debug> {
     /// (maximum value is defined by mixer configuration)
     #[error("too many visible participants requested")]
     TooManyVisibles,
-    /// Given participant can not be found within the mixer
-    #[error("given participant id ({0:?}) cannot be found")]
-    ParticipantNotFound(ID),
+    /// Given stream can not be found within the mixer
+    #[error("given stream id ({0:?}) cannot be found")]
+    StreamNotFound(ID),
     /// Called a method which needs to pause the pipeline before calling it
     #[error("called function in playing pipeline")]
     PlayingPipelineForbidden,

@@ -4,6 +4,14 @@ mod speaker;
 pub use grid::*;
 pub use speaker::*;
 
+/// View properies of a stream
+#[derive(Debug, Clone)]
+pub struct View {
+    pub pos: Position,
+    pub size: Size,
+    pub alpha: f64,
+}
+
 /// Cartesian pixel position
 #[derive(Debug, Clone)]
 pub struct Position {
@@ -72,28 +80,10 @@ pub struct Alignment {
 
 /// Video picture layout
 pub trait Layout: Send + Sync + 'static {
-    /// Create new layout for the given solution.
-    fn new(resolution: Size, speaker_mode: SpeakerMode) -> Self;
-    /// Get speaker mode.
-    fn speaker_mode(&self) -> &SpeakerMode;
-    /// Get setup resolution.
-    fn resolution(&self) -> &Size;
+    /// create a new layout instance
+    fn new(visibles: usize, resolution: Size) -> Self;
     /// Get position of the nth participants video.
-    fn position(&self, n: usize, count: usize) -> Position;
-    /// Get size of the nth participants video.
-    fn size(&self, n: usize, count: usize) -> Size;
-    /// Get alignment of the title text.
-    fn title_alignment(&self) -> Alignment;
-    /// Get position of the title text.
-    fn title_position(&self, _count: usize) -> Position;
-    /// Get alignment of the sub title text.
-    fn subtitle_alignment(&self, count: usize) -> Alignment;
-    /// Get position of the sub title text.
-    fn subtitle_position(&self, count: usize) -> Position;
-    /// Get alignment of the clock display.
-    fn clock_alignment(&self) -> Alignment;
-    /// Get position of the clock display.
-    fn clock_position(&self, count: usize) -> Position;
+    fn view(&self, n: usize) -> View;
 
     #[cfg(test)]
     const NAME: &'static str;

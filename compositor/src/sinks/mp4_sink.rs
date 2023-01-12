@@ -11,12 +11,12 @@ pub struct Mp4Sink {
     process: Option<std::process::Child>,
 
     // Path to save mp4 output to
-    file_path: String,
+    file_path: std::path::PathBuf,
 }
 
 #[derive(Debug)]
 pub struct Mp4SinkParams {
-    pub file_path: String,
+    pub file_path: std::path::PathBuf,
 }
 
 impl Sink for Mp4Sink {
@@ -68,7 +68,7 @@ impl Sink for Mp4Sink {
         // [matroska,webm @ 0x557819b598c0] File ended prematurely
         // [matroska,webm @ 0x557819b598c0] Seek to desired resync point failed. Seeking to earliest point available instead.
         debug!(
-            "Starting ffmpeg to process into output DASH into \"{}\", connection is: {address}",
+            "Starting ffmpeg to process into output DASH into \"{:?}\", connection is: {address}",
             self.file_path
         );
         self.process = Some(
@@ -95,7 +95,7 @@ impl Sink for Mp4Sink {
                     //"64K",
                     "-f",
                     "mp4",
-                    &self.file_path,
+                    self.file_path.to_str().unwrap(),
                 ])
                 .spawn()
                 .expect("failed to spawn FFmpeg process"),

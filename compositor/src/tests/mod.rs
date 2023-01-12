@@ -1,66 +1,218 @@
-const TEST_OUTPUT_DIR: &str = "./test_output";
-
 mod dash;
+mod generate_example_pipeline_picture;
 mod matroska;
 mod mixer;
 mod mp4;
+mod overlays;
 mod speaker_mode;
+mod stream_status;
 
-use core::{fmt::Debug, hash::Hash, time::Duration};
+pub mod testing {
+    use crate::*;
+    use core::{fmt::Debug, hash::Hash, time::Duration};
 
-use crate::*;
+    /// output resolution to use when creating Mixer for testing
+    pub const RESOLUTION: Size = Size::SD;
+    /// GStreamer debug details to use when generating DOT files of pipeline within testing
+    pub const DOT_DETAILS: gst::DebugGraphDetails = gst::DebugGraphDetails::ALL;
 
-fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
-{
-    // generate participant IDs and names
-    (0..count)
-        .map(|n| (n.into(), format!("Participant {n:?}")))
-        .collect()
-}
+    /// initialize for testing
+    pub fn init() {
+        // initialize gstreamer
+        gst::init().unwrap();
+        // init logger
+        let _ = env_logger::try_init();
 
-fn generate_participants<L, SINK, ID>(
-    mixer: &mut Mixer<L, TestSource, SINK, ID>,
-    n: u32,
-) -> (Vec<(ID, String)>, Vec<ID>)
-where
-    L: Layout,
-    SINK: crate::Sink,
-    ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
-{
-    let participants = generate_ids(n);
-    let ids: Vec<ID> = participants.iter().map(|p| p.0).collect();
+        if use_display() {
+            debug!("Showing output in window and playing sound (USE_DISPLAY or USER_TEST)");
+        }
+        if use_display() {
+            debug!("Slowing down tests for user observation (BE_SLOW or USER_TEST)");
+        }
 
-    mixer.set_title(&format!("add {n} participants"));
-    mixer.pause();
-    let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
-    let images = [
-        "images/participant_SD.png",
-        "images/participant_HD.png",
-        "images/participant_FHD.png",
-        "images/participant_QHD.png",
-        "images/participant_UHD.png",
-    ];
-    for (i, (id, name)) in participants.iter().enumerate() {
-        let params = TestSourceParameters {
-            resolution: resolutions[i % images.len()],
-            pattern: Pattern::Location(images[i % images.len()].into()),
-            name: Some(name.clone()),
-        };
-        mixer.add_participant(*id, name.clone(), params).unwrap();
+        trace!("Current directory {:?}", std::env::current_dir().unwrap());
+        trace!("Output directory: {}", output_dir());
+        trace!("Image directory: {}", image_dir());
     }
-    (participants, ids)
-}
 
-fn wait_secs(sec: u64) {
-    debug!("waiting {sec} second(s)...");
-    std::thread::sleep(Duration::from_secs(sec));
-    debug!("...waited {sec} second(s).");
-}
+    fn be_slow() -> bool {
+        std::env::var("USER_TEST").is_ok() || std::env::var("BE_SLOW").is_ok()
+    }
 
-fn wait_millis(milli_sec: u64) {
-    debug!("waiting {milli_sec} millisecond(s)...");
-    std::thread::sleep(Duration::from_millis(milli_sec));
-    debug!("...waited {milli_sec} millisecond(s).");
+    /// return true if system provides a display
+    fn use_display() -> bool {
+        (std::env::var("USER_TEST").is_ok() || std::env::var("USE_DISPLAY").is_ok())
+            && std::env::var("DISPLAY").is_ok()
+    }
+
+    /// get output directory depending if we are within the compositor module or above
+    fn base_dir() -> &'static str {
+        if std::env::current_dir().unwrap().ends_with("compositor") {
+            "."
+        } else {
+            "./compositor"
+        }
+    }
+    /// get output directory depending if we are within the compositor module or above
+    pub fn output_dir() -> String {
+        format!("{}/test_output", base_dir())
+    }
+
+    /// get output directory depending if we are within the compositor module or above
+    pub fn output_file(filename: &str) -> String {
+        format!("{}/{filename}", output_dir())
+    }
+
+    /// get output directory depending if we are within the compositor module or above
+    pub fn image_dir() -> String {
+        format!("{}/images", base_dir())
+    }
+
+    /// get output directory depending if we are within the compositor module or above
+    pub fn image_file(filename: &str) -> String {
+        format!("{}/{filename}", image_dir())
+    }
+
+    /// create a text overlay which displays the given text which shall be the test name
+    pub fn add_overlay_name<SRC, SINK, ID>(mixer: &mut Mixer<SRC, SINK, ID>, name: &str)
+    where
+        SRC: Source,
+        SINK: Sink,
+        ID: Eq + Ord + Hash + Copy + Debug,
+    {
+        mixer
+            .push_overlay(
+                TextOverlay::new(
+                    name,
+                    TextFormat {
+                        font: Font {
+                            size: 9,
+                            ..Default::default()
+                        },
+                        align: Align {
+                            horizontal: HAlign::Left,
+                            vertical: VAlign::Bottom,
+                        },
+                        ..Default::default()
+                    },
+                )
+                .into(),
+            )
+            .unwrap();
+    }
+
+    /// generate IDs for given amount of participants
+    fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
+    where
+        ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
+    {
+        // generate stream IDs and names
+        (0..count)
+            .map(|n| (n.into(), format!("Participant {n:?}")))
+            .collect()
+    }
+
+    /// generate given number of participant streams
+    pub fn generate_streams<SINK, ID>(
+        mixer: &mut Mixer<TestSource, SINK, ID>,
+        n: u32,
+        visibles: usize,
+    ) -> (Vec<(ID, String)>, Vec<ID>)
+    where
+        SINK: crate::Sink,
+        ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
+    {
+        let streams = generate_ids(n);
+        let ids: Vec<ID> = streams.iter().map(|p| p.0).collect();
+
+        let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
+        let images = [
+            "participant_SD.png",
+            "participant_HD.png",
+            "participant_FHD.png",
+            "participant_QHD.png",
+            "participant_UHD.png",
+        ];
+
+        for (i, (id, name)) in streams.iter().enumerate() {
+            let params = TestSourceParameters {
+                resolution: resolutions[i % images.len()],
+                pattern: Pattern::Location(testing::image_file(images[i % images.len()])),
+                name: Some(name.clone()),
+            };
+            mixer.add_stream(*id, name.clone(), params).unwrap();
+        }
+        mixer
+            .set_visibles(&ids.iter().take(visibles).copied().collect::<Vec<_>>())
+            .unwrap();
+
+        mixer.layout::<Speaker>().unwrap();
+
+        (streams, ids)
+    }
+
+    pub fn set_visibles<SINK, ID>(mixer: &mut Mixer<TestSource, SINK, ID>, visibles: &[ID])
+    where
+        SINK: crate::Sink,
+        ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
+    {
+        mixer.set_visibles(visibles).unwrap();
+    }
+
+    /// wait the given amount of seconds
+    pub fn wait_secs(sec: u64) {
+        trace!("-- waiting {sec} second(s) --");
+        std::thread::sleep(Duration::from_secs(sec));
+    }
+
+    /// wait the given amount of milliseconds
+    pub fn wait_millis(milliseconds: u64) {
+        trace!("-- waiting {milliseconds} millisecond(s) --");
+        std::thread::sleep(Duration::from_millis(milliseconds));
+    }
+
+    /// wait 3s if display is present, else wait 200ms
+    pub fn wait() {
+        let milliseconds = if be_slow() { 3000 } else { 200 };
+        trace!("-- waiting {milliseconds} millisecond(s) --");
+        std::thread::sleep(Duration::from_millis(milliseconds));
+    }
+
+    /// Fake sink to catch the compositor output without any further processing.
+    pub enum TestSink {
+        Fake(FakeSink),
+        Display(DisplaySink),
+    }
+
+    impl Sink for TestSink {
+        /// Needs no parameters.
+        type Parameters = ();
+
+        /// Create and add new fake sink into existing pipeline.
+        fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+            if use_display() {
+                debug!("using display sink because display is available");
+                Self::Display(DisplaySink::new(pipeline, ()))
+            } else {
+                debug!("using fake sink");
+                Self::Fake(FakeSink::new(pipeline, ()))
+            }
+        }
+
+        /// Get video sink pad.
+        fn video_sink_pad(&self) -> gst::Pad {
+            match self {
+                Self::Fake(sink) => sink.video_sink_pad(),
+                Self::Display(sink) => sink.video_sink_pad(),
+            }
+        }
+
+        /// Get audio sink pad.
+        fn audio_sink_pad(&self) -> gst::Pad {
+            match self {
+                Self::Fake(sink) => sink.audio_sink_pad(),
+                Self::Display(sink) => sink.audio_sink_pad(),
+            }
+        }
+    }
 }

@@ -4,106 +4,49 @@ use super::*;
 /// Places all the *visible* participants in a grid on screen.
 #[derive(Clone)]
 pub struct Grid {
+    visibles: usize,
     // Size of the target picture in pixels.
     resolution: Size,
 }
 
 impl Layout for Grid {
     #[cfg(test)]
-    const NAME: &'static str = "Grid";
+    const NAME: &'static str = "grid";
 
-    /// create a layout where the viewers are vertically distributed at the right side
-    /// of the speaker and remaining space is used to display a title and sub title
-    /// # Arguments
-    /// - `resolution` : dimensions of the output picture in pixels
-    /// # Return
-    /// Returns a `Layout` instance you can use to call `Mixer::new_speaker()`.
-    fn new(resolution: Size, _: SpeakerMode) -> Self {
-        // calculate layout
+    fn new(visibles: usize, resolution: Size) -> Self {
         Self {
-            // overall picture size
+            visibles,
             resolution,
         }
     }
 
-    fn speaker_mode(&self) -> &SpeakerMode {
-        &SpeakerMode::None
-    }
-
-    fn resolution(&self) -> &Size {
-        &self.resolution
-    }
-
-    fn position(&self, n: usize, count: usize) -> Position {
-        let row = n / self.columns(count);
-        let column = n % self.columns(count);
-        Position {
-            x: (self.width(count) * column) as i64,
-            y: (self.height(count) * row + self.padding(count)) as i64,
+    fn view(&self, n: usize) -> View {
+        let row = n / self.columns();
+        let column = n % self.columns();
+        View {
+            pos: Position {
+                x: (self.width() * column) as i64,
+                y: (self.height() * row + self.padding()) as i64,
+            },
+            size: self.uni_size(),
+            alpha: 1.0,
         }
-    }
-
-    fn size(&self, _n: usize, count: usize) -> Size {
-        self.uni_size(count)
-    }
-
-    fn title_alignment(&self) -> Alignment {
-        // align the title text
-        Alignment {
-            horizontal: "left",
-            vertical: "top",
-        }
-    }
-
-    fn title_position(&self, _count: usize) -> Position {
-        // place the title at the top left corner
-        Position { x: 0, y: 0 }
-    }
-
-    fn subtitle_alignment(&self, _count: usize) -> Alignment {
-        Alignment {
-            horizontal: "left",
-            vertical: "bottom",
-        }
-    }
-
-    fn subtitle_position(&self, count: usize) -> Position {
-        let pos = self.position(0, count);
-        let size = self.size(0, count);
-        let res = self.resolution();
-        Position {
-            x: pos.x,
-            y: -(res.height as i64 - (size.height as i64 + pos.y)),
-        }
-    }
-
-    // align clock display
-    fn clock_alignment(&self) -> Alignment {
-        Alignment {
-            horizontal: "right",
-            vertical: "bottom",
-        }
-    }
-
-    fn clock_position(&self, _count: usize) -> Position {
-        // place clock display
-        Position { x: 0, y: 0 }
     }
 }
 
 impl Grid {
-    fn columns(&self, count: usize) -> usize {
-        self.grid(count).0
+    fn columns(&self) -> usize {
+        self.grid().0
     }
 
-    fn rows(&self, count: usize) -> usize {
-        self.grid(count).1
+    fn rows(&self) -> usize {
+        self.grid().1
     }
 
-    fn grid(&self, count: usize) -> (usize, usize) {
-        if count > 1 {
-            let columns = (f64::sqrt(count as f64) + 0.9) as usize;
-            let rows = (count + columns - 1) / columns;
+    fn grid(&self) -> (usize, usize) {
+        if self.visibles > 1 {
+            let columns = (f64::sqrt(self.visibles as f64) + 0.9) as usize;
+            let rows = (self.visibles + columns - 1) / columns;
             if rows > columns {
                 (columns + 1, rows - 1)
             } else {
@@ -114,21 +57,21 @@ impl Grid {
         }
     }
 
-    fn width(&self, count: usize) -> usize {
-        self.uni_size(count).width
+    fn width(&self) -> usize {
+        self.uni_size().width
     }
 
-    fn height(&self, count: usize) -> usize {
-        self.uni_size(count).height
+    fn height(&self) -> usize {
+        self.uni_size().height
     }
 
-    fn uni_size(&self, count: usize) -> Size {
-        let width = self.resolution().width / self.columns(count);
-        let height = (width as f64 / self.resolution().ratio()) as usize;
+    fn uni_size(&self) -> Size {
+        let width = self.resolution.width / self.columns();
+        let height = (width as f64 / self.resolution.ratio()) as usize;
         Size { width, height }
     }
 
-    fn padding(&self, count: usize) -> usize {
-        (self.resolution().height - self.height(count) * self.rows(count)) / 2
+    fn padding(&self) -> usize {
+        (self.resolution.height - self.height() * self.rows()) / 2
     }
 }

@@ -1,41 +1,29 @@
-use super::*;
 use crate::*;
 
 #[test]
 fn test_mp4() {
-    // init logger
-    let _ = env_logger::try_init();
+    // initialize for testing
+    testing::init();
 
-    // initialize gstreamer
-    gst::init().unwrap();
-
-    // get output resolution from arguments
-    let resolution = Size {
-        width: 640,
-        height: 480,
-    };
-
-    // create grid mixer with test sources for participants and a MatroskaSink
-    let mut mixer = Mixer::<Grid, TestSource, Mp4Sink, u32>::new(
-        resolution,
-        None,
+    // create grid mixer with test sources for streams and a MatroskaSink
+    let mut mixer = Mixer::<TestSource, Mp4Sink, u32>::new(
+        testing::RESOLUTION,
         Mp4SinkParams {
-            file_path: format!("{}/mp4sink.mp4", super::TEST_OUTPUT_DIR),
+            file_path: testing::output_file("mp4sink.mp4").into(),
         },
-        SpeakerMode::None,
     )
     .unwrap();
 
-    // add a participant
+    // add a stream
     mixer
-        .add_participant(0, "Participant 0".into(), Default::default())
+        .add_stream(0, "Participant 0".into(), Default::default())
         .unwrap();
 
     // start mixer
     mixer.play();
 
-    mixer.generate_dot_file("test_mp4", gst::DebugGraphDetails::ALL);
+    mixer.generate_dot_file("test_mp4", testing::DOT_DETAILS);
 
     // stir until done
-    wait_secs(4);
+    testing::wait_secs(4);
 }
