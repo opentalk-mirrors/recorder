@@ -50,13 +50,6 @@ impl ParticipantState {
     pub fn publishes(&self, typ: MediaSessionType) -> bool {
         self.publishing.contains_key(&typ) && self.consents
     }
-
-    pub fn is_showing_video(&self, typ: MediaSessionType) -> bool {
-        self.publishing
-            .get(&typ)
-            .map(|state| state.video)
-            .unwrap_or_default()
-    }
 }
 
 /// Event emitted by [`Signaling::run`]
