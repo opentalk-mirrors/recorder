@@ -2,6 +2,7 @@
 name = "compositor"
 version = "0.1.1"
 edition = "2021"
+license = ""
 
 [dependencies]
 gst = { package = "gstreamer", version = "0.19", features = ["v1_20"] }
