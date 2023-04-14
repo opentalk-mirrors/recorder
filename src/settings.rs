@@ -16,7 +16,7 @@ impl Settings {
     pub fn load(file_name: &str) -> Result<Self, ConfigError> {
         Config::builder()
             .add_source(File::new(file_name, FileFormat::Toml))
-            .add_source(Environment::with_prefix("K3K_REC").separator("__"))
+            .add_source(Environment::with_prefix("OPENTALK_REC").separator("__"))
             .build()?
             .try_deserialize()
     }
