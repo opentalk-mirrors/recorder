@@ -1219,36 +1219,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "k3k-recorder"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytes",
- "compositor",
- "config",
- "env_logger",
- "futures",
- "gstreamer",
- "gstreamer-sdp",
- "gstreamer-webrtc",
- "lapin",
- "log",
- "openidconnect",
- "pin-project-lite",
- "rand",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-executor-trait",
- "tokio-reactor-trait",
- "tokio-tungstenite",
- "uuid",
-]
-
-[[package]]
 name = "lapin"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1470,6 +1440,36 @@ dependencies = [
  "subtle",
  "thiserror",
  "url",
+]
+
+[[package]]
+name = "opentalk-recorder"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "compositor",
+ "config",
+ "env_logger",
+ "futures",
+ "gstreamer",
+ "gstreamer-sdp",
+ "gstreamer-webrtc",
+ "lapin",
+ "log",
+ "openidconnect",
+ "pin-project-lite",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-executor-trait",
+ "tokio-reactor-trait",
+ "tokio-tungstenite",
+ "uuid",
 ]
 
 [[package]]

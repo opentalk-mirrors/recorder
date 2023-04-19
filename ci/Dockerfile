@@ -36,6 +36,6 @@ RUN fc-cache -fv
 
 WORKDIR /recorder
 
-COPY --from=Builder /recorder/target/release/k3k-recorder .
+COPY --from=Builder /recorder/target/release/opentalk-recorder .
 
-ENTRYPOINT [ "./k3k-recorder" ]
+ENTRYPOINT [ "./opentalk-recorder" ]
