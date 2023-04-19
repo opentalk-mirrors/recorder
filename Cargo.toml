@@ -45,7 +45,7 @@ rand = "0.8"
 uuid = { features = ["serde"], version = "1" }
 bytes = "1"
 thiserror = "1"
-openidconnect = "2.3"
+openidconnect = "2.5"
 tempfile = "3"
 pin-project-lite = "0.2.9"
 
