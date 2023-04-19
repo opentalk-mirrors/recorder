@@ -2,7 +2,9 @@
 name = "compositor"
 version = "0.1.1"
 edition = "2021"
-license = ""
+author = "OpenTalk GmbH <mail@opentalk.eu>"
+license = "EUPL-1.2"
+publish = false
 
 [dependencies]
 gst = { package = "gstreamer", version = "0.19", features = ["v1_20"] }
