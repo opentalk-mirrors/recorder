@@ -2,7 +2,7 @@ use crate::http::HttpClient;
 use crate::signaling::{Event, MediaSessionType};
 use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
-use compositor::WebRtcSourceParams;
+use compositor::{StreamStatus, WebRtcSourceParams};
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 use futures::future::join_all;
@@ -10,6 +10,7 @@ use futures::{Stream, StreamExt};
 use gst::glib;
 use lapin::message::Delivery;
 use lapin::Consumer;
+use log::error;
 use settings::Settings;
 use signaling::{ParticipantId, TrickleCandidate};
 use std::io;
@@ -172,7 +173,7 @@ pub struct RecordingSession {
     room_id: String,
     temp_dir: TempDir,
 
-    mixer: Mixer,
+    talk: Mixer,
 
     candidate_receiver: mpsc::Receiver<(ParticipantId, u32, Option<String>)>,
     candidate_sender: mpsc::Sender<(ParticipantId, u32, Option<String>)>,
@@ -213,25 +214,31 @@ impl RecordingSession {
             .filter_map(|(id, state)| {
                 state
                     .publishes(MediaSessionType::Camera)
-                    .then(|| (*id, state.display_name.clone()))
+                    .is_some()
+                    .then(|| {
+                        (
+                            *id,
+                            state.display_name.clone(),
+                            state.publishes(MediaSessionType::Camera).unwrap(),
+                        )
+                    })
             })
             .collect::<Vec<_>>();
 
         // Subscribe to above collected participants
-        for (id, display_name) in publishing_participants {
-            mixer.add_participant::<Layout>(
-                compositor::StreamId::new_main(id),
+        for (id, display_name, initial) in publishing_participants {
+            mixer.add_participant(
+                id.into(),
                 display_name,
                 participant_params(id, candidate_sender.clone()),
+                initial.into(),
             )?;
             signaling
                 .start_subscribe(id, MediaSessionType::Camera)
                 .await?;
         }
 
-        mixer.layout::<Layout>().unwrap();
-
-        mixer.play();
+        mixer.layout::<Layout>()?;
 
         Ok(Self {
             settings,
@@ -239,7 +246,7 @@ impl RecordingSession {
             signaling,
             room_id: command.room,
             temp_dir,
-            mixer,
+            talk: mixer,
             candidate_receiver,
             candidate_sender,
             done: false,
@@ -268,16 +275,20 @@ impl RecordingSession {
         match event {
             Event::ParticipantJoined(id) => {
                 let state = &self.signaling.participants()[&id];
+                let media_state = state.publishes(MediaSessionType::Camera);
 
-                if state.publishes(MediaSessionType::Camera) {
+                if let Some(media_state) = media_state {
                     log::debug!("Join: subscribe Video of {:?}", id);
-                    self.mixer.pause();
-                    self.mixer.add_participant::<Layout>(
-                        compositor::StreamId::new_main(id),
-                        id.0.to_string(),
+                    self.talk.add_participant(
+                        id.into(),
+                        state.display_name.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
+                        StreamStatus {
+                            has_audio: media_state.audio,
+                            has_video: media_state.video,
+                        },
                     )?;
-                    self.mixer.play();
+                    self.talk.layout::<Layout>()?;
                     self.signaling
                         .start_subscribe(id, MediaSessionType::Camera)
                         .await?;
@@ -285,54 +296,60 @@ impl RecordingSession {
             }
             Event::ParticipantUpdated(id) => {
                 let state = &self.signaling.participants()[&id];
-                let has_video_feed = state.publishes(MediaSessionType::Camera);
-                let is_subscribed = self
-                    .mixer
-                    .contains_stream(&compositor::StreamId::new_main(id));
+                let media_state = state.publishes(MediaSessionType::Camera);
+                let is_subscribed = self.talk.contains_stream(&id.into());
 
-                if !is_subscribed && has_video_feed {
-                    log::debug!("Update: subscribe Video of {:?}", id);
-                    self.mixer.pause();
-                    self.mixer.add_participant::<Layout>(
-                        compositor::StreamId::new_main(id),
-                        id.0.to_string(),
-                        participant_params(id, self.candidate_sender.clone()),
-                    )?;
-                    self.mixer.play();
-                    self.signaling
-                        .start_subscribe(id, MediaSessionType::Camera)
-                        .await?;
+                if !is_subscribed {
+                    if let Some(media_state) = media_state {
+                        log::debug!("Update: subscribe Video of {:?}", id);
+                        self.talk.add_participant(
+                            id.into(),
+                            state.display_name.to_string(),
+                            participant_params(id, self.candidate_sender.clone()),
+                            StreamStatus {
+                                has_audio: media_state.audio,
+                                has_video: media_state.video,
+                            },
+                        )?;
+                        self.talk.layout::<Layout>()?;
+                        self.signaling
+                            .start_subscribe(id, MediaSessionType::Camera)
+                            .await?;
+                        return Ok(());
+                    }
+                }
+
+                if is_subscribed && !media_state.is_some() {
+                    log::debug!("Update: unsubscribe Video of {:?}", id);
+                    self.talk.remove_stream(id.into())?;
+                    self.talk.layout::<Layout>()?;
                     return Ok(());
                 }
 
-                if is_subscribed && !has_video_feed {
-                    log::debug!("Update: unsubscribe Video of {:?}", id);
-                    self.mixer.pause();
-                    self.mixer
-                        .remove_stream(compositor::StreamId::new_main(id))?;
-                    self.mixer.layout::<Layout>()?;
-                    self.mixer.play();
-                    return Ok(());
+                if let Some(media_state) = media_state {
+                    self.talk.set_status(
+                        &id.into(),
+                        StreamStatus {
+                            has_audio: media_state.audio,
+                            has_video: media_state.video,
+                        },
+                    )?;
+                    self.talk.layout::<Layout>()?;
                 }
 
                 log::trace!(
-                    "ignore update for {:?}: has_video_feed ({}) == is_subscribed ({})",
+                    "ignore update for {:?}: has_video_feed ({:?}) == is_subscribed ({})",
                     id,
-                    has_video_feed,
+                    media_state,
                     is_subscribed
                 );
+
                 return Ok(());
             }
             Event::ParticipantLeft(id) => {
-                if self
-                    .mixer
-                    .contains_stream(&compositor::StreamId::new_main(id))
-                {
-                    self.mixer.pause();
-                    self.mixer
-                        .remove_stream(compositor::StreamId::new_main(id))?;
-                    self.mixer.layout::<Layout>()?;
-                    self.mixer.play();
+                if self.talk.contains_stream(&id.into()) {
+                    self.talk.remove_stream(id.into())?;
+                    self.talk.layout::<Layout>()?;
                 }
 
                 if self.signaling.participants().is_empty() {
@@ -347,37 +364,35 @@ impl RecordingSession {
                 }
             }
             Event::SdpOffer(id, typ, offer) => {
-                if let Some(source) = self.mixer.get_source(&compositor::StreamId::new_main(id)) {
+                if let Some(source) = self.talk.get_source(&id.into()) {
                     let answer = source.receive_offer(offer).await;
                     self.signaling.send_answer(id, typ, answer).await?;
                 }
             }
             Event::SdpCandidate(id, _typ, candidate) => {
-                if let Some(source) = self.mixer.get_source(&compositor::StreamId::new_main(id)) {
+                if let Some(source) = self.talk.get_source(&id.into()) {
                     source
                         .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
                         .await;
                 }
             }
             Event::SdpEndOfCandidates(id, _typ) => {
-                if let Some(source) = self.mixer.get_source(&compositor::StreamId::new_main(id)) {
+                if let Some(source) = self.talk.get_source(&id.into()) {
                     source.receive_end_of_candidates(0).await;
                 }
             }
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Set active speaker to {:?}", focus_change);
-                self.mixer.pause();
                 if let Some(speaker) = focus_change {
-                    self.mixer.set_speaker(
-                        Some(compositor::StreamId::new_main(speaker)),
-                        &compositor::SpeakerMode::FirstShift,
+                    self.talk.set_speaker(
+                        Some(speaker.into()),
+                        &compositor::SpeakerSwitchMode::FirstShift,
                     )?;
                 } else {
-                    self.mixer
-                        .set_speaker(None, &compositor::SpeakerMode::FirstShift)?;
+                    self.talk
+                        .set_speaker(None, &compositor::SpeakerSwitchMode::FirstShift)?;
                 }
-                self.mixer.layout::<Layout>().unwrap();
-                self.mixer.play();
+                self.talk.layout::<Layout>()?;
             }
             Event::MediaConnectionError(error) => {
                 log::warn!("Skipping media connection error: {:?}", error);
@@ -412,7 +427,7 @@ impl RecordingSession {
     }
 
     async fn upload(self) -> Result<()> {
-        let mixer = self.mixer;
+        let mixer = self.talk;
 
         spawn_blocking(move || drop(mixer)).await?;
 
@@ -425,15 +440,28 @@ impl RecordingSession {
             &self.room_id
         );
 
-        self.http_client
+        match self
+            .http_client
             .upload_render(
                 &self.settings.controller,
                 &self.room_id,
                 FileReadStream { file },
             )
-            .await?;
+            .await
+        {
+            Ok(_) => (),
+            Err(err) => {
+                let dump_name = "DUMP.mp4";
+                error!(
+                    "upload of file {:?} failed. Saving output in {dump_name}.",
+                    recording_path
+                );
+                tokio::fs::copy(recording_path, dump_name).await?;
+                return Err(err);
+            }
+        }
 
-        log::debug!("finished uploading recording for room '{}'", &self.room_id);
+        log::debug!("Finished uploading recording for room '{}'", &self.room_id);
 
         Ok(())
     }

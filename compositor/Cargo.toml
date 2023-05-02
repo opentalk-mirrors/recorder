@@ -7,18 +7,20 @@ license = "EUPL-1.2"
 publish = false
 
 [dependencies]
-gst = { package = "gstreamer", version = "0.19", features = ["v1_20"] }
-gst-sdp = { package = "gstreamer-sdp", version = "0.19" }
-gst-webrtc = { package = "gstreamer-webrtc", version = "0.19", features = [
+gst = { package = "gstreamer", version = "0.20", features = ["v1_20"] }
+gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
+gst-webrtc = { package = "gstreamer-webrtc", version = "0.20", features = [
     "v1_20",
 ] }
-log = "0.4.0"
-glib = "0.16"
-tokio = { version = "1", features = ["sync", "net"] }
+log = "0.4"
+glib = "0.17"
+tokio = { version = "1", features = ["sync", "net", "macros", "rt-multi-thread", "time"] }
 inotify = "0.10"
 tempfile = "3"
 thiserror = "1"
 derivative = "2.2"
+gst-base = { package = "gstreamer-base", version="0.20.5"}
+anyhow = "1.0.70"
 
 [dev-dependencies]
-env_logger = "0.10.0"
+env_logger = "0.10"

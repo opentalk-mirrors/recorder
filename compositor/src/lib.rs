@@ -63,7 +63,6 @@
 #[macro_use]
 extern crate log;
 
-mod error;
 mod layout;
 mod mixer;
 mod overlays;
@@ -73,7 +72,6 @@ mod sources;
 #[cfg(test)]
 mod tests;
 
-pub use error::*;
 pub use layout::*;
 pub use mixer::*;
 pub use overlays::*;

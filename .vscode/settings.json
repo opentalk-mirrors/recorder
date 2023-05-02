@@ -12,6 +12,7 @@
         "canonicalize",
         "capssetter",
         "clockoverlay",
+        "condvar",
         "dashsink",
         "deltax",
         "deltay",
@@ -28,6 +29,7 @@
         "Matroska",
         "matroskamux",
         "mplayer",
+        "mspc",
         "multifdsink",
         "muxer",
         "nostdin",
@@ -46,6 +48,7 @@
         "tempfile",
         "testsrc",
         "textoverlay",
+        "thiserror",
         "valignment",
         "videobox",
         "videoconvert",
@@ -61,5 +64,6 @@
         "xvimagesink",
         "ypad",
         "ypos"
-    ]
+    ],
+    "git.enableCommitSigning": true
 }

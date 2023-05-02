@@ -2,3 +2,5 @@
 /target
 /pipelines
 /test_output/*
+massif.out.*
+/*.dot

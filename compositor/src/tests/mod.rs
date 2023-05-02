@@ -1,4 +1,5 @@
 mod dash;
+mod dynamic;
 mod generate_example_pipeline_picture;
 mod matroska;
 mod mixer;
@@ -6,33 +7,52 @@ mod mp4;
 mod overlays;
 mod speaker_mode;
 mod stream_status;
+mod webrtc;
 
 pub mod testing {
     use crate::*;
-    use core::{fmt::Debug, hash::Hash, time::Duration};
+    use core::{
+        fmt::{Debug, Display},
+        hash::Hash,
+        time::Duration,
+    };
 
     /// output resolution to use when creating Mixer for testing
     pub const RESOLUTION: Size = Size::SD;
     /// GStreamer debug details to use when generating DOT files of pipeline within testing
-    pub const DOT_DETAILS: gst::DebugGraphDetails = gst::DebugGraphDetails::ALL;
+    pub const DOT_PARAMS: &debug::Params = &debug::Params::all();
+
+    // count calls
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static INITIALIZING: AtomicBool = AtomicBool::new(false);
 
     /// initialize for testing
     pub fn init() {
+        trace!("init()");
+
+        while INITIALIZING
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {}
+
+        INITIALIZING.store(true, Ordering::SeqCst);
         // initialize gstreamer
         gst::init().unwrap();
         // init logger
-        let _ = env_logger::try_init();
+        env_logger::try_init().ok();
 
         if use_display() {
-            debug!("Showing output in window and playing sound (USE_DISPLAY or USER_TEST)");
+            info!("Showing output in window and playing sound (USE_DISPLAY or USER_TEST)");
         }
         if use_display() {
-            debug!("Slowing down tests for user observation (BE_SLOW or USER_TEST)");
+            info!("Slowing down tests for user observation (BE_SLOW or USER_TEST)");
         }
 
-        trace!("Current directory {:?}", std::env::current_dir().unwrap());
-        trace!("Output directory: {}", output_dir());
-        trace!("Image directory: {}", image_dir());
+        debug!("Current directory {:?}", std::env::current_dir().unwrap());
+        info!("Output directory: {}", output_dir());
+        info!("Image directory: {}", image_dir());
+
+        INITIALIZING.store(false, Ordering::SeqCst);
     }
 
     fn be_slow() -> bool {
@@ -74,31 +94,31 @@ pub mod testing {
     }
 
     /// create a text overlay which displays the given text which shall be the test name
-    pub fn add_overlay_name<SRC, SINK, ID>(mixer: &mut Mixer<SRC, SINK, ID>, name: &str)
+    pub fn add_overlay_name<SRC, SINK, ID>(talk: &mut Talk<SRC, SINK, ID>, name: &str)
     where
         SRC: Source,
+        SRC::Parameters: Debug,
         SINK: Sink,
-        ID: Eq + Ord + Hash + Copy + Debug,
+        SINK::Parameters: Debug,
+        ID: Eq + Ord + Hash + Copy + Debug + Display + Sync + Send,
     {
-        mixer
-            .push_overlay(
-                TextOverlay::new(
-                    name,
-                    TextFormat {
-                        font: Font {
-                            size: 9,
-                            ..Default::default()
-                        },
-                        align: Align {
-                            horizontal: HAlign::Left,
-                            vertical: VAlign::Bottom,
-                        },
-                        ..Default::default()
-                    },
-                )
-                .into(),
-            )
-            .unwrap();
+        trace!("add_overlay_name( '{name}' )");
+
+        talk.insert_overlay_text(
+            name,
+            TextFormat {
+                font: Font {
+                    size: 9,
+                    ..Default::default()
+                },
+                align: Align {
+                    horizontal: HAlign::Left,
+                    vertical: VAlign::Bottom,
+                },
+                ..Default::default()
+            },
+        )
+        .unwrap();
     }
 
     /// generate IDs for given amount of participants
@@ -106,6 +126,8 @@ pub mod testing {
     where
         ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
     {
+        trace!("generate_ids( {count} )");
+
         // generate stream IDs and names
         (0..count)
             .map(|n| (n.into(), format!("Participant {n:?}")))
@@ -114,15 +136,18 @@ pub mod testing {
 
     /// generate given number of participant streams
     pub fn generate_streams<SINK, ID>(
-        mixer: &mut Mixer<TestSource, SINK, ID>,
-        n: u32,
+        mixer: &mut Talk<TestSource, SINK, ID>,
+        count: u32,
         visibles: usize,
     ) -> (Vec<(ID, String)>, Vec<ID>)
     where
         SINK: crate::Sink,
-        ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
+        SINK::Parameters: Debug,
+        ID: Eq + Ord + Hash + Copy + Debug + Display + From<u32> + Sync + Send,
     {
-        let streams = generate_ids(n);
+        trace!("generate_streams( {count}, {visibles} )");
+
+        let streams = generate_ids(count);
         let ids: Vec<ID> = streams.iter().map(|p| p.0).collect();
 
         let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
@@ -140,42 +165,42 @@ pub mod testing {
                 pattern: Pattern::Location(testing::image_file(images[i % images.len()])),
                 name: Some(name.clone()),
             };
-            mixer.add_stream(*id, name.clone(), params).unwrap();
+            mixer
+                .add_stream((*id).into(), name.clone(), params, StreamStatus::default())
+                .unwrap();
         }
-        mixer
-            .set_visibles(&ids.iter().take(visibles).copied().collect::<Vec<_>>())
-            .unwrap();
 
         mixer.layout::<Speaker>().unwrap();
 
         (streams, ids)
     }
 
-    pub fn set_visibles<SINK, ID>(mixer: &mut Mixer<TestSource, SINK, ID>, visibles: &[ID])
-    where
-        SINK: crate::Sink,
-        ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
-    {
-        mixer.set_visibles(visibles).unwrap();
-    }
-
     /// wait the given amount of seconds
     pub fn wait_secs(sec: u64) {
-        trace!("-- waiting {sec} second(s) --");
+        info!("-- waiting {sec} second(s) --");
         std::thread::sleep(Duration::from_secs(sec));
     }
 
     /// wait the given amount of milliseconds
     pub fn wait_millis(milliseconds: u64) {
-        trace!("-- waiting {milliseconds} millisecond(s) --");
+        info!("-- waiting {milliseconds} millisecond(s) --");
         std::thread::sleep(Duration::from_millis(milliseconds));
     }
 
     /// wait 3s if display is present, else wait 200ms
     pub fn wait() {
         let milliseconds = if be_slow() { 3000 } else { 200 };
-        trace!("-- waiting {milliseconds} millisecond(s) --");
+        info!("-- waiting {milliseconds} millisecond(s) --");
         std::thread::sleep(Duration::from_millis(milliseconds));
+    }
+
+    /// like `wait()` but waits 200ms or zero time
+    pub fn wait_short() {
+        if be_slow() {
+            let milliseconds = 200;
+            info!("-- waiting {milliseconds} millisecond(s) --");
+            std::thread::sleep(Duration::from_millis(milliseconds));
+        }
     }
 
     /// Fake sink to catch the compositor output without any further processing.
@@ -190,11 +215,13 @@ pub mod testing {
 
         /// Create and add new fake sink into existing pipeline.
         fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+            trace!("new()");
+
             if use_display() {
-                debug!("using display sink because display is available");
+                info!("using display sink because display is available");
                 Self::Display(DisplaySink::new(pipeline, ()))
             } else {
-                debug!("using fake sink");
+                info!("using fake sink");
                 Self::Fake(FakeSink::new(pipeline, ()))
             }
         }

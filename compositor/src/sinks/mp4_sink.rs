@@ -7,11 +7,11 @@ pub struct Mp4Sink {
     /// Underlying Matroska sink.
     matroska_sink: MatroskaSink,
 
-    /// FFmpeg process
+    /// FFmpeg process.
     process: Option<std::process::Child>,
 
-    // Path to save mp4 output to
-    file_path: std::path::PathBuf,
+    /// Output filename.
+    filename: String,
 }
 
 #[derive(Debug)]
@@ -24,14 +24,43 @@ impl Sink for Mp4Sink {
 
     /// Create and add new MP4 sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self {
-        debug!("create new MP4Sink: {params:?}");
+        trace!("new( {params:?} )");
+        assert_eq!(pipeline.current_state(), gst::State::Null);
+        let matroska_sink = MatroskaSink::new(pipeline, MatroskaParameters::default());
+        let address = &format!("tcp://{}", matroska_sink.address);
+
+        // TODO: use free codecs instead of ffmpeg's mp4 default.
+        // using the commented out codec settings often leads to errors when ending the recording and 10-20 seconds
+        // missing in the end. following errors are printed:
+        //
+        // [matroska,webm @ 0x557819b598c0] File ended prematurely
+        // [matroska,webm @ 0x557819b598c0] Seek to desired resync point failed. Seeking to earliest point available instead.
+        debug!(
+            "Starting ffmpeg to process into output DASH into \"{:?}\", connection is: {address}",
+            params.file_path
+        );
+        let filename = params
+            .file_path
+            .to_str()
+            .expect("invalid path which could not be converted into UTF8")
+            .to_string();
+        let process = Some(
+            std::process::Command::new("ffmpeg")
+                .args([
+                    "-v", "warning", "-y", "-nostdin", "-i",
+                    // read from localhost and given port
+                    address, "-f", "mp4", &filename,
+                ])
+                .spawn()
+                .expect("failed to spawn FFmpeg process"),
+        );
 
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
-            matroska_sink: MatroskaSink::new(pipeline, MatroskaParameters::default()),
-            process: None,
-            file_path: params.file_path,
+            matroska_sink,
+            process,
+            filename,
         }
     }
 
@@ -47,91 +76,34 @@ impl Sink for Mp4Sink {
 
     /// Starts the FFmpeg receiver which catches the output of the matroska sink.
     fn on_play(&mut self) {
+        trace!("on_play()");
+
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
-            if process
+            let result = process
                 .try_wait()
-                .expect("failed to get FFmpeg process status")
-                .is_none()
-            {
-                // then skip any further action
-                return;
+                .expect("failed to get FFmpeg process status");
+
+            if let Some(code) = result {
+                error!("ffmpeg process died with code {}", code);
             }
         }
-
-        let address = &format!("tcp://{}", self.matroska_sink.address);
-
-        // TODO: use free codecs instead of ffmpeg's mp4 default.
-        // using the commented out codec settings often leads to errors when ending the recording and 10-20 seconds
-        // missing in the end. following errors are printed:
-        //
-        // [matroska,webm @ 0x557819b598c0] File ended prematurely
-        // [matroska,webm @ 0x557819b598c0] Seek to desired resync point failed. Seeking to earliest point available instead.
-        debug!(
-            "Starting ffmpeg to process into output DASH into \"{:?}\", connection is: {address}",
-            self.file_path
-        );
-        self.process = Some(
-            std::process::Command::new("ffmpeg")
-                .args([
-                    "-v",
-                    "warning",
-                    "-y",
-                    "-nostdin",
-                    "-i",
-                    // read from localhost and given port
-                    address,
-                    // set video codec
-                    //"-codec:v:0",
-                    //"libvpx-vp9",
-                    // set bitrate for video
-                    //"-b:v:0",
-                    //"500K",
-                    // Set audio codec
-                    //"-codec:a:0",
-                    //"libopus",
-                    // set bitrate for audio
-                    //"-b:a:0",
-                    //"64K",
-                    "-f",
-                    "mp4",
-                    self.file_path.to_str().unwrap(),
-                ])
-                .spawn()
-                .expect("failed to spawn FFmpeg process"),
-        );
     }
 
     fn on_exit(&mut self, pipeline: &gst::Pipeline) {
-        // send EOS into pipeline to flush output
-        pipeline.send_event(gst::event::Eos::new());
+        trace!("on_exit()");
 
-        // wait until error or EOS
-        let bus = pipeline.bus().expect("failed to get bus of pipeline");
-        for msg in bus.iter_timed(gst::ClockTime::from_seconds(1)) {
-            use gst::MessageView;
+        crate::mixer::debug::dot(pipeline, "on_exit");
 
-            match msg.view() {
-                MessageView::Error(err) => {
-                    error!(
-                        "Error received from element {:?}: {}",
-                        err.src().map(|s| s.path_string()),
-                        err.error()
-                    );
-                    debug!("Debugging information: {:?}", err.debug());
-                    break;
-                }
-                MessageView::Eos(..) => break,
-                _ => (),
-            }
-        }
-
+        debug!("Closing file '{}'", self.filename);
         self.matroska_sink.on_exit(pipeline);
     }
 }
 
 impl Drop for Mp4Sink {
     fn drop(&mut self) {
+        trace!("drop()");
+
         // Wait for ffmpeg to exit
         let mut handle = self
             .process

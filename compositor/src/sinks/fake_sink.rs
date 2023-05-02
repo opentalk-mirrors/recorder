@@ -1,5 +1,8 @@
 use crate::Sink;
-use gst::traits::{ElementExt, GstBinExt};
+use gst::{
+    prelude::*,
+    traits::{ElementExt, GstBinExt},
+};
 
 /// Fake sink to catch the compositor output without any further processing.
 pub struct FakeSink {
@@ -15,11 +18,16 @@ impl Sink for FakeSink {
 
     /// Create and add new fake sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+        trace!("new()");
+        assert_eq!(pipeline.current_state(), gst::State::Null);
+
         // create video and audio sink
-        let video_sink = gst::ElementFactory::make_with_name("fakesink", Some("fake-video-sink"))
-            .expect("failed to create video fakesink");
-        let audio_sink = gst::ElementFactory::make_with_name("fakesink", Some("fake-audio-sink"))
-            .expect("failed to create audio fakesink");
+        let video_sink =
+            gst::ElementFactory::make_with_name("fakevideosink", Some("fake-video-sink"))
+                .expect("failed to create video fakesink");
+        let audio_sink =
+            gst::ElementFactory::make_with_name("fakeaudiosink", Some("fake-audio-sink"))
+                .expect("failed to create audio fakesink");
 
         // add sinks to pipeline
         pipeline

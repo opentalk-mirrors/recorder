@@ -1,5 +1,8 @@
 use crate::Sink;
-use gst::traits::{ElementExt, GstBinExt};
+use gst::{
+    prelude::*,
+    traits::{ElementExt, GstBinExt},
+};
 
 /// Displays compositor output on the screen.
 pub struct DisplaySink {
@@ -15,6 +18,9 @@ impl Sink for DisplaySink {
 
     /// Create and add new display sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+        trace!("new()");
+        assert_eq!(pipeline.current_state(), gst::State::Null);
+
         // create video and audio sink
         let video_sink =
             gst::ElementFactory::make_with_name("xvimagesink", Some("display-video-sink"))

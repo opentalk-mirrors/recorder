@@ -1,8 +1,9 @@
 use crate::*;
-use gst::prelude::*;
 use gst::traits::{ElementExt, GstBinExt};
+use std::fmt::Display;
 
-#[derive(Clone)]
+/// Video test patterns.
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum Pattern {
     /// image file
@@ -98,20 +99,16 @@ impl From<Pattern> for &'static str {
 /// Source that generates dummy picture and sound to simulate a participant's input.
 #[derive(Clone)]
 pub struct TestSource {
-    /// Video source GStreamer pad.
-    video_src_pad: gst::Pad,
-    /// Video source GStreamer element.
-    video_bin: gst::Bin,
-    /// Audio source GStreamer pad.
-    audio_src_pad: gst::Pad,
-    /// Audio source GStreamer element.
-    audio_bin: gst::Bin,
-    /// source overlays.
+    bin: gst::Bin,
+    video_inp_pad: gst::Pad,
+    video_out_pad: gst::GhostPad,
+    audio_out_pad: gst::GhostPad,
+    audio_inp_pad: gst::Pad,
     overlays: Overlays,
 }
 
 /// Specific parameters needed to create a [TestSource]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TestSourceParameters {
     /// Pattern to produce
     pub pattern: Pattern,
@@ -137,15 +134,16 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [TestSource] and add it to the given pipeline.
-    fn new(
+    fn new<ID>(
+        id: &ID,
         pipeline: &gst::Pipeline,
         resolution: &Size,
         params: TestSourceParameters,
-    ) -> TestSource {
-        debug!(
-            "create new TestSource, resolution: (WxH){}:{}",
-            params.resolution.width, params.resolution.height
-        );
+    ) -> TestSource
+    where
+        ID: Display,
+    {
+        trace!("new( {id} {resolution:?}, {params:?} )",);
 
         // substitute parameters for easy us with format!()
         let (width, height) = if resolution.ratio() == params.resolution.ratio() {
@@ -161,17 +159,21 @@ impl Source for TestSource {
                 (params.resolution.width as f64 / resolution.ratio()) as usize,
             )
         };
-        trace!("padding TestSource to {width}:{height}");
+        debug!("Padding TestSource to {width}:{height}");
 
         use std::cmp::min;
         let (out_width, out_height) =
             (min(resolution.width, width), min(resolution.height, height));
-        trace!("resizing TestSource to {out_width}:{out_height}");
+        debug!("Resizing TestSource to {out_width}:{out_height}");
 
         // create bin including codecs and the dash sink
-        let video_bin = match params.pattern {
-            Pattern::Location(location) => gst::parse_bin_from_description(
-                &format!(
+        let bin = gst::parse_bin_from_description(
+            &(format!(
+                r#"
+                name="participant_{id}"
+                "#,
+            ) + &match params.pattern {
+                Pattern::Location(location) => format!(
                     r#"
                     filesrc
                         location={location}
@@ -183,25 +185,26 @@ impl Source for TestSource {
                         text="{name}"
                         color=0xffffff80
                     ! videoconvert
-                    ! imagefreeze
-                        is-live=true
                     ! videoscale
                     ! capssetter
-                        name=overlays
                         caps=video/x-raw,format=RGB,width={out_width},height={out_height}
+                    ! imagefreeze
+                        name=video-inp
+                        is-live=true
+                    ! valve
+                        name=valve-video-out
                     ! queue
-                        name=video-testsrc
+                        name=video-out
                     "#,
-                    name = params.name.unwrap_or_default()
+                    name = params.name.clone().unwrap_or_default()
                 ),
-                false,
-            ),
-            _ => {
-                let pattern: &str = params.pattern.into();
-                gst::parse_bin_from_description(
-                    &format!(
+
+                _ => {
+                    let pattern: &str = params.pattern.into();
+                    format!(
                         r#"
                         videotestsrc
+                            name=video-inp
                             pattern={pattern}
                             is-live=true
                         ! capssetter
@@ -210,120 +213,89 @@ impl Source for TestSource {
                         ! capssetter
                             name=overlays
                             caps=video/x-raw,format=RGB,width={out_width},height={out_height}
+                        ! valve
+                            name=valve-overlay
                         ! queue
-                            name=video-testsrc
-                        "#
-                    ),
-                    false,
-                )
-            }
-        }
-        .expect("failed to create test source sink bin");
-
-        // add video elements to pipeline
-        pipeline
-            .add(&video_bin)
-            .expect("failed to add test source video bin to pipeline");
-
-        // get elements from bin
-        let video_output = video_bin
-            .by_name("video-testsrc")
-            .expect("failed to get video-testsrc from pipeline");
-
-        // create ghost pads which link to codecs
-        let video_src_ghostpad = gst::GhostPad::with_target(
-            None,
-            &video_output
-                .static_pad("src")
-                .expect("failed to get sink pad of video test source sink"),
-        )
-        .expect("failed to create ghost pad for video test source sink");
-        video_bin
-            .add_pad(&video_src_ghostpad)
-            .expect("failed to add test source video ghost pad to pipeline");
-
-        let audio_bin = gst::parse_bin_from_description(
-            r#"
+                            name=video-out
+                        "#,
+                    )
+                }
+            } + &format!(
+                r#"
                 audiotestsrc
+                    name=audio-inp
                     volume=0.01
                     is-live=true
                 ! capssetter
                     caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
                 ! queue
-                    name=audio-testsrc
-            "#,
+                    name=audio-out
+            "#
+            )),
             false,
         )
-        .expect("failed to create test source sink bin");
-        // add audio elements to pipeline
-        pipeline
-            .add(&audio_bin)
-            .expect("failed to add test source audio bin to pipeline");
+        .expect("failed to create test source bin");
+
+        // add video elements to pipeline
+        pipeline.add(&bin).unwrap();
 
         // get elements from bin
-        let audio_output = audio_bin
-            .by_name("audio-testsrc")
-            .expect("failed to get audio-testsrc from pipeline");
-
-        // create ghost pads which link to codecs
-        let audio_src_ghostpad = gst::GhostPad::with_target(
-            None,
-            &audio_output
-                .static_pad("src")
-                .expect("failed to get sink pad of audio test source sink"),
-        )
-        .expect("failed to create ghost pad for audio test source sink");
-        audio_bin
-            .add_pad(&audio_src_ghostpad)
-            .expect("failed to add test source audio ghost pad to pipeline");
-
+        let video_inp = bin.by_name("video-inp").unwrap();
+        let video_inp_pad = video_inp.static_pad("src").unwrap();
         // get elements from bin
-        let overlays = video_bin
-            .by_name("overlays")
-            .expect("failed to get overlays from pipeline");
+        let video_out = bin.by_name("video-out").unwrap();
+        let video_out_pad = video_out.static_pad("src").unwrap();
 
-        let overlay_src = overlays
-            .static_pad("src")
-            .expect("failed to get src pad from overlays");
-        let overlay_sink = video_output
-            .static_pad("sink")
-            .expect("failed to get sink pad from video_output ");
+        let audio_inp = bin.by_name("audio-inp").unwrap();
+        let audio_inp_pad = audio_inp.static_pad("src").unwrap();
+        let audio_out = bin.by_name("audio-out").unwrap();
+        let audio_out_pad = audio_out.static_pad("src").unwrap();
 
-        let overlays = Overlays::new(&video_bin, overlay_src, overlay_sink);
+        let video_out_pad = gst::GhostPad::with_target(Some("video"), &video_out_pad)
+            .expect("failed to create ghost pad for webrtc video output");
+        let audio_out_pad = gst::GhostPad::with_target(Some("audio"), &audio_out_pad)
+            .expect("failed to create ghost pad for webrtc audio output");
+
+        bin.add_pad(&video_out_pad)
+            .expect("failed to add video output ghost pad to webrtc bin");
+        bin.add_pad(&audio_out_pad)
+            .expect("failed to add audio output ghost pad to webrtc bin");
+
+        // create new overlays container
+        let valve_overlay = pipeline
+            .by_name("valve-overlay")
+            .expect("failed to get video output valve from pipeline");
+        let overlays = Overlays::new(valve_overlay);
 
         TestSource {
             // remember elements and pads for connect/disconnect
-            video_src_pad: video_src_ghostpad.upcast::<gst::Pad>(),
-            video_bin,
-            audio_src_pad: audio_src_ghostpad.upcast::<gst::Pad>(),
-            audio_bin,
+            bin,
+            video_inp_pad,
+            video_out_pad,
+            audio_inp_pad,
+            audio_out_pad,
             overlays,
         }
     }
 
-    fn remove(self, pipeline: &gst::Pipeline) {
-        // remove video elements from pipeline
-        pipeline
-            .remove(&self.video_bin)
-            .expect("failed to remove test source video bin from pipeline");
-        self.video_bin
-            .set_state(gst::State::Null)
-            .expect("failed to set test source video bin state to Null");
-        // remove audio elements
-        pipeline
-            .remove(&self.audio_bin)
-            .expect("failed to remove test source audio bin from pipeline");
-        self.audio_bin
-            .set_state(gst::State::Null)
-            .expect("failed to set test source audio bin state to Null");
+    fn video_inp_pad(&self) -> Option<gst::Pad> {
+        Some(self.video_inp_pad.clone())
     }
 
-    fn video_src_pad(&self) -> gst::Pad {
-        self.video_src_pad.clone()
+    fn audio_inp_pad(&self) -> Option<gst::Pad> {
+        Some(self.audio_inp_pad.clone())
     }
 
-    fn audio_src_pad(&self) -> gst::Pad {
-        self.audio_src_pad.clone()
+    fn video_out_pad(&self) -> gst::GhostPad {
+        self.video_out_pad.clone()
+    }
+
+    fn audio_out_pad(&self) -> gst::GhostPad {
+        self.audio_out_pad.clone()
+    }
+
+    fn bin(&self) -> gst::Bin {
+        self.bin.clone()
     }
 
     fn overlays(&mut self) -> &mut Overlays {

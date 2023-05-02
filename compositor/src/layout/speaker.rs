@@ -9,7 +9,6 @@ pub struct Speaker {
 }
 
 impl Layout for Speaker {
-    #[cfg(test)]
     const NAME: &'static str = "speaker";
 
     fn new(visibles: usize, resolution: Size) -> Self {

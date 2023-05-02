@@ -47,7 +47,7 @@ If the cargo build lasts longer then 1s try to precompile or increase the sleep 
 
 ## GStreamer Pipeline
 
-![Audio/Video Pipeline](images/3_playing.dot.png)
+![Audio/Video Pipeline](images/example_pipeline.png)
 
 ## Known Problems
 

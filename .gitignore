@@ -1,3 +1,5 @@
 /target
 config.toml
-/test_output
+/*.dot
+/*.dot.png
+/DUMP.mp4

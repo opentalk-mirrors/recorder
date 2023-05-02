@@ -61,7 +61,7 @@ pub struct DashParameters {
 }
 
 fn update(files: Vec<&OsStr>) {
-    debug!("updated files: {:?}", files);
+    debug!("Updated files: {:?}", files);
 }
 
 impl Default for DashParameters {
@@ -82,7 +82,8 @@ impl Sink for DashSink {
 
     /// Create and add new DASH sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: DashParameters) -> Self {
-        debug!("create new DashSink: {params:?}");
+        trace!("new( {params:?} )");
+        assert_eq!(pipeline.current_state(), gst::State::Null);
 
         // watch pipeline bus for getting into `Playing` state
         // return new instance
@@ -112,6 +113,8 @@ impl Sink for DashSink {
 
     /// Starts the FFmpeg receiver which catches the output of the matroska sink.
     fn on_play(&mut self) {
+        trace!("on_play()");
+
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
             if process
@@ -220,6 +223,8 @@ impl Sink for DashSink {
 
     /// Sends EOS into pipeline to flush output before
     fn on_exit(&mut self, pipeline: &gst::Pipeline) {
+        trace!("on_exit()");
+
         // send EOS into pipeline to flush output
         pipeline.send_event(gst::event::Eos::new());
 

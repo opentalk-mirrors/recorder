@@ -22,12 +22,18 @@ pub struct Position {
 }
 
 /// Cartesian pixel dimension
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Size {
     /// horizontal dimension
     pub width: usize,
     /// vertical dimension
     pub height: usize,
+}
+
+impl std::fmt::Display for Size {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}x{}", self.width, self.height)
+    }
 }
 
 impl Size {
@@ -85,6 +91,5 @@ pub trait Layout: Send + Sync + 'static {
     /// Get position of the nth participants video.
     fn view(&self, n: usize) -> View;
 
-    #[cfg(test)]
     const NAME: &'static str;
 }

@@ -36,7 +36,8 @@ impl Sink for MatroskaSink {
 
     /// Create and add new Matroska sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: MatroskaParameters) -> Self {
-        debug!("create new MatroskaSink: {params:?}");
+        trace!("new( {params:?} )");
+        assert_eq!(pipeline.current_state(), gst::State::Null);
 
         // create bin including codecs and the Matroska sink
         let bin = gst::parse_bin_from_description(
@@ -153,6 +154,8 @@ impl Sink for MatroskaSink {
     }
 
     fn on_exit(&mut self, _pipeline: &gst::Pipeline) {
+        trace!("on_exit()");
+
         self.stop_listen
             .send(())
             .expect("failed to send stop to TCP listener");
@@ -161,6 +164,8 @@ impl Sink for MatroskaSink {
 
 impl Drop for MatroskaSink {
     fn drop(&mut self) {
+        trace!("drop()");
+
         self.stop_listen
             .send(())
             .expect("failed to send stop to TCP listener");

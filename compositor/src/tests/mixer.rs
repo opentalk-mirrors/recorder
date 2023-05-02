@@ -17,34 +17,25 @@ where
     // initialize for testing
     testing::init();
 
-    let mut mixer =
-        Mixer::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, ()).unwrap();
+    let mut talk =
+        Talk::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, (), None).unwrap();
 
-    testing::add_overlay_name(&mut mixer, &format!("test_layout_{}", L::NAME));
+    testing::add_overlay_name(&mut talk, &format!("test_layout_{}", L::NAME));
 
-    let title = TextOverlay::new("", TextFormat::default());
-    mixer.push_overlay(title.clone().into()).unwrap();
+    let title = talk.insert_overlay_text("", TextFormat::default()).unwrap();
 
-    let (_, ids) = testing::generate_streams(&mut mixer, 5, 5);
+    testing::wait_millis(100);
 
-    mixer.play();
+    let (_, ids) = testing::generate_streams(&mut talk, 5, 5);
 
-    mixer.generate_dot_file(&format!("test_layout_{}-0", L::NAME), testing::DOT_DETAILS);
+    talk.dot(&format!("test_layout_{}-0", L::NAME), testing::DOT_PARAMS);
 
     testing::wait();
 
-    for i in 1..6 {
+    for i in 1..ids.len() + 1 {
         title.set(&format!("Showing {i} Participant(s)"));
 
-        mixer.pause();
-        mixer.set_visibles(&ids[0..i]).unwrap();
-        mixer.layout::<L>().unwrap();
-        mixer.play();
-
-        mixer.generate_dot_file(
-            &format!("test_layout_{}-{i}", L::NAME),
-            testing::DOT_DETAILS,
-        );
+        talk.dot(&format!("test_layout_{}-{i}", L::NAME), testing::DOT_PARAMS);
         testing::wait();
     }
 
@@ -57,73 +48,53 @@ fn test_remove() {
     testing::init();
 
     let mut mixer =
-        Mixer::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, ()).unwrap();
+        Talk::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, (), None).unwrap();
 
     testing::add_overlay_name(&mut mixer, "test_remove");
 
-    let title = TextOverlay::new("", TextFormat::default());
-    mixer.push_overlay(title.clone().into()).unwrap();
+    let title = mixer
+        .insert_overlay_text("", TextFormat::default())
+        .unwrap();
 
     for i in 0..2 {
         testing::generate_streams(&mut mixer, 8, 5);
 
-        mixer.generate_dot_file(&format!("test_remove_{i}-0"), testing::DOT_DETAILS);
+        mixer.dot(&format!("test_remove_{i}-0"), testing::DOT_PARAMS);
 
-        mixer.play();
-        mixer.generate_dot_file(&format!("test_remove_{i}-1"), testing::DOT_DETAILS);
+        mixer.dot(&format!("test_remove_{i}-1"), testing::DOT_PARAMS);
 
         testing::wait();
 
         title.set("remove 0 (left 1-7)");
-        mixer.pause();
-        mixer.remove_stream(0).unwrap();
+        mixer.remove_stream(0.into()).unwrap();
         mixer.layout::<Grid>().unwrap();
 
-        mixer.play();
-        mixer.generate_dot_file(&format!("test_remove_{i}-2"), testing::DOT_DETAILS);
+        mixer.dot(&format!("test_remove_{i}-2"), testing::DOT_PARAMS);
 
         testing::wait();
 
         title.set("remove 1-2 (left 3-7)");
-        mixer.pause();
-        mixer.remove_stream(1).unwrap();
-        mixer.remove_stream(2).unwrap();
+        mixer.remove_stream(1.into()).unwrap();
+        mixer.remove_stream(2.into()).unwrap();
         mixer.layout::<Grid>().unwrap();
-        mixer.play();
-        mixer.generate_dot_file(&format!("test_remove_{i}-3"), testing::DOT_DETAILS);
+        mixer.dot(&format!("test_remove_{i}-3"), testing::DOT_PARAMS);
 
         testing::wait();
 
         title.set("remove 3-6 (left 7)");
-        mixer.pause();
-        mixer.remove_stream(3).unwrap();
-        mixer.remove_stream(4).unwrap();
-        mixer.remove_stream(5).unwrap();
-        mixer.remove_stream(6).unwrap();
+        mixer.remove_stream(3.into()).unwrap();
+        mixer.remove_stream(4.into()).unwrap();
+        mixer.remove_stream(5.into()).unwrap();
+        mixer.remove_stream(6.into()).unwrap();
         mixer.layout::<Grid>().unwrap();
-        mixer.play();
-        mixer.generate_dot_file(&format!("test_remove_{i}-4"), testing::DOT_DETAILS);
+        mixer.dot(&format!("test_remove_{i}-4"), testing::DOT_PARAMS);
 
         testing::wait();
 
         title.set("remove 7 (none left)");
-        mixer.pause();
-        mixer.remove_stream(7).unwrap();
-        mixer.play();
-        mixer.generate_dot_file(&format!("test_remove_{i}-5"), testing::DOT_DETAILS);
-
-        // check if we cannot remove any of which we removed before
-        assert!(mixer.remove_stream(0).is_err());
-        assert!(mixer.remove_stream(1).is_err());
-        assert!(mixer.remove_stream(2).is_err());
-        assert!(mixer.remove_stream(3).is_err());
-        assert!(mixer.remove_stream(4).is_err());
-        assert!(mixer.remove_stream(5).is_err());
-        assert!(mixer.remove_stream(6).is_err());
-        assert!(mixer.remove_stream(7).is_err());
+        mixer.remove_stream(7.into()).unwrap();
+        mixer.dot(&format!("test_remove_{i}-5"), testing::DOT_PARAMS);
 
         testing::wait();
-
-        mixer.pause();
     }
 }

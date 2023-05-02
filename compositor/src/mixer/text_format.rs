@@ -1,3 +1,4 @@
+/// Text color.
 #[derive(Debug)]
 pub struct Color {
     pub r: u8,
@@ -22,7 +23,24 @@ impl From<Color> for u32 {
         (color.r as u32) << 24 | (color.g as u32) << 16 | (color.b as u32) << 8 | (color.a as u32)
     }
 }
+impl From<Color> for glib::Value {
+    fn from(color: Color) -> glib::Value {
+        glib::Value::from(
+            (color.a as u32) << 24
+                | (color.b as u32) << 16
+                | (color.g as u32) << 8
+                | (color.r as u32),
+        )
+    }
+}
 
+impl std::fmt::Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "#{:x}{:x}{:x}{:x}", self.r, self.g, self.b, self.a)
+    }
+}
+
+/// Text padding.
 #[derive(Debug)]
 pub struct Padding {
     pub x: i32,
@@ -35,6 +53,13 @@ impl Default for Padding {
     }
 }
 
+impl std::fmt::Display for Padding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{x}/{y}", x = self.x, y = self.y)
+    }
+}
+
+/// Text font.
 #[derive(Debug)]
 pub struct Font {
     pub name: &'static str,
@@ -50,24 +75,38 @@ impl Default for Font {
     }
 }
 
-#[derive(Debug)]
+impl std::fmt::Display for Font {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{},{}", self.name, self.size)
+    }
+}
+
+/// Horizontal text alignment.
+#[derive(Debug, Default)]
 pub enum HAlign {
     Left,
+    #[default]
     Center,
     Right,
     Position,
     Absolute,
 }
 
-impl Default for HAlign {
-    fn default() -> HAlign {
-        HAlign::Center
+impl From<HAlign> for &'static str {
+    fn from(align: HAlign) -> &'static str {
+        align.as_str()
     }
 }
 
-impl From<HAlign> for &'static str {
-    fn from(align: HAlign) -> &'static str {
-        match align {
+impl std::fmt::Display for HAlign {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{halign}", halign = self.as_str())
+    }
+}
+
+impl HAlign {
+    fn as_str(&self) -> &'static str {
+        match self {
             HAlign::Left => "left",
             HAlign::Center => "center",
             HAlign::Right => "right",
@@ -77,8 +116,10 @@ impl From<HAlign> for &'static str {
     }
 }
 
-#[derive(Debug)]
+/// Vertical text alignment.
+#[derive(Debug, Default)]
 pub enum VAlign {
+    #[default]
     Baseline,
     Bottom,
     Top,
@@ -87,15 +128,21 @@ pub enum VAlign {
     Absolute,
 }
 
-impl Default for VAlign {
-    fn default() -> VAlign {
-        VAlign::Baseline
+impl From<VAlign> for &'static str {
+    fn from(align: VAlign) -> &'static str {
+        align.as_str()
     }
 }
 
-impl From<VAlign> for &'static str {
-    fn from(align: VAlign) -> &'static str {
-        match align {
+impl std::fmt::Display for VAlign {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{valign}", valign = self.as_str())
+    }
+}
+
+impl VAlign {
+    fn as_str(&self) -> &'static str {
+        match self {
             VAlign::Baseline => "baseline",
             VAlign::Bottom => "bottom",
             VAlign::Top => "top",
@@ -106,16 +153,42 @@ impl From<VAlign> for &'static str {
     }
 }
 
+/// Horizontal and vertical text alignment.
 #[derive(Debug, Default)]
 pub struct Align {
     pub horizontal: HAlign,
     pub vertical: VAlign,
 }
 
+impl std::fmt::Display for Align {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{horizontal} × {vertical}",
+            horizontal = self.horizontal,
+            vertical = self.vertical
+        )
+    }
+}
+
+/// Text format.
 #[derive(Debug, Default)]
 pub struct TextFormat {
     pub font: Font,
     pub padding: Padding,
     pub color: Color,
     pub align: Align,
+}
+
+impl std::fmt::Display for TextFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{font}, {padding}, {color}, {align}",
+            font = self.font,
+            padding = self.padding,
+            color = self.color,
+            align = self.align
+        )
+    }
 }

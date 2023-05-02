@@ -13,6 +13,8 @@ use tt::tungstenite::Message;
 use tt::{MaybeTlsStream, WebSocketStream};
 use uuid::Uuid;
 
+use self::incoming::MediaSessionState;
+
 pub struct Signaling {
     /// Own participant id
     _id: ParticipantId,
@@ -47,8 +49,11 @@ impl ParticipantState {
         }
     }
 
-    pub fn publishes(&self, typ: MediaSessionType) -> bool {
-        self.publishing.contains_key(&typ) && self.consents
+    pub fn publishes(&self, typ: MediaSessionType) -> Option<MediaSessionState> {
+        if !self.consents {
+            return None;
+        }
+        self.publishing.get(&typ).copied()
     }
 }
 
@@ -303,9 +308,16 @@ struct Payload<'s, T> {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParticipantId(pub Uuid);
 
+impl std::fmt::Display for ParticipantId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 mod incoming {
 
     use super::{MediaSessionType, ParticipantId, TrickleCandidate};
+    use compositor::StreamStatus;
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
@@ -346,6 +358,14 @@ mod incoming {
     pub struct MediaSessionState {
         pub video: bool,
         pub audio: bool,
+    }
+    impl Into<StreamStatus> for MediaSessionState {
+        fn into(self) -> StreamStatus {
+            StreamStatus {
+                has_audio: self.audio,
+                has_video: self.video,
+            }
+        }
     }
 
     #[derive(Debug, Deserialize)]

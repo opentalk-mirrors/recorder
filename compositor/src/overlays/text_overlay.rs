@@ -1,6 +1,7 @@
 use crate::*;
 use gst::prelude::*;
 
+/// Text overlay.
 #[derive(Debug, Clone)]
 pub struct TextOverlay {
     element: gst::Element,
@@ -9,6 +10,8 @@ pub struct TextOverlay {
 impl TextOverlay {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(text: &str, text_format: TextFormat) -> TextOverlay {
+        trace!("new( '{text}', {text_format:?} )");
+
         // create text overlay
         let element = gst::ElementFactory::make_with_name("textoverlay", None)
             .expect("failed to create text overlay");
@@ -25,7 +28,7 @@ impl TextOverlay {
         );
         element.set_property("xpad", text_format.padding.x);
         element.set_property("ypad", text_format.padding.y);
-        element.set_property::<u32>("color", text_format.color.into());
+        element.set_property("color", text_format.color);
         element.set_property_from_str("halignment", text_format.align.horizontal.into());
         element.set_property_from_str("valignment", text_format.align.vertical.into());
 
@@ -33,18 +36,15 @@ impl TextOverlay {
         Self { element }
     }
     pub fn set(&self, text: &str) {
+        trace!("set( '{text}' )");
+
         self.element.set_property("text", text);
     }
 }
 
 impl OverlayTrait for TextOverlay {
-    fn add_to(&self, bin: &gst::Bin) {
-        bin.add(&self.element)
-            .expect("failed to add text overlay to pipeline");
-    }
-    fn remove(&self, bin: &gst::Bin) {
-        bin.remove(&self.element)
-            .expect("failed to remove text overlay to pipeline");
+    fn element(&self) -> gst::Element {
+        self.element.clone()
     }
     fn src(&self) -> gst::Pad {
         self.element

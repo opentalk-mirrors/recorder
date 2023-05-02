@@ -6,16 +6,51 @@ use super::Size;
 pub trait Source {
     /// Generic parameter type to overwrite by trait implementers.
     type Parameters;
+
     /// Create an add a new source to a pipeline.
+    ///
     /// Creates a bunch of elements based on given parameters and adds them to the pipeline.
-    fn new(pipeline: &gst::Pipeline, resolution: &Size, params: Self::Parameters) -> Self;
-    /// Remove existing source from pipeline.
-    /// Decouples and removes all elements from the pipeline which are created within this source.
-    fn remove(self, pipeline: &gst::Pipeline);
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: Stream identifier under which this stream can be addressed later.
+    /// - `pipeline`: Pipeline to insert the source into.
+    /// - `params`: Source's proprietary parameters.
+    ///
+    fn new<ID>(
+        id: &ID,
+        pipeline: &gst::Pipeline,
+        resolution: &Size,
+        params: Self::Parameters,
+    ) -> Self
+    where
+        ID: std::fmt::Display;
+
+    /// Return the source's bin.
+    fn bin(&self) -> gst::Bin;
+
+    /// Return video source pad of element `inp` if available.
+    fn video_inp_pad(&self) -> Option<gst::Pad>;
+
+    /// Return audio source pad of element `inp` if available.
+    fn audio_inp_pad(&self) -> Option<gst::Pad>;
+
     /// Get source pad of the video source.
-    fn video_src_pad(&self) -> gst::Pad;
+    fn video_out_pad(&self) -> gst::GhostPad;
+
     /// Get source pad of the audio source.
-    fn audio_src_pad(&self) -> gst::Pad;
+    fn audio_out_pad(&self) -> gst::GhostPad;
+
     /// Get overlays.
     fn overlays(&mut self) -> &mut Overlays;
+
+    /// return true if source currently is delivering video content
+    fn is_video_connected(&self) -> bool {
+        true
+    }
+
+    /// return true if source currently is delivering audio content
+    fn is_audio_connected(&self) -> bool {
+        true
+    }
 }

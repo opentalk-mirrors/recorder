@@ -1,4 +1,8 @@
+use anyhow::Result;
+
 // sub-modules
+pub mod debug;
+pub mod dynamic;
 mod overlay;
 mod sink;
 mod source;
@@ -11,28 +15,56 @@ pub use super::layout::*;
 pub use overlay::*;
 pub use sink::*;
 pub use source::*;
+use std::sync::atomic::{AtomicBool, Ordering};
 pub use stream::*;
 pub use talk::*;
 pub use text_format::*;
 
-// what else we need from this lib
-use crate::*;
-
 // what we need from external libraries
-use core::{fmt::Debug, hash::Hash, mem::replace};
 use gst::prelude::*;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    hash::Hash,
+    sync::{Arc, Condvar, Mutex},
+};
+
+use anyhow::anyhow;
+
+macro_rules! log_err_like {
+    ($name:expr,$error:expr,$pipeline:expr) => {{
+        error!(
+            "{name} received from element {:?}: {}",
+            $error.src().map(|s| s.path_string()),
+            $error.error(),
+            name = $name,
+        );
+        debug::dot(&$pipeline, "BUS-ERROR");
+        if let Some(info) = $error.debug() {
+            debug!("Debugging information: {}", info);
+        }
+    }};
+}
+
+/// Maximum time a desired but missing re-layout is tolerated
+const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(100);
+/// Time to wait for EOS when dropping the mixer
+const BUS_EOS_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2000);
+/// Period in which the bus is scanned (must be smaller than [BUS_EOS_TIMEOUT] )
+const BUS_READ_PERIOD: gst::ClockTime = gst::ClockTime::from_mseconds(1000);
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type
 /// # Types
-/// - `L`: Layout to use to compose output picture.
 /// - `SRC`: Source type to use when adding streams.
-/// - `SINK`: Sink type to use for output.
+/// - `SINK`: Sink type to use for output.D
+/// - `ID`: stream identifier type
 pub struct Mixer<SRC, SINK, ID>
 where
     SRC: Source,
+    SRC::Parameters: Debug,
     SINK: Sink,
-    ID: Eq + Ord + Hash + Copy + Debug,
+    SINK::Parameters: Debug,
+    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// Current streams.
     pub streams: HashMap<ID, Stream<SRC>>,
@@ -50,24 +82,37 @@ where
     output: SINK,
     /// over all generated output resolution
     output_resolution: Size,
+    /// signals when bus reading stops
+    is_reading_bus: Option<std::sync::mpsc::Receiver<bool>>,
+    /// needs layout if false
+    valid: Arc<(Mutex<bool>, Condvar)>,
+    /// if true we expect to get an EOS on bus
+    expect_eos: Arc<AtomicBool>,
 }
 
 impl<SRC, SINK, ID> Mixer<SRC, SINK, ID>
 where
     SRC: Source,
+    SRC::Parameters: Debug,
     SINK: Sink,
-    ID: Eq + Ord + Hash + Copy + Debug,
+    SINK::Parameters: std::fmt::Debug,
+    ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
+    ///
     /// # Arguments
+    ///
     /// - `resolution`: Output video resolution.
     /// - `sink_params`: Parameters to create the output sink.
-    pub fn new(resolution: Size, sink_params: SINK::Parameters) -> Result<Self, Error<ID>> {
+    ///
+    pub fn new(resolution: Size, sink_params: SINK::Parameters) -> Result<Self> {
+        trace!("new( {resolution:?}, '{sink_params:?}' )");
+
         // get width/height
         let width = resolution.width;
         let height = resolution.height;
-        trace!(
-            "Output video resolution (WxH): {width}x{height} = {:2}",
+        debug!(
+            "New mixer output video ratio: {:.2} (= {width}/{height})",
             resolution.ratio()
         );
 
@@ -87,6 +132,8 @@ where
                         name=video-compositor
                         ignore-inactive-pads=true
                         zero-size-is-unscaled=true
+                    ! valve
+                        name=valve-overlay
                     ! queue
                         name=video-out
 
@@ -143,21 +190,18 @@ where
             .link(&output.audio_sink_pad())
             .expect("failed to link output pad to audio output sink");
 
-        let overlay_src = compositor
-            .static_pad("src")
-            .expect("failed to get src pad from compositor");
-        let overlay_sink = video_out
-            .static_pad("sink")
-            .expect("failed to get sink pad from video_out ");
+        // create new overlays container
+        let valve_overlay = pipeline
+            .by_name("valve-overlay")
+            .expect("failed to get video output valve from pipeline");
 
-        let overlays = Overlays::new(
-            &pipeline.clone().upcast::<gst::Bin>(),
-            overlay_src,
-            overlay_sink,
-        );
+        let overlays = Overlays::new(valve_overlay);
 
-        Ok(Mixer {
-            // remember all those elements and pads
+        // start pipeline
+        pipeline.set_state(gst::State::Playing)?;
+
+        // pack all together
+        let mut mixer = Mixer {
             compositor,
             audio_mixer,
             visibles: Vec::new(),
@@ -166,431 +210,566 @@ where
             streams: HashMap::new(),
             output,
             output_resolution: resolution,
-        })
+            is_reading_bus: None,
+            valid: Arc::new((Mutex::new(false), Condvar::new())),
+            expect_eos: Arc::new(AtomicBool::new(false)),
+        };
+
+        // start reading the pipeline bus
+        mixer.read_bus()?;
+
+        Ok(mixer)
     }
+
     /// Add a new stream to the mixer.
+    ///
     /// # Arguments
+    ///
     /// - `id`: Unique identifier of the stream.
+    /// - `display_name`: Name to display to user as identifier.
     /// - `params`: Source specific parameters.
+    ///
     pub fn add_stream(
         &mut self,
         id: ID,
         display_name: String,
         params: SRC::Parameters,
-    ) -> Result<(), Error<ID>> {
-        debug!("add stream '{display_name}' ({id:?})");
-        // check preconditions
-        if self.pipeline.current_state() == gst::State::Playing {
-            return Err(Error::PlayingPipelineForbidden);
-        }
+    ) -> Result<()> {
+        trace!("add_stream( {id}, '{display_name}', {params:?} )");
+
+        // check if stream ID is already known
         if self.streams.contains_key(&id) {
-            return Err(Error::IdDoublet(id));
+            return Err(anyhow!("tried to insert already existing ID ({id})"));
         }
+
         // add new stream
-        let stream = Stream::new(
+        let mut stream: Stream<SRC> = Stream::new(
+            &id,
             &self.pipeline,
             &self.output_resolution,
             display_name,
             params,
         );
+
+        // attach video source to a valve
+        let valve =
+            dynamic::add_source(&stream.source.bin(), &stream.source.video_out_pad(), None)?;
+        stream.video_link_status = LinkStatus::Unlinked(valve);
+
+        // attach audio source to a valve
+        let valve =
+            dynamic::add_source(&stream.source.bin(), &stream.source.audio_out_pad(), None)?;
+        stream.audio_link_status = LinkStatus::Unlinked(valve);
+
+        // start any not playing pipeline elements
+        self.pipeline.set_state(gst::State::Playing)?;
+
+        // remember the new A/V stream
         self.streams.insert(id, stream);
 
-        // link new stream
-        self.link_audio(id)?;
-        self.link_video_to_fakesink(id)?;
+        debug!("Added stream {id}");
 
         Ok(())
     }
 
+    /// Continuously read the bus for errors and EOS.
+    fn read_bus(&mut self) -> Result<()> {
+        // signal that we start reading the bus
+        if let Some(_) = self.is_reading_bus {
+            return Ok(());
+        }
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        self.is_reading_bus = Some(rx);
+
+        let bus = self.pipeline.bus().expect("failed to get bus of pipeline");
+        std::thread::spawn({
+            let pipeline = self.pipeline.clone();
+            let expect_eos = self.expect_eos.clone();
+            move || {
+                debug!("Started to read the pipeline bus.");
+                let mut reading = true;
+                while reading {
+                    // stop reading if we are expecting EOS after the following scan
+                    if expect_eos.load(Ordering::SeqCst) {
+                        reading = false;
+                    }
+                    for msg in bus.iter_timed(BUS_READ_PERIOD) {
+                        use gst::MessageView;
+                        match msg.view() {
+                            MessageView::Error(err) => log_err_like!("Error", err, pipeline),
+                            MessageView::Warning(warn) => log_err_like!("Warning", warn, pipeline),
+                            MessageView::Info(info) => log_err_like!("Info", info, pipeline),
+                            MessageView::Eos(..) => {
+                                if expect_eos.load(Ordering::SeqCst) {
+                                    debug!("got expected EOS");
+                                    tx.send(false).expect("could not send on sync channel");
+                                    break;
+                                } else {
+                                    error!("got unexpected EOS");
+                                    tx.send(true).expect("could not send on sync channel");
+                                }
+                                break;
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+            }
+        });
+        Ok(())
+    }
+
+    /// Return current pipeline state.
     pub fn state(&self) -> gst::State {
         self.pipeline.current_state()
     }
 
     /// remove an once added stream from the mixer.
+    ///
     /// # Arguments
+    ///
     /// - `id`: Unique identifier of the stream.
-    pub fn remove_stream(&mut self, remove_id: ID) -> Result<(), Error<ID>> {
-        debug!("remove stream {remove_id:?}");
-
-        // check preconditions
-        if self.pipeline.current_state() == gst::State::Playing {
-            return Err(Error::PlayingPipelineForbidden);
-        }
-
-        // unlink stream from rest of the pipeline
-        self.unlink_audio(remove_id)?;
-        self.unlink_video(remove_id)?;
+    ///
+    pub fn remove_stream(&mut self, id: ID) -> Result<()> {
+        trace!("remove_stream( {id} )");
 
         // remove stream from stored streams
         let stream = self
             .streams
-            .remove(&remove_id)
-            .ok_or(Error::StreamNotFound(remove_id))?;
+            .remove(&id)
+            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?;
 
-        stream.source.remove(&self.pipeline);
+        debug::dot(&self.pipeline, "remove_stream");
 
+        if let Some(inp_pad) = stream.source.audio_inp_pad() {
+            if let Some(valve) = stream.audio_link_status.valve() {
+                // unlink and remove audio source from pipeline
+                dynamic::remove_source(inp_pad, valve, &self.audio_mixer)?;
+            }
+        } else {
+            warn!("could not remove audio source of {id} because source is inactive")
+        }
+        // unlink and remove video source from pipeline
+        if let Some(inp_pad) = stream.source.video_inp_pad() {
+            if let Some(valve) = stream.video_link_status.valve() {
+                // unlink and remove audio source from pipeline
+                dynamic::remove_source(inp_pad, valve, &self.compositor)?;
+            }
+        } else {
+            warn!("could not remove video source of {id} because source is inactive")
+        }
+        dynamic::remove_bin(stream.source.bin())?;
+
+        // remove stream from visibles
+        if let Some(index) = self.visibles.iter().position(|v| *v == id) {
+            self.visibles.remove(index);
+        }
+
+        debug!("Removed stream {id}");
         Ok(())
     }
 
     /// push new overlay on top of output video within the pipeline
+    ///
     /// # Arguments
+    ///
     /// - `overlay`: new overlay to push
-    pub fn push_overlay(&mut self, overlay: Overlay) -> Result<(), Error<ID>> {
-        debug!("add overlay: {:?}", overlay);
+    ///
+    pub fn insert_overlay(&mut self, overlay: Overlay) -> Result<()> {
+        trace!("push_overlay( {overlay:?} )");
 
-        // check preconditions
-        if self.pipeline.current_state() == gst::State::Playing {
-            return Err(Error::PlayingPipelineForbidden);
-        }
+        // forward to overlays
+        self.overlays.push(overlay)?;
 
-        self.overlays.push(overlay);
-
+        debug!("Pushed overlay");
         Ok(())
     }
 
     /// push new overlay on top of source video within the pipeline
+    ///
     /// # Arguments
+    ///
     /// - `overlay`: new overlay to push
-    pub fn push_source_overlay(&mut self, id: ID, overlay: Overlay) -> Result<(), Error<ID>> {
-        debug!("add overlay {:?} to source {:?}", overlay, id);
+    ///
+    pub fn insert_source_overlay(&mut self, id: &ID, overlay: Overlay) -> Result<()> {
+        trace!("push_source_overlay( {overlay:?}, {id} )");
 
-        let stream = self.streams.get_mut(&id);
+        // add new overlay to source stream
+        self.get_stream_mut(id)?.push_overlay(overlay)?;
 
-        if let Some(stream) = stream {
-            // check preconditions
-            if self.pipeline.current_state() == gst::State::Playing {
-                return Err(Error::PlayingPipelineForbidden);
-            }
-            stream.push_overlay(overlay);
-        } else {
-            return Err(Error::StreamNotFound(id));
-        }
-
+        debug!("Pushed source overlay to {id}");
         Ok(())
     }
 
     /// Select the streams which are visible.
+    ///
     /// All previously visible streams get invisible if they are not in the list.
     /// See set_speaker() for further info about how the order will be interpreted.
+    ///
     /// # Arguments
+    ///
     /// - `ids`: List of identifiers of streams which shall get visible
-    pub fn set_visibles(&mut self, ids: &[ID]) -> Result<(), Error<ID>> {
-        debug!("set visibles: {:?} -> {:?}", self.visibles, ids);
+    ///
+    pub fn set_visibles(&mut self, ids: &[ID]) -> Result<()> {
+        trace!("set_visibles( {ids:?} )");
+        trace!("currently visible: {:?} ", self.visibles);
 
-        // check preconditions
-        if self.pipeline.current_state() == gst::State::Playing {
-            return Err(Error::PlayingPipelineForbidden);
+        // unlink all videos which will get invisible
+        let hide: Vec<ID> = self
+            .visibles
+            .iter()
+            .filter(|id| !ids.contains(id))
+            .copied()
+            .collect();
+        for id in hide {
+            self.unlink_video(&id)?;
         }
 
-        // Unlink all streams
-        for id in self.visibles.clone().iter().collect::<Vec<_>>() {
-            self.link_video_to_fakesink(*id)?;
-        }
-
-        // Link all given streams
-        for id in ids {
-            self.link_video_to_compositor(*id)?;
+        // link all invisible videos which will get visible
+        let show: Vec<ID> = ids
+            .iter()
+            .filter(|id| !self.visibles.contains(id))
+            .copied()
+            .collect();
+        for id in show {
+            self.link_video(&id)?;
         }
 
         // copy ID list of visibles
         self.visibles = ids.into();
 
+        debug!("Set visibles to {visibles:?}", visibles = self.visibles);
         Ok(())
     }
 
-    /// set status of a stream
-    pub fn set_status(&mut self, id: ID, new_status: StreamStatus) -> Result<(), Error<ID>> {
-        debug!("set stream {id:?} status to {new_status:?}");
+    /// Return `true`, if stream is currently visible
+    pub fn is_visible(&self, id: &ID) -> bool {
+        self.visibles.contains(id)
+    }
 
-        // check preconditions
-        if self.pipeline.current_state() == gst::State::Playing {
-            return Err(Error::PlayingPipelineForbidden);
-        }
+    /// Return `true`, if stream currently provides video
+    pub fn has_video(&self, id: &ID) -> Result<bool> {
+        Ok(self.get_stream(id)?.status.has_video)
+    }
+
+    /// Set status of a stream.
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: Describes which stream shall be updated.
+    /// - `new_status`: New status to override.
+    ///
+    pub fn set_status(&mut self, id: &ID, new_status: StreamStatus) -> Result<()> {
+        trace!("set_status( {id}, {new_status:?} )");
 
         // get old stream's status
         let old_status = self
             .streams
-            .get(&id)
-            .ok_or(Error::StreamNotFound(id))?
+            .get(id)
+            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?
             .status
             .clone();
 
         // unlink stream's video/audio  from rest of the pipeline according to new status
-        if !new_status.has_audio && old_status.has_audio {
-            self.unlink_audio(id)?;
-        } else if new_status.has_audio && !old_status.has_audio {
-            self.link_audio(id)?;
+        match self.get_stream(id)?.audio_link_status {
+            LinkStatus::None => panic!("set_status failed on uninitialized audio stream ({id})"),
+            LinkStatus::Unlinked(_) => {
+                if new_status.has_audio && !old_status.has_audio {
+                    self.link_audio(id)?;
+                }
+            }
+            LinkStatus::Linked(_) => {
+                if !new_status.has_audio && old_status.has_audio {
+                    self.unlink_audio(id)?;
+                }
+            }
         }
-        if !new_status.has_video && old_status.has_video {
-            self.unlink_video(id)?;
-        } else if new_status.has_video && !old_status.has_video {
-            self.link_video_to_fakesink(id)?;
+        match self.get_stream(id)?.video_link_status {
+            LinkStatus::None => panic!("set_status failed on uninitialized video stream ({id})"),
+            LinkStatus::Unlinked(_) => {
+                if new_status.has_video && !old_status.has_video {
+                    self.link_video(id)?;
+                }
+            }
+            LinkStatus::Linked(_) => {
+                if !new_status.has_video && old_status.has_video {
+                    self.unlink_video(id)?;
+                }
+            }
         }
 
         // set stream's new status
-        self.streams
-            .get_mut(&id)
-            .ok_or(Error::StreamNotFound(id))?
-            .status = new_status;
+        self.get_stream_mut(id)?.status = new_status;
 
-        /*
-               self.set_speaker(self.speaker)?;
-        */
+        debug!("Set status of {id}");
         Ok(())
     }
 
-    /// start playing of pipeline
-    pub fn play(&mut self) {
-        trace!("play pipeline");
-        self.pipeline
-            .set_state(gst::State::Playing)
-            .expect("failed to set pipeline state to playing");
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        self.output.on_play();
+    /// Access the mixer's mutable streams.
+    fn get_stream_mut(&mut self, id: &ID) -> Result<&mut Stream<SRC>> {
+        Ok(self
+            .streams
+            .get_mut(id)
+            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?)
     }
 
-    /// pause playing of pipeline
-    pub fn pause(&mut self) {
-        trace!("pause pipeline");
-        self.pipeline
-            .set_state(gst::State::Paused)
-            .expect("failed to set pipeline state to paused");
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        self.output.on_pause();
+    /// Access the mixer's streams.
+    fn get_stream(&self, id: &ID) -> Result<&Stream<SRC>> {
+        Ok(self
+            .streams
+            .get(id)
+            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?)
     }
 
     /// generate DOT file of the current pipeline
-    pub fn generate_dot_file(
-        &self,
-        filename_without_extension: &str,
-        details: gst::DebugGraphDetails,
-    ) {
-        if let Ok(path) = std::env::var("GST_DEBUG_DUMP_DOT_DIR") {
-            info!(
-                "writing DOT file `{}/{filename_without_extension}.dot`...",
-                path
-            );
-            gst::debug_bin_to_dot_file(&self.pipeline, details, filename_without_extension);
-        } else {
-            error!("can not write DOT file. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to a absolute path");
-        }
+    ///
+    /// # Arguments
+    ///
+    /// - `filename_without_extension`: Filename without extension.
+    /// - `details`: Details of graph.
+    ///
+    pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
+        debug::dot_ext(&self.pipeline, filename_without_extension, params)
     }
 
     /// Re-layout the current compositor scene.
-    pub fn layout<L>(&self) -> Result<(), Error<ID>>
+    pub fn layout<L>(&mut self) -> Result<()>
     where
         L: Layout,
     {
-        // check preconditions
-        if self.pipeline.current_state() == gst::State::Playing {
-            return Err(Error::PlayingPipelineForbidden);
-        }
+        trace!(
+            "layout<{}>({}): {}{}",
+            L::NAME,
+            self.output_resolution,
+            if self.visibles.is_empty() {
+                "(no visibles)"
+            } else {
+                ""
+            },
+            self.visibles
+                .iter()
+                .map(|v| format!("'{v}'"))
+                .collect::<Vec<String>>()
+                .join(",")
+        );
 
-        // initialize the layout with mixer setup
+        // initialize the layout with current mixer setup
         let layout = L::new(self.visibles.len(), self.output_resolution);
 
-        // configure compositor sink pads (which might be connected to the streams' sources)
-        for (n, pad) in self.compositor.sink_pads()[1..].iter().enumerate() {
-            self.layout_stream(&layout.view(n), pad);
+        // layout all video streams
+        for (n, id) in self.visibles.iter().enumerate() {
+            let stream = self.get_stream(id)?;
+            // find all linked videos
+            if let LinkStatus::Linked(valve) = &stream.video_link_status {
+                // get linked mixer sink
+                let valve_src = valve
+                    .static_pad("src")
+                    .ok_or(anyhow!("src pad of valve not found ({id})"))?;
+                let mixer_sink = valve_src
+                    .peer()
+                    .ok_or(anyhow!("mixer sink at valve not found ({id})"))?;
+                // layout current stream at this sink
+                let view = layout.view(n);
+                mixer_sink.set_properties(&[
+                    ("xpos", &(view.pos.x as i32).to_value()),
+                    ("ypos", &(view.pos.y as i32).to_value()),
+                    ("width", &(view.size.width as i32).to_value()),
+                    ("height", &(view.size.height as i32).to_value()),
+                    ("alpha", &(view.alpha).to_value()),
+                ]);
+            }
         }
+
+        // Signal that layout has been updated
+        let (valid, condvar) = &*self.valid;
+        if let Ok(mut valid) = valid.lock() {
+            *valid = true;
+        }
+        condvar.notify_one();
 
         Ok(())
     }
 
-    /// Layout an GstBaseTextOverlay derivate.
-    fn layout_stream(&self, view: &crate::View, pad: &gst::Pad) {
-        trace!("{name}: {view:?}", name = pad.name());
-        pad.set_property("xpos", view.pos.x as i32);
-        pad.set_property("ypos", view.pos.y as i32);
-        pad.set_property("width", view.size.width as i32);
-        pad.set_property("height", view.size.height as i32);
-        pad.set_property("alpha", view.alpha);
+    /// Signal that layout has to be renewed from here
+    ///
+    /// Also checks if layout will be done within `MAX_LAYOUT_UPDATE_LATENCY`
+    /// time and logs error if timeout was exceeded.
+    /// This is to prevent any missed `layout()` after changing streams.
+    /// Could be automatic but renewing the layout on every change leads to
+    /// flickering in the output.
+    fn invalidate(&mut self) {
+        trace!("invalidate()");
+
+        // warn if no visibles were set
+        if self.visibles.is_empty() {
+            warn!("No visibles in layout! Talk closed?");
+        }
+
+        // set valid to false
+        if let Ok(mut valid) = self.valid.0.lock() {
+            *valid = false;
+        }
+
+        // monitor in a thread if `valid` will be set within latency timeout
+        std::thread::spawn({
+            let valid = self.valid.clone();
+            move || {
+                let (valid, condvar) = &*valid;
+                if let Ok(valid) = valid.lock() {
+                    let result = condvar
+                        .wait_timeout_while(valid, MAX_LAYOUT_UPDATE_LATENCY, |valid| !*valid)
+                        .expect("invalid layout update latency timeout");
+                    if result.1.timed_out() {
+                        error!(
+                            "missing desired layout update since {duration}ms",
+                            duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
+                        )
+                    }
+                }
+            }
+        });
     }
 
-    // /// Layout an GstBaseTextOverlay derivate.
-    // fn layout_overlay(
-    //     &self,
-    //     element: &Option<gst::Element>,
-    //     position: Position,
-    //     alignment: Alignment,
-    // ) {
-    //     if let Some(element) = element {
-    //         element.set_property_from_str("halignment", alignment.horizontal);
-    //         element.set_property_from_str("valignment", alignment.vertical);
-    //         element.set_property_from_str("line-alignment", alignment.horizontal);
-    //         element.set_property_from_str("deltax", &position.x.to_string());
-    //         element.set_property_from_str("deltay", &position.y.to_string());
-    //     }
-    // }
-
     /// Link stream's audio source to audio mixer.
-    fn link_audio(&mut self, id: ID) -> Result<(), Error<ID>> {
-        trace!("linking audio of {:?}...", id);
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: Describes which stream's audio shall be linked.
+    ///
+    fn link_audio(&mut self, id: &ID) -> Result<()> {
+        trace!("link_audio({id})");
 
-        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
+        // prefetch audio mixer
+        let audio_mixer = self.audio_mixer.clone();
 
-        let mixer_pad = self
-            .audio_mixer
-            .request_pad_simple("sink_%")
-            .expect("Failed to request sink pad from audio mixer");
+        // find stream in our list
+        let stream = self.get_stream_mut(id)?;
 
-        stream
-            .source
-            .audio_src_pad()
-            .link(&mixer_pad)
-            .expect("Failed to link stream's audio source to audio mixer sink pad");
+        // check audio link status
+        match &stream.audio_link_status {
+            LinkStatus::None => panic!("Uninitialized audio source ({id})"),
+            LinkStatus::Unlinked(valve) => {
+                // unlink source from fakesink, link source to mixer and remove fakesink
+                dynamic::link_source(&valve, &audio_mixer)?;
 
-        stream.audio_mixer_pad = Some(mixer_pad);
+                // update audio link status
+                stream.audio_link_status = LinkStatus::Linked(valve.clone());
+
+                debug!("Linked audio of {id} to audiomixer");
+            }
+            LinkStatus::Linked(_) => {
+                warn!("trying to link stream {id} to compositor when it is already linked");
+            }
+        }
 
         Ok(())
     }
 
     /// Unlink stream's audio from the audiomixer.
-    fn unlink_audio(&mut self, id: ID) -> Result<(), Error<ID>> {
-        trace!("unlinking audio of {id:?}...");
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: Describes which stream's audio shall be unlinked.
+    ///
+    fn unlink_audio(&mut self, id: &ID) -> Result<()> {
+        trace!("unlink_audio({id})");
 
-        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
+        // prefetch audio mixer
+        let audio_mixer = self.audio_mixer.clone();
 
-        if let Some(pad) = stream.audio_mixer_pad.take() {
-            stream
-                .source
-                .audio_src_pad()
-                .unlink(&pad)
-                .expect("Failed to unlink stream's audio source from audio mixer sink pad");
+        // find stream in our list
+        let stream = self.get_stream_mut(id)?;
+
+        // check audio link status
+        match &stream.audio_link_status {
+            LinkStatus::None => panic!("Uninitialized audio source ({id})"),
+            LinkStatus::Unlinked(_) => {
+                warn!("trying to link stream {id} to fakesink when it is already linked");
+            }
+            LinkStatus::Linked(valve) => {
+                dynamic::unlink_source(valve, &audio_mixer)?;
+                stream.audio_link_status = LinkStatus::Unlinked(valve.clone());
+
+                debug!("Linked audio of {id} to fakesink");
+            }
         }
+        Ok(())
+    }
 
-        trace!("unlinked audio of {id:?}...");
+    /// Link stream's source to video compositor.
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: Describes which stream's video shall be linked.
+    ///
+    fn link_video(&mut self, id: &ID) -> Result<()> {
+        trace!("link_video({id})");
+
+        // prefetch compositor
+        let compositor = self.compositor.clone();
+
+        // find stream in our list
+        let stream = self.get_stream_mut(id)?;
+
+        // check video link status
+        match &stream.video_link_status {
+            LinkStatus::None => panic!("Uninitialized video source ({id})"),
+            LinkStatus::Unlinked(valve) => {
+                // unlink source from fakesink, link source to compositor and remove fakesink
+                let sink = dynamic::link_source(&valve, &compositor)?;
+
+                // set sizing policy at compositor sink
+                sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
+                // initially hide video until layout shows it
+                sink.set_property_from_str("alpha", "0");
+
+                // update video link status
+                stream.video_link_status = LinkStatus::Linked(valve.clone());
+
+                // request re-layout
+                self.invalidate();
+
+                debug!("Linked video of {id} to compositor");
+            }
+            LinkStatus::Linked(_) => {
+                warn!("trying to link stream {id} to compositor when it is already linked");
+            }
+        }
 
         Ok(())
     }
 
     /// Link stream's video source to fake sink (while it's invisible).
-    fn link_video_to_fakesink(&mut self, id: ID) -> Result<(), Error<ID>> {
-        trace!("linking video of {id:?} to fakesink...");
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: Describes which stream's video shall be unlinked.
+    ///
+    fn unlink_video(&mut self, id: &ID) -> Result<()> {
+        trace!("unlink_video({id})");
 
-        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
+        // prefetch compositor
+        let compositor = self.compositor.clone();
 
+        // find stream in our list
+        let stream = self.get_stream_mut(id)?;
+
+        // check video link status
         match &stream.video_link_status {
-            VideoLinkStatus::None => {}
-            VideoLinkStatus::Fakesink(_) => {
-                warn!("trying to link stream {id:?} to fakesink when it is already linked");
-                return Ok(());
+            LinkStatus::None => panic!("Uninitialized video source ({id})"),
+            LinkStatus::Unlinked(_) => {
+                warn!("trying to link stream {id} to fakesink when it is already linked");
             }
-            VideoLinkStatus::Compositor(pad) => {
-                stream
-                    .source
-                    .video_src_pad()
-                    .unlink(pad)
-                    .expect("failed to unlink stream's video source from compositor");
-                self.compositor.release_request_pad(pad);
-            }
-        }
+            LinkStatus::Linked(valve) => {
+                dynamic::unlink_source(valve, &compositor)?;
+                stream.video_link_status = LinkStatus::Unlinked(valve.clone());
 
-        let fakesink = gst::ElementFactory::make_with_name("fakesink", None)
-            .expect("failed to create new fake sink");
-        self.pipeline
-            .add(&fakesink)
-            .expect("failed to add fakesink to pipeline");
-        stream
-            .source
-            .video_src_pad()
-            .link(
-                &fakesink
-                    .static_pad("sink")
-                    .expect("failed to get static sink pad from fake sink"),
-            )
-            .expect("failed to link stream's video source to fake sink");
-        stream.video_link_status = VideoLinkStatus::Fakesink(fakesink);
+                // request re-layout
+                self.invalidate();
 
-        Ok(())
-    }
-
-    /// Link stream's source to video compositor.
-    fn link_video_to_compositor(&mut self, id: ID) -> Result<(), Error<ID>> {
-        trace!("linking video of {id:?} to compositor...");
-
-        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
-
-        match &stream.video_link_status {
-            VideoLinkStatus::None => {}
-            VideoLinkStatus::Fakesink(fakesink) => {
-                stream
-                    .source
-                    .video_src_pad()
-                    .unlink(
-                        &fakesink
-                            .static_pad("sink")
-                            .expect("failed to get static sink pad from fake sink"),
-                    )
-                    .expect("failed to unlink stream's video source from fake sink");
-                fakesink
-                    .set_state(gst::State::Null)
-                    .expect("failed to set fake sink into Null state");
-                self.pipeline
-                    .remove(fakesink)
-                    .expect("failed to remove fake sink from pipeline");
-            }
-            VideoLinkStatus::Compositor(_) => {
-                warn!("trying to link stream {id:?} to compositor when it is already linked");
-                return Ok(());
+                debug!("Linked video of {id} to fakesink");
             }
         }
-
-        trace!("creating compositor sink for stream {id:?}");
-        let pad = self
-            .compositor
-            .request_pad_simple("sink_%u")
-            .expect("cannot create sink pad");
-        pad.set_property_from_str("sizing-policy", "keep-aspect-ratio");
-        stream
-            .source
-            .video_src_pad()
-            .link(&pad)
-            .expect("failed to link stream's video source pad to compositor pad");
-        stream.video_link_status = VideoLinkStatus::Compositor(pad);
-
-        trace!("successfully linked video of {id:?} to compositor.");
-
-        Ok(())
-    }
-
-    // Unlink stream's video source from compositor.
-    fn unlink_video(&mut self, id: ID) -> Result<(), Error<ID>> {
-        trace!("unlinking video of {id:?}...");
-
-        let stream = self.streams.get_mut(&id).ok_or(Error::StreamNotFound(id))?;
-
-        match replace(&mut stream.video_link_status, VideoLinkStatus::None) {
-            VideoLinkStatus::None => {}
-            VideoLinkStatus::Fakesink(fakesink) => {
-                stream
-                    .source
-                    .video_src_pad()
-                    .unlink(
-                        &fakesink
-                            .static_pad("sink")
-                            .expect("failed to get static sink pad from fake sink"),
-                    )
-                    .expect("failed to unlink stream's video source pad from fake sink");
-                fakesink
-                    .set_state(gst::State::Null)
-                    .expect("failed to set fake sink to Null state");
-                self.pipeline
-                    .remove(&fakesink)
-                    .expect("failed to remove fake sink from pipeline");
-            }
-            VideoLinkStatus::Compositor(pad) => {
-                stream
-                    .source
-                    .video_src_pad()
-                    .unlink(&pad)
-                    .expect("failed to unlink stream's video source pad from compositor");
-                self.compositor.release_request_pad(&pad);
-            }
-        }
-
-        trace!("unlinked video of {id:?}...");
-
         Ok(())
     }
 }
@@ -598,33 +777,41 @@ where
 impl<SRC, SINK, ID> Drop for Mixer<SRC, SINK, ID>
 where
     SRC: Source,
+    SRC::Parameters: Debug,
     SINK: Sink,
-    ID: Eq + Ord + Hash + Copy + Debug,
+    SINK::Parameters: Debug,
+    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {
-        debug!("exiting mixer...");
+        debug!("Dropping mixer...");
 
-        if self.pipeline.current_state() == gst::State::Paused {
-            self.pipeline
-                .set_state(gst::State::Playing)
-                .expect("failed to set pipeline state to playing");
+        debug!("Sending EOS...");
+
+        // ensure playing
+        assert!(self.pipeline.current_state() == gst::State::Playing);
+
+        // send expected EOS
+        self.expect_eos.store(true, Ordering::SeqCst);
+        self.pipeline.send_event(gst::event::Eos::new());
+        debug::dot(&self.pipeline, "EOS");
+
+        // wait until the bus reader thread got the EOS and finishes
+        if let Some(is_reading_bus) = &self.is_reading_bus {
+            if is_reading_bus.recv_timeout(BUS_EOS_TIMEOUT).is_err() {
+                error!("Could not stop reading pipeline bus");
+            }
         }
 
-        self.pause();
-
-        for id in self.streams.keys().cloned().collect::<Vec<_>>() {
-            let _ = self.remove_stream(id);
-        }
-
+        debug!("Stop sink...");
         // call sink to prepare for dropping pipeline
         self.output.on_exit(&self.pipeline);
 
-        // stop pipeline
+        debug!("Nulling pipeline...");
         self.pipeline
             .set_state(gst::State::Null)
-            .expect("unable to set the pipeline to the `Null` state");
+            .expect("Unable to set the pipeline to the `Null` state");
 
-        debug!("...mixer exited successfully.");
+        debug!("Exited mixer.");
     }
 }
