@@ -275,7 +275,7 @@ where
     /// Continuously read the bus for errors and EOS.
     fn read_bus(&mut self) -> Result<()> {
         // signal that we start reading the bus
-        if let Some(_) = self.is_reading_bus {
+        if self.is_reading_bus.is_some() {
             return Ok(());
         }
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
@@ -337,7 +337,7 @@ where
         let stream = self
             .streams
             .remove(&id)
-            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?;
+            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?;
 
         debug::dot(&self.pipeline, "remove_stream");
 
@@ -466,7 +466,7 @@ where
         let old_status = self
             .streams
             .get(id)
-            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?
+            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?
             .status
             .clone();
 
@@ -507,18 +507,16 @@ where
 
     /// Access the mixer's mutable streams.
     fn get_stream_mut(&mut self, id: &ID) -> Result<&mut Stream<SRC>> {
-        Ok(self
-            .streams
+        self.streams
             .get_mut(id)
-            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?)
+            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
     }
 
     /// Access the mixer's streams.
     fn get_stream(&self, id: &ID) -> Result<&Stream<SRC>> {
-        Ok(self
-            .streams
+        self.streams
             .get(id)
-            .ok_or(anyhow!("given stream id ({id}) cannot be found"))?)
+            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
     }
 
     /// generate DOT file of the current pipeline
@@ -564,10 +562,10 @@ where
                 // get linked mixer sink
                 let valve_src = valve
                     .static_pad("src")
-                    .ok_or(anyhow!("src pad of valve not found ({id})"))?;
+                    .ok_or_else(|| anyhow!("src pad of valve not found ({id})"))?;
                 let mixer_sink = valve_src
                     .peer()
-                    .ok_or(anyhow!("mixer sink at valve not found ({id})"))?;
+                    .ok_or_else(|| anyhow!("mixer sink at valve not found ({id})"))?;
                 // layout current stream at this sink
                 let view = layout.view(n);
                 mixer_sink.set_properties(&[
@@ -650,7 +648,7 @@ where
             LinkStatus::None => panic!("Uninitialized audio source ({id})"),
             LinkStatus::Unlinked(valve) => {
                 // unlink source from fakesink, link source to mixer and remove fakesink
-                dynamic::link_source(&valve, &audio_mixer)?;
+                dynamic::link_source(valve, &audio_mixer)?;
 
                 // update audio link status
                 stream.audio_link_status = LinkStatus::Linked(valve.clone());
@@ -716,7 +714,7 @@ where
             LinkStatus::None => panic!("Uninitialized video source ({id})"),
             LinkStatus::Unlinked(valve) => {
                 // unlink source from fakesink, link source to compositor and remove fakesink
-                let sink = dynamic::link_source(&valve, &compositor)?;
+                let sink = dynamic::link_source(valve, &compositor)?;
 
                 // set sizing policy at compositor sink
                 sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");

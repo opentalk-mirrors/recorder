@@ -21,7 +21,7 @@ pub fn unlink_source(valve: &gst::Element, target: &gst::Element) -> Result<()> 
 
     let valve_src = valve
         .static_pad("src")
-        .ok_or(anyhow!("valve src sink not found"))?;
+        .ok_or_else(|| anyhow!("valve src sink not found"))?;
     if let Some(sink) = valve_src.peer() {
         // close valve<^
         valve.set_property("drop", true);
@@ -51,7 +51,7 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
 
     let valve_src = valve
         .static_pad("src")
-        .ok_or(anyhow!("valve src sink not found"))?;
+        .ok_or_else(|| anyhow!("valve src sink not found"))?;
 
     if let Some(sink) = valve_src.peer() {
         warn!("Unnecessary link!");
@@ -59,10 +59,9 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
         Ok(sink)
     } else {
         // get a new sink pad from the target
-        let sink = target.request_pad_simple("sink_%u").ok_or(anyhow!(
-            "Could not request pad from '{name}'",
-            name = target.name()
-        ))?;
+        let sink = target
+            .request_pad_simple("sink_%u")
+            .ok_or_else(|| anyhow!("Could not request pad from '{name}'", name = target.name()))?;
         // link to target
         valve_src.link(&sink)?;
         // close valve
@@ -90,14 +89,16 @@ pub fn remove_source(inp_src: gst::Pad, valve: gst::Element, target: &gst::Eleme
     valve.set_property("drop", true);
 
     // get sink behind the source's input element
-    let after_inp_sink = inp_src.peer().ok_or(anyhow!("inp element not connected"))?;
+    let after_inp_sink = inp_src
+        .peer()
+        .ok_or_else(|| anyhow!("inp element not connected"))?;
 
     // prepare channel to sync with event probe
     let (event_sender, event_receiver) = mpsc::sync_channel::<bool>(1);
 
     let valve_sink = valve
         .static_pad("sink")
-        .ok_or(anyhow!("sink of valve not found"))?;
+        .ok_or_else(|| anyhow!("sink of valve not found"))?;
 
     if let Some(ghost_pad) = valve_sink.peer() {
         // add event probe at ghost pad
@@ -131,7 +132,7 @@ pub fn remove_source(inp_src: gst::Pad, valve: gst::Element, target: &gst::Eleme
         // unlink valve from target
         let valve_src = valve
             .static_pad("src")
-            .ok_or(anyhow!("valve src pad not found"))?;
+            .ok_or_else(|| anyhow!("valve src pad not found"))?;
         if let Some(target_sink) = valve_src.peer() {
             valve_src.unlink(&target_sink)?;
             if target.pads().contains(&target_sink) {
@@ -190,7 +191,7 @@ pub fn add_source(
     valve.sync_state_with_parent()?;
 
     // link source to valve's sink pad
-    let valve_sink = valve.static_pad("sink").ok_or(anyhow!(""))?;
+    let valve_sink = valve.static_pad("sink").ok_or_else(|| anyhow!(""))?;
     ghost_pad.link(&valve_sink)?;
 
     // (re-)start bin
@@ -211,10 +212,10 @@ pub fn insert_element(bin: &gst::Bin, valve: &gst::Element, element: gst::Elemen
     // get source pad behind given sink pad
     let valve_src = valve
         .static_pad("src")
-        .ok_or(anyhow!("src pad of valve not found"))?;
+        .ok_or_else(|| anyhow!("src pad of valve not found"))?;
     let next_sink = valve_src
         .peer()
-        .ok_or(anyhow!("peer of src pad of valve not found"))?;
+        .ok_or_else(|| anyhow!("peer of src pad of valve not found"))?;
 
     // close valve
     valve.set_property("drop", true);
@@ -233,7 +234,7 @@ pub fn insert_element(bin: &gst::Bin, valve: &gst::Element, element: gst::Elemen
     element.link(
         &next_sink
             .parent_element()
-            .ok_or(anyhow!("next element not found"))?,
+            .ok_or_else(|| anyhow!("next element not found"))?,
     )?;
 
     // open valve

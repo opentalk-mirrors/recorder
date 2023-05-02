@@ -20,7 +20,7 @@ impl TextOverlay {
         element.set_property("text", text);
         element.set_property(
             "font-desc",
-            &format!(
+            format!(
                 "{name},{size}",
                 name = text_format.font.name,
                 size = text_format.font.size

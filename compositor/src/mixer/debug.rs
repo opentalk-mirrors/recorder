@@ -57,7 +57,7 @@ pub fn dot_ext(
                     let r = format!("{n}-{filename_without_extension}");
                     r
                 } else {
-                    format!("{filename_without_extension}")
+                    filename_without_extension.to_string()
                 };
 
                 info!("GENERATING DOT FILE: '{path}/{name}.dot'");

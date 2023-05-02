@@ -220,8 +220,7 @@ impl Source for TestSource {
                         "#,
                     )
                 }
-            } + &format!(
-                r#"
+            } + r#"
                 audiotestsrc
                     name=audio-inp
                     volume=0.01
@@ -230,8 +229,7 @@ impl Source for TestSource {
                     caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
                 ! queue
                     name=audio-out
-            "#
-            )),
+            "#),
             false,
         )
         .expect("failed to create test source bin");

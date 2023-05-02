@@ -359,11 +359,11 @@ mod incoming {
         pub video: bool,
         pub audio: bool,
     }
-    impl Into<StreamStatus> for MediaSessionState {
-        fn into(self) -> StreamStatus {
+    impl From<MediaSessionState> for StreamStatus {
+        fn from(state: MediaSessionState) -> Self {
             StreamStatus {
-                has_audio: self.audio,
-                has_video: self.video,
+                has_audio: state.audio,
+                has_video: state.video,
             }
         }
     }

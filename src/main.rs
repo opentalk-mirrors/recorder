@@ -319,7 +319,7 @@ impl RecordingSession {
                     }
                 }
 
-                if is_subscribed && !media_state.is_some() {
+                if is_subscribed && media_state.is_none() {
                     log::debug!("Update: unsubscribe Video of {:?}", id);
                     self.talk.remove_stream(id.into())?;
                     self.talk.layout::<Layout>()?;

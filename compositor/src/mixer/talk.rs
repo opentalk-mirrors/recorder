@@ -260,7 +260,7 @@ where
                 visibles
                     .iter()
                     .position(|i| i == &id)
-                    .expect(&format!("given stream id ({id}) cannot be found")),
+                    .unwrap_or_else(|| panic!("given stream id ({id}) cannot be found")),
             );
             // update visibles
             self.mixer.set_visibles(&visibles)?;
