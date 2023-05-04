@@ -116,6 +116,8 @@ where
     max_visibles: Option<usize>,
     /// Display names that will appear in output video
     names: HashMap<StreamId<ID>, String>,
+    /// Will be used to cache a speaker whose stream was not added yet
+    unknown_speaker: Option<(StreamId<ID>, SpeakerSwitchMode)>,
 }
 
 impl<SRC, SINK, ID> Talk<SRC, SINK, ID>
@@ -146,6 +148,7 @@ where
             mixer: crate::Mixer::<SRC, SINK, StreamId<ID>>::new(resolution, sink_params)?,
             max_visibles,
             names: HashMap::new(),
+            unknown_speaker: None,
         })
     }
 
@@ -220,6 +223,15 @@ where
         // link audio
         if initial.has_audio {
             self.mixer.link_audio(&id)?;
+        }
+
+        // check if the added stream was set as speaker before
+        if let Some((speaker, mode)) = self.unknown_speaker.clone() {
+            if speaker == id {
+                // set added stream to speaker now
+                self.set_speaker(Some(speaker), &mode)?;
+                self.unknown_speaker = None;
+            }
         }
 
         Ok(())
@@ -400,10 +412,15 @@ where
         // we may need to change the visibles if speaker is not visible already
         let mut visibles = self.mixer.visibles.clone();
 
+        // reset any previous memorized speaker (which wasn't available before)
+        self.unknown_speaker = None;
+
         if let Some(speaker) = &speaker {
             // check if speaker is stream
             if !self.contains_stream(speaker) {
-                error!("speaker must be a stream");
+                debug!("unknown speaker is remembered to activate later");
+                self.unknown_speaker = Some((*speaker, mode.clone()));
+                return Ok(());
             }
 
             match mode {
