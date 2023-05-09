@@ -7,10 +7,16 @@ use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
+pub struct RecorderSettings {
+    pub sink: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub auth: AuthSettings,
     pub controller: ControllerSettings,
     pub rabbitmq: RabbitMqSettings,
+    pub recorder: Option<RecorderSettings>,
     pub matroska: Option<MatroskaParameters>,
 }
 

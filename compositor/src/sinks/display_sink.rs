@@ -14,6 +14,12 @@ pub struct DisplaySink {
 
 pub struct DisplaySinkBuilder();
 
+impl DisplaySinkBuilder {
+    pub fn new() -> Self {
+        Self()
+    }
+}
+
 impl SinkBuilder for DisplaySinkBuilder {
     /// Create and add new display sink into existing pipeline.
     fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
