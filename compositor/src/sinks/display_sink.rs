@@ -12,6 +12,7 @@ pub struct DisplaySink {
     audio_sink_pad: gst::Pad,
 }
 
+#[derive(Default)]
 pub struct DisplaySinkBuilder();
 
 impl DisplaySinkBuilder {

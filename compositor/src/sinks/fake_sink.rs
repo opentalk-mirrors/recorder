@@ -12,13 +12,8 @@ pub struct FakeSink {
     audio_sink_pad: gst::Pad,
 }
 
+#[derive(Default)]
 pub struct FakeSinkBuilder();
-
-impl FakeSinkBuilder {
-    pub fn new() -> Self {
-        Self()
-    }
-}
 
 impl SinkBuilder for FakeSinkBuilder {
     fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {

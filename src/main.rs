@@ -200,7 +200,7 @@ impl RecordingSession {
             compositor::Size::FHD,
             if let Some(recorder) = &settings.recorder {
                 match recorder.sink.to_lowercase().as_str() {
-                    "display" => Box::new(compositor::DisplaySinkBuilder::new()),
+                    "display" => Box::<compositor::DisplaySinkBuilder>::default(),
                     "matroska" => {
                         if let Some(params) = &settings.matroska {
                             Box::new(compositor::MatroskaSinkBuilder::new(params.clone()))
@@ -208,14 +208,12 @@ impl RecordingSession {
                             Box::new(compositor::MatroskaSinkBuilder::new(Default::default()))
                         }
                     }
-                    "mp4" | _ => {
-                        Box::new(compositor::Mp4SinkBuilder::new(compositor::Mp4SinkParams {
-                            file_path: file_path
-                                .to_str()
-                                .expect("failed to convert MP4 file path into string")
-                                .into(),
-                        }))
-                    }
+                    _ => Box::new(compositor::Mp4SinkBuilder::new(compositor::Mp4SinkParams {
+                        file_path: file_path
+                            .to_str()
+                            .expect("failed to convert MP4 file path into string")
+                            .into(),
+                    })),
                 }
             } else {
                 todo!()
