@@ -162,7 +162,7 @@ async fn main2() -> Result<()> {
 // TODO; make this configurable
 const MAX_VISIBLES: usize = 6;
 
-type Mixer = compositor::Talk<compositor::WebRtcSource, compositor::Mp4Sink, ParticipantId>;
+type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
 type Layout = compositor::Grid;
 
 pub struct RecordingSession {
@@ -173,7 +173,7 @@ pub struct RecordingSession {
     room_id: String,
     temp_dir: TempDir,
 
-    talk: Mixer,
+    talk: Talk,
 
     candidate_receiver: mpsc::Receiver<(ParticipantId, u32, Option<String>)>,
     candidate_sender: mpsc::Sender<(ParticipantId, u32, Option<String>)>,
@@ -196,13 +196,17 @@ impl RecordingSession {
 
         let (candidate_sender, candidate_receiver) = mpsc::channel(12);
 
-        let mut mixer = Mixer::new(
+        let mut mixer = Talk::new(
             compositor::Size::FHD,
-            compositor::Mp4SinkParams {
-                file_path: file_path
-                    .to_str()
-                    .expect("failed to convert MP4 file path into string")
-                    .into(),
+            if let Some(params) = &settings.matroska {
+                Box::new(compositor::MatroskaSinkBuilder::new(params.clone()))
+            } else {
+                Box::new(compositor::Mp4SinkBuilder::new(compositor::Mp4SinkParams {
+                    file_path: file_path
+                        .to_str()
+                        .expect("failed to convert MP4 file path into string")
+                        .into(),
+                }))
             },
             Some(MAX_VISIBLES),
         )?;

@@ -1,5 +1,5 @@
 use super::matroska_sink::{MatroskaParameters, MatroskaSink};
-use crate::Sink;
+use crate::{Sink, SinkBuilder};
 use derivative::Derivative;
 use gst::prelude::*;
 use inotify::{Inotify, WatchMask};
@@ -43,7 +43,7 @@ impl SegmentType {
 
 /// Specific parameters needed to create.
 #[derive(Derivative)]
-#[derivative(Debug)]
+#[derivative(Debug, Clone)]
 pub struct DashParameters {
     /// Path to write the dash files to.
     /// Existing files will be overridden.
@@ -77,12 +77,31 @@ impl Default for DashParameters {
     }
 }
 
-impl Sink for DashSink {
-    type Parameters = DashParameters;
+pub struct DashSinkBuilder {
+    params: DashParameters,
+}
 
+impl DashSinkBuilder {
+    pub fn new(params: DashParameters) -> Self {
+        trace!("new( {params:?} )");
+        Self { params }
+    }
+}
+
+impl SinkBuilder for DashSinkBuilder {
+    /// Create and add new DASH sink into existing pipeline.
+    fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
+        assert_eq!(pipeline.current_state(), gst::State::Null);
+
+        // watch pipeline bus for getting into `Playing` state
+        // return new instance
+        Box::new(DashSink::new(pipeline, self.params.clone()))
+    }
+}
+
+impl DashSink {
     /// Create and add new DASH sink into existing pipeline.
     fn new(pipeline: &gst::Pipeline, params: DashParameters) -> Self {
-        trace!("new( {params:?} )");
         assert_eq!(pipeline.current_state(), gst::State::Null);
 
         // watch pipeline bus for getting into `Playing` state
@@ -100,7 +119,9 @@ impl Sink for DashSink {
             temp_dir: None,
         }
     }
+}
 
+impl Sink for DashSink {
     /// Get video sink pad from Matroska sink.
     fn video_sink_pad(&self) -> gst::Pad {
         self.matroska_sink.video_sink_pad()

@@ -98,20 +98,18 @@ where
 /// - `SINK`: Sink type which will be created.
 /// - `ID`: Type which can identify a stream.
 ///
-pub struct Talk<SRC, SINK, ID>
+pub struct Talk<SRC, ID>
 where
     SRC: crate::Source,
     SRC::Parameters: Debug,
-    SINK: crate::Sink,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     #[cfg(test)]
     /// Underlying A/V mixer provided to tests.
-    mixer: crate::Mixer<SRC, SINK, StreamId<ID>>,
+    mixer: crate::Mixer<SRC, StreamId<ID>>,
     #[cfg(not(test))]
     /// Underlying A/V mixer.
-    mixer: crate::Mixer<SRC, SINK, StreamId<ID>>,
+    mixer: crate::Mixer<SRC, StreamId<ID>>,
     /// Maximum number of visible participants in layouts.
     max_visibles: Option<usize>,
     /// Display names that will appear in output video
@@ -120,12 +118,10 @@ where
     unknown_speaker: Option<(StreamId<ID>, SpeakerSwitchMode)>,
 }
 
-impl<SRC, SINK, ID> Talk<SRC, SINK, ID>
+impl<SRC, ID> Talk<SRC, ID>
 where
     SRC: crate::Source,
     SRC::Parameters: Debug,
-    SINK: crate::Sink,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Create new Talk.
@@ -138,14 +134,14 @@ where
     ///
     pub fn new(
         resolution: Size,
-        sink_params: SINK::Parameters,
+        sink_builder: Box<dyn SinkBuilder>,
         max_visibles: Option<usize>,
     ) -> Result<Self> {
         debug!("Starting a new talk...");
-        trace!("new( {resolution:?}, {sink_params:?}, {max_visibles:?} )");
+        trace!("new( {resolution:?}, {max_visibles:?} )");
 
         Ok(Self {
-            mixer: crate::Mixer::<SRC, SINK, StreamId<ID>>::new(resolution, sink_params)?,
+            mixer: crate::Mixer::<SRC, StreamId<ID>>::new(resolution, sink_builder)?,
             max_visibles,
             names: HashMap::new(),
             unknown_speaker: None,
@@ -532,12 +528,10 @@ where
     }
 }
 
-impl<SRC, SINK, ID> Drop for Talk<SRC, SINK, ID>
+impl<SRC, ID> Drop for Talk<SRC, ID>
 where
     SRC: crate::Source,
     SRC::Parameters: Debug,
-    SINK: crate::Sink,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     fn drop(&mut self) {

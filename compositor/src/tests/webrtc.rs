@@ -1,5 +1,6 @@
+use crate::testing::TestSinkBuilder;
 use crate::StreamStatus;
-use crate::{testing::TestSink, Grid, Size, WebRtcSource, WebRtcSourceParams};
+use crate::{Grid, Size, WebRtcSource, WebRtcSourceParams};
 use core::time::Duration;
 use glib::{Cast, Continue, ObjectExt};
 use gst::prelude::*;
@@ -8,7 +9,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
-type Talk = crate::Talk<WebRtcSource, TestSink, usize>;
+type Talk = crate::Talk<WebRtcSource, usize>;
 
 #[derive(Debug, Clone, Copy)]
 enum Event {
@@ -53,7 +54,7 @@ async fn exec_events(events: Vec<Event>) {
         // Mp4SinkParams {
         //     file_path: "out.mp4".into(),
         // },
-        (),
+        Box::new(TestSinkBuilder::new()),
         MAX_VISIBLES,
     )
     .unwrap();

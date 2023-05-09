@@ -1,5 +1,6 @@
-use crate::Sink;
+use crate::{Sink, SinkBuilder};
 use gst::prelude::*;
+use serde::Deserialize;
 use std::{
     net::{SocketAddr, TcpListener},
     os::unix::prelude::AsRawFd,
@@ -17,7 +18,7 @@ pub struct MatroskaSink {
 }
 
 /// Specific parameters needed to create a Matroska sink
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct MatroskaParameters {
     pub address: SocketAddr,
 }
@@ -31,11 +32,25 @@ impl Default for MatroskaParameters {
     }
 }
 
-impl Sink for MatroskaSink {
-    type Parameters = MatroskaParameters;
+pub struct MatroskaSinkBuilder {
+    params: MatroskaParameters,
+}
 
+impl MatroskaSinkBuilder {
+    pub fn new(params: MatroskaParameters) -> Self {
+        Self { params }
+    }
+}
+
+impl SinkBuilder for MatroskaSinkBuilder {
+    fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
+        Box::new(MatroskaSink::new(pipeline, self.params.clone()))
+    }
+}
+
+impl MatroskaSink {
     /// Create and add new Matroska sink into existing pipeline.
-    fn new(pipeline: &gst::Pipeline, params: MatroskaParameters) -> Self {
+    pub fn new(pipeline: &gst::Pipeline, params: MatroskaParameters) -> Self {
         trace!("new( {params:?} )");
         assert_eq!(pipeline.current_state(), gst::State::Null);
 
@@ -142,7 +157,9 @@ impl Sink for MatroskaSink {
             address,
         }
     }
+}
 
+impl Sink for MatroskaSink {
     /// Get video sink pad.
     fn video_sink_pad(&self) -> gst::Pad {
         self.video_sink_pad.clone()

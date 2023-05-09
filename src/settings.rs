@@ -1,5 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
+use compositor::MatroskaParameters;
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
@@ -10,6 +11,7 @@ pub struct Settings {
     pub auth: AuthSettings,
     pub controller: ControllerSettings,
     pub rabbitmq: RabbitMqSettings,
+    pub matroska: Option<MatroskaParameters>,
 }
 
 impl Settings {

@@ -94,12 +94,10 @@ pub mod testing {
     }
 
     /// create a text overlay which displays the given text which shall be the test name
-    pub fn add_overlay_name<SRC, SINK, ID>(talk: &mut Talk<SRC, SINK, ID>, name: &str)
+    pub fn add_overlay_name<SRC, ID>(talk: &mut Talk<SRC, ID>, name: &str)
     where
         SRC: Source,
         SRC::Parameters: Debug,
-        SINK: Sink,
-        SINK::Parameters: Debug,
         ID: Eq + Ord + Hash + Copy + Debug + Display + Sync + Send,
     {
         trace!("add_overlay_name( '{name}' )");
@@ -135,14 +133,12 @@ pub mod testing {
     }
 
     /// generate given number of participant streams
-    pub fn generate_streams<SINK, ID>(
-        mixer: &mut Talk<TestSource, SINK, ID>,
+    pub fn generate_streams<ID>(
+        mixer: &mut Talk<TestSource, ID>,
         count: u32,
         visibles: usize,
     ) -> (Vec<(ID, String)>, Vec<ID>)
     where
-        SINK: crate::Sink,
-        SINK::Parameters: Debug,
         ID: Eq + Ord + Hash + Copy + Debug + Display + From<u32> + Sync + Send,
     {
         trace!("generate_streams( {count}, {visibles} )");
@@ -209,23 +205,36 @@ pub mod testing {
         Display(DisplaySink),
     }
 
-    impl Sink for TestSink {
-        /// Needs no parameters.
-        type Parameters = ();
+    pub struct TestSinkBuilder();
 
+    impl TestSinkBuilder {
+        pub fn new() -> Self {
+            Self()
+        }
+    }
+
+    impl SinkBuilder for TestSinkBuilder {
+        fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
+            Box::new(TestSink::new(pipeline))
+        }
+    }
+
+    impl TestSink {
         /// Create and add new fake sink into existing pipeline.
-        fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+        pub fn new(pipeline: &gst::Pipeline) -> Self {
             trace!("new()");
 
             if use_display() {
                 info!("using display sink because display is available");
-                Self::Display(DisplaySink::new(pipeline, ()))
+                Self::Display(DisplaySink::new(pipeline))
             } else {
                 info!("using fake sink");
-                Self::Fake(FakeSink::new(pipeline, ()))
+                Self::Fake(FakeSink::new(pipeline))
             }
         }
+    }
 
+    impl Sink for TestSink {
         /// Get video sink pad.
         fn video_sink_pad(&self) -> gst::Pad {
             match self {

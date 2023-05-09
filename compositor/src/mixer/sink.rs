@@ -1,13 +1,12 @@
-/// Trait of an output sink.
-pub trait Sink {
-    /// Generic parameter type to overwrite by trait implementers.
-    type Parameters;
-
+pub trait SinkBuilder {
     /// Create an add a sink to the pipeline.
     ///
     /// Creates a bunch of elements based on given parameters and adds them to the pipeline.
-    fn new(pipeline: &gst::Pipeline, params: Self::Parameters) -> Self;
+    fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink>;
+}
 
+/// Trait of an output sink.
+pub trait Sink: Send + 'static {
     /// Get sink pad of the video sink.
     fn video_sink_pad(&self) -> gst::Pad;
 

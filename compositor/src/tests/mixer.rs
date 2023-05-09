@@ -17,8 +17,12 @@ where
     // initialize for testing
     testing::init();
 
-    let mut talk =
-        Talk::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, (), None).unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        Box::new(testing::TestSinkBuilder::new()),
+        None,
+    )
+    .unwrap();
 
     testing::add_overlay_name(&mut talk, &format!("test_layout_{}", L::NAME));
 
@@ -47,8 +51,12 @@ fn test_remove() {
     // initialize for testing
     testing::init();
 
-    let mut mixer =
-        Talk::<TestSource, testing::TestSink, u32>::new(testing::RESOLUTION, (), None).unwrap();
+    let mut mixer = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        Box::new(testing::TestSinkBuilder::new()),
+        None,
+    )
+    .unwrap();
 
     testing::add_overlay_name(&mut mixer, "test_remove");
 

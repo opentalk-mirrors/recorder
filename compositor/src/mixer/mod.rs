@@ -58,12 +58,10 @@ const BUS_READ_PERIOD: gst::ClockTime = gst::ClockTime::from_mseconds(1000);
 /// - `SRC`: Source type to use when adding streams.
 /// - `SINK`: Sink type to use for output.D
 /// - `ID`: stream identifier type
-pub struct Mixer<SRC, SINK, ID>
+pub struct Mixer<SRC, ID>
 where
     SRC: Source,
     SRC::Parameters: Debug,
-    SINK: Sink,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// Current streams.
@@ -79,7 +77,7 @@ where
     /// on top overlays
     overlays: Overlays,
     /// Holds the output sink.
-    output: SINK,
+    output: Box<dyn crate::Sink>,
     /// over all generated output resolution
     output_resolution: Size,
     /// signals when bus reading stops
@@ -90,12 +88,10 @@ where
     expect_eos: Arc<AtomicBool>,
 }
 
-impl<SRC, SINK, ID> Mixer<SRC, SINK, ID>
+impl<SRC, ID> Mixer<SRC, ID>
 where
     SRC: Source,
     SRC::Parameters: Debug,
-    SINK: Sink,
-    SINK::Parameters: std::fmt::Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
@@ -105,8 +101,8 @@ where
     /// - `resolution`: Output video resolution.
     /// - `sink_params`: Parameters to create the output sink.
     ///
-    pub fn new(resolution: Size, sink_params: SINK::Parameters) -> Result<Self> {
-        trace!("new( {resolution:?}, '{sink_params:?}' )");
+    pub fn new(resolution: Size, sink_builder: Box<dyn SinkBuilder>) -> Result<Self> {
+        trace!("new( {resolution:?} )");
 
         // get width/height
         let width = resolution.width;
@@ -180,7 +176,7 @@ where
             .expect("failed to get source pad from audio output");
 
         // create output sink
-        let output = SINK::new(&pipeline, sink_params);
+        let output = sink_builder.as_ref().build(&pipeline);
 
         // connect output pads to output sinks
         video_output_pad
@@ -772,12 +768,10 @@ where
     }
 }
 
-impl<SRC, SINK, ID> Drop for Mixer<SRC, SINK, ID>
+impl<SRC, ID> Drop for Mixer<SRC, ID>
 where
     SRC: Source,
     SRC::Parameters: Debug,
-    SINK: Sink,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// halt pipeline (can not be played again)

@@ -4,13 +4,12 @@ use crate::*;
 fn test_mp4() {
     // initialize for testing
     testing::init();
-
     // create grid mixer with test sources for streams and a MatroskaSink
-    let mut mixer = Talk::<TestSource, Mp4Sink, u32>::new(
+    let mut mixer = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        Mp4SinkParams {
+        Box::new(Mp4SinkBuilder::new(Mp4SinkParams {
             file_path: testing::output_file("mp4sink.mp4").into(),
-        },
+        })),
         None,
     )
     .unwrap();

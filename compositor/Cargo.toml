@@ -21,6 +21,7 @@ thiserror = "1"
 derivative = "2.2"
 gst-base = { package = "gstreamer-base", version="0.20.5"}
 anyhow = "1.0.70"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 env_logger = "0.10"

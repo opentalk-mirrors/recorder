@@ -1,4 +1,4 @@
-use crate::Sink;
+use crate::{Sink, SinkBuilder};
 use gst::{
     prelude::*,
     traits::{ElementExt, GstBinExt},
@@ -12,12 +12,22 @@ pub struct FakeSink {
     audio_sink_pad: gst::Pad,
 }
 
-impl Sink for FakeSink {
-    /// Needs no parameters.
-    type Parameters = ();
+pub struct FakeSinkBuilder();
 
+impl FakeSinkBuilder {
+    pub fn new() -> Self {
+        Self()
+    }
+}
+
+impl SinkBuilder for FakeSinkBuilder {
+    fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
+        Box::new(FakeSink::new(pipeline))
+    }
+}
+impl FakeSink {
     /// Create and add new fake sink into existing pipeline.
-    fn new(pipeline: &gst::Pipeline, _: ()) -> Self {
+    pub fn new(pipeline: &gst::Pipeline) -> Self {
         trace!("new()");
         assert_eq!(pipeline.current_state(), gst::State::Null);
 
@@ -38,7 +48,7 @@ impl Sink for FakeSink {
             .expect("failed to add video fake sink to pipeline");
 
         // return new display sink
-        Self {
+        FakeSink {
             video_sink_pad: video_sink
                 .static_pad("sink")
                 .expect("failed to get sink pad of video fake sink"),
@@ -47,7 +57,9 @@ impl Sink for FakeSink {
                 .expect("failed to get sink pad of audio fake sink"),
         }
     }
+}
 
+impl Sink for FakeSink {
     /// Get video sink pad.
     fn video_sink_pad(&self) -> gst::Pad {
         self.video_sink_pad.clone()

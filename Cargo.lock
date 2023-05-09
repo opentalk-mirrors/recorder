@@ -347,6 +347,7 @@ dependencies = [
  "gstreamer-webrtc",
  "inotify",
  "log",
+ "serde",
  "tempfile",
  "thiserror",
  "tokio",
