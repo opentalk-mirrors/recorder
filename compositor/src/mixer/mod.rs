@@ -337,23 +337,27 @@ where
 
         debug::dot(&self.pipeline, "remove_stream");
 
-        if let Some(inp_pad) = stream.source.audio_inp_pad() {
-            if let Some(valve) = stream.audio_link_status.valve() {
+        if let Some(valve) = stream.audio_link_status.valve() {
+            if let Some(inp_pad) = stream.source.audio_inp_pad() {
                 // unlink and remove audio source from pipeline
-                dynamic::remove_source(inp_pad, valve, &self.audio_mixer)?;
+                dynamic::remove_source(inp_pad, &valve, &self.audio_mixer)?;
             }
+            dynamic::remove_valve(valve)?;
         } else {
-            warn!("could not remove audio source of {id} because source is inactive")
+            error!("could not find valve of audio source of {id}")
         }
+
         // unlink and remove video source from pipeline
-        if let Some(inp_pad) = stream.source.video_inp_pad() {
-            if let Some(valve) = stream.video_link_status.valve() {
+        if let Some(valve) = stream.video_link_status.valve() {
+            if let Some(inp_pad) = stream.source.video_inp_pad() {
                 // unlink and remove audio source from pipeline
-                dynamic::remove_source(inp_pad, valve, &self.compositor)?;
+                dynamic::remove_source(inp_pad, &valve, &self.compositor)?;
             }
+            dynamic::remove_valve(valve)?;
         } else {
-            warn!("could not remove video source of {id} because source is inactive")
+            error!("could not find valve of video source of {id}")
         }
+
         dynamic::remove_bin(stream.source.bin())?;
 
         // remove stream from visibles

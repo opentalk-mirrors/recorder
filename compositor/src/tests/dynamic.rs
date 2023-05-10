@@ -55,7 +55,8 @@ pub fn test_scenario2(dot: &mut Dot, pipeline: &gst::Pipeline, _: std::time::Dur
         let valve = pipeline.by_name("source-valve").unwrap();
         let compositor = pipeline.by_name("compositor").unwrap();
 
-        remove_source(inp_src, valve, &compositor).unwrap();
+        remove_source(inp_src, &valve, &compositor).unwrap();
+        remove_valve(valve).unwrap();
         remove_bin(bin).unwrap();
         flush_bus(pipeline);
 

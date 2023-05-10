@@ -76,11 +76,11 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
 /// - `inp_src`: Pad to flush from
 /// - `valve`: Dropping valve element providing the output of the source
 /// - `target`: Element to connect to
-pub fn remove_source(inp_src: gst::Pad, valve: gst::Element, target: &gst::Element) -> Result<()> {
+pub fn remove_source(inp_src: gst::Pad, valve: &gst::Element, target: &gst::Element) -> Result<()> {
     trace!(
         "remove_source({inp_src}, {valve}, {target})",
         inp_src = debug::name(&inp_src),
-        valve = debug::name(&valve),
+        valve = debug::name(valve),
         target = debug::name(target),
     );
     crate::debug::dot(target, "remove_source");
@@ -140,7 +140,10 @@ pub fn remove_source(inp_src: gst::Pad, valve: gst::Element, target: &gst::Eleme
             }
         }
     }
+    Ok(())
+}
 
+pub fn remove_valve(valve: gst::Element) -> Result<()> {
     // remove valve from pipeline
     if gst::StateChangeSuccess::Async == valve.set_state(gst::State::Null)? {
         warn!("remove_source: async state change")
