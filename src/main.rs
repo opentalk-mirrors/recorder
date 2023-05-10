@@ -196,7 +196,7 @@ impl RecordingSession {
 
         let (candidate_sender, candidate_receiver) = mpsc::channel(12);
 
-        let mut mixer = Talk::new(
+        let mut talk = Talk::new(
             compositor::Size::FHD,
             if let Some(recorder) = &settings.recorder {
                 match recorder.sink.to_lowercase().as_str() {
@@ -241,7 +241,7 @@ impl RecordingSession {
 
         // Subscribe to above collected participants
         for (id, display_name, initial) in publishing_participants {
-            mixer.add_participant(
+            talk.add_participant(
                 id.into(),
                 display_name,
                 participant_params(id, candidate_sender.clone()),
@@ -252,7 +252,7 @@ impl RecordingSession {
                 .await?;
         }
 
-        mixer.layout::<Layout>()?;
+        talk.layout::<Layout>()?;
 
         Ok(Self {
             settings,
@@ -260,7 +260,7 @@ impl RecordingSession {
             signaling,
             room_id: command.room,
             temp_dir,
-            talk: mixer,
+            talk,
             candidate_receiver,
             candidate_sender,
             done: false,
@@ -441,9 +441,9 @@ impl RecordingSession {
     }
 
     async fn upload(self) -> Result<()> {
-        let mixer = self.talk;
+        let talk = self.talk;
 
-        spawn_blocking(move || drop(mixer)).await?;
+        spawn_blocking(move || drop(talk)).await?;
 
         let recording_path = self.temp_dir.path().join("out.mp4");
         let file = tokio::fs::File::open(&recording_path).await?;
