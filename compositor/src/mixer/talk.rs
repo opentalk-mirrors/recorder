@@ -148,30 +148,7 @@ where
         })
     }
 
-    /// Add participant with an initial stream.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: Identifies the stream to add
-    /// - 'display_name': Human readable name which might get visible within output composite
-    /// - `params`: Proprietary parameters to use when creating sink instance.
-    ///
-    pub fn add_participant(
-        &mut self,
-        id: StreamId<ID>,
-        display_name: String,
-        params: SRC::Parameters,
-        initial: StreamStatus,
-    ) -> Result<()>
-    where
-        SRC::Parameters: Debug,
-    {
-        info!("adding participant {id} ('{display_name}'), {params:?}, {initial} )");
-
-        self.add_stream(id, display_name, params, initial)
-    }
-
-    /// Add another stream with the given number to an existing participant.
+    /// Add a stream with the given ID and media type
     ///
     /// # Arguments
     ///

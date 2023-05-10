@@ -241,7 +241,7 @@ impl RecordingSession {
 
         // Subscribe to above collected participants
         for (id, display_name, initial) in publishing_participants {
-            talk.add_participant(
+            talk.add_stream(
                 id.into(),
                 display_name,
                 participant_params(id, candidate_sender.clone()),
@@ -293,7 +293,7 @@ impl RecordingSession {
 
                 if let Some(media_state) = media_state {
                     log::debug!("Join: subscribe Video of {:?}", id);
-                    self.talk.add_participant(
+                    self.talk.add_stream(
                         id.into(),
                         state.display_name.to_string(),
                         participant_params(id, self.candidate_sender.clone()),
@@ -316,7 +316,7 @@ impl RecordingSession {
                 if !is_subscribed {
                     if let Some(media_state) = media_state {
                         log::debug!("Update: subscribe Video of {:?}", id);
-                        self.talk.add_participant(
+                        self.talk.add_stream(
                             id.into(),
                             state.display_name.to_string(),
                             participant_params(id, self.candidate_sender.clone()),
