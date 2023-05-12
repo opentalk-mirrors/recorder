@@ -7,6 +7,30 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=opentalk-recorder",
+                    "--package=opentalk-recorder"
+                ],
+                "filter": {
+                    "name": "opentalk-recorder",
+                    "kind": "bin"
+                },
+                "env": {
+                    "GST_DEBUG_DUMP_DOT_DIR": "${workspaceFolder}/compositor/pipelines",
+                    "RUST_LOG": "trace,rustls=info,tungstenite=error,tokio_tungstenite=error,opentalk_recorder::signaling=debug",
+                    "RUST_BACKTRACE": "3",
+                    "GST_DEBUG": "1"
+                },
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'compositor'",
             "cargo": {
                 "args": [

@@ -30,7 +30,7 @@ fn test_stream_status() {
         title.set(&format!("Speaker {i} (audio off)"));
         mixer
             .set_status(
-                &i.into(),
+                &StreamId::camera(i),
                 StreamStatus {
                     has_audio: false,
                     has_video: true,
@@ -47,7 +47,7 @@ fn test_stream_status() {
         title.set(&format!("Speaker {i} (video off)"));
         mixer
             .set_status(
-                &i.into(),
+                &StreamId::camera(i),
                 StreamStatus {
                     has_audio: true,
                     has_video: false,
@@ -64,7 +64,7 @@ fn test_stream_status() {
         title.set(&format!("Speaker {i} (a/v off)"));
         mixer
             .set_status(
-                &i.into(),
+                &StreamId::camera(i),
                 StreamStatus {
                     has_audio: false,
                     has_video: false,
@@ -81,7 +81,7 @@ fn test_stream_status() {
         title.set(&format!("Speaker {i} (a/v on)"));
         mixer
             .set_status(
-                &i.into(),
+                &StreamId::camera(i),
                 StreamStatus {
                     has_audio: true,
                     has_video: true,

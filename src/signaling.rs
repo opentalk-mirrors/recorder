@@ -25,6 +25,7 @@ pub struct Signaling {
     connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
+#[derive(Clone)]
 pub struct ParticipantState {
     pub display_name: String,
     pub consents: bool,
@@ -49,7 +50,7 @@ impl ParticipantState {
         }
     }
 
-    pub fn publishes(&self, typ: MediaSessionType) -> Option<MediaSessionState> {
+    pub fn publishes(&self, typ: &MediaSessionType) -> Option<MediaSessionState> {
         if !self.consents {
             return None;
         }
@@ -359,6 +360,30 @@ mod incoming {
         pub video: bool,
         pub audio: bool,
     }
+
+    impl std::fmt::Display for MediaSessionState {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                MediaSessionState {
+                    video: true,
+                    audio: true,
+                } => write!(f, "video+audio"),
+                MediaSessionState {
+                    video: true,
+                    audio: false,
+                } => write!(f, "video only"),
+                MediaSessionState {
+                    video: false,
+                    audio: true,
+                } => write!(f, "audio only"),
+                MediaSessionState {
+                    video: false,
+                    audio: false,
+                } => write!(f, "none"),
+            }
+        }
+    }
+
     impl From<MediaSessionState> for StreamStatus {
         fn from(state: MediaSessionState) -> Self {
             StreamStatus {
@@ -509,10 +534,8 @@ pub struct TrickleCandidate {
     pub sdp_m_line_index: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum MediaSessionType {
-    #[serde(rename = "video")]
-    Camera,
-    #[serde(rename = "screen")]
-    ScreenCapture,
+type MediaSessionType = compositor::MediaSessionType;
+
+pub fn media_types() -> Vec<MediaSessionType> {
+    compositor::media_types()
 }

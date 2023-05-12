@@ -1,6 +1,6 @@
 use crate::testing::TestSinkBuilder;
-use crate::StreamStatus;
 use crate::{Grid, Size, WebRtcSource, WebRtcSourceParams};
+use crate::{StreamId, StreamStatus};
 use core::time::Duration;
 use glib::{Cast, Continue, ObjectExt};
 use gst::prelude::*;
@@ -99,7 +99,7 @@ async fn handle_webrtc_event(
                 .and_then(|p| p.publish.as_mut())
                 .unwrap();
 
-            let source = &talk.source_mut(&id.into()).unwrap().source;
+            let source = &talk.source_mut(&StreamId::camera(id)).unwrap().source;
             let webrtcbin = publish.by_name("webrtc").unwrap();
             let response = source.receive_offer(offer).await;
             let response = gst_webrtc::WebRTCSessionDescription::new(
@@ -113,11 +113,11 @@ async fn handle_webrtc_event(
             );
         }
         WebRtcBinToMainLoopEvent::SdpCandidate(id, mline, candidate) => {
-            let source = &talk.source_mut(&id.into()).unwrap().source;
+            let source = &talk.source_mut(&StreamId::camera(id)).unwrap().source;
             source.receive_candidate(mline, candidate).await;
         }
         WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id) => {
-            let source = &talk.source_mut(&id.into()).unwrap().source;
+            let source = &talk.source_mut(&StreamId::camera(id)).unwrap().source;
             source.receive_end_of_candidates(0).await;
         }
     }
@@ -277,8 +277,8 @@ fn create_publish_pipeline(
     state.publish = Some(pipeline);
 
     talk.add_stream(
-        id.into(),
-        format!("Mock {id}"),
+        StreamId::camera(id),
+        &format!("Mock {id}"),
         WebRtcSourceParams::default().on_ice_candidate(move |mline, candidate| {
             if let Some(candidate) = candidate {
                 webrtcbin.emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);

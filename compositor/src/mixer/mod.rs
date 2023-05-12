@@ -361,7 +361,7 @@ where
         dynamic::remove_bin(stream.source.bin())?;
 
         // remove stream from visibles
-        if let Some(index) = self.visibles.iter().position(|v| *v == id) {
+        if let Some(index) = self.visibles.iter().position(|i| *i == id) {
             self.visibles.remove(index);
         }
 
@@ -442,6 +442,17 @@ where
         Ok(())
     }
 
+    pub fn show(&mut self, id: &ID) -> Result<()> {
+        if !self.visibles.contains(id) {
+            debug!("make {id} visible");
+            let mut ids = self.visibles.clone();
+            ids.push(*id);
+            self.set_visibles(&ids)?;
+            self.invalidate();
+        }
+        Ok(())
+    }
+
     /// Return `true`, if stream is currently visible
     pub fn is_visible(&self, id: &ID) -> bool {
         self.visibles.contains(id)
@@ -459,8 +470,8 @@ where
     /// - `id`: Describes which stream shall be updated.
     /// - `new_status`: New status to override.
     ///
-    pub fn set_status(&mut self, id: &ID, new_status: StreamStatus) -> Result<()> {
-        trace!("set_status( {id}, {new_status:?} )");
+    pub fn set_status(&mut self, id: &ID, new_status: StreamStatus) -> Result<StreamStatus> {
+        trace!("set_status( {id}, {new_status} )");
 
         // get old stream's status
         let old_status = self
@@ -494,6 +505,9 @@ where
             LinkStatus::Linked(_) => {
                 if !new_status.has_video && old_status.has_video {
                     self.unlink_video(id)?;
+                    if let Some(pos) = self.visibles.iter().position(|i| i == id) {
+                        self.visibles.remove(pos);
+                    }
                 }
             }
         }
@@ -501,8 +515,7 @@ where
         // set stream's new status
         self.get_stream_mut(id)?.status = new_status;
 
-        debug!("Set status of {id}");
-        Ok(())
+        Ok(old_status)
     }
 
     /// Access the mixer's mutable streams.

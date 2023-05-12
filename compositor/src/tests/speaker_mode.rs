@@ -23,7 +23,7 @@ fn test_speaker_mode() {
 
     talk.add_stream(
         StreamId::screen(streams[0].0),
-        format!("{}'s screen", streams[0].1),
+        &format!("{}'s screen", streams[0].1),
         TestSourceParameters {
             resolution: Size::SD,
             name: Some(format!("{}'s screen", streams[0].1)),
@@ -41,7 +41,7 @@ fn test_speaker_mode() {
         for stream in &streams[0..NUM_PARTICIPANTS] {
             title.set(&format!("Speaker: {} ({mode:?})", stream.1));
 
-            talk.set_speaker(Some((stream.0).into()), &mode).unwrap();
+            talk.set_speaker(Some(stream.0), &mode).unwrap();
             talk.layout::<Speaker>().unwrap();
 
             talk.dot(

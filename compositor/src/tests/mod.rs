@@ -162,7 +162,12 @@ pub mod testing {
                 name: Some(name.clone()),
             };
             mixer
-                .add_stream((*id).into(), name.clone(), params, StreamStatus::default())
+                .add_stream(
+                    StreamId::camera(*id),
+                    &name,
+                    params,
+                    StreamStatus::default(),
+                )
                 .unwrap();
         }
 

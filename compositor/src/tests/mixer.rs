@@ -74,7 +74,7 @@ fn test_remove() {
         testing::wait();
 
         title.set("remove 0 (left 1-7)");
-        mixer.remove_stream(0.into()).unwrap();
+        mixer.remove_stream(StreamId::camera(0)).unwrap();
         mixer.layout::<Grid>().unwrap();
 
         mixer.dot(&format!("test_remove_{i}-2"), testing::DOT_PARAMS);
@@ -82,25 +82,25 @@ fn test_remove() {
         testing::wait();
 
         title.set("remove 1-2 (left 3-7)");
-        mixer.remove_stream(1.into()).unwrap();
-        mixer.remove_stream(2.into()).unwrap();
+        mixer.remove_stream(StreamId::camera(1)).unwrap();
+        mixer.remove_stream(StreamId::camera(2)).unwrap();
         mixer.layout::<Grid>().unwrap();
         mixer.dot(&format!("test_remove_{i}-3"), testing::DOT_PARAMS);
 
         testing::wait();
 
         title.set("remove 3-6 (left 7)");
-        mixer.remove_stream(3.into()).unwrap();
-        mixer.remove_stream(4.into()).unwrap();
-        mixer.remove_stream(5.into()).unwrap();
-        mixer.remove_stream(6.into()).unwrap();
+        mixer.remove_stream(StreamId::camera(3)).unwrap();
+        mixer.remove_stream(StreamId::camera(4)).unwrap();
+        mixer.remove_stream(StreamId::camera(5)).unwrap();
+        mixer.remove_stream(StreamId::camera(6)).unwrap();
         mixer.layout::<Grid>().unwrap();
         mixer.dot(&format!("test_remove_{i}-4"), testing::DOT_PARAMS);
 
         testing::wait();
 
         title.set("remove 7 (none left)");
-        mixer.remove_stream(7.into()).unwrap();
+        mixer.remove_stream(StreamId::camera(7)).unwrap();
         mixer.dot(&format!("test_remove_{i}-5"), testing::DOT_PARAMS);
 
         testing::wait();

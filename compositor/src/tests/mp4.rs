@@ -17,7 +17,7 @@ fn test_mp4() {
     // add a stream
     mixer
         .add_stream(
-            0.into(),
+            StreamId::camera(0),
             "Participant 0".into(),
             Default::default(),
             Default::default(),

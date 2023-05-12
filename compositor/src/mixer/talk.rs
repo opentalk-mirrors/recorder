@@ -1,4 +1,5 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use crate::*;
 use core::{
@@ -7,14 +8,23 @@ use core::{
 };
 use std::collections::HashMap;
 
+pub fn media_types() -> Vec<MediaSessionType> {
+    // order is priority for set speaker (first available will get focus)
+    vec![MediaSessionType::ScreenCapture, MediaSessionType::Camera]
+}
+
 /// sub stream ID for testing purposes.
 #[allow(dead_code)]
-#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(
+    Debug, Hash, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default,
+)]
 pub enum MediaSessionType {
     /// participant's picture (default)
     #[default]
+    #[serde(rename = "video")]
     Camera,
     /// participant's screen share
+    #[serde(rename = "screen")]
     ScreenCapture,
 }
 
@@ -63,15 +73,6 @@ where
     }
 }
 
-impl<ID> From<ID> for StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
-    fn from(id: ID) -> Self {
-        StreamId::default(id)
-    }
-}
-
 impl<ID> std::fmt::Display for StreamId<ID>
 where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
@@ -115,7 +116,8 @@ where
     /// Display names that will appear in output video
     names: HashMap<StreamId<ID>, String>,
     /// Will be used to cache a speaker whose stream was not added yet
-    unknown_speaker: Option<(StreamId<ID>, SpeakerSwitchMode)>,
+    unknown_speaker: Option<(ID, SpeakerSwitchMode)>,
+    speaker: Option<ID>,
 }
 
 impl<SRC, ID> Talk<SRC, ID>
@@ -145,6 +147,7 @@ where
             max_visibles,
             names: HashMap::new(),
             unknown_speaker: None,
+            speaker: None,
         })
     }
 
@@ -160,7 +163,7 @@ where
     pub fn add_stream(
         &mut self,
         id: StreamId<ID>,
-        display_name: String,
+        display_name: &str,
         params: SRC::Parameters,
         initial: StreamStatus,
     ) -> Result<()>
@@ -170,10 +173,11 @@ where
         trace!("add_stream( {id}, '{display_name}', {params:?}, {initial} )");
 
         // forward to mixer
-        self.mixer.add_stream(id, display_name.clone(), params)?;
+        self.mixer
+            .add_stream(id, display_name.to_string(), params)?;
 
         // remember display name
-        self.names.insert(id, display_name.clone());
+        self.names.insert(id, display_name.to_string());
 
         // add display name to video
         self.mixer.insert_source_overlay(
@@ -200,7 +204,7 @@ where
 
         // check if the added stream was set as speaker before
         if let Some((speaker, mode)) = self.unknown_speaker.clone() {
-            if speaker == id {
+            if speaker == id.id {
                 // set added stream to speaker now
                 self.set_speaker(Some(speaker), &mode)?;
                 self.unknown_speaker = None;
@@ -210,49 +214,6 @@ where
         Ok(())
     }
 
-    /// check if stream with `id` has video and show it in visibles if slots are left.
-    fn maybe_show(&mut self, id: StreamId<ID>) -> Result<()> {
-        // if there is a limit show participant only if this is not reached already
-        let make_visible = if let Some(max_visibles) = self.max_visibles {
-            self.mixer.visibles.len() < max_visibles
-        } else {
-            true
-        };
-
-        // maybe show video stream initially
-        if make_visible {
-            debug!("showing video stream {id}");
-            // get currently visible streams
-            let mut visibles = self.mixer.visibles.clone();
-            // make new stream visible
-            visibles.push(id);
-            // update visibles
-            self.mixer.set_visibles(&visibles)?;
-        }
-
-        Ok(())
-    }
-
-    /// check if stream with `id` is visible but has no video and hide it then.
-    fn maybe_hide(&mut self, id: StreamId<ID>) -> Result<()> {
-        // check if visible but without video
-        if self.mixer.is_visible(&id) && !self.mixer.has_video(&id)? {
-            debug!("hiding video stream {id}");
-            // get currently visible streams
-            let mut visibles = self.mixer.visibles.clone();
-            // make new stream visible
-            visibles.remove(
-                visibles
-                    .iter()
-                    .position(|i| i == &id)
-                    .unwrap_or_else(|| panic!("given stream id ({id}) cannot be found")),
-            );
-            // update visibles
-            self.mixer.set_visibles(&visibles)?;
-        }
-
-        Ok(())
-    }
     /// Remove a stream by stream ID.
     ///
     /// # Arguments
@@ -261,8 +222,6 @@ where
     ///
     pub fn remove_stream(&mut self, id: StreamId<ID>) -> Result<()> {
         trace!("remove_stream( {id} )");
-        // remove from visibles
-        self.maybe_hide(id)?;
         // remove name
         self.names.remove(&id);
         // forward to mixer
@@ -278,6 +237,15 @@ where
     pub fn contains_stream(&self, id: &StreamId<ID>) -> bool {
         // forward to mixer
         self.mixer.streams.contains_key(id)
+    }
+
+    pub fn contains_any_stream(&self, id: &ID) -> bool {
+        for media_type in media_types() {
+            if self.contains_stream(&StreamId::new(*id, media_type)) {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn source_mut(&mut self, id: &StreamId<ID>) -> Option<&mut Stream<SRC>> {
@@ -375,11 +343,7 @@ where
     /// - `speaker`: Stream of the speaker or `None`.
     /// - `mode`: How the speaker comes into the scene.
     ///
-    pub fn set_speaker(
-        &mut self,
-        speaker: Option<StreamId<ID>>,
-        mode: &SpeakerSwitchMode,
-    ) -> Result<()> {
+    pub fn set_speaker(&mut self, speaker: Option<ID>, mode: &SpeakerSwitchMode) -> Result<()> {
         info!("set_speaker( {speaker:?}, {mode:?} )");
 
         // we may need to change the visibles if speaker is not visible already
@@ -390,7 +354,7 @@ where
 
         if let Some(speaker) = &speaker {
             // check if speaker is stream
-            if !self.contains_stream(speaker) {
+            if !self.contains_any_stream(speaker) {
                 debug!("unknown speaker is remembered to activate later");
                 self.unknown_speaker = Some((*speaker, mode.clone()));
                 return Ok(());
@@ -398,77 +362,113 @@ where
 
             match mode {
                 SpeakerSwitchMode::FirstShift => {
-                    // check if speaker is already visible
-                    match visibles.iter().position(|id| *id == *speaker) {
-                        Some(pos) => {
-                            trace!("remove visible speaker at position {pos}");
+                    // remove all speaker's streams
+                    loop {
+                        if let Some(pos) = visibles.iter().position(|id| id.id == *speaker) {
+                            trace!(
+                                "remove {speaker} ({media_type}) from position {pos}",
+                                media_type = visibles[pos].stream
+                            );
                             visibles.remove(pos);
-                        }
-                        None => {
-                            if let Some(max_visible) = self.max_visibles {
-                                // remove last visible if visibles are filled completely
-                                if visibles.len() == max_visible {
-                                    trace!("remove last visible");
-                                    visibles.pop();
-                                }
-                            }
+                        } else {
+                            break;
                         }
                     }
-                    trace!("insert speaker {:?} at position 0", speaker);
-                    visibles.insert(0, *speaker);
+                    // make all available media of the speaker visible
+                    for media_type in media_types() {
+                        let stream = StreamId::new(*speaker, media_type);
+                        if self.contains_stream(&stream) {
+                            trace!("insert new speaker {speaker} ({media_type}) at position 0");
+                            visibles.insert(0, stream);
+                        }
+                    }
                 }
                 SpeakerSwitchMode::FirstSwap => {
-                    // check if speaker is in visibles
-                    match visibles.iter().position(|id| id == speaker) {
-                        Some(pos) => {
-                            trace!("swap visible at position 0 with new speaker at position {pos}");
-                            visibles.swap(0, pos);
-                        }
-                        None => {
-                            if let Some(max_visible) = self.max_visibles {
-                                // remove last visible if visibles are filled completely
-                                if visibles.len() == max_visible {
-                                    trace!("remove last visible");
-                                    visibles.pop();
+                    for media_type in media_types().iter().rev() {
+                        let stream = StreamId::new(*speaker, *media_type);
+                        // check if this speaker stream is visible
+                        match visibles.iter().position(|id| *id == stream) {
+                            Some(pos) => {
+                                trace!(
+                                    "swap visible at position 0 with new speaker at position {pos}"
+                                );
+                                visibles.swap(0, pos);
+                            }
+                            None => {
+                                if self.contains_stream(&stream) {
+                                    // insert speaker at first
+                                    trace!("insert speaker {speaker} at position 0");
+                                    visibles.insert(0, stream);
                                 }
                             }
-                            // insert speaker at first
-                            trace!("insert speaker {:?} at position 0", speaker);
-                            visibles.insert(0, *speaker);
                         }
                     }
                 }
                 _ => (),
             }
+
+            // remove last visibles if visibles are too many
+            if let Some(max_visible) = self.max_visibles {
+                while visibles.len() > max_visible {
+                    trace!("remove last visible");
+                    visibles.pop();
+                }
+            }
+
             // update visibles
             self.mixer.set_visibles(&visibles)?;
         } else {
             warn!("setting no speaker currently ignored")
         }
+        self.speaker = speaker;
+
         Ok(())
+    }
+
+    pub fn get_speaker(&self) -> Option<ID> {
+        self.speaker
     }
 
     /// Set status of stream with `id`.
     pub fn set_status(&mut self, id: &StreamId<ID>, new_status: StreamStatus) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
 
-        // remember current video status
-        let has_video = new_status.has_video;
-
-        // maybe show or hide if necessary
-        if !has_video {
-            self.maybe_hide(*id)?;
-        }
-
         // update video status
-        self.mixer.set_status(id, new_status)?;
+        self.mixer.set_status(id, new_status.clone())?;
 
-        // maybe show or hide if necessary
-        if has_video {
-            self.maybe_show(*id)?;
+        // if video was turned on make it visible
+        if new_status.has_video {
+            if let Some(max_visibles) = self.max_visibles {
+                if self.mixer.visibles.len() < max_visibles {
+                    self.mixer.show(id)?
+                }
+            } else {
+                self.mixer.show(id)?
+            }
         }
 
         Ok(())
+    }
+
+    pub fn show(&mut self, id: StreamId<ID>) -> Result<()> {
+        if let Some(max_visibles) = self.max_visibles {
+            if self.mixer.visibles.len() < max_visibles {
+                self.mixer.show(&id)?
+            }
+        } else {
+            self.mixer.show(&id)?
+        }
+        Ok(())
+    }
+
+    /// Return `true`, if stream is currently visible
+    pub fn is_any_visible(&self, id: &ID) -> bool {
+        for media_type in media_types() {
+            if self.mixer.is_visible(&StreamId::new(*id, media_type)) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Apply given layout `L`.

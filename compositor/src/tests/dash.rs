@@ -21,8 +21,8 @@ fn test_dash() {
     // add a stream
     mixer
         .add_stream(
-            0.into(),
-            "Participant 0".into(),
+            StreamId::camera(0),
+            "Participant 0",
             Default::default(),
             StreamStatus::default(),
         )

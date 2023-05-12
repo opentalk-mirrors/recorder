@@ -39,6 +39,7 @@ impl DisplaySink {
         let video_sink =
             gst::ElementFactory::make_with_name("xvimagesink", Some("display-video-sink"))
                 .expect("failed to create xvimagesink");
+        video_sink.set_property("sync", false);
         let audio_sink =
             gst::ElementFactory::make_with_name("pulsesink", Some("display-audio-sink"))
                 .expect("failed to create pulsesink");

@@ -32,8 +32,8 @@ fn generate_example_pipeline_picture() {
     // add three streams
     for i in 0..3 {
         talk.add_stream(
-            i.into(),
-            format!("P{i}]"),
+            StreamId::camera(i),
+            &format!("P{i}]"),
             params.clone(),
             StreamStatus::default(),
         )

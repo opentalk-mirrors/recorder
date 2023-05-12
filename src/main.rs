@@ -1,8 +1,8 @@
 use crate::http::HttpClient;
-use crate::signaling::{Event, MediaSessionType};
+use crate::signaling::Event;
 use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
-use compositor::{StreamStatus, WebRtcSourceParams};
+use compositor::{StreamId, WebRtcSourceParams};
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 use futures::future::join_all;
@@ -12,7 +12,7 @@ use lapin::message::Delivery;
 use lapin::Consumer;
 use log::error;
 use settings::Settings;
-use signaling::{ParticipantId, TrickleCandidate};
+use signaling::{media_types, ParticipantId, TrickleCandidate};
 use std::io;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -221,37 +221,33 @@ impl RecordingSession {
             Some(MAX_VISIBLES),
         )?;
 
-        // find all participants that publish their webcam
-        let publishing_participants = signaling
-            .participants()
-            .iter()
-            .filter_map(|(id, state)| {
-                state
-                    .publishes(MediaSessionType::Camera)
-                    .is_some()
-                    .then(|| {
+        // find all participants that publish some stream
+        for media_type in media_types() {
+            let publishing_participants = signaling
+                .participants()
+                .iter()
+                .filter_map(|(id, state)| {
+                    state.publishes(&media_type).is_some().then(|| {
                         (
                             *id,
                             state.display_name.clone(),
-                            state.publishes(MediaSessionType::Camera).unwrap(),
+                            state.publishes(&media_type).unwrap(),
                         )
                     })
-            })
-            .collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
 
-        // Subscribe to above collected participants
-        for (id, display_name, initial) in publishing_participants {
-            talk.add_stream(
-                id.into(),
-                display_name,
-                participant_params(id, candidate_sender.clone()),
-                initial.into(),
-            )?;
-            signaling
-                .start_subscribe(id, MediaSessionType::Camera)
-                .await?;
+            // Subscribe to above collected participants
+            for (id, display_name, initial) in publishing_participants {
+                talk.add_stream(
+                    StreamId::new(id, media_type),
+                    &display_name,
+                    participant_params(id, candidate_sender.clone()),
+                    initial.into(),
+                )?;
+                signaling.start_subscribe(id, media_type).await?;
+            }
         }
-
         talk.layout::<Layout>()?;
 
         Ok(Self {
@@ -286,86 +282,81 @@ impl RecordingSession {
     }
 
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
+        log::debug!("handle_signaling_event");
         match event {
             Event::ParticipantJoined(id) => {
-                let state = &self.signaling.participants()[&id];
-                let media_state = state.publishes(MediaSessionType::Camera);
-
-                if let Some(media_state) = media_state {
-                    log::debug!("Join: subscribe Video of {:?}", id);
-                    self.talk.add_stream(
-                        id.into(),
-                        state.display_name.to_string(),
-                        participant_params(id, self.candidate_sender.clone()),
-                        StreamStatus {
-                            has_audio: media_state.audio,
-                            has_video: media_state.video,
-                        },
-                    )?;
-                    self.talk.layout::<Layout>()?;
-                    self.signaling
-                        .start_subscribe(id, MediaSessionType::Camera)
-                        .await?;
+                log::debug!("Event::ParticipantJoined");
+                let state = &self.signaling.participants()[&id].clone();
+                for media_type in media_types() {
+                    if let Some(media_state) = state.publishes(&media_type) {
+                        log::debug!("Join: subscribe stream of {id} {media_type}");
+                        self.talk.add_stream(
+                            StreamId::new(id, media_type),
+                            &state.display_name,
+                            participant_params(id, self.candidate_sender.clone()),
+                            media_state.into(),
+                        )?;
+                        self.talk.layout::<Layout>()?;
+                        self.signaling.start_subscribe(id, media_type).await?;
+                    }
                 }
             }
             Event::ParticipantUpdated(id) => {
-                let state = &self.signaling.participants()[&id];
-                let media_state = state.publishes(MediaSessionType::Camera);
-                let is_subscribed = self.talk.contains_stream(&id.into());
+                log::debug!("Event::ParticipantUpdated");
+                let state = self.signaling.participants()[&id].clone();
+                for media_type in media_types() {
+                    let is_subscribed = self.talk.contains_stream(&StreamId::new(id, media_type));
+                    let media_state = state.publishes(&media_type);
 
-                if !is_subscribed {
-                    if let Some(media_state) = media_state {
-                        log::debug!("Update: subscribe Video of {:?}", id);
-                        self.talk.add_stream(
-                            id.into(),
-                            state.display_name.to_string(),
-                            participant_params(id, self.candidate_sender.clone()),
-                            StreamStatus {
-                                has_audio: media_state.audio,
-                                has_video: media_state.video,
-                            },
+                    if !is_subscribed {
+                        if let Some(media_state) = media_state {
+                            log::debug!("Update: subscribe stream of {id} {media_type}");
+                            self.talk.add_stream(
+                                StreamId::new(id, media_type.into()),
+                                &state.display_name,
+                                participant_params(id, self.candidate_sender.clone()),
+                                media_state.into(),
+                            )?;
+                            self.signaling.start_subscribe(id, media_type).await?;
+                            if state.consents {
+                                self.talk.show(StreamId::new(id, media_type))?;
+                            }
+                        }
+                    } else if media_state.is_none() {
+                        log::debug!("Update: unsubscribe stream of {id} {media_type}");
+                        self.talk
+                            .remove_stream(StreamId::new(id, media_type.into()))?;
+                    } else if let Some(media_state) = media_state {
+                        log::debug!(
+                            "Update: update status of stream of {id} {media_type} to {media_state}"
+                        );
+                        self.talk.set_status(
+                            &StreamId::new(id, media_type.into()),
+                            media_state.into(),
                         )?;
-                        self.talk.layout::<Layout>()?;
-                        self.signaling
-                            .start_subscribe(id, MediaSessionType::Camera)
-                            .await?;
+                    } else {
+                        log::trace!(
+                            "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"
+                        );
                         return Ok(());
                     }
-                }
-
-                if is_subscribed && media_state.is_none() {
-                    log::debug!("Update: unsubscribe Video of {:?}", id);
-                    self.talk.remove_stream(id.into())?;
-                    self.talk.layout::<Layout>()?;
-                    return Ok(());
-                }
-
-                if let Some(media_state) = media_state {
-                    self.talk.set_status(
-                        &id.into(),
-                        StreamStatus {
-                            has_audio: media_state.audio,
-                            has_video: media_state.video,
-                        },
-                    )?;
                     self.talk.layout::<Layout>()?;
                 }
-
-                log::trace!(
-                    "ignore update for {:?}: has_video_feed ({:?}) == is_subscribed ({})",
-                    id,
-                    media_state,
-                    is_subscribed
-                );
 
                 return Ok(());
             }
             Event::ParticipantLeft(id) => {
-                if self.talk.contains_stream(&id.into()) {
-                    self.talk.remove_stream(id.into())?;
-                    self.talk.layout::<Layout>()?;
+                log::debug!("Event::ParticipantLeft");
+                for media_type in media_types() {
+                    if self
+                        .talk
+                        .contains_stream(&StreamId::new(id, media_type.into()))
+                    {
+                        self.talk
+                            .remove_stream(StreamId::new(id, media_type.into()))?;
+                        self.talk.layout::<Layout>()?;
+                    }
                 }
-
                 if self.signaling.participants().is_empty() {
                     self.done = true;
                     log::debug!("Last participant left the session. Stop recording.");
@@ -377,31 +368,36 @@ impl RecordingSession {
                     );
                 }
             }
-            Event::SdpOffer(id, typ, offer) => {
-                if let Some(source) = self.talk.get_source(&id.into()) {
+            Event::SdpOffer(id, media_type, offer) => {
+                log::debug!("Event::SdpOffer");
+                if let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) {
                     let answer = source.receive_offer(offer).await;
-                    self.signaling.send_answer(id, typ, answer).await?;
+                    self.signaling.send_answer(id, media_type, answer).await?;
                 }
             }
-            Event::SdpCandidate(id, _typ, candidate) => {
-                if let Some(source) = self.talk.get_source(&id.into()) {
+            Event::SdpCandidate(id, media_type, candidate) => {
+                log::debug!("Event::SdpCandidate");
+                if let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) {
                     source
                         .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
                         .await;
                 }
             }
-            Event::SdpEndOfCandidates(id, _typ) => {
-                if let Some(source) = self.talk.get_source(&id.into()) {
-                    source.receive_end_of_candidates(0).await;
+            Event::SdpEndOfCandidates(id, media_type) => {
+                log::debug!("Event::SdpEndOfCandidates");
+                let state = &self.signaling.participants()[&id];
+                if state.publishes(&media_type).is_some() {
+                    if let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) {
+                        source.receive_end_of_candidates(0).await;
+                    }
                 }
             }
             Event::FocusUpdate(focus_change) => {
+                log::debug!("Event::FocusUpdate");
                 log::debug!("Set active speaker to {:?}", focus_change);
                 if let Some(speaker) = focus_change {
-                    self.talk.set_speaker(
-                        Some(speaker.into()),
-                        &compositor::SpeakerSwitchMode::FirstShift,
-                    )?;
+                    self.talk
+                        .set_speaker(Some(speaker), &compositor::SpeakerSwitchMode::FirstShift)?;
                 } else {
                     self.talk
                         .set_speaker(None, &compositor::SpeakerSwitchMode::FirstShift)?;
@@ -409,6 +405,7 @@ impl RecordingSession {
                 self.talk.layout::<Layout>()?;
             }
             Event::MediaConnectionError(error) => {
+                log::debug!("Event::MediaConnectionError");
                 log::warn!("Skipping media connection error: {:?}", error);
             }
             Event::Close => self.done = true,
@@ -423,21 +420,26 @@ impl RecordingSession {
         (id, mline, candidate): (ParticipantId, u32, Option<String>),
     ) -> Result<()> {
         if let Some(candidate) = candidate {
-            self.signaling
-                .send_candidate(
-                    id,
-                    MediaSessionType::Camera,
-                    TrickleCandidate {
-                        candidate,
-                        sdp_m_line_index: mline as u64,
-                    },
-                )
-                .await
+            for media_type in media_types() {
+                self.signaling
+                    .send_candidate(
+                        id,
+                        media_type,
+                        TrickleCandidate {
+                            candidate: candidate.clone(),
+                            sdp_m_line_index: mline as u64,
+                        },
+                    )
+                    .await?
+            }
         } else {
-            self.signaling
-                .send_end_of_candidates(id, MediaSessionType::Camera)
-                .await
+            for media_type in media_types() {
+                self.signaling
+                    .send_end_of_candidates(id, media_type)
+                    .await?
+            }
         }
+        Ok(())
     }
 
     async fn upload(self) -> Result<()> {
