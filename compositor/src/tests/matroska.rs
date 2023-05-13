@@ -17,7 +17,7 @@ fn test_matroska() {
     mixer
         .add_stream(
             StreamId::camera(0),
-            "Participant 0".into(),
+            "Participant 0",
             Default::default(),
             StreamStatus::default(),
         )

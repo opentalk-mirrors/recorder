@@ -21,8 +21,7 @@ fn generate_example_pipeline_picture() {
 
     // setup mixer
     let mut talk =
-        Talk::<TestSource, u32>::new(RESOLUTION, Box::new(FakeSinkBuilder::default()), None)
-            .unwrap();
+        Talk::<TestSource, u32>::new(RESOLUTION, Box::<FakeSinkBuilder>::default(), None).unwrap();
     // generate pipeline DOT graph of the empty pipeline
     talk.dot("0_init", dp);
 

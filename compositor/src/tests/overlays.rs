@@ -8,7 +8,7 @@ fn test_overlay() {
     // get output resolution from arguments
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        Box::new(testing::TestSinkBuilder::new()),
+        Box::<testing::TestSinkBuilder>::default(),
         None,
     )
     .unwrap();

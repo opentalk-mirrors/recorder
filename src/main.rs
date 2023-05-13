@@ -312,7 +312,7 @@ impl RecordingSession {
                         if let Some(media_state) = media_state {
                             log::debug!("Update: subscribe stream of {id} {media_type}");
                             self.talk.add_stream(
-                                StreamId::new(id, media_type.into()),
+                                StreamId::new(id, media_type),
                                 &state.display_name,
                                 participant_params(id, self.candidate_sender.clone()),
                                 media_state.into(),
@@ -324,16 +324,13 @@ impl RecordingSession {
                         }
                     } else if media_state.is_none() {
                         log::debug!("Update: unsubscribe stream of {id} {media_type}");
-                        self.talk
-                            .remove_stream(StreamId::new(id, media_type.into()))?;
+                        self.talk.remove_stream(StreamId::new(id, media_type))?;
                     } else if let Some(media_state) = media_state {
                         log::debug!(
                             "Update: update status of stream of {id} {media_type} to {media_state}"
                         );
-                        self.talk.set_status(
-                            &StreamId::new(id, media_type.into()),
-                            media_state.into(),
-                        )?;
+                        self.talk
+                            .set_status(&StreamId::new(id, media_type), media_state.into())?;
                     } else {
                         log::trace!(
                             "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"
@@ -348,12 +345,8 @@ impl RecordingSession {
             Event::ParticipantLeft(id) => {
                 log::debug!("Event::ParticipantLeft");
                 for media_type in media_types() {
-                    if self
-                        .talk
-                        .contains_stream(&StreamId::new(id, media_type.into()))
-                    {
-                        self.talk
-                            .remove_stream(StreamId::new(id, media_type.into()))?;
+                    if self.talk.contains_stream(&StreamId::new(id, media_type)) {
+                        self.talk.remove_stream(StreamId::new(id, media_type))?;
                         self.talk.layout::<Layout>()?;
                     }
                 }

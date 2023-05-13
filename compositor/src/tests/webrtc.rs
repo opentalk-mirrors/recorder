@@ -1,4 +1,4 @@
-use crate::testing::TestSinkBuilder;
+use crate::testing;
 use crate::{Grid, Size, WebRtcSource, WebRtcSourceParams};
 use crate::{StreamId, StreamStatus};
 use core::time::Duration;
@@ -54,7 +54,7 @@ async fn exec_events(events: Vec<Event>) {
         // Mp4SinkParams {
         //     file_path: "out.mp4".into(),
         // },
-        Box::new(TestSinkBuilder::new()),
+        Box::<testing::TestSinkBuilder>::default(),
         MAX_VISIBLES,
     )
     .unwrap();

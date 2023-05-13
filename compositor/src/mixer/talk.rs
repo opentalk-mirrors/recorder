@@ -183,7 +183,7 @@ where
         self.mixer.insert_source_overlay(
             &id,
             TextOverlay::new(
-                &display_name,
+                display_name,
                 TextFormat {
                     color: Color {
                         r: 0xff,
@@ -363,16 +363,12 @@ where
             match mode {
                 SpeakerSwitchMode::FirstShift => {
                     // remove all speaker's streams
-                    loop {
-                        if let Some(pos) = visibles.iter().position(|id| id.id == *speaker) {
-                            trace!(
-                                "remove {speaker} ({media_type}) from position {pos}",
-                                media_type = visibles[pos].stream
-                            );
-                            visibles.remove(pos);
-                        } else {
-                            break;
-                        }
+                    while let Some(pos) = visibles.iter().position(|id| id.id == *speaker) {
+                        trace!(
+                            "remove {speaker} ({media_type}) from position {pos}",
+                            media_type = visibles[pos].stream
+                        );
+                        visibles.remove(pos);
                     }
                     // make all available media of the speaker visible
                     for media_type in media_types() {

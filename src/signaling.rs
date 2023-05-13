@@ -54,7 +54,7 @@ impl ParticipantState {
         if !self.consents {
             return None;
         }
-        self.publishing.get(&typ).copied()
+        self.publishing.get(typ).copied()
     }
 }
 

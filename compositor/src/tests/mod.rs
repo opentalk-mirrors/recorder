@@ -162,12 +162,7 @@ pub mod testing {
                 name: Some(name.clone()),
             };
             mixer
-                .add_stream(
-                    StreamId::camera(*id),
-                    &name,
-                    params,
-                    StreamStatus::default(),
-                )
+                .add_stream(StreamId::camera(*id), name, params, StreamStatus::default())
                 .unwrap();
         }
 
@@ -210,13 +205,8 @@ pub mod testing {
         Display(DisplaySink),
     }
 
+    #[derive(Default)]
     pub struct TestSinkBuilder();
-
-    impl TestSinkBuilder {
-        pub fn new() -> Self {
-            Self()
-        }
-    }
 
     impl SinkBuilder for TestSinkBuilder {
         fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {

@@ -7,7 +7,7 @@ fn test_stream_status() {
 
     let mut mixer = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        Box::new(testing::TestSinkBuilder::new()),
+        Box::<testing::TestSinkBuilder>::default(),
         None,
     )
     .unwrap();

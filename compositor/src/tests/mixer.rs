@@ -19,7 +19,7 @@ where
 
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        Box::new(testing::TestSinkBuilder::new()),
+        Box::<testing::TestSinkBuilder>::default(),
         None,
     )
     .unwrap();
@@ -53,7 +53,7 @@ fn test_remove() {
 
     let mut mixer = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        Box::new(testing::TestSinkBuilder::new()),
+        Box::<testing::TestSinkBuilder>::default(),
         None,
     )
     .unwrap();
