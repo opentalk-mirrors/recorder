@@ -63,7 +63,7 @@ impl Default for StreamStatus {
     }
 }
 
-impl std::fmt::Display for StreamStatus {
+impl Display for StreamStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (self.has_video, self.has_audio) {
             (true, false) => write!(f, "video only"),

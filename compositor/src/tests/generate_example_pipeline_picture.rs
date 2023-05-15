@@ -70,28 +70,28 @@ fn convert(name: &str) {
             std::process::Command::new("dot")
                 .args(["-Tpng", "-o", intermediate, dot])
                 .output()
-                .unwrap();
+                .expect("command 'dot' failed to generate a PNG");
             let id_intermediate = std::process::Command::new("identify")
                 .args(["-quiet", "-format", "%#", intermediate])
                 .output()
-                .unwrap()
+                .expect("command 'identify' failed")
                 .stdout;
             let id_png = std::process::Command::new("identify")
                 .args(["-quiet", "-format", "%#", png])
                 .output()
-                .unwrap()
+                .expect("command 'identify' failed")
                 .stdout;
 
             if id_intermediate != id_png {
                 info!("updating file '{png}'");
-                std::fs::copy(intermediate, png).unwrap();
+                std::fs::copy(intermediate, png).expect("command 'copy' failed");
             }
             std::fs::remove_file(intermediate).unwrap();
         }
         Err(_) => {
             warn!("install imagemagick to optimize update");
             info!("updating file '{png}'");
-            std::fs::copy(intermediate, png).unwrap();
+            std::fs::copy(intermediate, png).expect("command 'copy' failed");
         }
     }
 }

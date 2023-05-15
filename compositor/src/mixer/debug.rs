@@ -63,7 +63,7 @@ pub fn dot_ext(
                 info!("GENERATING DOT FILE: '{path}/{name}.dot'");
 
                 gst::debug_bin_to_dot_file(
-                    &glib::Cast::dynamic_cast::<gst::Bin>(bin.clone()).unwrap(),
+                    &Cast::dynamic_cast::<gst::Bin>(bin.clone()).unwrap(),
                     params.details,
                     name,
                 );

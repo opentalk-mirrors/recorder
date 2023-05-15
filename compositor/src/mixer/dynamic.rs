@@ -4,7 +4,7 @@
 
 use crate::debug;
 use anyhow::{anyhow, Result};
-use gst::{prelude::*, PadProbeReturn, PadProbeType};
+use gst::{prelude::*, PadProbeInfo, PadProbeReturn, PadProbeType};
 use std::sync::mpsc;
 
 /// Safely unlink source from compositor or mixer.
@@ -17,23 +17,26 @@ pub fn unlink_source(valve: &gst::Element, target: &gst::Element) -> Result<()> 
         valve = debug::name(valve),
         target = debug::name(target),
     );
-    crate::debug::dot(target, "unlink_source");
+    debug::dot(target, "unlink_source");
 
     let valve_src = valve
         .static_pad("src")
         .ok_or_else(|| anyhow!("valve src sink not found"))?;
-    if let Some(sink) = valve_src.peer() {
-        // close valve<^
-        valve.set_property("drop", true);
 
-        // unlink ghosting from target sink
-        valve_src.unlink(&sink)?;
+    let Some(sink) = valve_src.peer() else {
+        warn!("Unnecessary unlink!");
+        return Ok(());
+    };
 
-        // remove mixer pad
-        target.release_request_pad(&sink);
-    } else {
-        warn!("Unnecessary unlink!")
-    }
+    // close valve
+    valve.set_property("drop", true);
+
+    // unlink ghosting from target sink
+    valve_src.unlink(&sink)?;
+
+    // remove mixer pad
+    target.release_request_pad(&sink);
+
     Ok(())
 }
 
@@ -47,7 +50,7 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
         valve = debug::name(valve),
         target = debug::name(target),
     );
-    crate::debug::dot(target, "link_source");
+    debug::dot(target, "link_source");
 
     let valve_src = valve
         .static_pad("src")
@@ -56,19 +59,19 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
     if let Some(sink) = valve_src.peer() {
         warn!("Unnecessary link!");
         // return sink pad at target
-        Ok(sink)
-    } else {
-        // get a new sink pad from the target
-        let sink = target
-            .request_pad_simple("sink_%u")
-            .ok_or_else(|| anyhow!("Could not request pad from '{name}'", name = target.name()))?;
-        // link to target
-        valve_src.link(&sink)?;
-        // close valve
-        valve.set_property("drop", false);
-        // return sink pad at target
-        Ok(sink)
+        return Ok(sink);
     }
+
+    // get a new sink pad from the target
+    let sink = target
+        .request_pad_simple("sink_%u")
+        .ok_or_else(|| anyhow!("Could not request pad from '{name}'", name = target.name()))?;
+    // link to target
+    valve_src.link(&sink)?;
+    // close valve
+    valve.set_property("drop", false);
+    // return sink pad at target
+    Ok(sink)
 }
 
 /// Safely remove a linked source (including it's valve) from pipeline.
@@ -83,62 +86,71 @@ pub fn remove_source(inp_src: gst::Pad, valve: &gst::Element, target: &gst::Elem
         valve = debug::name(valve),
         target = debug::name(target),
     );
-    crate::debug::dot(target, "remove_source");
 
-    // close valve
-    valve.set_property("drop", true);
+    debug::dot(target, "remove_source");
 
     // get sink behind the source's input element
     let after_inp_sink = inp_src
         .peer()
         .ok_or_else(|| anyhow!("inp element not connected"))?;
-
-    // prepare channel to sync with event probe
-    let (event_sender, event_receiver) = mpsc::sync_channel::<bool>(1);
-
     let valve_sink = valve
         .static_pad("sink")
         .ok_or_else(|| anyhow!("sink of valve not found"))?;
 
-    if let Some(ghost_pad) = valve_sink.peer() {
-        // add event probe at ghost pad
-        ghost_pad.add_probe(PadProbeType::EVENT_DOWNSTREAM, {
-            // callback at incoming event
-            move |ghost_pad, info| {
-                // filter EOS
-                if let Some(gst::PadProbeData::Event(event)) = &info.data {
-                    if event.type_() != gst::EventType::Eos {
-                        return gst::PadProbeReturn::Ok;
-                    }
-                } else {
-                    return gst::PadProbeReturn::Ok;
-                }
+    let valve_src = valve
+        .static_pad("src")
+        .ok_or_else(|| anyhow!("valve src pad not found"))?;
 
+    let Some(ghost_pad) = valve_sink.peer() else {
+        warn!("no ghost_pad found in remove_source!");
+        return Ok(());
+    };
+
+    let Some(target_sink) = valve_src.peer() else {
+        warn!("no target_sink found in remove_source!");
+        return Ok(());
+    };
+
+    // prepare channel to sync with event probe
+    let (event_sender, event_receiver) = mpsc::sync_channel::<bool>(1);
+
+    let eos_handler = move |ghost_pad: &gst::Pad, info: &mut PadProbeInfo| match &info.data {
+        // Act on EOS events
+        Some(gst::PadProbeData::Event(event)) if { event.type_() == gst::EventType::Eos } => {
+            // remove event probe from ghost pad
+            if let Some(probe_id) = info.id.take() {
                 // remove event probe from ghost pad
-                ghost_pad.remove_probe(info.id.take().expect("could not remove event probe"));
-
-                // synchronize with caller
-                event_sender
-                    .send(true)
-                    .expect("could not synchronize with caller");
-                gst::PadProbeReturn::Drop
+                ghost_pad.remove_probe(probe_id);
+            } else {
+                error!(
+                    "Failed to find probe_id {:?} on pad {:?}. Unable to remove EOS probe. ",
+                    info, ghost_pad
+                );
             }
-        });
 
-        // send EOS and wait until it arrives at the ghost pad
-        after_inp_sink.send_event(gst::event::Eos::new());
-        event_receiver.recv()?;
-
-        // unlink valve from target
-        let valve_src = valve
-            .static_pad("src")
-            .ok_or_else(|| anyhow!("valve src pad not found"))?;
-        if let Some(target_sink) = valve_src.peer() {
-            valve_src.unlink(&target_sink)?;
-            if target.pads().contains(&target_sink) {
-                target.release_request_pad(&target_sink);
-            }
+            // synchronize with caller
+            event_sender
+                .send(true)
+                .expect("could not synchronize with caller");
+            PadProbeReturn::Drop
         }
+        _ => PadProbeReturn::Ok,
+    };
+
+    // close valve
+    valve.set_property("drop", true);
+
+    // add event probe at ghost pad
+    ghost_pad.add_probe(PadProbeType::EVENT_DOWNSTREAM, eos_handler);
+
+    // send EOS and wait until it arrives at the ghost pad
+    after_inp_sink.send_event(gst::event::Eos::new());
+    event_receiver.recv()?;
+
+    // unlink valve from target
+    valve_src.unlink(&target_sink)?;
+    if target.pads().contains(&target_sink) {
+        target.release_request_pad(&target_sink);
     }
     Ok(())
 }
@@ -194,7 +206,9 @@ pub fn add_source(
     valve.sync_state_with_parent()?;
 
     // link source to valve's sink pad
-    let valve_sink = valve.static_pad("sink").ok_or_else(|| anyhow!(""))?;
+    let valve_sink = valve
+        .static_pad("sink")
+        .ok_or_else(|| anyhow!("valve has no sink pad"))?;
     ghost_pad.link(&valve_sink)?;
 
     // (re-)start bin
@@ -210,7 +224,7 @@ pub fn insert_element(bin: &gst::Bin, valve: &gst::Element, element: gst::Elemen
         at_valve = debug::name(valve),
         element = debug::name(&element)
     );
-    crate::debug::dot(bin, "insert_element");
+    debug::dot(bin, "insert_element");
 
     // get source pad behind given sink pad
     let valve_src = valve
@@ -219,6 +233,9 @@ pub fn insert_element(bin: &gst::Bin, valve: &gst::Element, element: gst::Elemen
     let next_sink = valve_src
         .peer()
         .ok_or_else(|| anyhow!("peer of src pad of valve not found"))?;
+    let next_element = &next_sink
+        .parent_element()
+        .ok_or_else(|| anyhow!("next element not found"))?;
 
     // close valve
     valve.set_property("drop", true);
@@ -234,11 +251,8 @@ pub fn insert_element(bin: &gst::Bin, valve: &gst::Element, element: gst::Elemen
 
     // link all together
     valve.link(&element)?;
-    element.link(
-        &next_sink
-            .parent_element()
-            .ok_or_else(|| anyhow!("next element not found"))?,
-    )?;
+
+    element.link(next_element)?;
 
     // open valve
     valve.set_property("drop", false);
@@ -259,27 +273,28 @@ where
     F: Fn() + Sync + Send + 'static,
 {
     trace!("on_eos({src_pad}, {once})", src_pad = debug::name(src_pad));
-    // add event probe at src pad
-    src_pad.add_probe(PadProbeType::EVENT_DOWNSTREAM, {
-        // callback at incoming event
-        move |src_pad, info| {
-            // filter EOS
-            if let Some(gst::PadProbeData::Event(event)) = &info.data {
-                if event.type_() != gst::EventType::Eos {
-                    return gst::PadProbeReturn::Ok;
-                }
-            } else {
-                return gst::PadProbeReturn::Ok;
-            }
 
+    let eos_handler = move |src_pad: &gst::Pad, info: &mut PadProbeInfo| match &info.data {
+        // Act on EOS events
+        Some(gst::PadProbeData::Event(event)) if { event.type_() == gst::EventType::Eos } => {
             // remove event probe from ghost pad
             if once {
-                src_pad.remove_probe(info.id.take().expect("could not get probe id"));
+                if let Some(probe_id) = info.id.take() {
+                    src_pad.remove_probe(probe_id);
+                } else {
+                    error!(
+                        "Failed to find probe_id {:?} on pad {:?}. Unable to remove EOS probe. ",
+                        info, src_pad
+                    );
+                }
             }
 
             f();
-
             PadProbeReturn::Ok
         }
-    });
+        _ => PadProbeReturn::Ok,
+    };
+
+    // add event probe at src pad
+    src_pad.add_probe(PadProbeType::EVENT_DOWNSTREAM, eos_handler);
 }

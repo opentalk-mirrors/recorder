@@ -299,7 +299,7 @@ fn create_publish_pipeline(
 
 #[tokio::test]
 async fn scenario1() {
-    env_logger::init();
+    let _ = env_logger::try_init();
 
     exec_events(vec![
         Event::AddParticipant(0),
