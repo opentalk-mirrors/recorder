@@ -101,7 +101,7 @@ async fn handle_webrtc_event(
 
             let source = &talk.source_mut(&StreamId::camera(id)).unwrap().source;
             let webrtcbin = publish.by_name("webrtc").unwrap();
-            let response = source.receive_offer(offer).await;
+            let response = source.receive_offer(offer).await.unwrap();
             let response = gst_webrtc::WebRTCSessionDescription::new(
                 gst_webrtc::WebRTCSDPType::Answer,
                 gst_sdp::SDPMessage::parse_buffer(response.as_bytes()).unwrap(),

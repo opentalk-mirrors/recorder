@@ -319,7 +319,7 @@ impl RecordingSession {
                             )?;
                             self.signaling.start_subscribe(id, media_type).await?;
                             if state.consents {
-                                self.talk.show(StreamId::new(id, media_type))?;
+                                self.talk.show(&StreamId::new(id, media_type))?;
                             }
                         }
                     } else if media_state.is_none() {
@@ -364,7 +364,7 @@ impl RecordingSession {
             Event::SdpOffer(id, media_type, offer) => {
                 log::debug!("Event::SdpOffer");
                 if let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) {
-                    let answer = source.receive_offer(offer).await;
+                    let answer = source.receive_offer(offer).await?;
                     self.signaling.send_answer(id, media_type, answer).await?;
                 }
             }

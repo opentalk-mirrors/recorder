@@ -28,7 +28,7 @@ pub enum MediaSessionType {
     ScreenCapture,
 }
 
-impl std::fmt::Display for MediaSessionType {
+impl Display for MediaSessionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             MediaSessionType::Camera => write!(f, "Camera"),
@@ -73,7 +73,7 @@ where
     }
 }
 
-impl<ID> std::fmt::Display for StreamId<ID>
+impl<ID> Display for StreamId<ID>
 where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
@@ -101,16 +101,16 @@ where
 ///
 pub struct Talk<SRC, ID>
 where
-    SRC: crate::Source,
+    SRC: Source,
     SRC::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     #[cfg(test)]
     /// Underlying A/V mixer provided to tests.
-    mixer: crate::Mixer<SRC, StreamId<ID>>,
+    mixer: Mixer<SRC, StreamId<ID>>,
     #[cfg(not(test))]
     /// Underlying A/V mixer.
-    mixer: crate::Mixer<SRC, StreamId<ID>>,
+    mixer: Mixer<SRC, StreamId<ID>>,
     /// Maximum number of visible participants in layouts.
     max_visibles: Option<usize>,
     /// Display names that will appear in output video
@@ -122,7 +122,7 @@ where
 
 impl<SRC, ID> Talk<SRC, ID>
 where
-    SRC: crate::Source,
+    SRC: Source,
     SRC::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
@@ -143,7 +143,7 @@ where
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
         Ok(Self {
-            mixer: crate::Mixer::<SRC, StreamId<ID>>::new(resolution, sink_builder)?,
+            mixer: Mixer::<SRC, StreamId<ID>>::new(resolution, sink_builder)?,
             max_visibles,
             names: HashMap::new(),
             unknown_speaker: None,
@@ -240,12 +240,9 @@ where
     }
 
     pub fn contains_any_stream(&self, id: &ID) -> bool {
-        for media_type in media_types() {
-            if self.contains_stream(&StreamId::new(*id, media_type)) {
-                return true;
-            }
-        }
-        false
+        media_types()
+            .into_iter()
+            .any(|media_type| self.contains_stream(&StreamId::new(*id, media_type)))
     }
 
     pub fn source_mut(&mut self, id: &StreamId<ID>) -> Option<&mut Stream<SRC>> {
@@ -299,7 +296,7 @@ where
     ///
     /// - `overlay`: Overlay to insert.
     ///
-    fn insert_overlay(&mut self, overlay: crate::Overlay) -> Result<()> {
+    fn insert_overlay(&mut self, overlay: Overlay) -> Result<()> {
         // forward to mixer
         self.mixer.insert_overlay(overlay)
     }
@@ -331,7 +328,7 @@ where
     ///
     /// - `overlay`: Overlay to insert.
     ///
-    fn insert_source_overlay(&mut self, id: &StreamId<ID>, overlay: crate::Overlay) -> Result<()> {
+    fn insert_source_overlay(&mut self, id: &StreamId<ID>, overlay: Overlay) -> Result<()> {
         // forward to mixer
         self.mixer.insert_source_overlay(id, overlay)
     }
@@ -380,8 +377,12 @@ where
                     }
                 }
                 SpeakerSwitchMode::FirstSwap => {
-                    for media_type in media_types().iter().rev() {
-                        let stream = StreamId::new(*speaker, *media_type);
+                    let streams_ids = media_types()
+                        .into_iter()
+                        .rev()
+                        .map(|media_type| StreamId::new(*speaker, media_type));
+
+                    for stream in streams_ids {
                         // check if this speaker stream is visible
                         match visibles.iter().position(|id| *id == stream) {
                             Some(pos) => {
@@ -434,37 +435,24 @@ where
 
         // if video was turned on make it visible
         if new_status.has_video {
-            if let Some(max_visibles) = self.max_visibles {
-                if self.mixer.visibles.len() < max_visibles {
-                    self.mixer.show(id)?
-                }
-            } else {
-                self.mixer.show(id)?
-            }
+            self.show(id)?
         }
-
         Ok(())
     }
 
-    pub fn show(&mut self, id: StreamId<ID>) -> Result<()> {
-        if let Some(max_visibles) = self.max_visibles {
-            if self.mixer.visibles.len() < max_visibles {
-                self.mixer.show(&id)?
-            }
-        } else {
-            self.mixer.show(&id)?
+    pub fn show(&mut self, id: &StreamId<ID>) -> Result<()> {
+        let max_visibles = self.max_visibles.unwrap_or(usize::MAX);
+        if self.mixer.visibles.len() < max_visibles {
+            self.mixer.show(id)?
         }
         Ok(())
     }
 
     /// Return `true`, if stream is currently visible
     pub fn is_any_visible(&self, id: &ID) -> bool {
-        for media_type in media_types() {
-            if self.mixer.is_visible(&StreamId::new(*id, media_type)) {
-                return true;
-            }
-        }
-        false
+        media_types()
+            .into_iter()
+            .any(|media_type| self.mixer.is_visible(&StreamId::new(*id, media_type)))
     }
 
     /// Apply given layout `L`.
@@ -483,12 +471,12 @@ where
     /// - `id`: Describes which stream shall be returned.
     ///
     pub fn get_source(&mut self, id: &StreamId<ID>) -> Option<&mut SRC> {
-        if let Some(participant) = self.mixer.streams.get_mut(id) {
-            Some(&mut participant.source)
-        } else {
-            None
-        }
+        self.mixer
+            .streams
+            .get_mut(id)
+            .map(|participant| &mut participant.source)
     }
+
     /// generate DOT file of the current pipeline
     ///
     /// # Arguments
@@ -503,7 +491,7 @@ where
 
 impl<SRC, ID> Drop for Talk<SRC, ID>
 where
-    SRC: crate::Source,
+    SRC: Source,
     SRC::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {

@@ -1,5 +1,6 @@
 use crate::*;
 
+use anyhow::{anyhow, Context};
 use gst::prelude::*;
 use gst_webrtc::WebRTCPeerConnectionState;
 use std::fmt::{Debug, Display};
@@ -142,22 +143,22 @@ impl Source for WebRtcSource {
         }
     }
 
+    fn bin(&self) -> gst::Bin {
+        self.bin.clone()
+    }
+
     fn video_inp_pad(&self) -> Option<gst::Pad> {
-        if let Some(video_in) = self.bin.by_name("video-in") {
-            if let Some(pad) = video_in.static_pad("sink") {
-                return pad.peer();
-            }
-        }
-        None
+        self.bin
+            .by_name("video-in")
+            .and_then(|video_in| video_in.static_pad("sink"))
+            .and_then(|pad| pad.peer())
     }
 
     fn audio_inp_pad(&self) -> Option<gst::Pad> {
-        if let Some(audio_in) = self.bin.by_name("audio-in") {
-            if let Some(pad) = audio_in.static_pad("sink") {
-                return pad.peer();
-            }
-        }
-        None
+        self.bin
+            .by_name("audio-in")
+            .and_then(|video_in| video_in.static_pad("sink"))
+            .and_then(|pad| pad.peer())
     }
 
     fn video_out_pad(&self) -> gst::GhostPad {
@@ -166,10 +167,6 @@ impl Source for WebRtcSource {
 
     fn audio_out_pad(&self) -> gst::GhostPad {
         self.audio_out_pad.clone()
-    }
-
-    fn bin(&self) -> gst::Bin {
-        self.bin.clone()
     }
 
     /// Get source pad after overlays shall be inserted.
@@ -190,36 +187,59 @@ impl Source for WebRtcSource {
 }
 
 impl WebRtcSource {
-    pub async fn receive_offer(&self, offer: String) -> String {
+    pub async fn receive_offer(&self, offer: String) -> anyhow::Result<String> {
         trace!("receive_offer()");
 
-        let offer = gst_webrtc::WebRTCSessionDescription::new(
-            gst_webrtc::WebRTCSDPType::Offer,
-            gst_sdp::SDPMessage::parse_buffer(offer.as_bytes())
-                .expect("failed to parse webrtc offer"),
-        );
+        let sdp_offer = gst_sdp::SDPMessage::parse_buffer(offer.as_bytes())
+            .with_context(|| format!("failed to parse webrtc offer {}", offer))?;
 
-        self.webrtcbin
-            .emit_by_name::<()>("set-remote-description", &[&offer, &None::<gst::Promise>]);
+        let offer_description =
+            gst_webrtc::WebRTCSessionDescription::new(gst_webrtc::WebRTCSDPType::Offer, sdp_offer);
+
+        self.webrtcbin.emit_by_name::<()>(
+            "set-remote-description",
+            &[&offer_description, &None::<gst::Promise>],
+        );
 
         let (send, recv) = oneshot::channel();
 
         let on_create_answer = {
             let webrtcbin = self.webrtcbin.clone();
 
-            gst::Promise::with_change_func(move |answer| {
-                let answer = answer
-                    .expect("with_change_func() error")
-                    .expect("with_change_func() no result")
-                    .get::<gst_webrtc::WebRTCSessionDescription>("answer")
-                    .expect("webrtc answer seems to be no answer");
+            gst::Promise::with_change_func(
+                move |answer: Result<Option<&gst::StructureRef>, gst::PromiseError>| {
+                    let result = match answer {
+                        Ok(Some(create_answer)) => create_answer
+                            .get::<gst_webrtc::WebRTCSessionDescription>("answer")
+                            .map(|local_description| {
+                                webrtcbin.emit_by_name::<()>(
+                                    "set-local-description",
+                                    &[&local_description, &None::<gst::Promise>],
+                                );
+                                local_description.sdp().to_string()
+                            })
+                            .with_context(|| {
+                                format!(
+                                "webrtc session could not configure local_description for offer {}",
+                                offer
+                            )
+                            }),
+                        Ok(None) => Err(anyhow!(
+                            "failed to 'create-answer' for webrtc offer {} - empty",
+                            offer
+                        )),
+                        Err(err) => Err(anyhow!(
+                            "failed to 'create-answer' for webrtc offer {} - {:?}",
+                            offer,
+                            err
+                        )),
+                    };
 
-                webrtcbin
-                    .emit_by_name::<()>("set-local-description", &[&answer, &None::<gst::Promise>]);
-
-                send.send(answer.sdp().to_string())
-                    .expect("failed to send answer SDP to main webrtc main thread");
-            })
+                    if let Err(e) = send.send(result) {
+                        error!("Failed to send SDP answer result {:?} to main webrtc thread. Receiver dropped?", e);
+                    };
+                },
+            )
         };
 
         // Call create-answer
@@ -228,7 +248,7 @@ impl WebRtcSource {
             &[&None::<gst::Structure>, &on_create_answer],
         );
 
-        recv.await.expect("failed waiting for SDP answer")
+        recv.await?
     }
 
     pub async fn receive_candidate(&self, mline: u32, candidate: String) {
