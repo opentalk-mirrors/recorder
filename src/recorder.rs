@@ -3,7 +3,7 @@ use crate::rmq::StartRecording;
 use crate::settings::Settings;
 use crate::signaling::{media_types, Event, Signaling};
 use crate::signaling::{ParticipantId, TrickleCandidate};
-use anyhow::Result;
+use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{StreamId, WebRtcSourceParams};
 use core::pin::Pin;
@@ -135,12 +135,8 @@ impl<'a> RecordingSession<'a> {
                 .participants()
                 .iter()
                 .filter_map(|(id, state)| {
-                    state.publishes(&media_type).is_some().then(|| {
-                        (
-                            *id,
-                            state.display_name.clone(),
-                            state.publishes(&media_type).unwrap(),
-                        )
+                    state.publishes(&media_type).map(|media_session_state| {
+                        (*id, state.display_name.clone(), media_session_state)
                     })
                 })
                 .collect::<Vec<_>>();
@@ -174,11 +170,15 @@ impl<'a> RecordingSession<'a> {
         while !self.done {
             tokio::select! {
                 event = self.signaling.run() => {
-                    log::trace!("signaling_event {:?}", event);
-                    self.handle_signaling_event(event?).await?;
+                    let signaling_msg = event.context("signaling error")?;
+                    log::trace!("signaling_event {:?}", signaling_msg);
+                    self.handle_signaling_event(signaling_msg).await?;
                 }
-                candidate = self.candidate_receiver.recv() => {
-                    self.handle_candidate(candidate.expect("unreachable")).await?;
+                maybe_candidate = self.candidate_receiver.recv() => {
+                    let Some(candidate) = maybe_candidate else {
+                        bail!("no candidate pair found");
+                    };
+                    self.handle_candidate(candidate).await?;
                 }
             }
         }
@@ -193,39 +193,45 @@ impl<'a> RecordingSession<'a> {
         match event {
             Event::ParticipantJoined(id) => {
                 log::debug!("Event::ParticipantJoined");
-                let state = &self.signaling.participants()[&id].clone();
-                for media_type in media_types() {
-                    if let Some(media_state) = state.publishes(&media_type) {
-                        log::debug!("Join: subscribe stream of {id} {media_type}");
-                        self.talk.add_stream(
-                            StreamId::new(id, media_type),
-                            &state.display_name,
-                            participant_params(id, self.candidate_sender.clone()),
-                            media_state.into(),
-                        )?;
-                        self.talk.layout::<Layout>()?;
-                        self.signaling.start_subscribe(id, media_type).await?;
-                    }
+
+                let participant_state = self.signaling.participant(&id)?.clone();
+                let available_media_streams = media_types().filter_map(|media_type| {
+                    participant_state
+                        .publishes(&media_type)
+                        .map(|media_state| (media_type, media_state))
+                });
+
+                for (media_type, media_state) in available_media_streams {
+                    log::debug!("Join: subscribe stream of {id} {media_type}");
+                    self.talk.add_stream(
+                        StreamId::new(id, media_type),
+                        &participant_state.display_name,
+                        participant_params(id, self.candidate_sender.clone()),
+                        media_state.into(),
+                    )?;
+                    self.talk.layout::<Layout>()?;
+                    self.signaling.start_subscribe(id, media_type).await?;
                 }
             }
             Event::ParticipantUpdated(id) => {
                 log::debug!("Event::ParticipantUpdated");
-                let state = self.signaling.participants()[&id].clone();
+                let participant_state = self.signaling.participant(&id)?.clone();
+
                 for media_type in media_types() {
                     let is_subscribed = self.talk.contains_stream(&StreamId::new(id, media_type));
-                    let media_state = state.publishes(&media_type);
+                    let media_state = participant_state.publishes(&media_type);
 
                     if !is_subscribed {
                         if let Some(media_state) = media_state {
                             log::debug!("Update: subscribe stream of {id} {media_type}");
                             self.talk.add_stream(
                                 StreamId::new(id, media_type),
-                                &state.display_name,
+                                &participant_state.display_name,
                                 participant_params(id, self.candidate_sender.clone()),
                                 media_state.into(),
                             )?;
                             self.signaling.start_subscribe(id, media_type).await?;
-                            if state.consents {
+                            if participant_state.consents {
                                 self.talk.show(&StreamId::new(id, media_type))?;
                             }
                         }
@@ -285,12 +291,20 @@ impl<'a> RecordingSession<'a> {
             }
             Event::SdpEndOfCandidates(id, media_type) => {
                 log::debug!("Event::SdpEndOfCandidates");
-                let state = &self.signaling.participants()[&id];
-                if state.publishes(&media_type).is_some() {
-                    if let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) {
-                        source.receive_end_of_candidates(0).await;
-                    }
+                let participant_state = self.signaling.participant(&id)?;
+
+                if participant_state.publishes(&media_type).is_none() {
+                    bail!(
+                        "EndOfCandidates message for {:?}:{:?} with no media stream",
+                        id,
+                        media_type
+                    );
                 }
+                let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) else {
+                    bail!("EndOfCandidates message for {:?}:{:?} with no connection setup", id, media_type);
+                };
+
+                source.receive_end_of_candidates(0).await;
             }
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Event::FocusUpdate");

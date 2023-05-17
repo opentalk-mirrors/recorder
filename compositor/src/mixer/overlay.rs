@@ -1,5 +1,5 @@
 use crate::*;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use glib::CastNone;
 use gst::traits::GstObjectExt;
 
@@ -80,11 +80,13 @@ impl Overlays {
         trace!("push( {:?} )", overlay);
 
         // get the enveloping bin
-        let bin: gst::Bin = self
+        let Ok(bin) = self
             .valve
             .parent()
-            .and_dynamic_cast()
-            .expect("expecting parent of valve to be a bin");
+            .and_dynamic_cast::<gst::Bin>()
+            else {
+                bail!("expecting parent of valve to be a bin")
+            };
 
         // insert element into running pipeline
         dynamic::insert_element(&bin, &self.valve, overlay.element())?;

@@ -28,7 +28,7 @@ pub struct Signaling {
 pub struct ParticipantState {
     pub display_name: String,
     pub consents: bool,
-    publishing: HashMap<MediaSessionType, incoming::MediaSessionState>,
+    publishing: HashMap<MediaSessionType, MediaSessionState>,
 }
 
 impl ParticipantState {
@@ -224,6 +224,14 @@ impl Signaling {
         &self.participants
     }
 
+    pub fn participant(&self, id: &ParticipantId) -> Result<&ParticipantState> {
+        let Some(participant_state) = self.participants.get(id) else {
+            bail!("Participant {id} joined but not state exists");
+        };
+
+        Ok(participant_state)
+    }
+
     pub async fn start_subscribe(
         &mut self,
         id: ParticipantId,
@@ -314,7 +322,7 @@ impl std::fmt::Display for ParticipantId {
     }
 }
 
-mod incoming {
+pub mod incoming {
 
     use super::{MediaSessionType, ParticipantId, TrickleCandidate};
     use compositor::StreamStatus;
@@ -535,6 +543,6 @@ pub struct TrickleCandidate {
 
 type MediaSessionType = compositor::MediaSessionType;
 
-pub fn media_types() -> Vec<MediaSessionType> {
+pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     compositor::media_types()
 }

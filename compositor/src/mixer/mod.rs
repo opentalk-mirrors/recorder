@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 // sub-modules
 pub mod debug;
@@ -77,7 +77,7 @@ where
     /// on top overlays
     overlays: Overlays,
     /// Holds the output sink.
-    output: Box<dyn crate::Sink>,
+    output: Box<dyn Sink>,
     /// over all generated output resolution
     output_resolution: Size,
     /// signals when bus reading stops
@@ -277,18 +277,17 @@ where
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         self.is_reading_bus = Some(rx);
 
-        let bus = self.pipeline.bus().expect("failed to get bus of pipeline");
+        let bus = self
+            .pipeline
+            .bus()
+            .context("failed to get bus of pipeline")?;
+
         std::thread::spawn({
             let pipeline = self.pipeline.clone();
             let expect_eos = self.expect_eos.clone();
             move || {
                 debug!("Started to read the pipeline bus.");
-                let mut reading = true;
-                while reading {
-                    // stop reading if we are expecting EOS after the following scan
-                    if expect_eos.load(Ordering::SeqCst) {
-                        reading = false;
-                    }
+                loop {
                     for msg in bus.iter_timed(BUS_READ_PERIOD) {
                         use gst::MessageView;
                         match msg.view() {
@@ -308,6 +307,10 @@ where
                             }
                             _ => (),
                         }
+                    }
+                    // stop reading if we are expecting EOS after the following scan
+                    if expect_eos.load(Ordering::SeqCst) {
+                        break;
                     }
                 }
             }

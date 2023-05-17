@@ -8,9 +8,10 @@ use core::{
 };
 use std::collections::HashMap;
 
-pub fn media_types() -> Vec<MediaSessionType> {
+pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     // order is priority for set speaker (first available will get focus)
-    vec![MediaSessionType::ScreenCapture, MediaSessionType::Camera]
+
+    [MediaSessionType::ScreenCapture, MediaSessionType::Camera].into_iter()
 }
 
 /// sub stream ID for testing purposes.
@@ -240,9 +241,7 @@ where
     }
 
     pub fn contains_any_stream(&self, id: &ID) -> bool {
-        media_types()
-            .into_iter()
-            .any(|media_type| self.contains_stream(&StreamId::new(*id, media_type)))
+        media_types().any(|media_type| self.contains_stream(&StreamId::new(*id, media_type)))
     }
 
     pub fn source_mut(&mut self, id: &StreamId<ID>) -> Option<&mut Stream<SRC>> {
@@ -378,7 +377,6 @@ where
                 }
                 SpeakerSwitchMode::FirstSwap => {
                     let streams_ids = media_types()
-                        .into_iter()
                         .rev()
                         .map(|media_type| StreamId::new(*speaker, media_type));
 
@@ -450,9 +448,7 @@ where
 
     /// Return `true`, if stream is currently visible
     pub fn is_any_visible(&self, id: &ID) -> bool {
-        media_types()
-            .into_iter()
-            .any(|media_type| self.mixer.is_visible(&StreamId::new(*id, media_type)))
+        media_types().any(|media_type| self.mixer.is_visible(&StreamId::new(*id, media_type)))
     }
 
     /// Apply given layout `L`.

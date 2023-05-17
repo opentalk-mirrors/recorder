@@ -3,7 +3,7 @@
 // what we need from external libraries
 
 use crate::debug;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use gst::{prelude::*, PadProbeInfo, PadProbeReturn, PadProbeType};
 use std::sync::mpsc;
 
@@ -129,9 +129,12 @@ pub fn remove_source(inp_src: gst::Pad, valve: &gst::Element, target: &gst::Elem
             }
 
             // synchronize with caller
-            event_sender
-                .send(true)
-                .expect("could not synchronize with caller");
+            if let Err(msg) = event_sender.send(true) {
+                error!(
+                    "eos_handler: Can not report {:?}. Channel was dropped already",
+                    msg
+                );
+            }
             PadProbeReturn::Drop
         }
         _ => PadProbeReturn::Ok,
@@ -160,13 +163,14 @@ pub fn remove_valve(valve: gst::Element) -> Result<()> {
     if gst::StateChangeSuccess::Async == valve.set_state(gst::State::Null)? {
         warn!("remove_source: async state change")
     }
-    valve
+    let Ok(bin) = valve
         .parent()
         .and_dynamic_cast::<gst::Bin>()
-        .expect("expected parent of valve to be a bin")
-        .remove(&valve)?;
+        else {
+        bail!("expected parent of valve to be a bin");
+    };
 
-    Ok(())
+    bin.remove(&valve).context("removing valve failed")
 }
 
 /// Safely remove unlinked bin from pipeline.
@@ -174,12 +178,14 @@ pub fn remove_bin(bin: gst::Bin) -> Result<()> {
     if gst::StateChangeSuccess::Async == bin.set_state(gst::State::Null)? {
         warn!("remove_source: async state change")
     }
-    let pipeline: gst::Pipeline = bin
+    let Ok(pipeline) = bin
         .parent()
-        .and_dynamic_cast()
-        .expect("expect parent of bin to be a pipeline");
-    pipeline.remove(&bin)?;
-    Ok(())
+        .and_dynamic_cast::<gst::Pipeline>()
+        else {
+            bail!("expected parent of bin to be a pipeline");
+        };
+
+    pipeline.remove(&bin).context("removing bin failed")
 }
 
 /// Safely add unlinked source to pipeline.
@@ -199,10 +205,14 @@ pub fn add_source(
     valve.set_property("drop", true);
 
     // add valve outside the bin
-    bin.parent()
+    let Ok(inner_bin) = bin
+        .parent()
         .and_dynamic_cast::<gst::Bin>()
-        .expect("expecting parent of valve to be a bin")
-        .add(&valve)?;
+    else {
+        bail!("expected parent of valve to be a bin");
+    };
+
+    inner_bin.add(&valve)?;
     valve.sync_state_with_parent()?;
 
     // link source to valve's sink pad
