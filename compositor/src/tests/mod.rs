@@ -200,6 +200,7 @@ pub mod testing {
     }
 
     /// Fake sink to catch the compositor output without any further processing.
+    #[derive(Debug)]
     pub enum TestSink {
         Fake(FakeSink),
         Display(DisplaySink),

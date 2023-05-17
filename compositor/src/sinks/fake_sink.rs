@@ -5,6 +5,7 @@ use gst::{
 };
 
 /// Fake sink to catch the compositor output without any further processing.
+#[derive(Debug)]
 pub struct FakeSink {
     /// Video sink pad.
     video_sink_pad: gst::Pad,

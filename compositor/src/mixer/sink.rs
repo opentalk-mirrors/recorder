@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 pub trait SinkBuilder {
     /// Create an add a sink to the pipeline.
     ///
@@ -6,7 +8,7 @@ pub trait SinkBuilder {
 }
 
 /// Trait of an output sink.
-pub trait Sink: Send + 'static {
+pub trait Sink: Send + Debug + 'static {
     /// Get sink pad of the video sink.
     fn video_sink_pad(&self) -> gst::Pad;
 

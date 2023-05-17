@@ -100,6 +100,7 @@ where
 /// - `SINK`: Sink type which will be created.
 /// - `ID`: Type which can identify a stream.
 ///
+#[derive(Debug)]
 pub struct Talk<SRC, ID>
 where
     SRC: Source,

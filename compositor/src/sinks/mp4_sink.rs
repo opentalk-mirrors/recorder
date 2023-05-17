@@ -3,6 +3,7 @@ use crate::{Sink, SinkBuilder};
 use gst::prelude::*;
 
 /// Writes out a single MP4 file using FFmpeg
+#[derive(Debug)]
 pub struct Mp4Sink {
     /// Underlying Matroska sink.
     matroska_sink: MatroskaSink,

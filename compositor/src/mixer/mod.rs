@@ -58,6 +58,7 @@ const BUS_READ_PERIOD: gst::ClockTime = gst::ClockTime::from_mseconds(1000);
 /// - `SRC`: Source type to use when adding streams.
 /// - `SINK`: Sink type to use for output.D
 /// - `ID`: stream identifier type
+#[derive(Debug)]
 pub struct Mixer<SRC, ID>
 where
     SRC: Source,

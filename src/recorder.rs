@@ -25,7 +25,7 @@ const MAX_VISIBLES: usize = 6;
 type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
 type Layout = compositor::Grid;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Recorder {
     pub settings: Arc<Settings>,
     pub http_client: Arc<HttpClient>,
@@ -45,12 +45,22 @@ impl Recorder {
         let context = self.clone();
         log::debug!("Start Recording session {command:?}");
         let recording_task = tokio::spawn(async move {
-            let session = RecordingSession::create(&context, command)
-                .await
-                .expect("Failed to start signaling session");
+            let mut session = match RecordingSession::create(&context, command).await {
+                Ok(session) => session,
+                Err(error) => {
+                    error!("Failed to start RecordingSession: {:?}", error);
+                    return;
+                }
+            };
 
-            if let Err(e) = session.run().await {
-                log::error!("Recording session failed: {:?}", e);
+            if let Err(ref recording_err) = session.run().await {
+                error!(
+                    "recording session failed but trying upload anyway {:?}",
+                    recording_err
+                );
+            };
+            if let Err(ref upload_err) = session.upload().await {
+                error!("recording upload failed {:?}", upload_err);
             }
         });
 
@@ -71,6 +81,8 @@ impl Recorder {
             .await
     }
 }
+
+#[derive(Debug)]
 pub struct RecordingSession<'a> {
     service_context: &'a Recorder,
 
@@ -166,7 +178,7 @@ impl<'a> RecordingSession<'a> {
         })
     }
 
-    pub async fn run(mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<()> {
         while !self.done {
             tokio::select! {
                 event = self.signaling.run() => {
@@ -182,8 +194,6 @@ impl<'a> RecordingSession<'a> {
                 }
             }
         }
-
-        self.upload().await?;
 
         Ok(())
     }
@@ -358,28 +368,27 @@ impl<'a> RecordingSession<'a> {
 
     async fn upload(self) -> Result<()> {
         let talk = self.talk;
-
         spawn_blocking(move || drop(talk)).await?;
 
         let recording_path = self.temp_dir.path().join("out.mp4");
 
-        if let Err(upload_err) = self
+        let Err(upload_err) = self
             .service_context
             .upload(&self.room_id, recording_path.as_ref())
-            .await
+            .await else
         {
-            let dump_name = "DUMP.mp4";
-            error!(
-                "upload of file {:?} failed. Saving output in {dump_name}.",
-                recording_path
-            );
-            tokio::fs::copy(recording_path, dump_name).await?;
-            return Err(upload_err);
-        }
+            log::debug!("Finished uploading recording for room '{}'", &self.room_id);
+            return Ok(());
+        };
 
-        log::debug!("Finished uploading recording for room '{}'", &self.room_id);
+        let dump_name = "DUMP.mp4";
+        error!(
+            "upload of file {:?} failed. Saving output in {dump_name}.",
+            recording_path
+        );
+        tokio::fs::copy(recording_path, dump_name).await?;
 
-        Ok(())
+        Err(upload_err)
     }
 }
 
@@ -409,10 +418,11 @@ impl Stream for FileReadStream {
         let mut read_buf = ReadBuf::new(&mut buf);
         ready!(this.file.poll_read(cx, &mut read_buf))?;
 
-        if read_buf.filled().is_empty() {
-            Poll::Ready(None)
-        } else {
-            Poll::Ready(Some(Ok(Bytes::copy_from_slice(read_buf.filled()))))
+        let buffer = read_buf.filled();
+        if buffer.is_empty() {
+            return Poll::Ready(None);
         }
+
+        Poll::Ready(Some(Ok(Bytes::copy_from_slice(buffer))))
     }
 }

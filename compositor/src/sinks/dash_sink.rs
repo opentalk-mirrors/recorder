@@ -7,6 +7,7 @@ use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
 use tempfile::TempDir;
 
 /// Writes out *DASH* A/V files.
+#[derive(Debug)]
 pub struct DashSink {
     /// Underlying Matroska sink.
     matroska_sink: MatroskaSink,

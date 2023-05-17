@@ -7,6 +7,7 @@ use std::fmt::{Debug, Display};
 use tokio::sync::oneshot;
 
 /// Source that connects to an WebRTC source and provides the incoming streams as participant's input.
+#[derive(Debug)]
 pub struct WebRtcSource {
     /// GStreamer bin surrounding all included elements
     bin: gst::Bin,
@@ -56,6 +57,7 @@ impl Source for WebRtcSource {
             webrtcbin
                 name=webrtc
                 bundle-policy=max-bundle
+                latency=1000
 
             webrtc.
             ! rtpvp8depay

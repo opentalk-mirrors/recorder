@@ -1,4 +1,4 @@
-use anyhow::{bail, Context as ErrorContext, Result};
+use anyhow::Result;
 use futures::future::join_all;
 use futures::StreamExt;
 use gst::glib;

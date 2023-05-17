@@ -8,6 +8,7 @@ use std::{
 };
 
 /// Writes out *Matroska* mux-ed raw A/V on a TCP port
+#[derive(Debug)]
 pub struct MatroskaSink {
     /// Video sink GStreamer pad.
     video_sink_pad: gst::Pad,

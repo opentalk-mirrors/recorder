@@ -5,6 +5,7 @@ use gst::{
 };
 
 /// Displays compositor output on the screen.
+#[derive(Debug)]
 pub struct DisplaySink {
     /// Video sink pad.
     video_sink_pad: gst::Pad,

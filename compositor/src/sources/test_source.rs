@@ -195,6 +195,7 @@ impl Source for TestSource {
                         name=valve-video-out
                     ! queue
                         name=video-out
+                        max-size-time=2000000000
                     "#,
                     name = params.name.clone().unwrap_or_default()
                 ),
@@ -217,6 +218,7 @@ impl Source for TestSource {
                             name=valve-overlay
                         ! queue
                             name=video-out
+                            max-size-time=2000000000
                         "#,
                     )
                 }
@@ -229,6 +231,7 @@ impl Source for TestSource {
                     caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
                 ! queue
                     name=audio-out
+                    max-size-time=2000000000
             "#),
             false,
         )

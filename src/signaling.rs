@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use self::incoming::MediaSessionState;
 
+#[derive(Debug)]
 pub struct Signaling {
     /// Own participant id
     _id: ParticipantId,
@@ -24,7 +25,7 @@ pub struct Signaling {
     connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ParticipantState {
     pub display_name: String,
     pub consents: bool,

@@ -178,7 +178,7 @@ fn create_publish_pipeline(
 ) {
     let pipeline = gst::parse_launch(
         r#"
-            webrtcbin name=webrtc bundle-policy=max-bundle
+            webrtcbin name=webrtc bundle-policy=max-bundle latency=500
             videotestsrc is-live=true pattern=ball ! video/x-raw,width=720,height=480 ! vp8enc ! rtpvp8pay ! webrtc.
             audiotestsrc is-live=true volume=0.02 freq=300 ! opusenc ! rtpopuspay ! webrtc.
         "#,

@@ -13,6 +13,7 @@ use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::RwLock;
 
+#[derive(Debug)]
 pub struct HttpClient {
     client: reqwest::Client,
     oidc: openidconnect::core::CoreClient,
