@@ -2,7 +2,7 @@
 name = "compositor"
 version = "0.1.1"
 edition = "2021"
-author = "OpenTalk GmbH <mail@opentalk.eu>"
+authors.workspace = true
 license = "EUPL-1.2"
 publish = false
 
@@ -20,7 +20,7 @@ tempfile = "3"
 thiserror = "1"
 derivative = "2.2"
 gst-base = { package = "gstreamer-base", version="0.20.5"}
-anyhow = "1.0.70"
+anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]

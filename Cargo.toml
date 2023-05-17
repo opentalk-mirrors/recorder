@@ -2,7 +2,6 @@
 name = "opentalk-recorder"
 version = "0.1.0"
 edition = "2021"
-author = "OpenTalk GmbH <mail@opentalk.eu>"
 license = "EUPL-1.2"
 publish = false
 
@@ -16,7 +15,7 @@ gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.20", features = [
     "v1_20",
 ] }
-tt = { package = "tokio-tungstenite", version = "0.18", features = [
+tt = { package = "tokio-tungstenite", version = "0.19", features = [
     "rustls-tls-webpki-roots",
 ] }
 reqwest = { version = "0.11", default-features = false, features = [
@@ -24,9 +23,9 @@ reqwest = { version = "0.11", default-features = false, features = [
     "stream",
     "rustls-tls",
 ] }
-config = { version = "0.13.3", default-features = false, features = ["toml"] }
+config = { version = "0.13", default-features = false, features = ["toml"] }
 env_logger = "0.10"
-anyhow = "1"
+anyhow = { version = "1", features = ["backtrace"]}
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = [
     "rt-multi-thread",
@@ -45,9 +44,12 @@ rand = "0.8"
 uuid = { features = ["serde"], version = "1" }
 bytes = "1"
 thiserror = "1"
-openidconnect = "2.5"
+openidconnect = "3"
 tempfile = "3"
 pin-project-lite = "0.2.9"
 
 [workspace]
 members = ["compositor"]
+
+[workspace.package]
+authors = ["OpenTalk Team <mail@opentalk.eu>"]

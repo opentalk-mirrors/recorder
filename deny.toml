@@ -184,6 +184,7 @@ skip = [
     { name = "syn",  version = "=2"},
     { name = "toml",  version = "=0.5"},
     { name = "windows-sys", version ="=0.45" },
+    { name = "webpki-roots", version ="=0.22.6" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
