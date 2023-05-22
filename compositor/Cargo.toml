@@ -7,10 +7,10 @@ license = "EUPL-1.2"
 publish = false
 
 [dependencies]
-gst = { package = "gstreamer", version = "0.20", features = ["v1_20"] }
+gst = { package = "gstreamer", version = "0.20", features = ["v1_22"] }
 gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.20", features = [
-    "v1_20",
+    "v1_22",
 ] }
 log = "0.4"
 glib = "0.17"
@@ -19,7 +19,7 @@ inotify = "0.10"
 tempfile = "3"
 thiserror = "1"
 derivative = "2.2"
-gst-base = { package = "gstreamer-base", version="0.20.5"}
+gst-base = { package = "gstreamer-base", version="0.20"}
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 

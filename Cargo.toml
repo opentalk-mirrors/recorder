@@ -13,7 +13,7 @@ compositor = { path = "compositor" }
 gst = { package = "gstreamer", version = "0.20" }
 gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.20", features = [
-    "v1_20",
+    "v1_22",
 ] }
 tt = { package = "tokio-tungstenite", version = "0.19", features = [
     "rustls-tls-webpki-roots",
