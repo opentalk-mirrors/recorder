@@ -17,7 +17,8 @@ pub fn unlink_source(valve: &gst::Element, target: &gst::Element) -> Result<()> 
         valve = debug::name(valve),
         target = debug::name(target),
     );
-    debug::dot(target, "unlink_source");
+
+    debug::debug_dot(target, "unlink_source");
 
     let valve_src = valve
         .static_pad("src")
@@ -50,7 +51,7 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
         valve = debug::name(valve),
         target = debug::name(target),
     );
-    debug::dot(target, "link_source");
+    debug::debug_dot(target, "link_source");
 
     let valve_src = valve
         .static_pad("src")
@@ -87,7 +88,7 @@ pub fn remove_source(inp_src: gst::Pad, valve: &gst::Element, target: &gst::Elem
         target = debug::name(target),
     );
 
-    debug::dot(target, "remove_source");
+    debug::debug_dot(target, "remove_source");
 
     // get sink behind the source's input element
     let after_inp_sink = inp_src
@@ -234,7 +235,7 @@ pub fn insert_element(bin: &gst::Bin, valve: &gst::Element, element: gst::Elemen
         at_valve = debug::name(valve),
         element = debug::name(&element)
     );
-    debug::dot(bin, "insert_element");
+    debug::debug_dot(bin, "insert_element");
 
     // get source pad behind given sink pad
     let valve_src = valve

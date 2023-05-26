@@ -16,12 +16,9 @@ pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
 
 /// sub stream ID for testing purposes.
 #[allow(dead_code)]
-#[derive(
-    Debug, Hash, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default,
-)]
+#[derive(Debug, Hash, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MediaSessionType {
     /// participant's picture (default)
-    #[default]
     #[serde(rename = "video")]
     Camera,
     /// participant's screen share
@@ -47,29 +44,23 @@ where
     /// ID identifying the participant
     pub id: ID,
     /// sub ID identifying the stream of the participant
-    pub stream: MediaSessionType,
+    pub media_type: MediaSessionType,
 }
 
 impl<ID> StreamId<ID>
 where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
-    pub fn default(id: ID) -> Self {
-        Self {
-            id,
-            stream: Default::default(),
-        }
-    }
     pub fn camera(id: ID) -> Self {
         Self {
             id,
-            stream: MediaSessionType::Camera,
+            media_type: MediaSessionType::Camera,
         }
     }
     pub fn screen(id: ID) -> Self {
         Self {
             id,
-            stream: MediaSessionType::ScreenCapture,
+            media_type: MediaSessionType::ScreenCapture,
         }
     }
 }
@@ -79,7 +70,12 @@ where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "#{id} ({stream})", id = self.id, stream = self.stream)
+        write!(
+            f,
+            "#{id} ({stream})",
+            id = self.id,
+            stream = self.media_type
+        )
     }
 }
 
@@ -88,7 +84,10 @@ where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     pub fn new(id: ID, stream: MediaSessionType) -> Self {
-        Self { id, stream }
+        Self {
+            id,
+            media_type: stream,
+        }
     }
 }
 
@@ -363,7 +362,7 @@ where
                     while let Some(pos) = visibles.iter().position(|id| id.id == *speaker) {
                         trace!(
                             "remove {speaker} ({media_type}) from position {pos}",
-                            media_type = visibles[pos].stream
+                            media_type = visibles[pos].media_type
                         );
                         visibles.remove(pos);
                     }

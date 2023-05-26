@@ -339,7 +339,7 @@ where
             .remove(&id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?;
 
-        debug::dot(&self.pipeline, "remove_stream");
+        debug::debug_dot(&self.pipeline, "remove_stream");
 
         if let Some(valve) = stream.audio_link_status.valve() {
             if let Some(inp_pad) = stream.source.audio_inp_pad() {
@@ -802,12 +802,12 @@ where
         debug!("Sending EOS...");
 
         // ensure playing
-        assert!(self.pipeline.current_state() == gst::State::Playing);
+        assert_eq!(self.pipeline.current_state(), gst::State::Playing);
 
         // send expected EOS
         self.expect_eos.store(true, Ordering::SeqCst);
         self.pipeline.send_event(gst::event::Eos::new());
-        debug::dot(&self.pipeline, "EOS");
+        debug::debug_dot(&self.pipeline, "EOS");
 
         // wait until the bus reader thread got the EOS and finishes
         if let Some(is_reading_bus) = &self.is_reading_bus {

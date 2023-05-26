@@ -105,7 +105,7 @@ impl Sink for Mp4Sink {
     fn on_exit(&mut self, pipeline: &gst::Pipeline) {
         trace!("on_exit()");
 
-        crate::mixer::debug::dot(pipeline, "on_exit");
+        crate::mixer::debug::debug_dot(pipeline, "on_exit");
 
         debug!("Closing file '{}'", self.filename);
         self.matroska_sink.on_exit(pipeline);

@@ -6,7 +6,7 @@ use crate::signaling::{media_types, Event, Signaling};
 use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
-use compositor::{MediaSessionType, StreamId, WebRtcSourceParams};
+use compositor::{MediaSessionType, SinkBuilder, StreamId, WebRtcSourceParams};
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 use futures::Stream;
@@ -94,8 +94,8 @@ pub struct RecordingSession<'a> {
 
     talk: Talk,
 
-    candidate_receiver: mpsc::Receiver<(ParticipantId, u32, Option<String>)>,
-    candidate_sender: mpsc::Sender<(ParticipantId, u32, Option<String>)>,
+    candidate_receiver: mpsc::Receiver<(StreamId<ParticipantId>, u32, Option<String>)>,
+    candidate_sender: mpsc::Sender<(StreamId<ParticipantId>, u32, Option<String>)>,
 
     done: bool,
 }
@@ -117,30 +117,31 @@ impl<'a> RecordingSession<'a> {
 
         let (candidate_sender, candidate_receiver) = mpsc::channel(12);
 
-        let mut talk = Talk::new(
-            compositor::Size::FHD,
-            if let Some(recorder) = &service_context.settings.recorder {
-                match recorder.sink.to_lowercase().as_str() {
-                    "display" => Box::<compositor::DisplaySinkBuilder>::default(),
-                    "matroska" => {
-                        if let Some(params) = &service_context.settings.matroska {
-                            Box::new(compositor::MatroskaSinkBuilder::new(params.clone()))
-                        } else {
-                            Box::new(compositor::MatroskaSinkBuilder::new(Default::default()))
-                        }
-                    }
-                    _ => Box::new(compositor::Mp4SinkBuilder::new(compositor::Mp4SinkParams {
-                        file_path: file_path
-                            .to_str()
-                            .expect("failed to convert MP4 file path into string")
-                            .into(),
-                    })),
-                }
-            } else {
-                todo!()
-            },
-            Some(MAX_VISIBLES),
-        )?;
+        let sink_setting = service_context
+            .settings
+            .recorder
+            .as_ref()
+            .map(|rec| rec.sink.as_str());
+
+        let sink_builder: Box<dyn SinkBuilder + Send> = match sink_setting {
+            Some("display") => Box::<compositor::DisplaySinkBuilder>::default(),
+            Some("matroska") => {
+                let params = service_context
+                    .settings
+                    .matroska
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or_default();
+                Box::new(compositor::MatroskaSinkBuilder::new(params))
+            }
+            _ => Box::new(compositor::Mp4SinkBuilder::new(compositor::Mp4SinkParams {
+                file_path: file_path
+                    .to_str()
+                    .expect("failed to convert MP4 file path into string")
+                    .into(),
+            })),
+        };
+        let mut talk = Talk::new(compositor::Size::FHD, sink_builder, Some(MAX_VISIBLES))?;
 
         // find all active media streams
         let available_media_streams: Vec<(
@@ -166,15 +167,16 @@ impl<'a> RecordingSession<'a> {
             .collect();
 
         for (id, display_name, media_type, media_state) in available_media_streams {
-            log::debug!("Join: subscribe stream of {id} {media_type}");
+            log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
+            let stream_id = StreamId::new(id, media_type);
             talk.add_stream(
-                StreamId::new(id, media_type),
+                stream_id,
                 &display_name,
-                participant_params(id, candidate_sender.clone()),
+                stream_params(stream_id, candidate_sender.clone()),
                 media_state.into(),
             )?;
             talk.layout::<Layout>()?;
-            signaling.start_subscribe(id, media_type).await?;
+            signaling.start_subscribe(stream_id).await?;
         }
 
         talk.layout::<Layout>()?;
@@ -200,10 +202,10 @@ impl<'a> RecordingSession<'a> {
                     self.handle_signaling_event(signaling_msg).await?;
                 }
                 maybe_candidate = self.candidate_receiver.recv() => {
-                    let Some(candidate) = maybe_candidate else {
+                    let Some((stream_id, mline, candidate)) = maybe_candidate else {
                         bail!("no candidate pair found");
                     };
-                    self.handle_candidate(candidate).await?;
+                    self.handle_candidate(stream_id, mline, candidate).await?;
                 }
             }
         }
@@ -226,14 +228,15 @@ impl<'a> RecordingSession<'a> {
 
                 for (media_type, media_state) in available_media_streams {
                     log::debug!("Join: subscribe stream of {id} {media_type}");
+                    let stream_id = StreamId::new(id, media_type);
                     self.talk.add_stream(
-                        StreamId::new(id, media_type),
+                        stream_id,
                         &participant_state.display_name,
-                        participant_params(id, self.candidate_sender.clone()),
+                        stream_params(stream_id, self.candidate_sender.clone()),
                         media_state.into(),
                     )?;
                     self.talk.layout::<Layout>()?;
-                    self.signaling.start_subscribe(id, media_type).await?;
+                    self.signaling.start_subscribe(stream_id).await?;
                 }
             }
             Event::ParticipantUpdated(id) => {
@@ -247,15 +250,16 @@ impl<'a> RecordingSession<'a> {
                     if !is_subscribed {
                         if let Some(media_state) = media_state {
                             log::debug!("Update: subscribe stream of {id} {media_type}");
+                            let stream_id = StreamId::new(id, media_type);
                             self.talk.add_stream(
-                                StreamId::new(id, media_type),
+                                stream_id,
                                 &participant_state.display_name,
-                                participant_params(id, self.candidate_sender.clone()),
+                                stream_params(stream_id, self.candidate_sender.clone()),
                                 media_state.into(),
                             )?;
-                            self.signaling.start_subscribe(id, media_type).await?;
+                            self.signaling.start_subscribe(stream_id).await?;
                             if participant_state.consents {
-                                self.talk.show(&StreamId::new(id, media_type))?;
+                                self.talk.show(&stream_id)?;
                             }
                         }
                     } else if media_state.is_none() {
@@ -297,34 +301,33 @@ impl<'a> RecordingSession<'a> {
                     );
                 }
             }
-            Event::SdpOffer(id, media_type, offer) => {
+            Event::SdpOffer(stream_id, offer) => {
                 log::debug!("Event::SdpOffer");
-                if let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) {
+                if let Some(source) = self.talk.get_source(&stream_id) {
                     let answer = source.receive_offer(offer).await?;
-                    self.signaling.send_answer(id, media_type, answer).await?;
+                    self.signaling.send_answer(stream_id, answer).await?;
                 }
             }
-            Event::SdpCandidate(id, media_type, candidate) => {
+            Event::SdpCandidate(stream_id, candidate) => {
                 log::debug!("Event::SdpCandidate");
-                if let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) {
+                if let Some(source) = self.talk.get_source(&stream_id) {
                     source
                         .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
                         .await;
                 }
             }
-            Event::SdpEndOfCandidates(id, media_type) => {
+            Event::SdpEndOfCandidates(stream_id) => {
                 log::debug!("Event::SdpEndOfCandidates");
-                let participant_state = self.signaling.participant(&id)?;
+                let participant_state = self.signaling.participant(&stream_id.id)?;
 
-                if participant_state.publishes(&media_type).is_none() {
+                if participant_state.publishes(&stream_id.media_type).is_none() {
                     bail!(
-                        "EndOfCandidates message for {:?}:{:?} with no media stream",
-                        id,
-                        media_type
+                        "EndOfCandidates message for {:?} with no media stream",
+                        stream_id
                     );
                 }
-                let Some(source) = self.talk.get_source(&StreamId::new(id, media_type)) else {
-                    bail!("EndOfCandidates message for {:?}:{:?} with no connection setup", id, media_type);
+                let Some(source) = self.talk.get_source(&stream_id) else {
+                    bail!("EndOfCandidates message for {:?} with no connection setup", stream_id);
                 };
 
                 source.receive_end_of_candidates(0).await;
@@ -354,27 +357,22 @@ impl<'a> RecordingSession<'a> {
     /// Handle SDP candidates generated by us
     async fn handle_candidate(
         &mut self,
-        (id, mline, candidate): (ParticipantId, u32, Option<String>),
+        stream_id: StreamId<ParticipantId>,
+        mline: u32,
+        candidate: Option<String>,
     ) -> Result<()> {
         if let Some(candidate) = candidate {
-            for media_type in media_types() {
-                self.signaling
-                    .send_candidate(
-                        id,
-                        media_type,
-                        TrickleCandidate {
-                            candidate: candidate.clone(),
-                            sdp_m_line_index: mline as u64,
-                        },
-                    )
-                    .await?
-            }
+            self.signaling
+                .send_candidate(
+                    stream_id,
+                    TrickleCandidate {
+                        candidate: candidate.clone(),
+                        sdp_m_line_index: mline as u64,
+                    },
+                )
+                .await?
         } else {
-            for media_type in media_types() {
-                self.signaling
-                    .send_end_of_candidates(id, media_type)
-                    .await?
-            }
+            self.signaling.send_end_of_candidates(stream_id).await?
         }
         Ok(())
     }
@@ -405,9 +403,9 @@ impl<'a> RecordingSession<'a> {
     }
 }
 
-fn participant_params(
-    id: ParticipantId,
-    sender: mpsc::Sender<(ParticipantId, u32, Option<String>)>,
+fn stream_params(
+    id: StreamId<ParticipantId>,
+    sender: mpsc::Sender<(StreamId<ParticipantId>, u32, Option<String>)>,
 ) -> WebRtcSourceParams {
     WebRtcSourceParams::default().on_ice_candidate(move |mline, candidate| {
         let _ = sender.blocking_send((id, mline, candidate));

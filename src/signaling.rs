@@ -2,6 +2,7 @@ use crate::http::HttpClient;
 use crate::settings::ControllerSettings;
 use crate::signaling::incoming::Error;
 use anyhow::{bail, Context, Result};
+use compositor::StreamId;
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
@@ -65,9 +66,9 @@ pub enum Event {
     ParticipantUpdated(ParticipantId),
     ParticipantLeft(ParticipantId),
 
-    SdpOffer(ParticipantId, MediaSessionType, String),
-    SdpCandidate(ParticipantId, MediaSessionType, TrickleCandidate),
-    SdpEndOfCandidates(ParticipantId, MediaSessionType),
+    SdpOffer(StreamId<ParticipantId>, String),
+    SdpCandidate(StreamId<ParticipantId>, TrickleCandidate),
+    SdpEndOfCandidates(StreamId<ParticipantId>),
 
     FocusUpdate(Option<ParticipantId>),
     MediaConnectionError(Error),
@@ -191,19 +192,16 @@ impl Signaling {
                 }
             },
             incoming::Message::Media(msg) => match msg {
-                incoming::MediaMessage::SdpOffer(sdp) => Ok(Some(Event::SdpOffer(
-                    sdp.source.source,
-                    sdp.source.media_session_type,
-                    sdp.sdp,
-                ))),
+                incoming::MediaMessage::SdpOffer(sdp) => {
+                    Ok(Some(Event::SdpOffer(sdp.source.into(), sdp.sdp)))
+                }
                 incoming::MediaMessage::SdpCandidate(candidate) => Ok(Some(Event::SdpCandidate(
-                    candidate.source.source,
-                    candidate.source.media_session_type,
+                    candidate.source.into(),
                     candidate.candidate,
                 ))),
-                incoming::MediaMessage::SdpEndOfCandidates(source) => Ok(Some(
-                    Event::SdpEndOfCandidates(source.source, source.media_session_type),
-                )),
+                incoming::MediaMessage::SdpEndOfCandidates(source) => {
+                    Ok(Some(Event::SdpEndOfCandidates(source.into())))
+                }
                 incoming::MediaMessage::WebRtcUp(_) => Ok(None),
                 incoming::MediaMessage::WebRtcDown(_) => Ok(None),
 
@@ -233,33 +231,22 @@ impl Signaling {
         Ok(participant_state)
     }
 
-    pub async fn start_subscribe(
-        &mut self,
-        id: ParticipantId,
-        typ: MediaSessionType,
-    ) -> Result<()> {
+    pub async fn start_subscribe(&mut self, stream_id: StreamId<ParticipantId>) -> Result<()> {
         self.send(outgoing::Message::Media(outgoing::MediaMessage::Subscribe(
-            outgoing::Target {
-                target: id,
-                media_session_type: typ,
-            },
+            stream_id.into(),
         )))
         .await
     }
 
     pub async fn send_answer(
         &mut self,
-        id: ParticipantId,
-        typ: MediaSessionType,
+        stream_id: StreamId<ParticipantId>,
         sdp: String,
     ) -> Result<()> {
         self.send(outgoing::Message::Media(outgoing::MediaMessage::SdpAnswer(
             outgoing::Sdp {
                 sdp,
-                target: outgoing::Target {
-                    target: id,
-                    media_session_type: typ,
-                },
+                target: stream_id.into(),
             },
         )))
         .await
@@ -267,17 +254,13 @@ impl Signaling {
 
     pub async fn send_candidate(
         &mut self,
-        id: ParticipantId,
-        typ: MediaSessionType,
+        stream_id: StreamId<ParticipantId>,
         candidate: TrickleCandidate,
     ) -> Result<()> {
         self.send(outgoing::Message::Media(
             outgoing::MediaMessage::SdpCandidate(outgoing::SdpCandidate {
                 candidate,
-                target: outgoing::Target {
-                    target: id,
-                    media_session_type: typ,
-                },
+                target: stream_id.into(),
             }),
         ))
         .await
@@ -285,13 +268,12 @@ impl Signaling {
 
     pub async fn send_end_of_candidates(
         &mut self,
-        id: ParticipantId,
-        typ: MediaSessionType,
+        stream_id: StreamId<ParticipantId>,
     ) -> Result<()> {
         self.send(outgoing::Message::Media(
             outgoing::MediaMessage::SdpEndOfCandidates(outgoing::Target {
-                target: id,
-                media_session_type: typ,
+                target: stream_id.id,
+                media_session_type: stream_id.media_type,
             }),
         ))
         .await
@@ -326,7 +308,7 @@ impl std::fmt::Display for ParticipantId {
 pub mod incoming {
 
     use super::{MediaSessionType, ParticipantId, TrickleCandidate};
-    use compositor::StreamStatus;
+    use compositor::{StreamId, StreamStatus};
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
@@ -456,6 +438,12 @@ pub mod incoming {
         pub media_session_type: MediaSessionType,
     }
 
+    impl From<Source> for StreamId<ParticipantId> {
+        fn from(value: Source) -> Self {
+            StreamId::new(value.source, value.media_session_type)
+        }
+    }
+
     #[derive(Debug, Deserialize, PartialEq, Eq)]
     #[serde(rename_all = "lowercase")]
     pub enum LinkDirection {
@@ -532,6 +520,15 @@ mod outgoing {
     pub struct Target {
         pub target: ParticipantId,
         pub media_session_type: MediaSessionType,
+    }
+}
+
+impl From<StreamId<ParticipantId>> for outgoing::Target {
+    fn from(value: StreamId<ParticipantId>) -> Self {
+        outgoing::Target {
+            target: value.id,
+            media_session_type: value.media_type,
+        }
     }
 }
 

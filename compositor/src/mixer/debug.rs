@@ -32,6 +32,12 @@ impl Default for Params {
     }
 }
 
+pub fn debug_dot(bin: &impl glib::IsA<gst::Element>, filename_without_extension: &str) {
+    if log::max_level() >= log::Level::Debug {
+        dot(bin, filename_without_extension);
+    }
+}
+
 pub fn dot(bin: &impl glib::IsA<gst::Element>, filename_without_extension: &str) {
     dot_ext(bin, filename_without_extension, &Default::default());
 }
@@ -48,7 +54,7 @@ pub fn dot_ext(
     // check if env var 'GST_DEBUG_DUMP_DOT_DIR' has been set properly
     let path = std::env::var("GST_DEBUG_DUMP_DOT_DIR").unwrap_or_else( |_| {
         if COUNT.load(Ordering::SeqCst) == 0 {
-            warn!("Using default dod path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
+            warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
         };
         DOT_OUTPUT_PATH.to_string()
     });
