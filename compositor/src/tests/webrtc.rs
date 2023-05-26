@@ -163,7 +163,7 @@ fn handle_user_event(
                 publish.set_state(gst::State::Null).unwrap();
             }
 
-            let id = crate::StreamId::new(id, crate::MediaSessionType::Camera);
+            let id = StreamId::new(id, crate::MediaSessionType::Camera);
             talk.remove_stream(id).unwrap();
             talk.layout::<Grid>().unwrap();
         }

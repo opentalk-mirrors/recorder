@@ -1,11 +1,12 @@
 use crate::http::HttpClient;
 use crate::rmq::StartRecording;
 use crate::settings::Settings;
+use crate::signaling::incoming::MediaSessionState;
 use crate::signaling::{media_types, Event, Signaling};
 use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
-use compositor::{StreamId, WebRtcSourceParams};
+use compositor::{MediaSessionType, StreamId, WebRtcSourceParams};
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 use futures::Stream;
@@ -141,29 +142,41 @@ impl<'a> RecordingSession<'a> {
             Some(MAX_VISIBLES),
         )?;
 
-        // find all participants that publish some stream
-        for media_type in media_types() {
-            let publishing_participants = signaling
-                .participants()
-                .iter()
-                .filter_map(|(id, state)| {
-                    state.publishes(&media_type).map(|media_session_state| {
-                        (*id, state.display_name.clone(), media_session_state)
+        // find all active media streams
+        let available_media_streams: Vec<(
+            ParticipantId,
+            String,
+            MediaSessionType,
+            MediaSessionState,
+        )> = signaling
+            .participants()
+            .iter()
+            .flat_map(|(id, participant_state)| {
+                media_types().filter_map(|media_type| {
+                    participant_state.publishes(&media_type).map(|media_state| {
+                        (
+                            *id,
+                            participant_state.display_name.clone(),
+                            media_type,
+                            media_state,
+                        )
                     })
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect();
 
-            // Subscribe to above collected participants
-            for (id, display_name, initial) in publishing_participants {
-                talk.add_stream(
-                    StreamId::new(id, media_type),
-                    &display_name,
-                    participant_params(id, candidate_sender.clone()),
-                    initial.into(),
-                )?;
-                signaling.start_subscribe(id, media_type).await?;
-            }
+        for (id, display_name, media_type, media_state) in available_media_streams {
+            log::debug!("Join: subscribe stream of {id} {media_type}");
+            talk.add_stream(
+                StreamId::new(id, media_type),
+                &display_name,
+                participant_params(id, candidate_sender.clone()),
+                media_state.into(),
+            )?;
+            talk.layout::<Layout>()?;
+            signaling.start_subscribe(id, media_type).await?;
         }
+
         talk.layout::<Layout>()?;
 
         Ok(Self {
