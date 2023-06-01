@@ -1,4 +1,3 @@
-use crate::debug::DOT_OUTPUT_PATH;
 use crate::{testing::RESOLUTION, *};
 
 const IMAGE_OUTPUT_PATH: &str = "./images";
@@ -59,7 +58,8 @@ fn generate_example_pipeline_picture() {
 
 /// check whether the generated PNG equals the old one before overwriting it
 fn convert(name: &str) {
-    let dot_path = std::env::var("GST_DEBUG_DUMP_DOT_DIR").unwrap_or(DOT_OUTPUT_PATH.to_string());
+    let dot_path =
+        std::env::var("GST_DEBUG_DUMP_DOT_DIR").expect("env GST_DEBUG_DUMP_DOT_DIR not set");
     let dot = &format!("{dot_path}/{name}.dot");
     let intermediate = &format!("{IMAGE_OUTPUT_PATH}/{name}.new.png");
     let png = &format!("{IMAGE_OUTPUT_PATH}/{name}.png");

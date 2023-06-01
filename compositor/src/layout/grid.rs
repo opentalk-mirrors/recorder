@@ -10,8 +10,6 @@ pub struct Grid {
 }
 
 impl Layout for Grid {
-    const NAME: &'static str = "grid";
-
     fn new(visibles: usize, resolution: Size) -> Self {
         Self {
             visibles,
@@ -31,6 +29,8 @@ impl Layout for Grid {
             alpha: 1.0,
         }
     }
+
+    const NAME: &'static str = "grid";
 }
 
 impl Grid {

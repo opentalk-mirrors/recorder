@@ -8,9 +8,9 @@ pub struct Speaker {
     resolution: Size,
 }
 
-impl Layout for Speaker {
-    const NAME: &'static str = "speaker";
+const VIEWER_SCALE: usize = 4;
 
+impl Layout for Speaker {
     fn new(visibles: usize, resolution: Size) -> Self {
         Self {
             visibles,
@@ -32,6 +32,8 @@ impl Layout for Speaker {
             },
         }
     }
+
+    const NAME: &'static str = "speaker";
 }
 
 impl Speaker {
@@ -40,15 +42,15 @@ impl Speaker {
     }
 
     fn viewers_height(&self) -> usize {
-        match self.visibles {
-            0 | 1 => 0,
-            2 => self.resolution.height / 2,
-            _ => self.resolution.height / (self.visibles - 1),
-        }
+        (self.viewers_width() as f64 / self.ratio()) as usize
     }
 
     fn viewers_width(&self) -> usize {
-        (self.viewers_height() as f64 * self.ratio()) as usize
+        match self.visibles {
+            0 | 1 => 0,
+            2 => self.resolution.width / 2,
+            _ => self.resolution.width / VIEWER_SCALE,
+        }
     }
 
     fn speaker_size(&self) -> Size {
@@ -76,10 +78,20 @@ impl Speaker {
                 y: self.resolution.height as i64 / 4,
             },
             // otherwise arrange viewers at the right side of the picture
-            _ => Position {
-                x: self.speaker_width() as i64,
-                y: (self.viewers_height() * n) as i64,
-            },
+            _ => {
+                if n < VIEWER_SCALE {
+                    Position {
+                        x: self.speaker_width() as i64,
+                        y: (self.viewers_height() * n) as i64,
+                    }
+                } else {
+                    let horizontal_index = n - VIEWER_SCALE;
+                    Position {
+                        x: (self.viewers_width() * (VIEWER_SCALE - horizontal_index)) as i64,
+                        y: self.speaker_height() as i64,
+                    }
+                }
+            }
         }
     }
 
@@ -107,11 +119,8 @@ impl Speaker {
                 x: 0,
                 y: self.resolution.height as i64 / 4,
             },
-            // place speaker beside the viewer arrangement and leave space at top
-            _ => Position {
-                x: 0,
-                y: self.resolution.height as i64 - self.speaker_height() as i64,
-            },
+            // place speaker beside the viewer arrangement and leave space at the bottom
+            _ => Position { x: 0, y: 0 },
         }
     }
 }

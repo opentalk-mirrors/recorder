@@ -18,7 +18,7 @@ use self::incoming::MediaSessionState;
 #[derive(Debug)]
 pub struct Signaling {
     /// Own participant id
-    _id: ParticipantId,
+    _id: Option<ParticipantId>,
 
     /// List of all other participants in the conference
     participants: HashMap<ParticipantId, ParticipantState>,
@@ -62,6 +62,7 @@ impl ParticipantState {
 /// Event emitted by [`Signaling::run`]
 #[derive(Debug)]
 pub enum Event {
+    JoinSuccess(ParticipantId),
     ParticipantJoined(ParticipantId),
     ParticipantUpdated(ParticipantId),
     ParticipantLeft(ParticipantId),
@@ -103,22 +104,9 @@ impl Signaling {
             }))?))
             .await?;
 
-        let (id, participants) =
-            if let Some(Message::Text(text)) = stream.next().await.transpose()? {
-                let payload = serde_json::from_str::<Payload<incoming::JoinSuccess>>(&text)
-                    .context("invalid join_success message")?;
-
-                (payload.payload.id, payload.payload.participants)
-            } else {
-                bail!("unexpected websocket response")
-            };
-
         Ok(Self {
-            _id: id,
-            participants: participants
-                .into_iter()
-                .map(|p| (p.id, ParticipantState::from_incoming(p)))
-                .collect(),
+            _id: None,
+            participants: HashMap::new(),
             connection: stream,
         })
     }
@@ -166,6 +154,17 @@ impl Signaling {
 
         match msg {
             incoming::Message::Control(msg) => match msg {
+                incoming::ControlMessage::JoinSuccess(state) => {
+                    self._id = Some(state.id);
+                    self.participants = HashMap::from_iter(
+                        state
+                            .participants
+                            .into_iter()
+                            .map(|p| (p.id, ParticipantState::from_incoming(p))),
+                    );
+
+                    Ok(Some(Event::JoinSuccess(state.id)))
+                }
                 incoming::ControlMessage::Joined(participant) => {
                     let id = participant.id;
 
@@ -393,6 +392,7 @@ pub mod incoming {
     #[derive(Debug, Deserialize)]
     #[serde(rename_all = "snake_case", tag = "message")]
     pub enum ControlMessage {
+        JoinSuccess(JoinSuccess),
         Joined(Participant),
         Update(Participant),
         Left { id: ParticipantId },

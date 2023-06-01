@@ -17,52 +17,50 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::fs::File;
 use tokio::io::{AsyncRead, ReadBuf};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::task::{spawn_blocking, JoinHandle};
 
 // TODO; make this configurable
 const MAX_VISIBLES: usize = 6;
 
 type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
-type Layout = compositor::Grid;
+type Layout = compositor::Speaker;
 
 #[derive(Clone, Debug)]
 pub struct Recorder {
     pub settings: Arc<Settings>,
     pub http_client: Arc<HttpClient>,
+    pub shutdown: watch::Receiver<bool>,
 }
 
 impl Recorder {
-    pub async fn create(settings: Settings) -> Result<Self> {
+    pub async fn create(settings: Settings, shutdown: watch::Receiver<bool>) -> Result<Self> {
         let settings = Arc::new(settings);
         let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
         Ok(Self {
             settings,
             http_client,
+            shutdown,
         })
     }
 
-    pub fn spawn_session(&self, command: StartRecording) -> Result<JoinHandle<()>> {
-        let context = self.clone();
+    pub async fn spawn_session(&self, command: StartRecording) -> Result<JoinHandle<Result<()>>> {
+        let context = Arc::new(self.clone());
         log::debug!("Start Recording session {command:?}");
-        let recording_task = tokio::spawn(async move {
-            let mut session = match RecordingSession::create(&context, command).await {
-                Ok(session) => session,
-                Err(error) => {
-                    error!("Failed to start RecordingSession: {:?}", error);
-                    return;
-                }
-            };
+        let mut session = RecordingSession::create(context, command)
+            .await
+            .context("recording session failed to start")?;
 
+        let recording_task = tokio::spawn(async move {
             if let Err(ref recording_err) = session.run().await {
                 error!(
                     "recording session failed but trying upload anyway {:?}",
                     recording_err
                 );
             };
-            if let Err(ref upload_err) = session.upload().await {
-                error!("recording upload failed {:?}", upload_err);
-            }
+            session.upload().await.context("recording upload failed")?;
+
+            Ok(())
         });
 
         Ok(recording_task)
@@ -84,8 +82,8 @@ impl Recorder {
 }
 
 #[derive(Debug)]
-pub struct RecordingSession<'a> {
-    service_context: &'a Recorder,
+pub struct RecordingSession {
+    service_context: Arc<Recorder>,
 
     signaling: Signaling,
 
@@ -100,12 +98,12 @@ pub struct RecordingSession<'a> {
     done: bool,
 }
 
-impl<'a> RecordingSession<'a> {
+impl RecordingSession {
     pub async fn create(
-        service_context: &'a Recorder,
+        service_context: Arc<Recorder>,
         command: StartRecording,
-    ) -> Result<RecordingSession<'a>> {
-        let mut signaling = Signaling::connect(
+    ) -> Result<RecordingSession> {
+        let signaling = Signaling::connect(
             service_context.http_client.as_ref(),
             &service_context.settings.controller,
             &command.room,
@@ -141,45 +139,7 @@ impl<'a> RecordingSession<'a> {
                     .into(),
             })),
         };
-        let mut talk = Talk::new(compositor::Size::FHD, sink_builder, Some(MAX_VISIBLES))?;
-
-        // find all active media streams
-        let available_media_streams: Vec<(
-            ParticipantId,
-            String,
-            MediaSessionType,
-            MediaSessionState,
-        )> = signaling
-            .participants()
-            .iter()
-            .flat_map(|(id, participant_state)| {
-                media_types().filter_map(|media_type| {
-                    participant_state.publishes(&media_type).map(|media_state| {
-                        (
-                            *id,
-                            participant_state.display_name.clone(),
-                            media_type,
-                            media_state,
-                        )
-                    })
-                })
-            })
-            .collect();
-
-        for (id, display_name, media_type, media_state) in available_media_streams {
-            log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
-            let stream_id = StreamId::new(id, media_type);
-            talk.add_stream(
-                stream_id,
-                &display_name,
-                stream_params(stream_id, candidate_sender.clone()),
-                media_state.into(),
-            )?;
-            talk.layout::<Layout>()?;
-            signaling.start_subscribe(stream_id).await?;
-        }
-
-        talk.layout::<Layout>()?;
+        let talk = Talk::new(compositor::Size::FHD, sink_builder, Some(MAX_VISIBLES))?;
 
         Ok(Self {
             service_context,
@@ -194,6 +154,8 @@ impl<'a> RecordingSession<'a> {
     }
 
     pub async fn run(&mut self) -> Result<()> {
+        let mut shutdown_rx = self.service_context.shutdown.clone();
+
         while !self.done {
             tokio::select! {
                 event = self.signaling.run() => {
@@ -207,6 +169,15 @@ impl<'a> RecordingSession<'a> {
                     };
                     self.handle_candidate(stream_id, mline, candidate).await?;
                 }
+                result = shutdown_rx.changed() => {
+                    if result.is_err() {
+                        return result.context("failed to listen to shutdown signal");
+                    }
+                    if *shutdown_rx.borrow() {
+                        self.done = true;
+                        break;
+                    }
+                }
             }
         }
 
@@ -214,8 +185,49 @@ impl<'a> RecordingSession<'a> {
     }
 
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
-        log::debug!("handle_signaling_event");
         match event {
+            Event::JoinSuccess(_id) => {
+                // find all active media streams
+
+                let available_media_streams: Vec<(
+                    ParticipantId,
+                    String,
+                    MediaSessionType,
+                    MediaSessionState,
+                )> = self
+                    .signaling
+                    .participants()
+                    .iter()
+                    .flat_map(|(id, participant_state)| {
+                        media_types().filter_map(|media_type| {
+                            participant_state.publishes(&media_type).map(|media_state| {
+                                (
+                                    *id,
+                                    participant_state.display_name.clone(),
+                                    media_type,
+                                    media_state,
+                                )
+                            })
+                        })
+                    })
+                    .collect();
+
+                for (id, display_name, media_type, media_state) in available_media_streams {
+                    log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
+                    let stream_id = StreamId::new(id, media_type);
+                    self.talk.add_stream(
+                        stream_id,
+                        &display_name,
+                        stream_params(stream_id, self.candidate_sender.clone()),
+                        media_state.into(),
+                    )?;
+                    self.talk.layout::<Layout>()?;
+                    self.signaling.start_subscribe(stream_id).await?;
+                }
+
+                self.talk.layout::<Layout>()?;
+            }
+
             Event::ParticipantJoined(id) => {
                 log::debug!("Event::ParticipantJoined");
 

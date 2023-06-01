@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 // sub-modules
 pub mod debug;
@@ -577,12 +577,12 @@ where
             // find all linked videos
             if let LinkStatus::Linked(valve) = &stream.video_link_status {
                 // get linked mixer sink
-                let valve_src = valve
-                    .static_pad("src")
-                    .ok_or_else(|| anyhow!("src pad of valve not found ({id})"))?;
-                let mixer_sink = valve_src
-                    .peer()
-                    .ok_or_else(|| anyhow!("mixer sink at valve not found ({id})"))?;
+                let Some(valve_src) = valve.static_pad("src") else {
+                    bail!("src pad of valve not found ({id})");
+                };
+                let Some(mixer_sink) = valve_src.peer() else {
+                    bail!("mixer sink at valve not found ({id})");
+                };
                 // layout current stream at this sink
                 let view = layout.view(n);
                 mixer_sink.set_properties(&[

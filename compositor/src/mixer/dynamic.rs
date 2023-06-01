@@ -53,9 +53,9 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
     );
     debug::debug_dot(target, "link_source");
 
-    let valve_src = valve
-        .static_pad("src")
-        .ok_or_else(|| anyhow!("valve src sink not found"))?;
+    let Some(valve_src) = valve.static_pad("src") else {
+        bail!("valve src sink not found")
+    };
 
     if let Some(sink) = valve_src.peer() {
         warn!("Unnecessary link!");
@@ -64,9 +64,10 @@ pub fn link_source(valve: &gst::Element, target: &gst::Element) -> Result<gst::P
     }
 
     // get a new sink pad from the target
-    let sink = target
-        .request_pad_simple("sink_%u")
-        .ok_or_else(|| anyhow!("Could not request pad from '{name}'", name = target.name()))?;
+    let Some(sink) = target.request_pad_simple("sink_%u") else {
+        bail!("Could not request pad from 'set_property{name}'", name = target.name());
+    };
+
     // link to target
     valve_src.link(&sink)?;
     // close valve
