@@ -289,7 +289,7 @@ impl Signaling {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Payload<'s, T> {
     pub namespace: &'s str,
     pub payload: T,
@@ -308,15 +308,15 @@ pub mod incoming {
 
     use super::{MediaSessionType, ParticipantId, TrickleCandidate};
     use compositor::{StreamId, StreamStatus};
-    use serde::Deserialize;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct JoinSuccess {
         pub id: ParticipantId,
         pub participants: Vec<Participant>,
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct Participant {
         pub id: ParticipantId,
         pub control: ControlData,
@@ -326,25 +326,25 @@ pub mod incoming {
         pub recording: RecordingData,
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ControlData {
         pub display_name: String,
     }
 
-    #[derive(Debug, Default, Deserialize)]
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
     pub struct MediaData {
         pub video: Option<MediaSessionState>,
         pub screen: Option<MediaSessionState>,
         pub is_presenter: bool,
     }
 
-    #[derive(Debug, Default, Deserialize)]
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
     pub struct RecordingData {
         #[serde(default)]
         pub consents_recording: bool,
     }
 
-    #[derive(Debug, Deserialize, Copy, Clone)]
+    #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
     pub struct MediaSessionState {
         pub video: bool,
         pub audio: bool,
@@ -382,14 +382,14 @@ pub mod incoming {
         }
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
     pub enum Message {
         Control(ControlMessage),
         Media(MediaMessage),
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case", tag = "message")]
     pub enum ControlMessage {
         JoinSuccess(JoinSuccess),
@@ -398,7 +398,7 @@ pub mod incoming {
         Left { id: ParticipantId },
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case", tag = "message")]
     pub enum MediaMessage {
         SdpOffer(Sdp),
@@ -418,21 +418,21 @@ pub mod incoming {
         Error(Error),
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct Sdp {
         pub sdp: String,
         #[serde(flatten)]
         pub source: Source,
     }
 
-    #[derive(Debug, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct SdpCandidate {
         pub candidate: TrickleCandidate,
         #[serde(flatten)]
         pub source: Source,
     }
 
-    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct Source {
         pub source: ParticipantId,
         pub media_session_type: MediaSessionType,
@@ -444,27 +444,27 @@ pub mod incoming {
         }
     }
 
-    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     #[serde(rename_all = "lowercase")]
     pub enum LinkDirection {
         Upstream,
         Downstream,
     }
 
-    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct Link {
         pub direction: LinkDirection,
         #[serde(flatten)]
         pub source: Source,
     }
 
-    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct FocusUpdate {
         pub focus: Option<ParticipantId>,
     }
 
     /// Represents a error of the janus media module
-    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     #[serde(rename_all = "snake_case", tag = "error")]
     pub enum Error {
         InvalidSdpOffer,
@@ -477,11 +477,11 @@ pub mod incoming {
     }
 }
 
-mod outgoing {
+pub mod outgoing {
     use super::{MediaSessionType, ParticipantId, TrickleCandidate};
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
     pub enum Message {
         #[allow(unused)]
@@ -489,11 +489,19 @@ mod outgoing {
         Media(MediaMessage),
     }
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case", tag = "action")]
-    pub enum ControlMessage {}
+    pub enum ControlMessage {
+        Join(Join),
+    }
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Serialize, Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    pub struct Join {
+        display_name: String,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case", tag = "action")]
     pub enum MediaMessage {
         Subscribe(Target),
@@ -502,21 +510,21 @@ mod outgoing {
         SdpEndOfCandidates(Target),
     }
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct Sdp {
         pub sdp: String,
         #[serde(flatten)]
         pub target: Target,
     }
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct SdpCandidate {
         pub candidate: TrickleCandidate,
         #[serde(flatten)]
         pub target: Target,
     }
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct Target {
         pub target: ParticipantId,
         pub media_session_type: MediaSessionType,
@@ -532,7 +540,7 @@ impl From<StreamId<ParticipantId>> for outgoing::Target {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrickleCandidate {
     pub candidate: String,
     #[serde(rename = "sdpMLineIndex")]
