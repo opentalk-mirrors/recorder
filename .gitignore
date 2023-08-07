@@ -1,5 +1,7 @@
-/target
-config.toml
+.idea
+.vscode
 /*.dot
 /*.dot.png
 /DUMP.mp4
+/target
+config.toml
