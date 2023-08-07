@@ -208,7 +208,8 @@ impl Sink for DashSink {
 
             // add watch to that folder
             inotify
-                .add_watch(output_dir, WatchMask::MOVED_TO | WatchMask::CLOSE)
+                .watches()
+                .add(output_dir, WatchMask::MOVED_TO | WatchMask::CLOSE)
                 .expect("Failed to add file watch");
             // get a copy of the callback
             let update = self.params.update_callback;

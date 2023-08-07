@@ -18,13 +18,8 @@
 # dependencies not shared by any other crates, would be ignored, as the target
 # list here is effectively saying which targets you are building for.
 targets = [
-    # The triple can be any string, but only the target triples built in to
-    # rustc (as of 1.40) can be checked against actual config expressions
-    #{ triple = "x86_64-unknown-linux-musl" },
-    # You can also specify which target_features you promise are enabled for a
-    # particular target. target_features are currently not validated against
-    # the actual valid features supported by the target architecture.
-    #{ triple = "wasm32-unknown-unknown", features = ["atomics"] },
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
 ]
 
 # This section is considered when running `cargo deny check advisories`
@@ -178,21 +173,24 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     { name = "base64", version = "=0.13.1" },
-    { name = "hermit-abi", version = "=0.2" },
-    { name = "redox_syscall", version = "=0.2" },
-    { name = "spin",  version = "=0.5.2"},
-    { name = "syn",  version = "=2"},
-    { name = "toml",  version = "=0.5"},
-    { name = "windows-sys", version ="=0.45" },
-    { name = "webpki-roots", version ="=0.22.6" },
+    { name = "bitflags", version = "=1.3" },
+    { name = "fastrand", version = "=1.9" },
+    { name = "hashbrown", version = "=0.12" },
+    { name = "indexmap", version = "=1.9" },
+    { name = "linux-raw-sys", version = "=0.3" },
+    { name = "rustix", version = "=0.37" },
+    { name = "rustls-webpki", version = "=0.100" },
+    { name = "spin",  version = "=0.5.2" },
+    { name = "syn",  version = "=2" },
+    { name = "toml",  version = "=0.5" },
+    { name = "webpki-roots", version = "=0.22" },
+    { name = "webpki-roots", version = "=0.23" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
 # dependencies starting at the specified crate, up to a certain depth, which is
 # by default infinite
-skip-tree = [
-    { name = "windows-targets", version = "=0.42", depth = 2 },
-]
+skip-tree = []
 
 # This section is considered when running `cargo deny check sources`.
 # More documentation about the 'sources' section can be found here:
