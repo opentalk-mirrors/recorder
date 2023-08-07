@@ -38,12 +38,12 @@ impl DisplaySink {
 
         // create video and audio sink
         let video_sink =
-            gst::ElementFactory::make_with_name("xvimagesink", Some("display-video-sink"))
-                .expect("failed to create xvimagesink");
+            gst::ElementFactory::make_with_name("autovideosink", Some("display-video-sink"))
+                .expect("failed to create autovideosink");
         video_sink.set_property("sync", false);
         let audio_sink =
-            gst::ElementFactory::make_with_name("pulsesink", Some("display-audio-sink"))
-                .expect("failed to create pulsesink");
+            gst::ElementFactory::make_with_name("autoaudiosink", Some("display-audio-sink"))
+                .expect("failed to create autoaudiosink");
 
         // add sinks to pipeline
         pipeline
