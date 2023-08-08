@@ -21,7 +21,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::{spawn_blocking, JoinHandle};
 
 // TODO; make this configurable
-const MAX_VISIBLES: usize = 6;
+pub const MAX_VISIBLES: usize = 6;
 
 type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
 type Layout = compositor::Speaker;
@@ -34,14 +34,18 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub async fn create(settings: Settings, shutdown: watch::Receiver<bool>) -> Result<Self> {
-        let settings = Arc::new(settings);
-        let http_client = Arc::new(HttpClient::discover(&settings.auth).await?);
-        Ok(Self {
-            settings,
-            http_client,
+    /// This constructor is used by the integration tests to mock data.
+    #[allow(dead_code)]
+    pub fn new(
+        settings: Settings,
+        http_client: HttpClient,
+        shutdown: watch::Receiver<bool>,
+    ) -> Self {
+        Self {
+            settings: Arc::new(settings),
+            http_client: Arc::new(http_client),
             shutdown,
-        })
+        }
     }
 
     pub async fn spawn_session(&self, command: StartRecording) -> Result<JoinHandle<Result<()>>> {
@@ -99,6 +103,31 @@ pub struct RecordingSession {
 }
 
 impl RecordingSession {
+    /// This constructor is used by the integration tests to mock data.
+    #[allow(dead_code)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        service_context: Arc<Recorder>,
+        signaling: Signaling,
+        room_id: String,
+        temp_dir: TempDir,
+        talk: Talk,
+        candidate_receiver: mpsc::Receiver<(StreamId<ParticipantId>, u32, Option<String>)>,
+        candidate_sender: mpsc::Sender<(StreamId<ParticipantId>, u32, Option<String>)>,
+        done: bool,
+    ) -> Self {
+        Self {
+            service_context,
+            signaling,
+            room_id,
+            temp_dir,
+            talk,
+            candidate_receiver,
+            candidate_sender,
+            done,
+        }
+    }
+
     pub async fn create(
         service_context: Arc<Recorder>,
         command: StartRecording,
