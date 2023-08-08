@@ -40,7 +40,7 @@ impl DisplaySink {
         let video_sink =
             gst::ElementFactory::make_with_name("autovideosink", Some("display-video-sink"))
                 .expect("failed to create autovideosink");
-        video_sink.set_property("sync", false);
+        video_sink.set_property("sync", true);
         let audio_sink =
             gst::ElementFactory::make_with_name("autoaudiosink", Some("display-audio-sink"))
                 .expect("failed to create autoaudiosink");
