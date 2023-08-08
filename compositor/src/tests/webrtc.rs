@@ -1,6 +1,4 @@
-use crate::testing;
-use crate::{Grid, Size, WebRtcSource, WebRtcSourceParams};
-use crate::{StreamId, StreamStatus};
+use crate::{testing, Grid, Size, StreamId, StreamStatus, WebRtcSource, WebRtcSourceParams};
 use core::time::Duration;
 use glib::{Cast, Continue, ObjectExt};
 use gst::prelude::*;
@@ -47,6 +45,16 @@ async fn exec_events(events: Vec<Event>) {
 
     gst::init().unwrap();
 
+    // Run a MainLoop on a separate thread so gstreamer bus watches work
+    let main_loop = glib::MainLoop::new(None, false);
+    std::thread::spawn({
+        let main_loop = main_loop.clone();
+
+        move || {
+            main_loop.run();
+        }
+    });
+
     const MAX_VISIBLES: Option<usize> = Some(7);
 
     let mut talk = Talk::new(
@@ -77,12 +85,19 @@ async fn exec_events(events: Vec<Event>) {
                         handle_user_event(event, &mut participants, &tx, &mut talk);
                     }
                 } else {
+                    main_loop.quit();
                     break;
                 }
             }
             Some(event) = rx.recv() => {
                 handle_webrtc_event(&mut talk, &mut participants, event).await
             }
+        }
+    }
+
+    for (_, participant) in participants {
+        if let Some(pipeline) = participant.publish {
+            pipeline.set_state(gst::State::Null).unwrap();
         }
     }
 }
@@ -153,6 +168,7 @@ fn handle_user_event(
             assert!(state.publish.is_none());
 
             create_publish_pipeline(tx, id, state, talk);
+            talk.show(&StreamId::camera(id)).unwrap();
             talk.layout::<Grid>().unwrap();
         }
         Event::Unpublish(id) => {
@@ -179,8 +195,8 @@ fn create_publish_pipeline(
     let pipeline = gst::parse_launch(
         r#"
             webrtcbin name=webrtc bundle-policy=max-bundle latency=500
-            videotestsrc is-live=true pattern=ball ! video/x-raw,width=720,height=480 ! vp8enc ! rtpvp8pay ! webrtc.
-            audiotestsrc is-live=true volume=0.02 freq=300 ! opusenc ! rtpopuspay ! webrtc.
+            videotestsrc is-live=true pattern=ball ! video/x-raw,width=720,height=480 ! vp8enc ! rtpvp8pay pt=100 ! webrtc.
+            audiotestsrc is-live=true volume=0.02 freq=300 ! opusenc ! rtpopuspay pt=101 ! webrtc.
         "#,
     )
     .unwrap()
@@ -204,38 +220,43 @@ fn create_publish_pipeline(
         }
     });
 
+    // ON ICE GATHER STATE CHANGED
+    webrtcbin.connect_notify(Some("ice-gathering-state"), {
+        let tx = tx.clone();
+
+        move |webrtcbin, _| {
+            let state =
+                webrtcbin.property::<gst_webrtc::WebRTCICEGatheringState>("ice-gathering-state");
+
+            if state == gst_webrtc::WebRTCICEGatheringState::Complete {
+                let _ = tx.send(WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id));
+            }
+        }
+    });
+
     let bus = pipeline.bus().unwrap();
 
     // ON LAST ICE CANDIDATE
-    bus.add_watch_local({
-        let tx = tx.clone();
-
-        move |_, msg| {
-            if let gst::MessageView::PropertyNotify(prop) = msg.view() {
-                let (_obj, name, value) = prop.get();
-
-                if name == "ice-gathering-state" {
-                    if let Some(value) = value {
-                        if let Ok(state) = value.get::<gst_webrtc::WebRTCICEGatheringState>() {
-                            if state == gst_webrtc::WebRTCICEGatheringState::Complete {
-                                let _ = tx.send(WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id));
-                            }
-                        }
-                    }
-                }
+    let pipeline_weak = pipeline.downgrade();
+    bus.add_watch(move |_, msg| {
+        if let gst::MessageView::Latency(_) = msg.view() {
+            if let Some(pipeline) = pipeline_weak.upgrade() {
+                let _ = pipeline.recalculate_latency();
             }
-
-            Continue(true)
         }
+
+        Continue(true)
     })
     .unwrap();
 
     // ON NEGOTIATION NEEDED
     webrtcbin.connect("on-negotiation-needed", true, {
-        let webrtcbin = webrtcbin.clone();
+        let webrtcbin_weak = webrtcbin.downgrade();
         let tx = tx.clone();
 
         move |_| {
+            let webrtcbin = webrtcbin_weak.upgrade()?;
+
             let on_create_offer = {
                 // Clone webrtcbin and tx once to move it into the Promise
                 let tx = tx.clone();
@@ -276,14 +297,13 @@ fn create_publish_pipeline(
     pipeline.set_state(gst::State::Playing).unwrap();
     state.publish = Some(pipeline);
 
+    let webrtcbin_weak = webrtcbin.downgrade();
     talk.add_stream(
         StreamId::camera(id),
         &format!("Mock {id}"),
         WebRtcSourceParams::default().on_ice_candidate(move |mline, candidate| {
-            if let Some(candidate) = candidate {
+            if let Some(webrtcbin) = webrtcbin_weak.upgrade() {
                 webrtcbin.emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);
-            } else {
-                webrtcbin.emit_by_name::<()>("add-ice-candidate", &[&mline, &None::<String>]);
             }
         }),
         StreamStatus {
@@ -292,7 +312,6 @@ fn create_publish_pipeline(
         },
     )
     .unwrap();
-    talk.layout::<Grid>().unwrap();
 }
 
 // --- scenarios

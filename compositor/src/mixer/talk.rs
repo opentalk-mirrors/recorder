@@ -106,10 +106,6 @@ where
     SRC::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
-    #[cfg(test)]
-    /// Underlying A/V mixer provided to tests.
-    mixer: Mixer<SRC, StreamId<ID>>,
-    #[cfg(not(test))]
     /// Underlying A/V mixer.
     mixer: Mixer<SRC, StreamId<ID>>,
     /// Maximum number of visible participants in layouts.

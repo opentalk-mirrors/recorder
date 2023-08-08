@@ -283,6 +283,18 @@ where
             .bus()
             .context("failed to get bus of pipeline")?;
 
+        let pipeline_weak = self.pipeline.downgrade();
+        bus.add_watch(move |_, msg| {
+            if let gst::MessageView::Latency(_) = msg.view() {
+                if let Some(pipeline) = pipeline_weak.upgrade() {
+                    // Recalculate pipeline latency when requested
+                    let _ = pipeline.recalculate_latency();
+                }
+            }
+
+            Continue(true)
+        })?;
+
         std::thread::spawn({
             let pipeline = self.pipeline.clone();
             let expect_eos = self.expect_eos.clone();
