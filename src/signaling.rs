@@ -77,6 +77,20 @@ pub enum Event {
 }
 
 impl Signaling {
+    /// This constructor is used by the integration tests to mock data.
+    #[allow(dead_code)]
+    pub fn new(
+        id: Option<ParticipantId>,
+        participants: HashMap<ParticipantId, ParticipantState>,
+        connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    ) -> Self {
+        Self {
+            _id: id,
+            participants,
+            connection,
+        }
+    }
+
     pub async fn connect(
         client: &HttpClient,
         settings: &ControllerSettings,

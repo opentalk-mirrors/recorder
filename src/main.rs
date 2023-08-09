@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::future::join_all;
 use futures::StreamExt;
 use gst::glib;
+use http::HttpClient;
 use log::warn;
 use settings::Settings;
 use tokio::select;
@@ -116,7 +117,8 @@ async fn rmq_session(
 async fn main2(mut shutdown_rx: Receiver<bool>) -> Result<()> {
     let settings = Settings::load("config.toml")?;
 
-    let recorder_context = Recorder::create(settings, shutdown_rx.clone()).await?;
+    let http_client = HttpClient::discover(&settings.auth).await?;
+    let recorder_context = Recorder::new(settings, http_client, shutdown_rx.clone());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
 
     while !*shutdown_rx.borrow() {

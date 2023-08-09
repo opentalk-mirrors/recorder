@@ -21,6 +21,20 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
+    /// This constructor is used by the integration tests to mock data.
+    #[allow(dead_code)]
+    pub fn new(
+        client: reqwest::Client,
+        oidc: openidconnect::core::CoreClient,
+        access_token: RwLock<AccessToken>,
+    ) -> Self {
+        Self {
+            client,
+            oidc,
+            access_token,
+        }
+    }
+
     pub async fn discover(settings: &AuthSettings) -> Result<Self> {
         let client = reqwest::Client::new();
 
