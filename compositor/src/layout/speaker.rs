@@ -85,9 +85,14 @@ impl Speaker {
                         y: (self.viewers_height() * n) as i64,
                     }
                 } else {
-                    let horizontal_index = n - VIEWER_SCALE;
+                    // All the viewers where `n < VIEWER_SCALE` are placed on the right side of the column.
+                    // The entire right column is filled with participants.
+                    // That's the reason why there is an offset by 1, to avoid overlapping of two participants.
+                    const HORIZONTAL_INDEX_OFFSET: usize = 1;
+                    let horizontal_index = n - VIEWER_SCALE + HORIZONTAL_INDEX_OFFSET;
+                    let horizontal_offset = (self.viewers_width() * horizontal_index) as i64;
                     Position {
-                        x: (self.viewers_width() * (VIEWER_SCALE - horizontal_index)) as i64,
+                        x: self.speaker_width() as i64 - horizontal_offset,
                         y: self.speaker_height() as i64,
                     }
                 }

@@ -21,7 +21,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::{spawn_blocking, JoinHandle};
 
 // TODO; make this configurable
-pub const MAX_VISIBLES: usize = 6;
+pub const MAX_VISIBLES: usize = 8;
 
 type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
 type Layout = compositor::Speaker;
