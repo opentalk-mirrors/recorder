@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use gst::glib;
+use gst::{glib, traits::ElementExt};
 use opentalk_recorder::signaling::{incoming, outgoing};
 use tokio::{
     sync::{mpsc, watch, Mutex},
@@ -207,6 +207,11 @@ impl EventRunner {
         let mut users = self.users.lock().await;
         if let Some(user) = users.remove(&index) {
             self.mock_controller.send_left(&user.participant).await;
+            if let Some(webrtc_pipeline) = user.webrtc_pipeline {
+                webrtc_pipeline
+                    .set_state(gst::State::Null)
+                    .expect("unable to set state of webrtc_pipeline to null");
+            }
         }
     }
     async fn sleep(&self, duration: Duration) {
