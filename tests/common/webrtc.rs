@@ -79,13 +79,15 @@ pub(crate) fn create_pipeline(
 
     // ON NEGOTIATION NEEDED
     webrtcbin.connect("on-negotiation-needed", true, {
-        let webrtcbin = webrtcbin.clone();
+        let webrtcbin_weak = webrtcbin.downgrade();
         let to_recorder_tx = to_recorder_tx.clone();
 
         move |_| {
+            let webrtcbin = webrtcbin_weak.upgrade()?;
+
             let on_create_offer = {
-                let to_recorder_tx = to_recorder_tx.clone();
                 // Clone webrtcbin and tx once to move it into the Promise
+                let to_recorder_tx = to_recorder_tx.clone();
                 let webrtcbin = webrtcbin.clone();
 
                 gst::Promise::with_change_func(move |offer| {

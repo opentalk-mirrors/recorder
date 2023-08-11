@@ -137,8 +137,10 @@ impl MatroskaSink {
             .expect("failed to get  matroska's local listening address");
         debug!("Start listening on {address}");
 
+        let sink_weak = sink.downgrade();
         // spawn a thread which waits until the channel
         std::thread::spawn(move || loop {
+            let Some(sink) = sink_weak.upgrade() else { return; };
             let (socket, _) = listener
                 .accept()
                 .expect("failed to accept incoming TCP connection in matroska");
