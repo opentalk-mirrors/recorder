@@ -22,7 +22,7 @@ mod tests {
         ];
 
         for index in 1..=HOUR_IN_MINUTE as usize {
-            if index % MAX_USERS_CONCURRENTLY == 0 {
+            if index > MAX_USERS_CONCURRENTLY {
                 events.push(Event::LeftUser(index - MAX_USERS_CONCURRENTLY));
             }
             events.push(Event::Sleep(Duration::from_secs(5)));
