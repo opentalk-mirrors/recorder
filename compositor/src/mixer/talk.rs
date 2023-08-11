@@ -1,13 +1,14 @@
+use crate::*;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::*;
 use core::{
     fmt::{Debug, Display},
     hash::Hash,
 };
 use std::collections::HashMap;
 
+/// return available media types
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     // order is priority for set speaker (first available will get focus)
 
@@ -43,7 +44,7 @@ where
 {
     /// ID identifying the participant
     pub id: ID,
-    /// sub ID identifying the stream of the participant
+    /// type of the stream
     pub media_type: MediaSessionType,
 }
 
@@ -51,12 +52,22 @@ impl<ID> StreamId<ID>
 where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
+    /// create an ID of the given participant's camera stream
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: ID of the participant
     pub fn camera(id: ID) -> Self {
         Self {
             id,
             media_type: MediaSessionType::Camera,
         }
     }
+    /// create an ID of the given participant's screen sharing stream
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: ID of the participant
     pub fn screen(id: ID) -> Self {
         Self {
             id,
@@ -83,6 +94,12 @@ impl<ID> StreamId<ID>
 where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
+    /// create new stream ID
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: ID of the participant
+    /// - `stream`: type of the stream
     pub fn new(id: ID, stream: MediaSessionType) -> Self {
         Self {
             id,
@@ -114,6 +131,7 @@ where
     names: HashMap<StreamId<ID>, String>,
     /// Will be used to cache a speaker whose stream was not added yet
     unknown_speaker: Option<(ID, SpeakerSwitchMode)>,
+    /// participant who is currently speaking or `None`
     speaker: Option<ID>,
 }
 
@@ -139,8 +157,33 @@ where
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
+        let overlays = vec![
+            TextOverlay::new(
+                "",
+                TextFormat {
+                    align: Align {
+                        horizontal: HAlign::Left,
+                        vertical: VAlign::Top,
+                    },
+                    ..Default::default()
+                },
+            )
+            .into(),
+            ClockOverlay::new(
+                "%x %X %Z",
+                TextFormat {
+                    align: Align {
+                        horizontal: HAlign::Right,
+                        vertical: VAlign::Top,
+                    },
+                    ..Default::default()
+                },
+            )
+            .into(),
+        ];
+
         Ok(Self {
-            mixer: Mixer::<SRC, StreamId<ID>>::new(resolution, sink_builder)?,
+            mixer: Mixer::<SRC, StreamId<ID>>::new(resolution, sink_builder, overlays)?,
             max_visibles,
             names: HashMap::new(),
             unknown_speaker: None,
@@ -153,7 +196,7 @@ where
     /// # Arguments
     ///
     /// - `id`: Identifies the stream to add
-    /// - 'display_name': Human readable name which might get visible within output composite
+    /// - `display_name`: Human readable name which might get visible within output composite
     /// - `params`: Proprietary parameters to use when creating sink instance.
     /// - `initial`: Initial A/V display status.
     ///
@@ -169,30 +212,26 @@ where
     {
         trace!("add_stream( {id}, '{display_name}', {params:?}, {initial} )");
 
+        let overlays = vec![TextOverlay::new(
+            display_name,
+            TextFormat {
+                color: Color {
+                    r: 0xff,
+                    g: 0xff,
+                    b: 0xff,
+                    a: 0x80,
+                },
+                ..Default::default()
+            },
+        )
+        .into()];
+
         // forward to mixer
         self.mixer
-            .add_stream(id, display_name.to_string(), params)?;
+            .add_stream(id, display_name.to_string(), params, overlays)?;
 
         // remember display name
         self.names.insert(id, display_name.to_string());
-
-        // add display name to video
-        self.mixer.insert_source_overlay(
-            &id,
-            TextOverlay::new(
-                display_name,
-                TextFormat {
-                    color: Color {
-                        r: 0xff,
-                        g: 0xff,
-                        b: 0xff,
-                        a: 0x80,
-                    },
-                    ..Default::default()
-                },
-            )
-            .into(),
-        )?;
 
         // link audio
         if initial.has_audio {
@@ -243,89 +282,6 @@ where
     pub fn source_mut(&mut self, id: &StreamId<ID>) -> Option<&mut Stream<SRC>> {
         // forward to mixer
         self.mixer.streams.get_mut(id)
-    }
-
-    /// Add a text overlay behind the video compositor.
-    ///
-    /// # Arguments
-    ///
-    /// - `text`: Text to display
-    /// - `text_format`: Formatting attributes
-    ///
-    pub fn insert_overlay_text(
-        &mut self,
-        text: &str,
-        text_format: TextFormat,
-    ) -> Result<TextOverlay> {
-        trace!("push_overlay_text( {text}, {text_format} )");
-
-        // prepare text overlay and add to mixer
-        let overlay = TextOverlay::new(text, text_format);
-        self.insert_overlay(Overlay::Text(overlay.clone()))?;
-        Ok(overlay)
-    }
-
-    /// Add a clock clock behind the video compositor.
-    ///
-    /// # Arguments
-    ///
-    /// - `text`: Text to display
-    /// - `text_format`: Formatting attributes
-    ///
-    pub fn insert_overlay_clock(
-        &mut self,
-        format: &str,
-        text_format: TextFormat,
-    ) -> Result<ClockOverlay> {
-        trace!("push_overlay_clock( {format:?}, {text_format:?} )");
-
-        // prepare text overlay and add to mixer
-        let overlay = ClockOverlay::new(format, text_format);
-        self.insert_overlay(Overlay::Clock(overlay.clone()))?;
-        Ok(overlay)
-    }
-
-    /// Add an overlay behind the video compositor.
-    ///
-    /// # Arguments
-    ///
-    /// - `overlay`: Overlay to insert.
-    ///
-    fn insert_overlay(&mut self, overlay: Overlay) -> Result<()> {
-        // forward to mixer
-        self.mixer.insert_overlay(overlay)
-    }
-
-    /// Add a text overlay behind the a given source.
-    ///
-    /// # Arguments
-    ///
-    /// - `text`: Text to display
-    /// - `text_format`: Formatting attributes
-    ///
-    pub fn insert_source_overlay_text(
-        &mut self,
-        id: &StreamId<ID>,
-        text: &str,
-        text_format: TextFormat,
-    ) -> Result<TextOverlay> {
-        trace!("push_overlay_text( {text:?}, {text_format:?} )");
-
-        // prepare text overlay and add to mixer
-        let overlay = TextOverlay::new(text, text_format);
-        self.insert_source_overlay(id, Overlay::Text(overlay.clone()))?;
-        Ok(overlay)
-    }
-
-    /// Add an overlay behind the a given source.
-    ///
-    /// # Arguments
-    ///
-    /// - `overlay`: Overlay to insert.
-    ///
-    fn insert_source_overlay(&mut self, id: &StreamId<ID>, overlay: Overlay) -> Result<()> {
-        // forward to mixer
-        self.mixer.insert_source_overlay(id, overlay)
     }
 
     /// Set which participant will be visualized as speaker.
@@ -416,11 +372,17 @@ where
         Ok(())
     }
 
+    /// Get ID of current speaker or `None`
     pub fn get_speaker(&self) -> Option<ID> {
         self.speaker
     }
 
     /// Set status of stream with `id`.
+    ///
+    /// # Arguments
+    ///
+    /// `id`: ID of the participant's stream
+    /// `new_status`: new status for that stream
     pub fn set_status(&mut self, id: &StreamId<ID>, new_status: StreamStatus) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
 
@@ -434,15 +396,83 @@ where
         Ok(())
     }
 
+    /// Set title of the talk which is displayed in overlay
+    ///
+    /// # Arguments
+    ///
+    /// `title`: title text
+    pub fn set_title(&self, title: &str) {
+        if let Overlay::Text(overlay) = &self.mixer.overlays[0] {
+            return overlay.set(title);
+        }
+        panic!("talk has no title overlay!")
+    }
+
+    /// Show title of the talk
+    ///
+    /// # Arguments
+    ///
+    /// `show`: Visible if `true`
+    pub fn show_title(&self, show: bool) {
+        self.mixer.overlays[0].show(show);
+    }
+
+    /// Show clock in the talk
+    ///
+    /// # Arguments
+    ///
+    /// `show`: Visible if `true`
+    pub fn show_clock(&self, show: bool) {
+        self.mixer.overlays[1].show(show);
+    }
+
+    /// Set title in a participant's stream
+    ///
+    /// # Arguments
+    ///
+    /// `id`: ID of the participant's stream
+    /// `title`: title text
+    pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) -> Result<()> {
+        if let Some(stream) = self.mixer.streams.get(id) {
+            if let Overlay::Text(overlay) = &stream.overlays[0] {
+                overlay.set(title);
+                return Ok(());
+            }
+        }
+        panic!("source {id} title overlay missing")
+    }
+
+    /// Show titles in participants' streams
+    ///
+    /// # Arguments
+    ///
+    /// `show`: Visible if `true`
+    pub fn show_streams_titles(&self, show: bool) {
+        for stream in self.mixer.streams.values() {
+            stream.overlays[0].show(show);
+        }
+    }
+
+    /// ensure a participant's stream to be visible
+    ///
+    /// # Arguments
+    ///
+    /// `id`: ID of the  stream
     pub fn show(&mut self, id: &StreamId<ID>) -> Result<()> {
         let max_visibles = self.max_visibles.unwrap_or(usize::MAX);
         if self.mixer.visibles.len() < max_visibles {
             self.mixer.show(id)?
+        } else {
+            error!("cannot make any more participants visible regarding `max_visibles`")
         }
         Ok(())
     }
 
-    /// Return `true`, if stream is currently visible
+    /// Return `true`, if a participant's stream is currently visible
+    ///
+    /// # Arguments
+    ///
+    /// `id`: ID of the participant's stream
     pub fn is_any_visible(&self, id: &ID) -> bool {
         media_types().any(|media_type| self.mixer.is_visible(&StreamId::new(*id, media_type)))
     }

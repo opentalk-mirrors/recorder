@@ -24,10 +24,6 @@ where
     )
     .unwrap();
 
-    testing::add_overlay_name(&mut talk, &format!("test_layout_{}", L::NAME));
-
-    let title = talk.insert_overlay_text("", TextFormat::default()).unwrap();
-
     testing::wait_millis(100);
 
     let (_, ids) = testing::generate_streams(&mut talk, 5, 5);
@@ -37,7 +33,7 @@ where
     testing::wait();
 
     for i in 1..ids.len() + 1 {
-        title.set(&format!("Showing {i} Participant(s)"));
+        talk.set_title(&format!("Showing {i} Participant(s)"));
 
         talk.dot(&format!("test_layout_{}-{i}", L::NAME), testing::DOT_PARAMS);
         testing::wait();
@@ -51,57 +47,53 @@ fn test_remove() {
     // initialize for testing
     testing::init();
 
-    let mut mixer = Talk::<TestSource, u32>::new(
+    let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Box::<testing::TestSinkBuilder>::default(),
         None,
     )
     .unwrap();
 
-    testing::add_overlay_name(&mut mixer, "test_remove");
-
-    let title = mixer
-        .insert_overlay_text("", TextFormat::default())
-        .unwrap();
+    talk.set_title("test_remove");
 
     for i in 0..2 {
-        testing::generate_streams(&mut mixer, 8, 5);
+        testing::generate_streams(&mut talk, 8, 5);
 
-        mixer.dot(&format!("test_remove_{i}-0"), testing::DOT_PARAMS);
+        talk.dot(&format!("test_remove_{i}-0"), testing::DOT_PARAMS);
 
-        mixer.dot(&format!("test_remove_{i}-1"), testing::DOT_PARAMS);
-
-        testing::wait();
-
-        title.set("remove 0 (left 1-7)");
-        mixer.remove_stream(StreamId::camera(0)).unwrap();
-        mixer.layout::<Grid>().unwrap();
-
-        mixer.dot(&format!("test_remove_{i}-2"), testing::DOT_PARAMS);
+        talk.dot(&format!("test_remove_{i}-1"), testing::DOT_PARAMS);
 
         testing::wait();
 
-        title.set("remove 1-2 (left 3-7)");
-        mixer.remove_stream(StreamId::camera(1)).unwrap();
-        mixer.remove_stream(StreamId::camera(2)).unwrap();
-        mixer.layout::<Grid>().unwrap();
-        mixer.dot(&format!("test_remove_{i}-3"), testing::DOT_PARAMS);
+        talk.set_title("remove 0 (left 1-7)");
+        talk.remove_stream(StreamId::camera(0)).unwrap();
+        talk.layout::<Grid>().unwrap();
+
+        talk.dot(&format!("test_remove_{i}-2"), testing::DOT_PARAMS);
 
         testing::wait();
 
-        title.set("remove 3-6 (left 7)");
-        mixer.remove_stream(StreamId::camera(3)).unwrap();
-        mixer.remove_stream(StreamId::camera(4)).unwrap();
-        mixer.remove_stream(StreamId::camera(5)).unwrap();
-        mixer.remove_stream(StreamId::camera(6)).unwrap();
-        mixer.layout::<Grid>().unwrap();
-        mixer.dot(&format!("test_remove_{i}-4"), testing::DOT_PARAMS);
+        talk.set_title("remove 1-2 (left 3-7)");
+        talk.remove_stream(StreamId::camera(1)).unwrap();
+        talk.remove_stream(StreamId::camera(2)).unwrap();
+        talk.layout::<Grid>().unwrap();
+        talk.dot(&format!("test_remove_{i}-3"), testing::DOT_PARAMS);
 
         testing::wait();
 
-        title.set("remove 7 (none left)");
-        mixer.remove_stream(StreamId::camera(7)).unwrap();
-        mixer.dot(&format!("test_remove_{i}-5"), testing::DOT_PARAMS);
+        talk.set_title("remove 3-6 (left 7)");
+        talk.remove_stream(StreamId::camera(3)).unwrap();
+        talk.remove_stream(StreamId::camera(4)).unwrap();
+        talk.remove_stream(StreamId::camera(5)).unwrap();
+        talk.remove_stream(StreamId::camera(6)).unwrap();
+        talk.layout::<Grid>().unwrap();
+        talk.dot(&format!("test_remove_{i}-4"), testing::DOT_PARAMS);
+
+        testing::wait();
+
+        talk.set_title("remove 7 (none left)");
+        talk.remove_stream(StreamId::camera(7)).unwrap();
+        talk.dot(&format!("test_remove_{i}-5"), testing::DOT_PARAMS);
 
         testing::wait();
     }

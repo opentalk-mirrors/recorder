@@ -101,10 +101,7 @@ impl From<Pattern> for &'static str {
 pub struct TestSource {
     bin: gst::Bin,
     video_inp_pad: gst::Pad,
-    video_out_pad: gst::GhostPad,
-    audio_out_pad: gst::GhostPad,
     audio_inp_pad: gst::Pad,
-    overlays: Overlays,
 }
 
 /// Specific parameters needed to create a [TestSource]
@@ -191,8 +188,6 @@ impl Source for TestSource {
                     ! imagefreeze
                         name=video-inp
                         is-live=true
-                    ! valve
-                        name=valve-video-out
                     ! queue
                         name=video-out
                         max-size-time=2000000000
@@ -212,10 +207,7 @@ impl Source for TestSource {
                             caps=video/x-raw,format=RGB,width={width},height={height}
                         ! videoscale
                         ! capssetter
-                            name=overlays
                             caps=video/x-raw,format=RGB,width={out_width},height={out_height}
-                        ! valve
-                            name=valve-overlay
                         ! queue
                             name=video-out
                             max-size-time=2000000000
@@ -262,20 +254,11 @@ impl Source for TestSource {
         bin.add_pad(&audio_out_pad)
             .expect("failed to add audio output ghost pad to webrtc bin");
 
-        // create new overlays container
-        let valve_overlay = pipeline
-            .by_name("valve-overlay")
-            .expect("failed to get video output valve from pipeline");
-        let overlays = Overlays::new(valve_overlay);
-
         TestSource {
             // remember elements and pads for connect/disconnect
             bin,
             video_inp_pad,
-            video_out_pad,
             audio_inp_pad,
-            audio_out_pad,
-            overlays,
         }
     }
 
@@ -287,19 +270,7 @@ impl Source for TestSource {
         Some(self.audio_inp_pad.clone())
     }
 
-    fn video_out_pad(&self) -> gst::GhostPad {
-        self.video_out_pad.clone()
-    }
-
-    fn audio_out_pad(&self) -> gst::GhostPad {
-        self.audio_out_pad.clone()
-    }
-
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
-    }
-
-    fn overlays(&mut self) -> &mut Overlays {
-        &mut self.overlays
     }
 }

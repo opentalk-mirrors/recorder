@@ -54,9 +54,14 @@ const BUS_EOS_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(20
 const BUS_READ_PERIOD: gst::ClockTime = gst::ClockTime::from_mseconds(1000);
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type
+///
+/// Here is an example pipeline:
+/// <div>
+/// <img src="../../../compositor/images/1_add_streams.png" width="1000" />
+/// </div>
+///
 /// # Types
 /// - `SRC`: Source type to use when adding streams.
-/// - `SINK`: Sink type to use for output.D
 /// - `ID`: stream identifier type
 #[derive(Debug)]
 pub struct Mixer<SRC, ID>
@@ -76,7 +81,7 @@ where
     /// The mixer GStreamer pipeline.
     pub pipeline: gst::Pipeline,
     /// on top overlays
-    overlays: Overlays,
+    overlays: Vec<Overlay>,
     /// Holds the output sink.
     output: Box<dyn Sink>,
     /// over all generated output resolution
@@ -100,9 +105,14 @@ where
     /// # Arguments
     ///
     /// - `resolution`: Output video resolution.
-    /// - `sink_params`: Parameters to create the output sink.
+    /// - `sink_builder`: Builder which creates output sink
+    /// - `overlays`: List of overlays to attach behind the compositor
     ///
-    pub fn new(resolution: Size, sink_builder: Box<dyn SinkBuilder>) -> Result<Self> {
+    pub fn new(
+        resolution: Size,
+        sink_builder: Box<dyn SinkBuilder>,
+        overlays: Vec<Overlay>,
+    ) -> Result<Self> {
         trace!("new( {resolution:?} )");
 
         // get width/height
@@ -129,9 +139,8 @@ where
                         name=video-compositor
                         ignore-inactive-pads=true
                         zero-size-is-unscaled=true
-                    ! valve
-                        name=valve-overlay
-                    ! queue
+                    
+                    queue
                         name=video-out
 
                     audiotestsrc
@@ -165,6 +174,19 @@ where
             .static_pad("src")
             .expect("failed to get source pad from video output");
 
+        // add any given overlay elements to a vector and to the pipeline
+        let mut elements: Vec<&gst::Element> = overlays.iter().map(|o| o.element()).collect();
+        pipeline.add_many(&elements)?;
+        // insert elements between `compositor` and `video_out`
+        elements.insert(0, &compositor);
+        elements.push(&video_out);
+        gst::Element::link_many(&elements)?;
+
+        // sync all elements' states with parent
+        for element in elements {
+            element.sync_state_with_parent()?;
+        }
+
         // get audio elements from bin
         let audio_mixer = pipeline
             .by_name("audio-mixer")
@@ -187,13 +209,6 @@ where
             .link(&output.audio_sink_pad())
             .expect("failed to link output pad to audio output sink");
 
-        // create new overlays container
-        let valve_overlay = pipeline
-            .by_name("valve-overlay")
-            .expect("failed to get video output valve from pipeline");
-
-        let overlays = Overlays::new(valve_overlay);
-
         // start pipeline
         pipeline.set_state(gst::State::Playing)?;
 
@@ -202,8 +217,8 @@ where
             compositor,
             audio_mixer,
             visibles: Vec::new(),
-            overlays,
             pipeline,
+            overlays,
             streams: HashMap::new(),
             output,
             output_resolution: resolution,
@@ -225,12 +240,14 @@ where
     /// - `id`: Unique identifier of the stream.
     /// - `display_name`: Name to display to user as identifier.
     /// - `params`: Source specific parameters.
+    /// - `overlays`: list of overlays to attach behind source
     ///
     pub fn add_stream(
         &mut self,
         id: ID,
         display_name: String,
         params: SRC::Parameters,
+        overlays: Vec<Overlay>,
     ) -> Result<()> {
         trace!("add_stream( {id}, '{display_name}', {params:?} )");
 
@@ -246,16 +263,15 @@ where
             &self.output_resolution,
             display_name,
             params,
+            overlays,
         );
 
         // attach video source to a valve
-        let valve =
-            dynamic::add_source(&stream.source.bin(), &stream.source.video_out_pad(), None)?;
+        let valve = dynamic::add_source(&stream.source.bin(), &stream.overlays, None)?;
         stream.video_link_status = LinkStatus::Unlinked(valve);
 
         // attach audio source to a valve
-        let valve =
-            dynamic::add_source(&stream.source.bin(), &stream.source.audio_out_pad(), None)?;
+        let valve = dynamic::add_source(&stream.source.bin(), &Vec::new(), None)?;
         stream.audio_link_status = LinkStatus::Unlinked(valve);
 
         // start any not playing pipeline elements
@@ -271,18 +287,21 @@ where
 
     /// Continuously read the bus for errors and EOS.
     fn read_bus(&mut self) -> Result<()> {
-        // signal that we start reading the bus
+        // abort if we already are reading the bus
         if self.is_reading_bus.is_some() {
             return Ok(());
         }
+        // signal that we start reading the bus
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         self.is_reading_bus = Some(rx);
 
+        // get pipeline bus
         let bus = self
             .pipeline
             .bus()
             .context("failed to get bus of pipeline")?;
 
+        // add watch which continuous recalculates latency
         let pipeline_weak = self.pipeline.downgrade();
         bus.add_watch(move |_, msg| {
             if let gst::MessageView::Latency(_) = msg.view() {
@@ -291,22 +310,25 @@ where
                     let _ = pipeline.recalculate_latency();
                 }
             }
-
             Continue(true)
         })?;
 
+        // spawn thread which reads the bus
         std::thread::spawn({
             let pipeline = self.pipeline.clone();
             let expect_eos = self.expect_eos.clone();
             move || {
                 debug!("Started to read the pipeline bus.");
                 loop {
+                    // wait for message on bus
                     for msg in bus.iter_timed(BUS_READ_PERIOD) {
                         use gst::MessageView;
+                        // check several message types
                         match msg.view() {
                             MessageView::Error(err) => log_err_like!("Error", err, pipeline),
                             MessageView::Warning(warn) => log_err_like!("Warning", warn, pipeline),
                             MessageView::Info(info) => log_err_like!("Info", info, pipeline),
+                            // check if EOS is one we send ourself and so is expected
                             MessageView::Eos(..) => {
                                 if expect_eos.load(Ordering::SeqCst) {
                                     debug!("got expected EOS");
@@ -353,9 +375,9 @@ where
 
         debug::debug_dot(&self.pipeline, "remove_stream");
 
+        // unlink and remove audio stream if linked
         if let Some(valve) = stream.audio_link_status.valve() {
             if let Some(inp_pad) = stream.source.audio_inp_pad() {
-                // unlink and remove audio source from pipeline
                 dynamic::remove_source(inp_pad, &valve, &self.audio_mixer)?;
             }
             dynamic::remove_valve(valve)?;
@@ -363,10 +385,9 @@ where
             error!("could not find valve of audio source of {id}")
         }
 
-        // unlink and remove video source from pipeline
+        // unlink and remove video stream from pipeline
         if let Some(valve) = stream.video_link_status.valve() {
             if let Some(inp_pad) = stream.source.video_inp_pad() {
-                // unlink and remove audio source from pipeline
                 dynamic::remove_source(inp_pad, &valve, &self.compositor)?;
             }
             dynamic::remove_valve(valve)?;
@@ -374,6 +395,7 @@ where
             error!("could not find valve of video source of {id}")
         }
 
+        // remove whole source bin from pipeline
         dynamic::remove_bin(stream.source.bin())?;
 
         // remove stream from visibles
@@ -382,38 +404,6 @@ where
         }
 
         debug!("Removed stream {id}");
-        Ok(())
-    }
-
-    /// push new overlay on top of output video within the pipeline
-    ///
-    /// # Arguments
-    ///
-    /// - `overlay`: new overlay to push
-    ///
-    pub fn insert_overlay(&mut self, overlay: Overlay) -> Result<()> {
-        trace!("push_overlay( {overlay:?} )");
-
-        // forward to overlays
-        self.overlays.push(overlay)?;
-
-        debug!("Pushed overlay");
-        Ok(())
-    }
-
-    /// push new overlay on top of source video within the pipeline
-    ///
-    /// # Arguments
-    ///
-    /// - `overlay`: new overlay to push
-    ///
-    pub fn insert_source_overlay(&mut self, id: &ID, overlay: Overlay) -> Result<()> {
-        trace!("push_source_overlay( {overlay:?}, {id} )");
-
-        // add new overlay to source stream
-        self.get_stream_mut(id)?.push_overlay(overlay)?;
-
-        debug!("Pushed source overlay to {id}");
         Ok(())
     }
 
@@ -458,6 +448,8 @@ where
         Ok(())
     }
 
+    /// ensure a participant to be visible
+    /// `id`: ID of participant
     pub fn show(&mut self, id: &ID) -> Result<()> {
         if !self.visibles.contains(id) {
             debug!("make {id} visible");
@@ -497,7 +489,7 @@ where
             .status
             .clone();
 
-        // unlink stream's video/audio  from rest of the pipeline according to new status
+        // link or unlink stream's audio from rest of the pipeline according to new status
         match self.get_stream(id)?.audio_link_status {
             LinkStatus::None => panic!("set_status failed on uninitialized audio stream ({id})"),
             LinkStatus::Unlinked(_) => {
@@ -511,6 +503,7 @@ where
                 }
             }
         }
+        // or unlink unlink stream's video from rest of the pipeline according to new status
         match self.get_stream(id)?.video_link_status {
             LinkStatus::None => panic!("set_status failed on uninitialized video stream ({id})"),
             LinkStatus::Unlinked(_) => {
@@ -535,6 +528,10 @@ where
     }
 
     /// Access the mixer's mutable streams.
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: ID of the stream.
     fn get_stream_mut(&mut self, id: &ID) -> Result<&mut Stream<SRC>> {
         self.streams
             .get_mut(id)
@@ -542,6 +539,10 @@ where
     }
 
     /// Access the mixer's streams.
+    ///
+    /// # Arguments
+    ///
+    /// - `id`: ID of the stream.
     fn get_stream(&self, id: &ID) -> Result<&Stream<SRC>> {
         self.streams
             .get(id)
@@ -553,7 +554,7 @@ where
     /// # Arguments
     ///
     /// - `filename_without_extension`: Filename without extension.
-    /// - `details`: Details of graph.
+    /// - `params`: Parameters of graph.
     ///
     pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
         debug::dot_ext(&self.pipeline, filename_without_extension, params)
@@ -809,14 +810,13 @@ where
 {
     /// halt pipeline (can not be played again)
     fn drop(&mut self) {
-        debug!("Dropping mixer...");
-
-        debug!("Sending EOS...");
-
         // ensure playing
         assert_eq!(self.pipeline.current_state(), gst::State::Playing);
 
+        debug!("Dropping mixer...");
+
         // send expected EOS
+        debug!("Sending EOS...");
         self.expect_eos.store(true, Ordering::SeqCst);
         self.pipeline.send_event(gst::event::Eos::new());
         debug::debug_dot(&self.pipeline, "EOS");
@@ -828,10 +828,11 @@ where
             }
         }
 
-        debug!("Stop sink...");
         // call sink to prepare for dropping pipeline
+        debug!("Stop sink...");
         self.output.on_exit(&self.pipeline);
 
+        // halt pipeline
         debug!("Nulling pipeline...");
         self.pipeline
             .set_state(gst::State::Null)

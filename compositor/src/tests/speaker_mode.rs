@@ -16,8 +16,7 @@ fn test_speaker_mode() {
     .unwrap();
 
     // initialize scene
-    testing::add_overlay_name(&mut talk, "test_speaker_mode");
-    let title = talk.insert_overlay_text("", TextFormat::default()).unwrap();
+    talk.set_title("test_speaker_mode");
 
     let (streams, _) = testing::generate_streams(&mut talk, NUM_PARTICIPANTS as u32, MAX_VISIBLES);
 
@@ -39,7 +38,7 @@ fn test_speaker_mode() {
 
     for mode in [SpeakerSwitchMode::FirstShift, SpeakerSwitchMode::FirstSwap] {
         for stream in &streams[0..NUM_PARTICIPANTS] {
-            title.set(&format!("Speaker: {} ({mode:?})", stream.1));
+            talk.set_title(&format!("Speaker: {} ({mode:?})", stream.1));
 
             talk.set_speaker(Some(stream.0), &mode).unwrap();
             talk.layout::<Speaker>().unwrap();

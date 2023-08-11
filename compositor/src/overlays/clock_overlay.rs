@@ -38,17 +38,10 @@ impl ClockOverlay {
 }
 
 impl OverlayTrait for ClockOverlay {
-    fn element(&self) -> gst::Element {
-        self.element.clone()
+    fn element(&self) -> &gst::Element {
+        &self.element
     }
-    fn src(&self) -> gst::Pad {
-        self.element
-            .static_pad("src")
-            .expect("failed to get src pad of clock overlay")
-    }
-    fn sink(&self) -> gst::Pad {
-        self.element
-            .static_pad("video_sink")
-            .expect("failed to get sink pad of clock overlay")
+    fn show(&self, show: bool) {
+        self.element.set_property("silent", !show);
     }
 }

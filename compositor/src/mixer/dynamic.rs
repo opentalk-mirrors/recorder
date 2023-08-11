@@ -2,7 +2,7 @@
 
 // what we need from external libraries
 
-use crate::debug;
+use crate::{debug, Overlay, OverlayTrait};
 use anyhow::{anyhow, bail, Context, Result};
 use gst::{prelude::*, PadProbeInfo, PadProbeReturn, PadProbeType};
 use std::sync::mpsc;
@@ -193,38 +193,37 @@ pub fn remove_bin(bin: gst::Bin) -> Result<()> {
 /// Safely add unlinked source to pipeline.
 pub fn add_source(
     bin: &gst::Bin,
-    ghost_pad: &gst::GhostPad,
+    overlays: &[Overlay],
     valve_name: Option<&str>,
 ) -> Result<gst::Element> {
     trace!(
-        "add_source({bin}, {ghost_pad})",
+        "add_source({bin}, {overlays:?} {valve_name:?})",
         bin = debug::name(bin),
-        ghost_pad = debug::name(ghost_pad),
     );
 
-    // prepare closed valve
+    // add any given overlay elements to a vector
+    let mut elements: Vec<&gst::Element> = overlays.iter().map(|o| o.element()).collect();
+
+    // prepare closed valve and add it to the elements
     let valve = gst::ElementFactory::make_with_name("valve", valve_name)?;
     valve.set_property("drop", true);
+    elements.push(&valve);
 
-    // add valve outside the bin
-    let Ok(inner_bin) = bin
+    // add elements to bin's parent
+    let parent = bin
         .parent()
         .and_dynamic_cast::<gst::Bin>()
-    else {
-        bail!("expected parent of valve to be a bin");
-    };
+        .expect("expected parent of valve to be a bin");
+    parent.add_many(&elements)?;
 
-    inner_bin.add(&valve)?;
-    valve.sync_state_with_parent()?;
+    // insert bin to elements and link all together
+    elements.insert(0, bin.dynamic_cast_ref::<gst::Element>().unwrap());
+    gst::Element::link_many(&elements)?;
 
-    // link source to valve's sink pad
-    let valve_sink = valve
-        .static_pad("sink")
-        .ok_or_else(|| anyhow!("valve has no sink pad"))?;
-    ghost_pad.link(&valve_sink)?;
-
-    // (re-)start bin
-    bin.set_state(gst::State::Playing)?;
+    // sync all elements' states with parent
+    for element in elements {
+        element.sync_state_with_parent()?;
+    }
 
     Ok(valve)
 }

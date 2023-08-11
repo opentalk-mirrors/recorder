@@ -1,5 +1,3 @@
-use crate::Overlays;
-
 use super::Size;
 
 /// Trait of a participant's audio/video source.
@@ -34,15 +32,6 @@ pub trait Source {
 
     /// Return audio source pad of element `inp` if available.
     fn audio_inp_pad(&self) -> Option<gst::Pad>;
-
-    /// Get source pad of the video source.
-    fn video_out_pad(&self) -> gst::GhostPad;
-
-    /// Get source pad of the audio source.
-    fn audio_out_pad(&self) -> gst::GhostPad;
-
-    /// Get overlays.
-    fn overlays(&mut self) -> &mut Overlays;
 
     /// return true if source currently is delivering video content
     fn is_video_connected(&self) -> bool {

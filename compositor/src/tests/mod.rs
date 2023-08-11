@@ -93,32 +93,6 @@ pub mod testing {
         format!("{}/{filename}", image_dir())
     }
 
-    /// create a text overlay which displays the given text which shall be the test name
-    pub fn add_overlay_name<SRC, ID>(talk: &mut Talk<SRC, ID>, name: &str)
-    where
-        SRC: Source,
-        SRC::Parameters: Debug,
-        ID: Eq + Ord + Hash + Copy + Debug + Display + Sync + Send,
-    {
-        trace!("add_overlay_name( '{name}' )");
-
-        talk.insert_overlay_text(
-            name,
-            TextFormat {
-                font: Font {
-                    size: 9,
-                    ..Default::default()
-                },
-                align: Align {
-                    horizontal: HAlign::Left,
-                    vertical: VAlign::Bottom,
-                },
-                ..Default::default()
-            },
-        )
-        .unwrap();
-    }
-
     /// generate IDs for given amount of participants
     fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
     where
