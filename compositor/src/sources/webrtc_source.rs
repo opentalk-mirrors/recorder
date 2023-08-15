@@ -15,10 +15,6 @@ pub struct WebRtcSource {
     bin: gst::Bin,
     /// WebRTC GStreamer element which manages mostly everything.
     webrtcbin: gst::Element,
-    video_out_pad: gst::GhostPad,
-    audio_out_pad: gst::GhostPad,
-    /// Source overlays.
-    overlays: Overlays,
 }
 
 type OnCandidateCallback = Arc<dyn Fn(u32, Option<String>) + Send + Sync>;
@@ -108,19 +104,7 @@ impl Source for WebRtcSource {
             });
         }
 
-        // create new overlays container
-        let valve_overlay = pipeline
-            .by_name("valve-overlay")
-            .expect("failed to get video output valve from pipeline");
-        let overlays = Overlays::new(valve_overlay);
-
-        Self {
-            bin,
-            webrtcbin,
-            video_out_pad: video_ghostpad,
-            audio_out_pad: audio_ghostpad,
-            overlays,
-        }
+        Self { bin, webrtcbin }
     }
 
     fn bin(&self) -> gst::Bin {
@@ -139,19 +123,6 @@ impl Source for WebRtcSource {
             .by_name("audio-in")
             .and_then(|video_in| video_in.static_pad("sink"))
             .and_then(|pad| pad.peer())
-    }
-
-    fn video_out_pad(&self) -> gst::GhostPad {
-        self.video_out_pad.clone()
-    }
-
-    fn audio_out_pad(&self) -> gst::GhostPad {
-        self.audio_out_pad.clone()
-    }
-
-    /// Get source pad after overlays shall be inserted.
-    fn overlays(&mut self) -> &mut Overlays {
-        &mut self.overlays
     }
 
     fn is_video_connected(&self) -> bool {

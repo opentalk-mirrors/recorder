@@ -39,8 +39,7 @@ fn generate_example_pipeline_picture() {
     talk.dot("1_add_streams", dp);
 
     talk.dot("2_overlay", dp);
-    talk.insert_overlay_text("text", Default::default())
-        .unwrap();
+    talk.set_title("text");
 
     // set two streams to be visible
     talk.layout::<Grid>().unwrap();

@@ -9,7 +9,7 @@ const WAIT_MS: u64 = 0;
 const REPEATS: usize = 1000;
 
 #[test]
-fn scenario1() {
+fn dynamic_scenario1() {
     test("scenario1", &test_scenario1, &build)
 }
 
@@ -41,7 +41,7 @@ pub fn test_scenario1(dot: &mut Dot, pipeline: &gst::Pipeline, _: std::time::Dur
 }
 
 #[test]
-fn scenario2() {
+fn dynamic_scenario2() {
     test("scenario2", &test_scenario2, &build)
 }
 
@@ -94,19 +94,7 @@ pub fn test_scenario2(dot: &mut Dot, pipeline: &gst::Pipeline, _: std::time::Dur
 
         pipeline.add(&bin).unwrap();
 
-        let out_src = bin
-            .by_name("source-out")
-            .unwrap()
-            .static_pad("src")
-            .unwrap();
-        let ghost_pad = out_src
-            .peer()
-            .and_dynamic_cast::<gst::ProxyPad>()
-            .unwrap()
-            .internal()
-            .and_dynamic_cast::<gst::GhostPad>()
-            .unwrap();
-        let valve = add_source(&bin, &ghost_pad, Some("source-valve")).unwrap();
+        let valve = add_source(&bin, &Vec::new(), Some("source-valve")).unwrap();
         link_source(&valve, &compositor).unwrap();
         flush_bus(pipeline);
 
@@ -275,11 +263,11 @@ pub fn build(dot: &mut Dot) -> gst::Pipeline {
     let compositor = pipeline.by_name("compositor").unwrap();
 
     // add source bin
-    crate::dynamic::add_source(&bin, &ghost_pad, Some("source-valve")).unwrap();
+    crate::dynamic::add_source(&bin, &Vec::new(), Some("source-valve")).unwrap();
 
     // add other bin and link valve to compositor
     let other_valve =
-        crate::dynamic::add_source(&other_bin, &other_ghost_pad, Some("other-valve")).unwrap();
+        crate::dynamic::add_source(&other_bin, &Vec::new(), Some("other-valve")).unwrap();
     dynamic::link_source(&other_valve, &compositor).unwrap();
 
     // auto layout via pad-added signal

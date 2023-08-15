@@ -317,7 +317,7 @@ fn create_publish_pipeline(
 // --- scenarios
 
 #[tokio::test]
-async fn scenario1() {
+async fn webrtc_scenario1() {
     let _ = env_logger::try_init();
 
     exec_events(vec![

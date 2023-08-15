@@ -1,6 +1,5 @@
 use super::{Size, Source};
 use crate::Overlay;
-use anyhow::Result;
 use core::fmt::{Debug, Display};
 
 /// Status of a stream if it is linked to a fake sink or the compositor.
@@ -94,8 +93,10 @@ where
     pub video_link_status: LinkStatus,
     /// Video link status of this stream.
     pub audio_link_status: LinkStatus,
-    /// current streams status
+    /// current stream status
     pub status: StreamStatus,
+    /// Overlays
+    pub overlays: Vec<Overlay>,
 }
 
 impl<SRC> Stream<SRC>
@@ -118,32 +119,22 @@ where
         resolution: &Size,
         display_name: String,
         params: SRC::Parameters,
+        overlays: Vec<Overlay>,
     ) -> Self
     where
         ID: Display,
     {
         trace!("new( {resolution:?}, {display_name:?}, {params:?} )");
-
-        let source = SRC::new(id, pipeline, resolution, params);
         Self {
             display_name,
-            source,
+            source: SRC::new(id, pipeline, resolution, params),
             video_link_status: LinkStatus::None,
             audio_link_status: LinkStatus::None,
             status: StreamStatus {
                 has_audio: true,
                 has_video: true,
             },
+            overlays,
         }
-    }
-    pub fn push_overlay(&mut self, overlay: Overlay) -> Result<()> {
-        trace!(
-            "{name}.push_overlay( {overlay:?} )",
-            name = self.display_name
-        );
-
-        self.source.overlays().push(overlay)?;
-
-        Ok(())
     }
 }
