@@ -227,8 +227,13 @@ where
         .into()];
 
         // forward to mixer
-        self.mixer
-            .add_stream(id, display_name.to_string(), params, overlays)?;
+        self.mixer.add_stream(
+            id,
+            display_name.to_string(),
+            params,
+            overlays,
+            initial.clone(),
+        )?;
 
         // remember display name
         self.names.insert(id, display_name.to_string());

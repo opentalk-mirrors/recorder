@@ -248,6 +248,7 @@ where
         display_name: String,
         params: SRC::Parameters,
         overlays: Vec<Overlay>,
+        status: StreamStatus,
     ) -> Result<()> {
         trace!("add_stream( {id}, '{display_name}', {params:?} )");
 
@@ -264,6 +265,7 @@ where
             display_name,
             params,
             overlays,
+            status,
         );
 
         // attach video source to a valve
