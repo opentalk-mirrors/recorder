@@ -120,6 +120,7 @@ where
         display_name: String,
         params: SRC::Parameters,
         overlays: Vec<Overlay>,
+        status: StreamStatus,
     ) -> Self
     where
         ID: Display,
@@ -130,10 +131,7 @@ where
             source: SRC::new(id, pipeline, resolution, params),
             video_link_status: LinkStatus::None,
             audio_link_status: LinkStatus::None,
-            status: StreamStatus {
-                has_audio: true,
-                has_video: true,
-            },
+            status,
             overlays,
         }
     }
