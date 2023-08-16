@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use compositor::{DisplaySink, Talk};
+use compositor::{Talk, TestSink};
 use openidconnect::{
     core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl, JsonWebKeySet,
 };
@@ -64,7 +64,7 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let temp_dir = TempDir::new().expect("unable to create temp dir");
     let talk = Talk::new(
         compositor::Size::FHD,
-        DisplaySink::new("Display"),
+        TestSink::new("TestSink"),
         Some(MAX_VISIBLES),
     )
     .expect("unable to create Talk");

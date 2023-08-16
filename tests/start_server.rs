@@ -13,7 +13,7 @@ mod tests {
             Event::JoinUsers(10, true, true, false),
             Event::Sleep(Duration::from_secs(2)),
             Event::StopRecording,
-            Event::Sleep(Duration::from_secs(10)),
+            Event::Sleep(Duration::from_secs(2)),
         ])
         .await;
     }

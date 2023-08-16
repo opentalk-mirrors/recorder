@@ -6,8 +6,7 @@ fn test_stream_status() {
     testing::init();
 
     let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::default(), None)
-            .unwrap();
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), None).unwrap();
 
     talk.dot("test_stream_status-0", testing::DOT_PARAMS);
 

@@ -6,7 +6,7 @@ mod tests {
     use crate::common::prelude::*;
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "takes one hour to complete"]
     /// This tests starts a recording a for an hour and join a new participant every minute.
     /// The concurrent users are limited.
     async fn test_very_long_recording() {
@@ -15,9 +15,9 @@ mod tests {
         let mut events = vec![
             Event::JoinUser(0),
             Event::UpdateMedia(0, true, true, false),
-            Event::Sleep(Duration::from_secs(5)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::StartRecording,
-            Event::Sleep(Duration::from_secs(5)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::UpdateConsent(0, true),
         ];
 

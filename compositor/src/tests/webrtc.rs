@@ -1,4 +1,3 @@
-use crate::testing::TestSink;
 use crate::*;
 use core::time::Duration;
 use glib::{Cast, Continue, ObjectExt};

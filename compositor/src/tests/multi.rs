@@ -9,8 +9,8 @@ fn test_multi() {
         testing::RESOLUTION,
         MultiSink::new(MultiParameters {
             sinks: vec![
-                Box::new(testing::TestSink::new("Sink 1")),
-                Box::new(testing::TestSink::new("Sink 2")),
+                Box::new(TestSink::new("Sink 1")),
+                Box::new(TestSink::new("Sink 2")),
             ],
         }),
         None,

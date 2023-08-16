@@ -5,6 +5,7 @@ const DOT_PATH: &str = "pipelines";
 
 /// generate an example of a usual pipeline
 #[test]
+#[ignore = "this is generating the pipeline pictues and should only be run manually"]
 fn generate_example_pipeline_picture() {
     // initialize logging
     let _ = env_logger::try_init();
@@ -19,7 +20,7 @@ fn generate_example_pipeline_picture() {
     };
 
     let blinder = Box::new(TestBlinder::new(TestBlinderParams {
-        sink: Box::new(testing::TestSink::new("Streaming")),
+        sink: Box::new(TestSink::new("Streaming")),
         resolution: testing::RESOLUTION,
         ..Default::default()
     }));
@@ -28,10 +29,7 @@ fn generate_example_pipeline_picture() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         MultiSink::new(MultiParameters {
-            sinks: vec![
-                blinder.clone(),
-                Box::new(testing::TestSink::new("Recording")),
-            ],
+            sinks: vec![blinder.clone(), Box::new(TestSink::new("Recording"))],
         }),
         None,
     )

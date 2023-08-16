@@ -10,21 +10,21 @@ mod tests {
         EventRunner::run(&[
             Event::JoinUser(0),
             Event::UpdateMedia(0, true, true, false),
-            Event::Sleep(Duration::from_secs(5)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::StartRecording,
-            Event::Sleep(Duration::from_secs(1)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::UpdateConsent(0, true),
-            Event::Sleep(Duration::from_secs(5)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::JoinUser(1),
             Event::UpdateMedia(1, true, true, false),
             Event::UpdateConsent(1, true),
-            Event::Sleep(Duration::from_secs(5)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::LeftUser(0),
-            Event::Sleep(Duration::from_secs(5)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::StopRecording,
-            Event::Sleep(Duration::from_secs(5)),
+            Event::Sleep(Duration::from_secs(2)),
             Event::LeftUser(1),
-            Event::Sleep(Duration::from_secs(10)),
+            Event::Sleep(Duration::from_secs(2)),
         ])
         .await;
     }
