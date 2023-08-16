@@ -825,7 +825,11 @@ where
 
         // wait until the bus reader thread got the EOS and finishes
         if let Some(is_reading_bus) = &self.is_reading_bus {
-            if is_reading_bus.recv_timeout(BUS_EOS_TIMEOUT).is_err() {
+            // Print an error message if the bus could not handle the timeout in the given time.
+            // If the pipeline is handling the EOS fast enough, the `is_reading_bus` queue will hung up early, which is a normal behaviour and not an error.
+            if is_reading_bus.recv_timeout(BUS_EOS_TIMEOUT)
+                == Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            {
                 error!("Could not stop reading pipeline bus");
             }
         }
