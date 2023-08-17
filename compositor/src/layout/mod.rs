@@ -84,12 +84,23 @@ pub struct Alignment {
     pub vertical: &'static str,
 }
 
-/// Video picture layout
+/// Trait of video picture layouts.
 pub trait Layout: Send + Sync + 'static {
     /// create a new layout instance
+    ///
+    /// # Arguments
+    ///
+    /// - `visibles`: number of streams which shall be visible
+    ///
     fn new(visibles: usize, resolution: Size) -> Self;
-    /// Get position of the nth participants video.
+    /// Get view of the nth stream.
+    ///
+    /// # Arguments
+    ///
+    /// - `n`: index of the stream within this layout.
+    ///
     fn view(&self, n: usize) -> View;
 
+    /// Name of the layout
     const NAME: &'static str;
 }

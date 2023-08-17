@@ -1,19 +1,29 @@
+//! Overlay displaying the current time.
+
 use crate::*;
 use gst::prelude::*;
 
-/// Overlay displaying a current time.
+/// Overlay displaying current time.
 #[derive(Debug, Clone)]
 pub struct ClockOverlay {
+    // clockoverlay element
     element: gst::Element,
 }
 
 impl ClockOverlay {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(format: &str, text_format: TextFormat) -> ClockOverlay {
-        trace!("new( {format:?}, {text_format:?} )");
+    /// Create new clock overlay.
+    ///
+    /// # Arguments
+    ///
+    /// - `name`: Element's name.
+    /// - `format`: Clock format string.
+    /// - `style`: Style of the clock display.
+    ///
+    pub fn new(name: &str, format: &str, style: TextStyle) -> ClockOverlay {
+        trace!("new( {format:?}, {style:?} )");
 
         // create text overlay
-        let element = gst::ElementFactory::make_with_name("clockoverlay", None)
+        let element = gst::ElementFactory::make_with_name("clockoverlay", Some(name))
             .expect("failed to create clock overlay");
 
         // set up properties
@@ -22,22 +32,22 @@ impl ClockOverlay {
             "font-desc",
             format!(
                 "{name},{size}",
-                name = text_format.font.name,
-                size = text_format.font.size
+                name = style.font.name,
+                size = style.font.size
             ),
         );
-        element.set_property("xpad", text_format.padding.x);
-        element.set_property("ypad", text_format.padding.y);
-        element.set_property("color", text_format.color);
-        element.set_property_from_str("halignment", text_format.align.horizontal.into());
-        element.set_property_from_str("valignment", text_format.align.vertical.into());
+        element.set_property("xpad", style.padding.x);
+        element.set_property("ypad", style.padding.y);
+        element.set_property("color", style.color);
+        element.set_property_from_str("halignment", style.align.horizontal.into());
+        element.set_property_from_str("valignment", style.align.vertical.into());
 
         // return Overlay
         Self { element }
     }
 }
 
-impl OverlayTrait for ClockOverlay {
+impl Overlay for ClockOverlay {
     fn element(&self) -> &gst::Element {
         &self.element
     }

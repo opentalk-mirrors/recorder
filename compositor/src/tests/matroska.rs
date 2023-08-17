@@ -6,9 +6,9 @@ fn test_matroska() {
     testing::init();
 
     // create grid mixer with test sources for streams and a MatroskaSink
-    let mut mixer = Talk::<TestSource, u32>::new(
+    let mut mixer = Talk::<TestSource, testing::TestSink, u32>::new(
         testing::RESOLUTION,
-        Box::new(MatroskaSinkBuilder::new(Default::default())),
+        Default::default(),
         None,
     )
     .unwrap();
@@ -22,6 +22,7 @@ fn test_matroska() {
             StreamStatus::default(),
         )
         .unwrap();
+    mixer.layout::<Grid>().unwrap();
 
     mixer.dot("test_matroska", testing::DOT_PARAMS);
 

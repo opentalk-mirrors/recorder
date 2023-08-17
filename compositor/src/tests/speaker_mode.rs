@@ -5,12 +5,12 @@ fn test_speaker_mode() {
     // initialize for testing
     testing::init();
 
-    const MAX_VISIBLES: usize = 2;
+    const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
-    let mut talk = Talk::<TestSource, u32>::new(
+    let mut talk = Talk::<TestSource, testing::TestSink, u32>::new(
         testing::RESOLUTION,
-        Box::<testing::TestSinkBuilder>::default(),
+        Default::default(),
         Some(MAX_VISIBLES),
     )
     .unwrap();

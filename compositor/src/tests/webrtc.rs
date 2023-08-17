@@ -1,4 +1,4 @@
-use crate::{testing, Grid, Size, StreamId, StreamStatus, WebRtcSource, WebRtcSourceParams};
+use crate::*;
 use core::time::Duration;
 use glib::{Cast, Continue, ObjectExt};
 use gst::prelude::*;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
-type Talk = crate::Talk<WebRtcSource, usize>;
+type Talk = crate::Talk<WebRtcSource, testing::TestSink, usize>;
 
 #[derive(Debug, Clone, Copy)]
 enum Event {
@@ -62,7 +62,7 @@ async fn exec_events(events: Vec<Event>) {
         // Mp4SinkParams {
         //     file_path: "out.mp4".into(),
         // },
-        Box::<testing::TestSinkBuilder>::default(),
+        Default::default(),
         MAX_VISIBLES,
     )
     .unwrap();
@@ -114,7 +114,7 @@ async fn handle_webrtc_event(
                 .and_then(|p| p.publish.as_mut())
                 .unwrap();
 
-            let source = &talk.source_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
             let webrtcbin = publish.by_name("webrtc").unwrap();
             let response = source.receive_offer(offer).await.unwrap();
             let response = gst_webrtc::WebRTCSessionDescription::new(
@@ -128,11 +128,11 @@ async fn handle_webrtc_event(
             );
         }
         WebRtcBinToMainLoopEvent::SdpCandidate(id, mline, candidate) => {
-            let source = &talk.source_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
             source.receive_candidate(mline, candidate).await;
         }
         WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id) => {
-            let source = &talk.source_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
             source.receive_end_of_candidates(0).await;
         }
     }
@@ -168,7 +168,7 @@ fn handle_user_event(
             assert!(state.publish.is_none());
 
             create_publish_pipeline(tx, id, state, talk);
-            talk.show(&StreamId::camera(id)).unwrap();
+            talk.try_show(&StreamId::camera(id));
             talk.layout::<Grid>().unwrap();
         }
         Event::Unpublish(id) => {

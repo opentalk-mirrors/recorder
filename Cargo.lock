@@ -392,11 +392,13 @@ dependencies = [
  "derivative",
  "env_logger",
  "glib",
+ "glob",
  "gstreamer",
  "gstreamer-base",
  "gstreamer-sdp",
  "gstreamer-webrtc",
  "inotify",
+ "lazy_static",
  "log",
  "serde",
  "tempfile",
@@ -941,6 +943,12 @@ dependencies = [
  "libc",
  "system-deps",
 ]
+
+[[package]]
+name = "glob"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "gobject-sys"

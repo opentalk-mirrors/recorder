@@ -1,5 +1,4 @@
 mod dash;
-mod dynamic;
 mod generate_example_pipeline_picture;
 mod matroska;
 mod mixer;
@@ -10,32 +9,38 @@ mod stream_status;
 mod webrtc;
 
 pub mod testing {
+
     use crate::*;
     use core::{
         fmt::{Debug, Display},
         hash::Hash,
         time::Duration,
     };
+    use std::sync::Once;
 
     /// output resolution to use when creating Mixer for testing
-    pub const RESOLUTION: Size = Size::SD;
+    pub const RESOLUTION: Size = Size::HD;
     /// GStreamer debug details to use when generating DOT files of pipeline within testing
     pub const DOT_PARAMS: &debug::Params = &debug::Params::all();
 
-    // count calls
-    use std::sync::atomic::{AtomicBool, Ordering};
-    static INITIALIZING: AtomicBool = AtomicBool::new(false);
+    static INIT: Once = Once::new();
 
     /// initialize for testing
     pub fn init() {
         trace!("init()");
+        INIT.call_once(init_function);
+    }
 
-        while INITIALIZING
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {}
-
-        INITIALIZING.store(true, Ordering::SeqCst);
+    fn init_function() {
+        if let Ok(path) = std::env::var("GST_DEBUG_DUMP_DOT_DIR") {
+            debug!("Removing any *.dot files in {path}");
+            for path in glob::glob(&(path.to_string() + "/*.dot")).unwrap() {
+                match path {
+                    Ok(path) => std::fs::remove_file(path).unwrap(),
+                    Err(err) => error!("path not found: {err:?}"),
+                }
+            }
+        }
         // initialize gstreamer
         gst::init().unwrap();
         // init logger
@@ -51,8 +56,6 @@ pub mod testing {
         debug!("Current directory {:?}", std::env::current_dir().unwrap());
         info!("Output directory: {}", output_dir());
         info!("Image directory: {}", image_dir());
-
-        INITIALIZING.store(false, Ordering::SeqCst);
     }
 
     fn be_slow() -> bool {
@@ -108,7 +111,7 @@ pub mod testing {
 
     /// generate given number of participant streams
     pub fn generate_streams<ID>(
-        mixer: &mut Talk<TestSource, ID>,
+        talk: &mut Talk<TestSource, TestSink, ID>,
         count: u32,
         visibles: usize,
     ) -> (Vec<(ID, String)>, Vec<ID>)
@@ -135,12 +138,11 @@ pub mod testing {
                 pattern: Pattern::Location(testing::image_file(images[i % images.len()])),
                 name: Some(name.clone()),
             };
-            mixer
-                .add_stream(StreamId::camera(*id), name, params, StreamStatus::default())
+            talk.add_stream(StreamId::camera(*id), name, params, StreamStatus::default())
                 .unwrap();
         }
 
-        mixer.layout::<Speaker>().unwrap();
+        talk.layout::<Speaker>().unwrap();
 
         (streams, ids)
     }
@@ -180,44 +182,43 @@ pub mod testing {
         Display(DisplaySink),
     }
 
-    #[derive(Default)]
-    pub struct TestSinkBuilder();
+    #[derive(Debug, Default)]
+    pub struct TestSinkParameters {}
 
-    impl SinkBuilder for TestSinkBuilder {
-        fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
-            Box::new(TestSink::new(pipeline))
-        }
-    }
+    impl Sink for TestSink {
+        type Parameters = TestSinkParameters;
 
-    impl TestSink {
         /// Create and add new fake sink into existing pipeline.
-        pub fn new(pipeline: &gst::Pipeline) -> Self {
+        fn new(_: TestSinkParameters) -> Self {
             trace!("new()");
 
             if use_display() {
                 info!("using display sink because display is available");
-                Self::Display(DisplaySink::new(pipeline))
+                Self::Display(Default::default())
             } else {
                 info!("using fake sink");
-                Self::Fake(FakeSink::new(pipeline))
+                Self::Fake(Default::default())
             }
         }
-    }
-
-    impl Sink for TestSink {
-        /// Get video sink pad.
-        fn video_sink_pad(&self) -> gst::Pad {
+        fn bin(&self) -> gst::Bin {
             match self {
-                Self::Fake(sink) => sink.video_sink_pad(),
-                Self::Display(sink) => sink.video_sink_pad(),
+                Self::Fake(sink) => sink.bin(),
+                Self::Display(sink) => sink.bin(),
+            }
+        }
+        /// Get video sink pad.
+        fn video(&self) -> gst::GhostPad {
+            match self {
+                Self::Fake(sink) => sink.video(),
+                Self::Display(sink) => sink.video(),
             }
         }
 
         /// Get audio sink pad.
-        fn audio_sink_pad(&self) -> gst::Pad {
+        fn audio(&self) -> gst::GhostPad {
             match self {
-                Self::Fake(sink) => sink.audio_sink_pad(),
-                Self::Display(sink) => sink.audio_sink_pad(),
+                Self::Fake(sink) => sink.audio(),
+                Self::Display(sink) => sink.audio(),
             }
         }
     }

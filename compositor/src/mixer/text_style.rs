@@ -1,3 +1,5 @@
+//! Text styles.
+
 /// Text color.
 #[derive(Debug)]
 pub struct Color {
@@ -173,14 +175,14 @@ impl std::fmt::Display for Align {
 
 /// Text format.
 #[derive(Debug, Default)]
-pub struct TextFormat {
+pub struct TextStyle {
     pub font: Font,
     pub padding: Padding,
     pub color: Color,
     pub align: Align,
 }
 
-impl std::fmt::Display for TextFormat {
+impl std::fmt::Display for TextStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

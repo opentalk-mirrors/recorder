@@ -18,19 +18,17 @@ fn generate_example_pipeline_picture() {
 
     // setup mixer
     let mut talk =
-        Talk::<TestSource, u32>::new(RESOLUTION, Box::<FakeSinkBuilder>::default(), None).unwrap();
+        Talk::<TestSource, testing::TestSink, u32>::new(RESOLUTION, Default::default(), None)
+            .unwrap();
     // generate pipeline DOT graph of the empty pipeline
     talk.dot("0_init", dp);
-
-    // prepare test source parameters
-    let params = TestSourceParameters::default();
 
     // add three streams
     for i in 0..3 {
         talk.add_stream(
             StreamId::camera(i),
             &format!("P{i}]"),
-            params.clone(),
+            Default::default(),
             StreamStatus::default(),
         )
         .unwrap();
@@ -57,8 +55,8 @@ fn generate_example_pipeline_picture() {
 
 /// check whether the generated PNG equals the old one before overwriting it
 fn convert(name: &str) {
-    let dot_path =
-        std::env::var("GST_DEBUG_DUMP_DOT_DIR").expect("env GST_DEBUG_DUMP_DOT_DIR not set");
+    let dot_path = "pipelines";
+    std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", dot_path);
     let dot = &format!("{dot_path}/{name}.dot");
     let intermediate = &format!("{IMAGE_OUTPUT_PATH}/{name}.new.png");
     let png = &format!("{IMAGE_OUTPUT_PATH}/{name}.png");

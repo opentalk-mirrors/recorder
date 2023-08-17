@@ -1,6 +1,5 @@
 use super::matroska_sink::MatroskaSink;
-use crate::{Sink, SinkBuilder};
-use gst::prelude::*;
+use crate::Sink;
 
 /// Writes out a single MP4 file using FFmpeg
 #[derive(Debug)]
@@ -15,27 +14,18 @@ pub struct Mp4Sink {
     filename: String,
 }
 
+/// MP4 Sink parameters
 #[derive(Debug)]
-pub struct Mp4SinkParams {
+pub struct Mp4Parameters {
+    /// Output file path
     pub file_path: std::path::PathBuf,
 }
 
-pub struct Mp4SinkBuilder {
-    params: Mp4SinkParams,
-}
-
-impl Mp4SinkBuilder {
-    pub fn new(params: Mp4SinkParams) -> Self {
-        trace!("new( {params:?} )");
-        Self { params }
-    }
-}
-
-impl SinkBuilder for Mp4SinkBuilder {
+impl Sink for Mp4Sink {
+    type Parameters = Mp4Parameters;
     /// Create and add new MP4 sink into existing pipeline.
-    fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
-        assert_eq!(pipeline.current_state(), gst::State::Null);
-        let matroska_sink = MatroskaSink::new(pipeline, Default::default());
+    fn new(params: Mp4Parameters) -> Self {
+        let matroska_sink = MatroskaSink::new(Default::default());
         let address = &format!("tcp://{}", matroska_sink.address);
 
         // TODO: use free codecs instead of ffmpeg's mp4 default.
@@ -46,10 +36,9 @@ impl SinkBuilder for Mp4SinkBuilder {
         // [matroska,webm @ 0x557819b598c0] Seek to desired resync point failed. Seeking to earliest point available instead.
         debug!(
             "Starting ffmpeg to process into output DASH into \"{:?}\", connection is: {address}",
-            self.params.file_path
+            params.file_path
         );
-        let filename = self
-            .params
+        let filename = params
             .file_path
             .to_str()
             .expect("invalid path which could not be converted into UTF8")
@@ -67,23 +56,24 @@ impl SinkBuilder for Mp4SinkBuilder {
 
         // watch pipeline bus for getting into `Playing` state
         // return new instance
-        Box::new(Mp4Sink {
+        Mp4Sink {
             matroska_sink,
             process,
             filename,
-        })
+        }
     }
-}
-
-impl Sink for Mp4Sink {
     /// Get video sink pad from Matroska sink.
-    fn video_sink_pad(&self) -> gst::Pad {
-        self.matroska_sink.video_sink_pad()
+    fn video(&self) -> gst::GhostPad {
+        self.matroska_sink.video()
     }
 
     /// Get audio sink pad from Matroska sink.
-    fn audio_sink_pad(&self) -> gst::Pad {
-        self.matroska_sink.audio_sink_pad()
+    fn audio(&self) -> gst::GhostPad {
+        self.matroska_sink.audio()
+    }
+
+    fn bin(&self) -> gst::Bin {
+        self.matroska_sink.bin()
     }
 
     /// Starts the FFmpeg receiver which catches the output of the matroska sink.

@@ -1,19 +1,24 @@
+//! Sink trait.
+
 use std::fmt::Debug;
 
-pub trait SinkBuilder {
-    /// Create an add a sink to the pipeline.
-    ///
-    /// Creates a bunch of elements based on given parameters and adds them to the pipeline.
-    fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink>;
-}
+use gst_base::prelude::{ElementExt, GstBinExt};
 
 /// Trait of an output sink.
 pub trait Sink: Send + Debug + 'static {
+    /// Type which represents the parameters of the implementation
+    type Parameters;
+
+    /// create new instance with the given parameters
+    fn new(params: Self::Parameters) -> Self;
+
     /// Get sink pad of the video sink.
-    fn video_sink_pad(&self) -> gst::Pad;
+    fn video(&self) -> gst::GhostPad;
 
     /// Get sink pad of the audio sink.
-    fn audio_sink_pad(&self) -> gst::Pad;
+    fn audio(&self) -> gst::GhostPad;
+
+    fn bin(&self) -> gst::Bin;
 
     /// Called by `Mixer::play()`.
     fn on_play(&mut self) {}
@@ -23,4 +28,19 @@ pub trait Sink: Send + Debug + 'static {
 
     /// Called by `Mixer::drop()`.
     fn on_exit(&mut self, _pipeline: &gst::Pipeline) {}
+}
+
+pub fn add_ghost_pad(bin: &gst::Bin, name: &str, pad: &str) -> gst::GhostPad {
+    // add ghost pad connected to video sink pad
+    let ghost_pad = gst::GhostPad::with_target(
+        Some(name),
+        &bin.by_name(name)
+            .expect("can not find element to ghost")
+            .static_pad(pad)
+            .expect("failed to get pad of element to ghost"),
+    )
+    .expect("failed to create ghost pad for pad");
+    bin.add_pad(&ghost_pad)
+        .expect("cannot add ghost pad to bin");
+    ghost_pad
 }
