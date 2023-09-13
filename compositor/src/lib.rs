@@ -1,11 +1,11 @@
 /*!
     # Purpose
     The *compositor* crate manages a [GStreamer](https://gstreamer.freedesktop.org/) pipeline which receives [WebRTC](https://webrtc.org/) input audio and video streams
-    of so-called *streams* and mixes them together using the so-called *mixer*. While *talk* manages multi stream participants and visibility.
+    of so-called *streams* and mixes them together using the so-called *mixer*. While *talk* manages multiple stream participants and visibility.
 
-    - [Talk](mixer::Talk)
-    - [Mixer](mixer::Mixer)
-    - [Stream](mixer::Stream)
+    - [Talk]
+    - [Mixer]
+    - [Stream]
 
     It then composes an output image showing some of them (so-called *visibles*) in the output picture.
 
@@ -20,44 +20,70 @@
 
     To read the input and write the output the following types are used
 
-    - [WebRtcSource](sources::WebRtcSource)
+    - [WebRtcSource]
       manages a connection to a WebRTC source and provides the content to the internal GStreamer pipeline.
-    - [DashSink](sinks::DashSink)
+    - [AnySink]
+      is an universal sink that can be one of the following.
+    - [DashSink]
       writes the output into a Dash instance consisting of an MPD file and several audio/video files.
-    - [Mp4Sink](sinks::Mp4Sink)
+    - [Mp4Sink]
       writes the output into a MPEG4 file.
-    - [MatroskaSink](sinks::MatroskaSink)
+    - [MatroskaSink]
       listens on a TCP port to write the raw output to, after someone connects.
 
     # Layouts
 
     Several so-called *layouts* can be used to control the output composite.
 
-    - [Grid](layout::Grid)
+    - [Grid]
       shows a grid of all visible streams
-    - [Speaker](layout::Speaker)
+    - [Speaker]
       shows a bigger picture of the first visible stream (so-called *speaker*)
       and uses the rest of the available picture area to arrange all other visibles.
 
+    # Overlays
+
+    A *talk* uses overlays to display titles, clock, etc. which can be configured.
+
+    - [AnyOverlay]
+      A generic overlay type which can contain any other overlay.
+    - [TextOverlay]
+      Overlay which displays a changeable text.
+    - [ClockOverlay]
+      Overlay which displays current time.
+    - [TalkOverlay]
+      Combined Text and Clock Overlay which is used in Talk.
+
     # Generic traits for extending capabilities
 
-    - [Source](mixer::Source)
+    - [Source]
       is a trait which the mixer is assuming for an input source.
-    - [Sink](mixer::Sink)
+    - [Sink]
       is a trait which the mixer is assuming for an output sink.
-    - [Layout](layout::Layout)
+    - [Layout]
       is a trait which the mixer is assuming for display layout of the recording
+    - [Overlay]
+      is a trait for overlays.
 
     # Testing
 
     In addition there are some alternative sources and sinks included which are used for testing purposes.
 
-    - [TestSource](sources::TestSource)
+    - [TestSource]
       which just generates some dummy stream audio and video data.
-    - [FakeSink](sinks::FakeSink)
+    - [FakeSink]
       is a sink without any output - just to make it run.
-    - [DisplaySink](sinks::DisplaySink)
+    - [DisplaySink]
       is a sink which displays the output on the screen.
+
+    # Debugging
+
+    Some debug tools:
+
+    - [dot](debug::dot),  [debug_dot](debug::debug_dot) and [dot_ext](debug::dot_ext)
+      Makes the debug DOT feature of *gstreamer* more convenient for big number of output files
+    - [name](debug::name)
+      Generates a name from an element which includes parent names for better tracing.
 */
 
 #[macro_use]
@@ -65,8 +91,8 @@ extern crate log;
 
 mod layout;
 mod mixer;
+mod output_sinks;
 mod overlays;
-mod sinks;
 mod sources;
 
 #[cfg(test)]
@@ -74,8 +100,8 @@ mod tests;
 
 pub use layout::*;
 pub use mixer::*;
+pub use output_sinks::*;
 pub use overlays::*;
-pub use sinks::*;
 pub use sources::*;
 
 #[cfg(test)]

@@ -1,5 +1,4 @@
-use super::matroska_sink::{MatroskaParameters, MatroskaSink};
-use crate::{Sink, SinkBuilder};
+use crate::*;
 use derivative::Derivative;
 use gst::prelude::*;
 use inotify::{Inotify, WatchMask};
@@ -78,59 +77,36 @@ impl Default for DashParameters {
     }
 }
 
-pub struct DashSinkBuilder {
-    params: DashParameters,
-}
+impl Sink for DashSink {
+    type Parameters = DashParameters;
 
-impl DashSinkBuilder {
-    pub fn new(params: DashParameters) -> Self {
-        trace!("new( {params:?} )");
-        Self { params }
-    }
-}
-
-impl SinkBuilder for DashSinkBuilder {
     /// Create and add new DASH sink into existing pipeline.
-    fn build(&self, pipeline: &gst::Pipeline) -> Box<dyn Sink> {
-        assert_eq!(pipeline.current_state(), gst::State::Null);
-
-        // watch pipeline bus for getting into `Playing` state
-        // return new instance
-        Box::new(DashSink::new(pipeline, self.params.clone()))
-    }
-}
-
-impl DashSink {
-    /// Create and add new DASH sink into existing pipeline.
-    fn new(pipeline: &gst::Pipeline, params: DashParameters) -> Self {
-        assert_eq!(pipeline.current_state(), gst::State::Null);
-
+    fn new(params: Self::Parameters) -> Self {
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
-            matroska_sink: MatroskaSink::new(
-                pipeline,
-                MatroskaParameters {
-                    // use fixed localhost but with given port
-                    address: SocketAddr::from(([127, 0, 0, 1], 0)),
-                },
-            ),
+            matroska_sink: MatroskaSink::new(MatroskaParameters {
+                // use fixed localhost but with given port
+                address: SocketAddr::from(([127, 0, 0, 1], 0)),
+            }),
             params,
             process: None,
             temp_dir: None,
         }
     }
-}
 
-impl Sink for DashSink {
     /// Get video sink pad from Matroska sink.
-    fn video_sink_pad(&self) -> gst::Pad {
-        self.matroska_sink.video_sink_pad()
+    fn video(&self) -> gst::GhostPad {
+        self.matroska_sink.video()
     }
 
     /// Get audio sink pad from Matroska sink.
-    fn audio_sink_pad(&self) -> gst::Pad {
-        self.matroska_sink.audio_sink_pad()
+    fn audio(&self) -> gst::GhostPad {
+        self.matroska_sink.audio()
+    }
+
+    fn bin(&self) -> gst::Bin {
+        self.matroska_sink.bin()
     }
 
     /// Starts the FFmpeg receiver which catches the output of the matroska sink.

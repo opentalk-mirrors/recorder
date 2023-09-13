@@ -1,45 +1,69 @@
+//! Overlays.
+
+use gst_base::prelude::ElementExt;
+
 use crate::*;
 
 /// Trait of overlays as the mixer sees it.
-pub trait OverlayTrait {
+pub trait Overlay {
     /// Add overlay element
     fn element(&self) -> &gst::Element;
+    fn sink(&self) -> gst::Pad {
+        self.element()
+            .static_pad("video_sink")
+            .expect("overlay has no pad named `sink`")
+    }
+    fn src(&self) -> gst::Pad {
+        self.element()
+            .static_pad("src")
+            .expect("overlay has no pad named `src`")
+    }
     /// show or hide overlay element
     fn show(&self, show: bool);
 }
 
 /// enum which bundles several types of overlays
 #[derive(Debug, Clone)]
-pub enum Overlay {
+pub enum AnyOverlay {
     /// Text overlay
     Text(TextOverlay),
     /// Clock overlay
     Clock(ClockOverlay),
+    /// Participant overlay
+    Talk(TalkOverlay),
 }
 
-impl OverlayTrait for Overlay {
+impl Overlay for AnyOverlay {
     fn element(&self) -> &gst::Element {
         match self {
             Self::Text(o) => o.element(),
             Self::Clock(o) => o.element(),
+            Self::Talk(o) => o.element(),
         }
     }
     fn show(&self, show: bool) {
         match self {
             Self::Text(o) => o.show(show),
             Self::Clock(o) => o.show(show),
+            Self::Talk(o) => o.show(show),
         }
     }
 }
 
-impl From<TextOverlay> for Overlay {
-    fn from(overlay: TextOverlay) -> Overlay {
-        Overlay::Text(overlay)
+impl From<TextOverlay> for AnyOverlay {
+    fn from(overlay: TextOverlay) -> AnyOverlay {
+        AnyOverlay::Text(overlay)
     }
 }
 
-impl From<ClockOverlay> for Overlay {
-    fn from(overlay: ClockOverlay) -> Overlay {
-        Overlay::Clock(overlay)
+impl From<ClockOverlay> for AnyOverlay {
+    fn from(overlay: ClockOverlay) -> AnyOverlay {
+        AnyOverlay::Clock(overlay)
+    }
+}
+
+impl From<TalkOverlay> for AnyOverlay {
+    fn from(overlay: TalkOverlay) -> AnyOverlay {
+        AnyOverlay::Talk(overlay)
     }
 }

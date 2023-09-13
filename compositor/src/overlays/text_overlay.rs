@@ -1,3 +1,5 @@
+//! Overlay which displays a changeable text.
+
 use crate::*;
 use gst::prelude::*;
 
@@ -8,12 +10,20 @@ pub struct TextOverlay {
 }
 
 impl TextOverlay {
+    /// Create new text overlay.
+    ///
+    /// # Arguments
+    ///
+    /// - `name`: Element's name.
+    /// - `text`: Text to display.
+    /// - `style`: Style of the text display.
+    ///
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(text: &str, text_format: TextFormat) -> TextOverlay {
-        trace!("new( '{text}', {text_format:?} )");
+    pub fn new(name: &str, text: &str, style: TextStyle) -> TextOverlay {
+        trace!("new( '{text}', {style:?} )");
 
         // create text overlay
-        let element = gst::ElementFactory::make_with_name("textoverlay", None)
+        let element = gst::ElementFactory::make_with_name("textoverlay", Some(name))
             .expect("failed to create text overlay");
 
         // set up properties
@@ -22,19 +32,26 @@ impl TextOverlay {
             "font-desc",
             format!(
                 "{name},{size}",
-                name = text_format.font.name,
-                size = text_format.font.size
+                name = style.font.name,
+                size = style.font.size
             ),
         );
-        element.set_property("xpad", text_format.padding.x);
-        element.set_property("ypad", text_format.padding.y);
-        element.set_property("color", text_format.color);
-        element.set_property_from_str("halignment", text_format.align.horizontal.into());
-        element.set_property_from_str("valignment", text_format.align.vertical.into());
+        element.set_property("xpad", style.padding.x);
+        element.set_property("ypad", style.padding.y);
+        element.set_property("color", style.color);
+        element.set_property_from_str("halignment", style.align.horizontal.into());
+        element.set_property_from_str("valignment", style.align.vertical.into());
 
         // return Overlay
         Self { element }
     }
+
+    /// Change text to display.
+    ///
+    /// # Arguments
+    ///
+    /// - `text`: new text
+    ///
     pub fn set(&self, text: &str) {
         trace!("set( '{text}' )");
 
@@ -42,7 +59,7 @@ impl TextOverlay {
     }
 }
 
-impl OverlayTrait for TextOverlay {
+impl Overlay for TextOverlay {
     fn element(&self) -> &gst::Element {
         &self.element
     }

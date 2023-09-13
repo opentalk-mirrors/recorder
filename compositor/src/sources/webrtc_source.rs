@@ -15,6 +15,8 @@ pub struct WebRtcSource {
     bin: gst::Bin,
     /// WebRTC GStreamer element which manages mostly everything.
     webrtcbin: gst::Element,
+    video_src: gst::GhostPad,
+    audio_src: gst::GhostPad,
 }
 
 type OnCandidateCallback = Arc<dyn Fn(u32, Option<String>) + Send + Sync>;
@@ -44,7 +46,7 @@ impl Source for WebRtcSource {
     type Parameters = WebRtcSourceParams;
 
     /// Create a new WebRTC source
-    fn new<ID>(id: &ID, pipeline: &gst::Pipeline, _: &Size, params: Self::Parameters) -> Self
+    fn new<ID>(id: &ID, params: Self::Parameters) -> Self
     where
         ID: Display,
     {
@@ -61,26 +63,22 @@ impl Source for WebRtcSource {
         )
         .expect("Failed to parse and load WebRtc pipeline. Is a gst plugin missing?");
 
-        pipeline
-            .add(&bin)
-            .expect("failed to add WebRtc bin to pipeline");
-
         let webrtcbin = bin
             .by_name("webrtc")
             .expect("failed to find webrtc in pipeline");
 
-        let video_ghostpad = gst::GhostPad::new(Some("video"), gst::PadDirection::Src);
-        let audio_ghostpad = gst::GhostPad::new(Some("audio"), gst::PadDirection::Src);
+        let video_src = gst::GhostPad::new(Some("video"), gst::PadDirection::Src);
+        let audio_src = gst::GhostPad::new(Some("audio"), gst::PadDirection::Src);
 
-        bin.add_pad(&video_ghostpad)
+        bin.add_pad(&video_src)
             .expect("failed to add video output ghost pad to webrtc bin");
-        bin.add_pad(&audio_ghostpad)
+        bin.add_pad(&audio_src)
             .expect("failed to add audio output ghost pad to webrtc bin");
 
         webrtcbin.connect_pad_added(webrtcbin_on_pad_added(
             bin.downgrade(),
-            audio_ghostpad.downgrade(),
-            video_ghostpad.downgrade(),
+            audio_src.downgrade(),
+            video_src.downgrade(),
         ));
 
         if let Some(on_candidate) = params.on_ice_candidate {
@@ -104,25 +102,24 @@ impl Source for WebRtcSource {
             });
         }
 
-        Self { bin, webrtcbin }
+        Self {
+            bin,
+            webrtcbin,
+            video_src,
+            audio_src,
+        }
     }
 
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
     }
 
-    fn video_inp_pad(&self) -> Option<gst::Pad> {
-        self.bin
-            .by_name("video-in")
-            .and_then(|video_in| video_in.static_pad("sink"))
-            .and_then(|pad| pad.peer())
+    fn video(&self) -> gst::GhostPad {
+        self.video_src.clone()
     }
 
-    fn audio_inp_pad(&self) -> Option<gst::Pad> {
-        self.bin
-            .by_name("audio-in")
-            .and_then(|video_in| video_in.static_pad("sink"))
-            .and_then(|pad| pad.peer())
+    fn audio(&self) -> gst::GhostPad {
+        self.audio_src.clone()
     }
 
     fn is_video_connected(&self) -> bool {
@@ -157,7 +154,9 @@ impl WebRtcSource {
         let webrtcbin_weak = self.webrtcbin.downgrade();
         let on_create_answer = gst::Promise::with_change_func(
             move |answer: Result<Option<&gst::StructureRef>, gst::PromiseError>| {
-                let Some(webrtcbin) = webrtcbin_weak.upgrade() else { return; };
+                let Some(webrtcbin) = webrtcbin_weak.upgrade() else {
+                    return;
+                };
 
                 let result = match answer {
                     Ok(Some(create_answer)) => create_answer
@@ -226,7 +225,9 @@ fn webrtcbin_on_pad_added(
     video_ghost_pad: WeakRef<gst::GhostPad>,
 ) -> impl Fn(&gst::Element, &gst::Pad) {
     move |_, pad| {
-        let Some(bin) = bin.upgrade() else { return; };
+        let Some(bin) = bin.upgrade() else {
+            return;
+        };
 
         // Make sure this is a source pad
         if pad.direction() != gst::PadDirection::Src {
@@ -298,8 +299,12 @@ fn decodebin_on_pad_added(
 ) -> impl Fn(&gst::Element, &gst::Pad) {
     move |_, pad| {
         let Some(bin) = bin.upgrade() else { return };
-        let Some(audio_ghost_pad) = audio_ghost_pad.upgrade() else { return };
-        let Some(video_ghost_pad) = video_ghost_pad.upgrade() else { return };
+        let Some(audio_ghost_pad) = audio_ghost_pad.upgrade() else {
+            return;
+        };
+        let Some(video_ghost_pad) = video_ghost_pad.upgrade() else {
+            return;
+        };
 
         // Make sure this is a source pad
         if pad.direction() != gst::PadDirection::Src {

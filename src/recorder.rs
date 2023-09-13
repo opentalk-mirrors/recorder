@@ -6,7 +6,7 @@ use crate::signaling::{media_types, Event, Signaling};
 use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
-use compositor::{MediaSessionType, SinkBuilder, StreamId, WebRtcSourceParams};
+use compositor::{DisplayParameters, MediaSessionType, OutputSink, StreamId, WebRtcSourceParams};
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 use futures::Stream;
@@ -23,7 +23,7 @@ use tokio::task::{spawn_blocking, JoinHandle};
 // TODO; make this configurable
 pub const MAX_VISIBLES: usize = 8;
 
-type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
+type Talk = compositor::Talk<compositor::WebRtcSource, OutputSink, ParticipantId>;
 type Layout = compositor::Speaker;
 
 #[derive(Clone, Debug)]
@@ -35,7 +35,6 @@ pub struct Recorder {
 
 impl Recorder {
     /// This constructor is used by the integration tests to mock data.
-    #[allow(dead_code)]
     pub fn new(
         settings: Settings,
         http_client: HttpClient,
@@ -150,25 +149,36 @@ impl RecordingSession {
             .as_ref()
             .map(|rec| rec.sink.as_str());
 
-        let sink_builder: Box<dyn SinkBuilder + Send> = match sink_setting {
-            Some("display") => Box::<compositor::DisplaySinkBuilder>::default(),
-            Some("matroska") => {
-                let params = service_context
+        let talk = match sink_setting {
+            Some("display") => Talk::new(
+                compositor::Size::FHD,
+                DisplayParameters.into(),
+                Some(MAX_VISIBLES),
+            ),
+
+            Some("matroska") => Talk::new(
+                compositor::Size::FHD,
+                service_context
                     .settings
                     .matroska
                     .as_ref()
                     .cloned()
-                    .unwrap_or_default();
-                Box::new(compositor::MatroskaSinkBuilder::new(params))
-            }
-            _ => Box::new(compositor::Mp4SinkBuilder::new(compositor::Mp4SinkParams {
-                file_path: file_path
-                    .to_str()
-                    .expect("failed to convert MP4 file path into string")
+                    .unwrap_or_default()
                     .into(),
-            })),
-        };
-        let talk = Talk::new(compositor::Size::FHD, sink_builder, Some(MAX_VISIBLES))?;
+                Some(MAX_VISIBLES),
+            ),
+            _ => Talk::new(
+                compositor::Size::FHD,
+                compositor::Mp4Parameters {
+                    file_path: file_path
+                        .to_str()
+                        .expect("failed to convert MP4 file path into string")
+                        .into(),
+                }
+                .into(),
+                Some(MAX_VISIBLES),
+            ),
+        }?;
 
         Ok(Self {
             service_context,
@@ -300,7 +310,8 @@ impl RecordingSession {
                             )?;
                             self.signaling.start_subscribe(stream_id).await?;
                             if participant_state.consents {
-                                self.talk.show(&stream_id)?;
+                                // show if possible
+                                self.talk.try_show(&stream_id);
                             }
                         }
                     } else if media_state.is_none() {
@@ -368,7 +379,10 @@ impl RecordingSession {
                     );
                 }
                 let Some(source) = self.talk.get_source(&stream_id) else {
-                    bail!("EndOfCandidates message for {:?} with no connection setup", stream_id);
+                    bail!(
+                        "EndOfCandidates message for {:?} with no connection setup",
+                        stream_id
+                    );
                 };
 
                 source.receive_end_of_candidates(0).await;
@@ -427,8 +441,8 @@ impl RecordingSession {
         let Err(upload_err) = self
             .service_context
             .upload(&self.room_id, recording_path.as_ref())
-            .await else
-        {
+            .await
+        else {
             log::debug!("Finished uploading recording for room '{}'", &self.room_id);
             return Ok(());
         };

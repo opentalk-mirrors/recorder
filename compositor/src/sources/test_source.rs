@@ -1,5 +1,4 @@
 use crate::*;
-use gst::traits::{ElementExt, GstBinExt};
 use std::fmt::Display;
 
 /// Video test patterns.
@@ -97,11 +96,11 @@ impl From<Pattern> for &'static str {
 }
 
 /// Source that generates dummy picture and sound to simulate a participant's input.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TestSource {
     bin: gst::Bin,
-    video_inp_pad: gst::Pad,
-    audio_inp_pad: gst::Pad,
+    video_src: gst::GhostPad,
+    audio_src: gst::GhostPad,
 }
 
 /// Specific parameters needed to create a [TestSource]
@@ -131,65 +130,43 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [TestSource] and add it to the given pipeline.
-    fn new<ID>(
-        id: &ID,
-        pipeline: &gst::Pipeline,
-        resolution: &Size,
-        params: TestSourceParameters,
-    ) -> TestSource
+    fn new<ID>(id: &ID, params: Self::Parameters) -> TestSource
     where
         ID: Display,
     {
-        trace!("new( {id} {resolution:?}, {params:?} )",);
-
-        // substitute parameters for easy us with format!()
-        let (width, height) = if resolution.ratio() == params.resolution.ratio() {
-            (params.resolution.width, params.resolution.height)
-        } else if resolution.ratio() > params.resolution.ratio() {
-            (
-                (params.resolution.height as f64 * resolution.ratio()) as usize,
-                params.resolution.height,
-            )
-        } else {
-            (
-                params.resolution.width,
-                (params.resolution.width as f64 / resolution.ratio()) as usize,
-            )
-        };
-        debug!("Padding TestSource to {width}:{height}");
-
-        use std::cmp::min;
-        let (out_width, out_height) =
-            (min(resolution.width, width), min(resolution.height, height));
-        debug!("Resizing TestSource to {out_width}:{out_height}");
+        trace!("new( {id}, {params:?} )",);
 
         // create bin including codecs and the dash sink
         let bin = gst::parse_bin_from_description(
             &(format!(
                 r#"
-                name="participant_{id}"
+                name="Test Input Source: {id}"
                 "#,
             ) + &match params.pattern {
                 Pattern::Location(location) => format!(
                     r#"
                     filesrc
+                        name="Picture File Loader"
                         location={location}
                     ! pngdec
+                        name="PNG Picture Decoder"
                     ! textoverlay
+                        name="Naming Overlay"
                         font-desc="Helvetica Bold 25"
                         valignment=center
                         halignment=center
                         text="{name}"
                         color=0xffffff80
                     ! videoconvert
-                    ! videoscale
+                        name="Video Converter"
                     ! capssetter
-                        caps=video/x-raw,format=RGB,width={out_width},height={out_height}
+                        name="Video Capssetter"
+                        caps=video/x-raw,format=RGB
                     ! imagefreeze
-                        name=video-inp
+                        name="Video Generator"
                         is-live=true
                     ! queue
-                        name=video-out
+                        name="video"
                         max-size-time=2000000000
                     "#,
                     name = params.name.clone().unwrap_or_default()
@@ -200,77 +177,51 @@ impl Source for TestSource {
                     format!(
                         r#"
                         videotestsrc
-                            name=video-inp
+                            name="Video Test Source"
                             pattern={pattern}
                             is-live=true
+                        ! videoconvert
+                            name="Video Converter"
                         ! capssetter
-                            caps=video/x-raw,format=RGB,width={width},height={height}
-                        ! videoscale
-                        ! capssetter
-                            caps=video/x-raw,format=RGB,width={out_width},height={out_height}
+                            name="Video Capssetter"
+                            caps=video/x-raw,format=RGB
                         ! queue
-                            name=video-out
+                            name=video
                             max-size-time=2000000000
                         "#,
                     )
                 }
             } + r#"
                 audiotestsrc
-                    name=audio-inp
+                    name="Audio Test Source"
                     volume=0.01
                     is-live=true
                 ! capssetter
+                    name="Audio Capssetter"
                     caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
                 ! queue
-                    name=audio-out
+                    name=audio
                     max-size-time=2000000000
             "#),
             false,
         )
         .expect("failed to create test source bin");
 
-        // add video elements to pipeline
-        pipeline.add(&bin).unwrap();
-
-        // get elements from bin
-        let video_inp = bin.by_name("video-inp").unwrap();
-        let video_inp_pad = video_inp.static_pad("src").unwrap();
-        // get elements from bin
-        let video_out = bin.by_name("video-out").unwrap();
-        let video_out_pad = video_out.static_pad("src").unwrap();
-
-        let audio_inp = bin.by_name("audio-inp").unwrap();
-        let audio_inp_pad = audio_inp.static_pad("src").unwrap();
-        let audio_out = bin.by_name("audio-out").unwrap();
-        let audio_out_pad = audio_out.static_pad("src").unwrap();
-
-        let video_out_pad = gst::GhostPad::with_target(Some("video"), &video_out_pad)
-            .expect("failed to create ghost pad for webrtc video output");
-        let audio_out_pad = gst::GhostPad::with_target(Some("audio"), &audio_out_pad)
-            .expect("failed to create ghost pad for webrtc audio output");
-
-        bin.add_pad(&video_out_pad)
-            .expect("failed to add video output ghost pad to webrtc bin");
-        bin.add_pad(&audio_out_pad)
-            .expect("failed to add audio output ghost pad to webrtc bin");
-
         TestSource {
             // remember elements and pads for connect/disconnect
+            video_src: add_ghost_pad(&bin, "video", "src"),
+            audio_src: add_ghost_pad(&bin, "audio", "src"),
             bin,
-            video_inp_pad,
-            audio_inp_pad,
         }
-    }
-
-    fn video_inp_pad(&self) -> Option<gst::Pad> {
-        Some(self.video_inp_pad.clone())
-    }
-
-    fn audio_inp_pad(&self) -> Option<gst::Pad> {
-        Some(self.audio_inp_pad.clone())
     }
 
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
+    }
+    fn video(&self) -> gst::GhostPad {
+        self.video_src.clone()
+    }
+    fn audio(&self) -> gst::GhostPad {
+        self.audio_src.clone()
     }
 }

@@ -23,12 +23,12 @@ impl Layout for Speaker {
             0 => View {
                 pos: self.speaker_position(),
                 size: self.speaker_size(),
-                alpha: 1.0,
+                alpha: if n < self.visibles { 1.0 } else { 0.0 },
             },
             _ => View {
                 pos: self.viewers_position(n - 1),
                 size: self.viewers_size(n - 1),
-                alpha: 1.0,
+                alpha: if n < self.visibles { 1.0 } else { 0.0 },
             },
         }
     }

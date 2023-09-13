@@ -1,27 +1,8 @@
-use super::{Size, Source};
-use crate::Overlay;
+//! Stream status.
+
+use crate::*;
 use core::fmt::{Debug, Display};
-
-/// Status of a stream if it is linked to a fake sink or the compositor.
-#[derive(Debug)]
-pub enum LinkStatus {
-    /// Video source is unlinked
-    None,
-    /// Video source is not linked to the mixer
-    Unlinked(gst::Element),
-    /// Video source is linked to the mixer
-    Linked(gst::Element),
-}
-
-impl LinkStatus {
-    pub fn valve(self) -> Option<gst::Element> {
-        match self {
-            LinkStatus::Linked(valve) => Some(valve),
-            LinkStatus::Unlinked(valve) => Some(valve),
-            _ => None,
-        }
-    }
-}
+use gst_base::prelude::*;
 
 /// Turns on or off video or audio.
 #[derive(Debug, Clone)]
@@ -82,57 +63,77 @@ impl Display for StreamStatus {
 #[derive(Debug)]
 pub struct Stream<SRC>
 where
-    SRC: Source,
-    SRC::Parameters: Debug,
+    SRC: Source + Debug,
 {
     /// Name to be displayed within the sub title text.
     pub display_name: String,
     /// Wrapped AV source of this stream.
     pub source: SRC,
-    /// Video link status of this stream.
-    pub video_link_status: LinkStatus,
-    /// Video link status of this stream.
-    pub audio_link_status: LinkStatus,
+    // the bin of the source
+    pub bin: gst::Bin,
+    // the video src ghost pad
+    pub video: gst::GhostPad,
+    // the audio src ghost pad
+    pub audio: gst::GhostPad,
+    // source's overlay
+    pub overlay: AnyOverlay,
     /// current stream status
     pub status: StreamStatus,
-    /// Overlays
-    pub overlays: Vec<Overlay>,
 }
 
 impl<SRC> Stream<SRC>
 where
-    SRC: Source,
+    SRC: Source + Debug,
     SRC::Parameters: Debug,
 {
     /// Create new stream and a source of type `SRC` into the given GStreamer pipeline.
     ///
     /// # Arguments
     ///
-    /// - `pipeline`: Pipeline to add GStreamer elements into.
     /// - `id`: Unique ID of the stream.
     /// - `display_name`: Name to be displayed within the sub title text.
-    /// - `params`: Parameters that will be forwarded to the source which gets created.
+    /// - `source_bin`: A/V source bin.
+    /// - `status`: Initial status of the stream.
     ///
+    #[allow(clippy::too_many_arguments)]
     pub fn new<ID>(
         id: &ID,
-        pipeline: &gst::Pipeline,
-        resolution: &Size,
         display_name: String,
-        params: SRC::Parameters,
-        overlays: Vec<Overlay>,
+        source: SRC,
+        bin: gst::Bin,
+        video_src: gst::GhostPad,
+        audio_src: gst::GhostPad,
+        overlay: AnyOverlay,
         status: StreamStatus,
     ) -> Self
     where
         ID: Display,
     {
-        trace!("new( {resolution:?}, {display_name:?}, {params:?} )");
+        trace!(
+            "new({id}, {display_name:?}, {source},  {status:?} )",
+            source = debug::name(&source.bin()),
+        );
+
         Self {
             display_name,
-            source: SRC::new(id, pipeline, resolution, params),
-            video_link_status: LinkStatus::None,
-            audio_link_status: LinkStatus::None,
+            source,
+            bin,
+            video: video_src,
+            audio: audio_src,
+            overlay,
             status,
-            overlays,
         }
+    }
+    pub fn compositor_sink(&self) -> gst::Pad {
+        // find compositor sink by looking where our ghost pad is connected to
+        self.video
+            .peer()
+            .expect("expecting video source bin to be connected to compositor")
+    }
+    pub fn audiomixer_sink(&self) -> gst::Pad {
+        // find audiomixer sink by looking where our ghost pad is connected to
+        self.audio
+            .peer()
+            .expect("expecting audio source bin to be connected to audiomixer")
     }
 }

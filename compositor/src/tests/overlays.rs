@@ -6,9 +6,9 @@ fn test_overlay() {
     testing::init();
 
     // get output resolution from arguments
-    let mut talk = Talk::<TestSource, u32>::new(
+    let mut talk = Talk::<TestSource, testing::TestSink, u32>::new(
         testing::RESOLUTION,
-        Box::<testing::TestSinkBuilder>::default(),
+        Default::default(),
         None,
     )
     .unwrap();
@@ -25,13 +25,17 @@ fn test_overlay() {
 
     // add participants
     let (_, ids) = testing::generate_streams(&mut talk, 3, 3);
+    ids.iter().for_each(|id| {
+        talk.try_show(&StreamId::camera(*id));
+    });
+    talk.layout::<Grid>().unwrap();
     talk.dot("test_overlay-3", testing::DOT_PARAMS);
 
     testing::wait();
 
     for id in ids {
         // add text overlay to source
-        talk.set_stream_title(&StreamId::camera(id), "Source Text Overlay")
+        talk.set_stream_title(&StreamId::camera(id), "new text")
             .unwrap();
         talk.dot("test_overlay-4", testing::DOT_PARAMS);
         testing::wait();
