@@ -128,16 +128,14 @@ where
 /// - `ID`: Type which can identify a stream.
 ///
 #[derive(Debug)]
-pub struct Talk<SRC, SINK, ID>
+pub struct Talk<SRC, ID>
 where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
-    SINK: Sink + Debug,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Underlying A/V mixer.
-    mixer: Mixer<SRC, SINK, StreamId<ID>>,
+    mixer: Mixer<SRC, StreamId<ID>>,
     /// Maximum number of visible participants in layouts.
     max_visibles: Option<usize>,
     /// Display names that will appear in output video
@@ -148,12 +146,10 @@ where
     speaker: Option<ID>,
 }
 
-impl<SRC, SINK, ID> Talk<SRC, SINK, ID>
+impl<SRC, ID> Talk<SRC, ID>
 where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
-    SINK: Sink + Debug,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Create new Talk.
@@ -164,20 +160,12 @@ where
     /// - `sink_params`: Parameters to create the output sink.
     /// - `max_visibles`: Maximum number of currently visible streams.
     ///
-    pub fn new(
-        resolution: Size,
-        sink_params: SINK::Parameters,
-        max_visibles: Option<usize>,
-    ) -> Result<Self> {
+    pub fn new(resolution: Size, sink: impl Sink, max_visibles: Option<usize>) -> Result<Self> {
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
         Ok(Self {
-            mixer: Mixer::<SRC, SINK, StreamId<ID>>::new(
-                resolution,
-                TalkOverlay::new().into(),
-                sink_params,
-            )?,
+            mixer: Mixer::<SRC, StreamId<ID>>::new(resolution, TalkOverlay::new().into(), sink)?,
             max_visibles,
             names: HashMap::new(),
             unknown_speaker: None,
@@ -549,12 +537,10 @@ where
     }
 }
 
-impl<SRC, SINK, ID> Drop for Talk<SRC, SINK, ID>
+impl<SRC, ID> Drop for Talk<SRC, ID>
 where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
-    SINK: Sink + Debug,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     fn drop(&mut self) {

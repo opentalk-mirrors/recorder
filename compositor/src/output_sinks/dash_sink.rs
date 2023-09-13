@@ -60,6 +60,23 @@ pub struct DashParameters {
     pub update_callback: fn(files: Vec<&OsStr>),
 }
 
+impl DashSink {
+    /// Create and add new DASH sink into existing pipeline.
+    pub fn new(params: DashParameters) -> Self {
+        // watch pipeline bus for getting into `Playing` state
+        // return new instance
+        Self {
+            matroska_sink: MatroskaSink::new(MatroskaParameters {
+                // use fixed localhost but with given port
+                address: SocketAddr::from(([127, 0, 0, 1], 0)),
+            }),
+            params,
+            process: None,
+            temp_dir: None,
+        }
+    }
+}
+
 fn update(files: Vec<&OsStr>) {
     debug!("Updated files: {:?}", files);
 }
@@ -78,23 +95,6 @@ impl Default for DashParameters {
 }
 
 impl Sink for DashSink {
-    type Parameters = DashParameters;
-
-    /// Create and add new DASH sink into existing pipeline.
-    fn new(params: Self::Parameters) -> Self {
-        // watch pipeline bus for getting into `Playing` state
-        // return new instance
-        Self {
-            matroska_sink: MatroskaSink::new(MatroskaParameters {
-                // use fixed localhost but with given port
-                address: SocketAddr::from(([127, 0, 0, 1], 0)),
-            }),
-            params,
-            process: None,
-            temp_dir: None,
-        }
-    }
-
     /// Get video sink pad from Matroska sink.
     fn video(&self) -> gst::GhostPad {
         self.matroska_sink.video()

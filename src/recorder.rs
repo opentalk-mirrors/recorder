@@ -6,7 +6,10 @@ use crate::signaling::{media_types, Event, Signaling};
 use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
-use compositor::{DisplayParameters, MediaSessionType, OutputSink, StreamId, WebRtcSourceParams};
+use compositor::{
+    DisplaySink, MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, StreamId,
+    WebRtcSourceParams,
+};
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 use futures::Stream;
@@ -23,7 +26,7 @@ use tokio::task::{spawn_blocking, JoinHandle};
 // TODO; make this configurable
 pub const MAX_VISIBLES: usize = 8;
 
-type Talk = compositor::Talk<compositor::WebRtcSource, OutputSink, ParticipantId>;
+type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
 type Layout = compositor::Speaker;
 
 #[derive(Clone, Debug)]
@@ -152,30 +155,30 @@ impl RecordingSession {
         let talk = match sink_setting {
             Some("display") => Talk::new(
                 compositor::Size::FHD,
-                DisplayParameters.into(),
+                DisplaySink::new(),
                 Some(MAX_VISIBLES),
             ),
 
             Some("matroska") => Talk::new(
                 compositor::Size::FHD,
-                service_context
-                    .settings
-                    .matroska
-                    .as_ref()
-                    .cloned()
-                    .unwrap_or_default()
-                    .into(),
+                MatroskaSink::new(
+                    service_context
+                        .settings
+                        .matroska
+                        .as_ref()
+                        .cloned()
+                        .unwrap_or_default(),
+                ),
                 Some(MAX_VISIBLES),
             ),
             _ => Talk::new(
                 compositor::Size::FHD,
-                compositor::Mp4Parameters {
+                Mp4Sink::new(Mp4Parameters {
                     file_path: file_path
                         .to_str()
                         .expect("failed to convert MP4 file path into string")
                         .into(),
-                }
-                .into(),
+                }),
                 Some(MAX_VISIBLES),
             ),
         }?;

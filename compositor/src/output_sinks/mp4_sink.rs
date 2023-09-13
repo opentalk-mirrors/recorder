@@ -21,10 +21,9 @@ pub struct Mp4Parameters {
     pub file_path: std::path::PathBuf,
 }
 
-impl Sink for Mp4Sink {
-    type Parameters = Mp4Parameters;
+impl Mp4Sink {
     /// Create and add new MP4 sink into existing pipeline.
-    fn new(params: Mp4Parameters) -> Self {
+    pub fn new(params: Mp4Parameters) -> Self {
         let matroska_sink = MatroskaSink::new(Default::default());
         let address = &format!("tcp://{}", matroska_sink.address);
 
@@ -62,6 +61,9 @@ impl Sink for Mp4Sink {
             filename,
         }
     }
+}
+
+impl Sink for Mp4Sink {
     /// Get video sink pad from Matroska sink.
     fn video(&self) -> gst::GhostPad {
         self.matroska_sink.video()

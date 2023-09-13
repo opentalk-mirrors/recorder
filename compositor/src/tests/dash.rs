@@ -6,13 +6,13 @@ fn test_dash() {
     testing::init();
 
     // create grid mixer with test sources for streams and a MatroskaSink
-    let mut mixer = Talk::<TestSource, DashSink, u32>::new(
+    let mut mixer = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        DashParameters {
+        DashSink::new(DashParameters {
             output_dir: Some(testing::output_dir().into()),
             seg_duration: 1.0,
             ..Default::default()
-        },
+        }),
         None,
     )
     .unwrap();

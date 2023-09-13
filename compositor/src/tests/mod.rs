@@ -111,7 +111,7 @@ pub mod testing {
 
     /// generate given number of participant streams
     pub fn generate_streams<ID>(
-        talk: &mut Talk<TestSource, TestSink, ID>,
+        talk: &mut Talk<TestSource, ID>,
         count: u32,
         visibles: usize,
     ) -> (Vec<(ID, String)>, Vec<ID>)
@@ -182,14 +182,9 @@ pub mod testing {
         Display(DisplaySink),
     }
 
-    #[derive(Debug, Default)]
-    pub struct TestSinkParameters {}
-
-    impl Sink for TestSink {
-        type Parameters = TestSinkParameters;
-
+    impl TestSink {
         /// Create and add new fake sink into existing pipeline.
-        fn new(_: TestSinkParameters) -> Self {
+        pub fn new() -> Self {
             trace!("new()");
 
             if use_display() {
@@ -200,6 +195,9 @@ pub mod testing {
                 Self::Fake(Default::default())
             }
         }
+    }
+
+    impl Sink for TestSink {
         fn bin(&self) -> gst::Bin {
             match self {
                 Self::Fake(sink) => sink.bin(),

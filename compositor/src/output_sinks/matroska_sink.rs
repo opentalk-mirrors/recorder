@@ -23,20 +23,9 @@ pub struct MatroskaParameters {
     pub address: SocketAddr,
 }
 
-impl Default for MatroskaParameters {
-    /// File parameters default
-    fn default() -> Self {
-        Self {
-            address: SocketAddr::from(([127, 0, 0, 1], 0)),
-        }
-    }
-}
-
-impl Sink for MatroskaSink {
-    type Parameters = MatroskaParameters;
-
+impl MatroskaSink {
     /// Create and add new Matroska sink into existing pipeline.
-    fn new(params: MatroskaParameters) -> Self {
+    pub fn new(params: MatroskaParameters) -> Self {
         trace!("new( {params:?} )");
 
         // create bin including codecs and the Matroska sink
@@ -113,7 +102,18 @@ impl Sink for MatroskaSink {
             bin,
         }
     }
+}
 
+impl Default for MatroskaParameters {
+    /// File parameters default
+    fn default() -> Self {
+        Self {
+            address: SocketAddr::from(([127, 0, 0, 1], 0)),
+        }
+    }
+}
+
+impl Sink for MatroskaSink {
     /// Get video sink pad.
     fn video(&self) -> gst::GhostPad {
         self.video_sink.clone()
