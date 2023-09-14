@@ -9,6 +9,7 @@ fn test_mp4() {
         testing::RESOLUTION,
         Mp4Sink::new(Mp4Parameters {
             file_path: testing::output_file("mp4sink.mp4").into(),
+            ..Default::default()
         }),
         None,
     )

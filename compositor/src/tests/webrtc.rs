@@ -63,7 +63,7 @@ async fn exec_events(events: Vec<Event>) {
         // Mp4SinkParams {
         //     file_path: "out.mp4".into(),
         // },
-        TestSink::new(),
+        TestSink::default(),
         MAX_VISIBLES,
     )
     .unwrap();

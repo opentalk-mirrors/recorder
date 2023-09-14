@@ -10,20 +10,22 @@ pub struct FakeSink {
 
 impl FakeSink {
     /// Create and add new fake sink into existing pipeline.
-    pub fn new() -> Self {
-        trace!("new()");
+    pub fn new(name: &str) -> Self {
+        trace!("new({name})");
 
         // create new GStreamer pipeline
         let bin = gst::parse_bin_from_description(
-            r#" 
-                name="Fake Sink"
+            &format!(
+                r#" 
+                name="{name}"
     
                 fakevideosink
                     name=video
     
                 fakeaudiosink
                     name=audio
-                "#,
+                "#
+            ),
             false,
         )
         .expect("could not parse display link pipeline");
@@ -39,7 +41,7 @@ impl FakeSink {
 
 impl Default for FakeSink {
     fn default() -> Self {
-        Self::new()
+        Self::new("Fake Sink")
     }
 }
 

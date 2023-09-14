@@ -23,7 +23,7 @@ impl Default for TestBlinderParams {
         Self {
             name: Default::default(),
             resolution: Default::default(),
-            sink: Box::new(FakeSink::new()),
+            sink: Box::new(FakeSink::new("FakeSink")),
             alt_source_params: Default::default(),
         }
     }
@@ -89,7 +89,7 @@ impl TestBlinder {
             ! video/x-raw,width={width},height={height}
             ! input-selector
                 name=video-selector
-            
+
             audiotestsrc
                 volume=0.0
             ! input-selector

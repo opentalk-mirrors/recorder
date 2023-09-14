@@ -18,7 +18,8 @@ where
     testing::init();
 
     let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::new(), None).unwrap();
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::default(), None)
+            .unwrap();
 
     testing::wait_millis(100);
 
@@ -45,7 +46,8 @@ fn test_remove() {
     testing::init();
 
     let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::new(), None).unwrap();
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::default(), None)
+            .unwrap();
 
     talk.set_title("test_remove");
 

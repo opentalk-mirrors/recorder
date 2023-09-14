@@ -32,6 +32,8 @@
       listens on a TCP port to write the raw output to, after someone connects.
     - [TestBlinder]
       blinds it's input with an alternative input (currently test source)
+    - [MultiSink]
+      distributes one output to multiple different output sinks.
 
     # Layouts
 

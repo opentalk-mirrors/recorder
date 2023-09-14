@@ -10,7 +10,7 @@ fn test_speaker_mode() {
 
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        testing::TestSink::new(),
+        testing::TestSink::default(),
         Some(MAX_VISIBLES),
     )
     .unwrap();
