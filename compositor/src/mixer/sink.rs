@@ -6,12 +6,6 @@ use gst_base::prelude::{ElementExt, GstBinExt};
 
 /// Trait of an output sink.
 pub trait Sink: Send + Debug + 'static {
-    /// Type which represents the parameters of the implementation
-    type Parameters;
-
-    /// create new instance with the given parameters
-    fn new(params: Self::Parameters) -> Self;
-
     /// Get sink pad of the video sink.
     fn video(&self) -> gst::GhostPad;
 

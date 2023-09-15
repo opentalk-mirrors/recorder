@@ -1,4 +1,4 @@
-use crate::{testing::RESOLUTION, *};
+use crate::*;
 
 const IMAGE_OUTPUT_PATH: &str = "./images";
 
@@ -18,8 +18,7 @@ fn generate_example_pipeline_picture() {
 
     // setup mixer
     let mut talk =
-        Talk::<TestSource, testing::TestSink, u32>::new(RESOLUTION, Default::default(), None)
-            .unwrap();
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::new(), None).unwrap();
     // generate pipeline DOT graph of the empty pipeline
     talk.dot("0_init", dp);
 

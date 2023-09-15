@@ -8,20 +8,9 @@ pub struct DisplaySink {
     audio_sink: gst::GhostPad,
 }
 
-impl Default for DisplaySink {
-    fn default() -> Self {
-        Self::new(DisplayParameters {})
-    }
-}
-
-/// No parameters for display
-#[derive(Debug, Default)]
-pub struct DisplayParameters;
-
-impl Sink for DisplaySink {
-    type Parameters = DisplayParameters;
+impl DisplaySink {
     /// Create and add new display sink into existing pipeline.
-    fn new(_: DisplayParameters) -> DisplaySink {
+    pub fn new() -> DisplaySink {
         trace!("new()");
 
         // create new GStreamer pipeline
@@ -48,7 +37,15 @@ impl Sink for DisplaySink {
             bin,
         }
     }
+}
 
+impl Default for DisplaySink {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Sink for DisplaySink {
     /// Get video sink pad.
     fn video(&self) -> gst::GhostPad {
         self.video_sink.clone()

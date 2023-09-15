@@ -8,9 +8,9 @@ fn test_speaker_mode() {
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
-    let mut talk = Talk::<TestSource, testing::TestSink, u32>::new(
+    let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        Default::default(),
+        testing::TestSink::new(),
         Some(MAX_VISIBLES),
     )
     .unwrap();

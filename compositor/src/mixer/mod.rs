@@ -66,12 +66,10 @@ const BUS_EOS_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(20
 /// - `ID`: stream identifier type
 ///
 #[derive(Debug)]
-pub struct Mixer<SRC, SINK, ID>
+pub struct Mixer<SRC, ID>
 where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
-    SINK: Sink + Debug,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// Current streams.
@@ -87,7 +85,7 @@ where
     /// Overlay behind compositor
     overlay: AnyOverlay,
     /// Holds the output sink.
-    output: SINK,
+    output: Box<dyn Sink>,
     /// over all generated output resolution
     output_resolution: Size,
     /// signals when bus reading stops
@@ -98,12 +96,10 @@ where
     expect_eos: Arc<AtomicBool>,
 }
 
-impl<SRC, SINK, ID> Mixer<SRC, SINK, ID>
+impl<SRC, ID> Mixer<SRC, ID>
 where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
-    SINK: Sink + Debug,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
@@ -114,11 +110,7 @@ where
     /// - `overlay`: List of overlays to attach behind the compositor
     /// - `sink_params`: Output sink apramaters.
     ///
-    pub fn new(
-        resolution: Size,
-        overlay: AnyOverlay,
-        sink_params: SINK::Parameters,
-    ) -> Result<Self> {
+    pub fn new(resolution: Size, overlay: AnyOverlay, sink: impl Sink) -> Result<Self> {
         trace!("new( {resolution:?} )");
 
         // get width/height
@@ -192,7 +184,6 @@ where
             .expect("failed to get source pad from audio output");
 
         // create output sink
-        let sink = SINK::new(sink_params);
         pipeline.add(&sink.bin())?;
 
         pipeline.add(overlay.element())?;
@@ -221,7 +212,7 @@ where
             pipeline,
             streams: HashMap::new(),
             overlay,
-            output: sink,
+            output: Box::new(sink),
             output_resolution: resolution,
             is_reading_bus: None,
             valid: Arc::new((Mutex::new(false), Condvar::new())),
@@ -701,12 +692,10 @@ where
     }
 }
 
-impl<SRC, SINK, ID> Drop for Mixer<SRC, SINK, ID>
+impl<SRC, ID> Drop for Mixer<SRC, ID>
 where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
-    SINK: Sink + Debug,
-    SINK::Parameters: Debug,
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// halt pipeline (can not be played again)

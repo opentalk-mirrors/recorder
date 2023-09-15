@@ -6,12 +6,8 @@ fn test_overlay() {
     testing::init();
 
     // get output resolution from arguments
-    let mut talk = Talk::<TestSource, testing::TestSink, u32>::new(
-        testing::RESOLUTION,
-        Default::default(),
-        None,
-    )
-    .unwrap();
+    let mut talk =
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::new(), None).unwrap();
 
     talk.set_title("test_overlay");
 

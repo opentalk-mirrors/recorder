@@ -8,20 +8,9 @@ pub struct FakeSink {
     audio_sink: gst::GhostPad,
 }
 
-/// No parameters for FakeSink
-pub struct FakeParameters {}
-
-impl Default for FakeSink {
-    fn default() -> Self {
-        Self::new(FakeParameters {})
-    }
-}
-
-impl Sink for FakeSink {
-    type Parameters = FakeParameters;
-
+impl FakeSink {
     /// Create and add new fake sink into existing pipeline.
-    fn new(_: FakeParameters) -> Self {
+    pub fn new() -> Self {
         trace!("new()");
 
         // create new GStreamer pipeline
@@ -46,7 +35,15 @@ impl Sink for FakeSink {
             bin,
         }
     }
+}
 
+impl Default for FakeSink {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Sink for FakeSink {
     /// Get video sink pad.
     fn video(&self) -> gst::GhostPad {
         self.video_sink.clone()
