@@ -1,3 +1,4 @@
+mod blinder;
 mod dash;
 mod generate_example_pipeline_picture;
 mod matroska;

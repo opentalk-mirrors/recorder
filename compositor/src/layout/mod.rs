@@ -22,7 +22,7 @@ pub struct Position {
 }
 
 /// Cartesian pixel dimension
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Size {
     /// horizontal dimension
     pub width: usize,

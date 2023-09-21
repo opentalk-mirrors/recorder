@@ -155,7 +155,7 @@ impl RecordingSession {
         let talk = match sink_setting {
             Some("display") => Talk::new(
                 compositor::Size::FHD,
-                DisplaySink::new(),
+                DisplaySink::default(),
                 Some(MAX_VISIBLES),
             ),
 

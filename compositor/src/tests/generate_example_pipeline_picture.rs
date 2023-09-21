@@ -1,6 +1,7 @@
 use crate::*;
 
 const IMAGE_OUTPUT_PATH: &str = "./images";
+const DOT_PATH: &str = "pipelines";
 
 /// generate an example of a usual pipeline
 #[test]
@@ -9,6 +10,7 @@ fn generate_example_pipeline_picture() {
     let _ = env_logger::try_init();
 
     // initialize GStreamer
+    std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_PATH);
     gst::init().unwrap();
 
     let dp = &debug::Params {
@@ -17,8 +19,16 @@ fn generate_example_pipeline_picture() {
     };
 
     // setup mixer
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, testing::TestSink::new(), None).unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        TestBlinder::new(TestBlinderParams {
+            sink: Box::new(testing::TestSink::new()),
+            resolution: testing::RESOLUTION,
+            ..Default::default()
+        }),
+        None,
+    )
+    .unwrap();
     // generate pipeline DOT graph of the empty pipeline
     talk.dot("0_init", dp);
 
@@ -54,9 +64,7 @@ fn generate_example_pipeline_picture() {
 
 /// check whether the generated PNG equals the old one before overwriting it
 fn convert(name: &str) {
-    let dot_path = "pipelines";
-    std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", dot_path);
-    let dot = &format!("{dot_path}/{name}.dot");
+    let dot = &format!("{DOT_PATH}/{name}.dot");
     let intermediate = &format!("{IMAGE_OUTPUT_PATH}/{name}.new.png");
     let png = &format!("{IMAGE_OUTPUT_PATH}/{name}.png");
     std::fs::create_dir_all(IMAGE_OUTPUT_PATH).expect("can not create dir from IMAGE_OUTPUT_PATH");

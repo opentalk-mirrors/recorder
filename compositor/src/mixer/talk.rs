@@ -562,3 +562,9 @@ pub enum SpeakerSwitchMode {
     /// If the maximum of visibles is reached and< speaker was not visible before the last visible will be shifted out.
     FirstSwap,
 }
+
+impl Default for SpeakerSwitchMode {
+    fn default() -> Self {
+        Self::FirstShift
+    }
+}
