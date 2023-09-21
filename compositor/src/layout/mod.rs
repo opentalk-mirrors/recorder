@@ -5,7 +5,7 @@ pub use grid::*;
 pub use speaker::*;
 
 /// View properies of a stream
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct View {
     pub pos: Position,
     pub size: Size,
@@ -13,7 +13,7 @@ pub struct View {
 }
 
 /// Cartesian pixel position
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Position {
     /// X position
     pub x: i64,
@@ -22,7 +22,7 @@ pub struct Position {
 }
 
 /// Cartesian pixel dimension
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Size {
     /// horizontal dimension
     pub width: usize,

@@ -18,6 +18,9 @@ impl Layout for Grid {
     }
 
     fn view(&self, n: usize) -> View {
+        if n >= self.visibles {
+            return Default::default();
+        }
         let row = n / self.columns();
         let column = n % self.columns();
         View {
@@ -26,7 +29,7 @@ impl Layout for Grid {
                 y: (self.height() * row + self.padding()) as i64,
             },
             size: self.uni_size(),
-            alpha: if n < self.visibles { 1.0 } else { 0.0 },
+            alpha: 1.0,
         }
     }
 

@@ -197,6 +197,12 @@ pub mod testing {
         }
     }
 
+    impl Default for TestSink {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl Sink for TestSink {
         fn bin(&self) -> gst::Bin {
             match self {
