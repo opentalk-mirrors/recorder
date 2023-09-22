@@ -19,16 +19,19 @@ impl Layout for Speaker {
     }
 
     fn view(&self, n: usize) -> View {
+        if n >= self.visibles {
+            return Default::default();
+        }
         match n {
             0 => View {
                 pos: self.speaker_position(),
                 size: self.speaker_size(),
-                alpha: if n < self.visibles { 1.0 } else { 0.0 },
+                alpha: 1.0,
             },
             _ => View {
                 pos: self.viewers_position(n - 1),
                 size: self.viewers_size(n - 1),
-                alpha: if n < self.visibles { 1.0 } else { 0.0 },
+                alpha: 1.0,
             },
         }
     }
