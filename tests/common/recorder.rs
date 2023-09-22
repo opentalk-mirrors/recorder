@@ -64,7 +64,7 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let temp_dir = TempDir::new().expect("unable to create temp dir");
     let talk = Talk::new(
         compositor::Size::FHD,
-        DisplaySink::new(),
+        DisplaySink::new("Display"),
         Some(MAX_VISIBLES),
     )
     .expect("unable to create Talk");

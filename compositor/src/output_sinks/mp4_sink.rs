@@ -6,10 +6,8 @@ use crate::Sink;
 pub struct Mp4Sink {
     /// Underlying Matroska sink.
     matroska_sink: MatroskaSink,
-
     /// FFmpeg process.
     process: Option<std::process::Child>,
-
     /// Output filename.
     filename: String,
 }
@@ -17,14 +15,28 @@ pub struct Mp4Sink {
 /// MP4 Sink parameters
 #[derive(Debug)]
 pub struct Mp4Parameters {
+    /// name of the sink
+    pub name: &'static str,
     /// Output file path
     pub file_path: std::path::PathBuf,
+}
+
+impl Default for Mp4Parameters {
+    fn default() -> Self {
+        Self {
+            name: "MP4 Sink",
+            file_path: std::env::current_dir().expect("could not get current directory"),
+        }
+    }
 }
 
 impl Mp4Sink {
     /// Create and add new MP4 sink into existing pipeline.
     pub fn new(params: Mp4Parameters) -> Self {
-        let matroska_sink = MatroskaSink::new(Default::default());
+        let matroska_sink = MatroskaSink::new(crate::MatroskaParameters {
+            name: params.name.to_string(),
+            ..Default::default()
+        });
         let address = &format!("tcp://{}", matroska_sink.address);
 
         // TODO: use free codecs instead of ffmpeg's mp4 default.

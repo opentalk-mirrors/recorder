@@ -18,47 +18,50 @@ fn generate_example_pipeline_picture() {
         ..debug::Params::states()
     };
 
+    let blinder = Box::new(TestBlinder::new(TestBlinderParams {
+        sink: Box::new(testing::TestSink::new("Streaming")),
+        resolution: testing::RESOLUTION,
+        ..Default::default()
+    }));
+
     // setup mixer
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        TestBlinder::new(TestBlinderParams {
-            sink: Box::new(testing::TestSink::new()),
-            resolution: testing::RESOLUTION,
-            ..Default::default()
+        MultiSink::new(MultiParameters {
+            sinks: vec![
+                blinder.clone(),
+                Box::new(testing::TestSink::new("Recording")),
+            ],
         }),
         None,
     )
     .unwrap();
-    // generate pipeline DOT graph of the empty pipeline
-    talk.dot("0_init", dp);
 
-    // add three streams
-    for i in 0..3 {
-        talk.add_stream(
-            StreamId::camera(i),
-            &format!("P{i}]"),
-            Default::default(),
-            StreamStatus::default(),
-        )
-        .unwrap();
-    }
-
-    talk.dot("1_add_streams", dp);
-
-    talk.dot("2_overlay", dp);
-    talk.set_title("text");
-
-    // set two streams to be visible
+    testing::generate_streams(&mut talk, 3, 3);
+    talk.set_speaker(Some(0), &Default::default()).unwrap();
     talk.layout::<Grid>().unwrap();
-    talk.dot("3_set_visibles", dp);
+    blinder.blind(false);
+
+    talk.set_title("not blinded");
+    talk.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
+    testing::wait();
+
+    blinder.blind(true);
+
+    talk.set_title("blinded");
+    talk.dot("test_blinder-blinded", testing::DOT_PARAMS);
+    testing::wait();
+
+    blinder.blind(false);
+
+    talk.set_title("not blinded");
+    talk.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
+    testing::wait();
+    talk.set_title("shutdown");
 
     talk.dot("example_pipeline", dp);
 
     info!("converting dot files into png...");
-    convert("0_init");
-    convert("1_add_streams");
-    convert("2_overlay");
-    convert("3_set_visibles");
     convert("example_pipeline");
 }
 

@@ -45,6 +45,8 @@ impl SegmentType {
 #[derive(Derivative)]
 #[derivative(Debug, Clone)]
 pub struct DashParameters {
+    /// name of the sink's bin
+    pub name: &'static str,
     /// Path to write the dash files to.
     /// Existing files will be overridden.
     /// If None a temporary directory will be used.
@@ -67,6 +69,7 @@ impl DashSink {
         // return new instance
         Self {
             matroska_sink: MatroskaSink::new(MatroskaParameters {
+                name: params.name.to_string(),
                 // use fixed localhost but with given port
                 address: SocketAddr::from(([127, 0, 0, 1], 0)),
             }),
@@ -85,6 +88,7 @@ impl Default for DashParameters {
     /// File parameters default.
     fn default() -> Self {
         Self {
+            name: "Dash Sink",
             output_dir: None,
             bitrate: 0x100000,
             seg_duration: 5.0,

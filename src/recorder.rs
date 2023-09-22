@@ -155,7 +155,7 @@ impl RecordingSession {
         let talk = match sink_setting {
             Some("display") => Talk::new(
                 compositor::Size::FHD,
-                DisplaySink::default(),
+                DisplaySink::new("Display"),
                 Some(MAX_VISIBLES),
             ),
 
@@ -178,6 +178,7 @@ impl RecordingSession {
                         .to_str()
                         .expect("failed to convert MP4 file path into string")
                         .into(),
+                    name: "Recording",
                 }),
                 Some(MAX_VISIBLES),
             ),

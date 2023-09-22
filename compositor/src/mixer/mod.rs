@@ -203,6 +203,7 @@ where
 
         // start pipeline
         pipeline.set_state(gst::State::Playing)?;
+        pipeline.sync_children_states()?;
 
         // pack all together
         let mut mixer = Mixer {

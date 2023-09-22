@@ -4,6 +4,8 @@ use std::fmt::Debug;
 
 use gst_base::prelude::{ElementExt, GstBinExt};
 
+use crate::debug;
+
 /// Trait of an output sink.
 pub trait Sink: Send + Debug + 'static {
     /// Get sink pad of the video sink.
@@ -25,6 +27,10 @@ pub trait Sink: Send + Debug + 'static {
 }
 
 pub fn add_ghost_pad(bin: &gst::Bin, name: &str, pad: &str) -> gst::GhostPad {
+    trace!(
+        "add_ghost_pad({bin}, {name}, {pad}) ",
+        bin = debug::name(bin)
+    );
     // add ghost pad connected to video sink pad
     let ghost_pad = gst::GhostPad::with_target(
         Some(name),

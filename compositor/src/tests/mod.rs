@@ -4,6 +4,7 @@ mod generate_example_pipeline_picture;
 mod matroska;
 mod mixer;
 mod mp4;
+mod multi;
 mod overlays;
 mod speaker_mode;
 mod stream_status;
@@ -185,22 +186,22 @@ pub mod testing {
 
     impl TestSink {
         /// Create and add new fake sink into existing pipeline.
-        pub fn new() -> Self {
-            trace!("new()");
+        pub fn new(name: &str) -> Self {
+            trace!("new({name})");
 
             if use_display() {
                 info!("using display sink because display is available");
-                Self::Display(Default::default())
+                Self::Display(DisplaySink::new(name))
             } else {
                 info!("using fake sink");
-                Self::Fake(Default::default())
+                Self::Fake(FakeSink::new(name))
             }
         }
     }
 
     impl Default for TestSink {
         fn default() -> Self {
-            Self::new()
+            Self::new("Test Sink")
         }
     }
 

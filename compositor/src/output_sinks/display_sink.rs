@@ -10,22 +10,24 @@ pub struct DisplaySink {
 
 impl DisplaySink {
     /// Create and add new display sink into existing pipeline.
-    pub fn new() -> DisplaySink {
-        trace!("new()");
+    pub fn new(name: &str) -> Self {
+        trace!("new({name})");
 
         // create new GStreamer pipeline
         let bin = gst::parse_bin_from_description(
-            " 
-            name=display-sink
+            &format!(
+                r#" 
+                name="{name}"
 
-            autovideosink
-                name=video
-                sync=true
+                autovideosink
+                    name=video
+                    sync=true
 
-            autoaudiosink
-                name=audio
-                sync=true
-            ",
+                autoaudiosink
+                    name=audio
+                    sync=true
+                "#
+            ),
             false,
         )
         .expect("could not parse display link pipeline");
@@ -41,7 +43,7 @@ impl DisplaySink {
 
 impl Default for DisplaySink {
     fn default() -> Self {
-        Self::new()
+        Self::new("Display Sink")
     }
 }
 
