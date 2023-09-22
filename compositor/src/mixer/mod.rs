@@ -106,19 +106,19 @@ where
     ///
     /// # Arguments
     ///
-    /// - `resolution`: Output video resolution.
+    /// - `output_resolution`: Output video resolution.
     /// - `overlay`: List of overlays to attach behind the compositor
     /// - `sink_params`: Output sink apramaters.
     ///
-    pub fn new(resolution: Size, overlay: AnyOverlay, sink: impl Sink) -> Result<Self> {
-        trace!("new( {resolution:?} )");
+    pub fn new(output_resolution: Size, overlay: AnyOverlay, sink: impl Sink) -> Result<Self> {
+        trace!("new( {output_resolution:?} )");
 
         // get width/height
-        let width = resolution.width;
-        let height = resolution.height;
+        let width = output_resolution.width;
+        let height = output_resolution.height;
         debug!(
             "New mixer output video ratio: {:.2} (= {width}/{height})",
-            resolution.ratio()
+            output_resolution.ratio()
         );
 
         // create new GStreamer pipeline
@@ -213,7 +213,7 @@ where
             streams: HashMap::new(),
             overlay,
             output: Box::new(sink),
-            output_resolution: resolution,
+            output_resolution,
             is_reading_bus: None,
             valid: Arc::new((Mutex::new(false), Condvar::new())),
             expect_eos: Arc::new(AtomicBool::new(false)),

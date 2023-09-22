@@ -1,5 +1,4 @@
 //! Overlays module.
-
 mod clock_overlay;
 mod talk_overlay;
 mod text_overlay;

@@ -30,6 +30,8 @@
       writes the output into a MPEG4 file.
     - [MatroskaSink]
       listens on a TCP port to write the raw output to, after someone connects.
+    - [TestBlinder]
+      blinds it's input with an alternative input (currently test source)
 
     # Layouts
 
@@ -64,6 +66,8 @@
       is a trait which the mixer is assuming for display layout of the recording
     - [Overlay]
       is a trait for overlays.
+    - [Blinder]
+      gives access to a blinder sink.
 
     # Testing
 

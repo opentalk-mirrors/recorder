@@ -25,7 +25,6 @@ impl Overlay for TalkOverlay {
     fn element(&self) -> &gst::Element {
         self.bin.as_ref()
     }
-
     fn show(&self, show: bool) {
         self.text_overlay.show(show);
         self.clock_overlay.show(show);
