@@ -144,8 +144,6 @@ pub mod testing {
                 .unwrap();
         }
 
-        talk.layout::<Speaker>().unwrap();
-
         (streams, ids)
     }
 

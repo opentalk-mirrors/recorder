@@ -12,6 +12,7 @@ fn test_stream_status() {
     talk.dot("test_stream_status-0", testing::DOT_PARAMS);
 
     testing::generate_streams(&mut talk, 8, 5);
+    talk.layout::<Speaker>().unwrap();
 
     testing::wait_millis(500);
 

@@ -24,6 +24,7 @@ where
     testing::wait_millis(100);
 
     let (_, ids) = testing::generate_streams(&mut talk, 5, 5);
+    talk.layout::<L>().unwrap();
 
     talk.dot(&format!("test_layout_{}-0", L::NAME), testing::DOT_PARAMS);
 
@@ -53,6 +54,8 @@ fn test_remove() {
 
     for _ in 0..50 {
         testing::generate_streams(&mut talk, 8, 5);
+        talk.set_speaker(Some(1), &Default::default()).unwrap();
+        talk.layout::<Grid>().unwrap();
 
         talk.dot("test_remove-0", testing::DOT_PARAMS);
 

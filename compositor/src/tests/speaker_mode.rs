@@ -31,6 +31,7 @@ fn test_speaker_mode() {
         StreamStatus::default(),
     )
     .unwrap();
+    talk.layout::<Speaker>().unwrap();
 
     talk.dot("test_speaker_mode-0", testing::DOT_PARAMS);
 

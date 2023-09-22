@@ -48,7 +48,7 @@ macro_rules! log_err_like {
 }
 
 /// Maximum time a desired but missing re-layout is tolerated
-const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(100);
+const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(500);
 /// Time to wait for EOS when dropping the mixer
 const BUS_EOS_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2000);
 
