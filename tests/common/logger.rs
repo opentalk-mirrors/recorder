@@ -5,11 +5,11 @@ use log::{Level, Log, Metadata, Record};
 
 pub(crate) struct PanicLogger {
     parent: Logger,
-    error_occured: Arc<atomic::AtomicBool>,
+    error_occurred: Arc<atomic::AtomicBool>,
 }
 
 impl PanicLogger {
-    pub(crate) fn init(error_occured: Arc<atomic::AtomicBool>) {
+    pub(crate) fn init(error_occurred: Arc<atomic::AtomicBool>) {
         log::warn!("Initialize logger");
         let env = Env::default();
         let mut builder = Builder::from_env(env);
@@ -17,7 +17,7 @@ impl PanicLogger {
         let max_level = logger.filter();
         let panic_logger = PanicLogger {
             parent: logger,
-            error_occured,
+            error_occurred,
         };
 
         let result = log::set_boxed_logger(Box::new(panic_logger));
@@ -36,7 +36,7 @@ impl Log for PanicLogger {
     fn log(&self, record: &Record) {
         self.parent.log(record);
         if record.level() == Level::Error {
-            self.error_occured.store(true, atomic::Ordering::Relaxed);
+            self.error_occurred.store(true, atomic::Ordering::Relaxed);
         }
     }
 

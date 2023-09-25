@@ -86,13 +86,13 @@ impl EventRunner {
             }
         })
         .await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Event handler thread crashed");
     }
 
     async fn run_events(events: Vec<Event>) {
         println!("Initialize env_logger");
-        let error_occured = Arc::new(AtomicBool::new(false));
-        PanicLogger::init(error_occured.clone());
+        let error_occurred = Arc::new(AtomicBool::new(false));
+        PanicLogger::init(error_occurred.clone());
 
         log::info!("Initialize gstreamer");
         gst::init().expect("unable to init gst");
@@ -165,7 +165,10 @@ impl EventRunner {
         log::debug!("Stop the MainLoop for gstreamer");
         main_loop.quit();
 
-        assert!(!error_occured.load(atomic::Ordering::Relaxed));
+        assert!(
+            !error_occurred.load(atomic::Ordering::Relaxed),
+            "GStreamer error was logged"
+        );
     }
 
     async fn join_user(&mut self, index: usize) {
