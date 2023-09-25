@@ -1,14 +1,19 @@
 use std::{fmt::Display, str::FromStr};
 
-use compositor::MatroskaParameters;
+use compositor::{MatroskaParameters, SpeedPreset};
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct RecorderSettings {
     pub sink: String,
+    pub rtmp_uri: Option<String>,
+    pub rtmp_audio_bitrate: Option<usize>,
+    pub rtmp_audio_rate: Option<usize>,
+    pub rtmp_video_bitrate: Option<usize>,
+    pub rtmp_video_speed_preset: Option<SpeedPreset>,
 }
 
 #[derive(Debug, Deserialize)]

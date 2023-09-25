@@ -7,8 +7,8 @@ use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    DisplaySink, MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, StreamId,
-    WebRtcSourceParams,
+    DisplaySink, MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink,
+    StreamId, WebRtcSourceParams,
 };
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
@@ -171,6 +171,27 @@ impl RecordingSession {
                 ),
                 Some(MAX_VISIBLES),
             ),
+            Some("rtmp") => {
+                let recorder_settings = service_context
+                    .settings
+                    .recorder
+                    .clone()
+                    .expect("recorder settings needs to be set for the rtmp sink");
+                let location = recorder_settings.rtmp_uri
+                    .expect("the rtmp_uri needs to be set in the recorder settings to allow streaming over RTMP")
+                    .replace("$room", &command.room);
+                Talk::new(
+                    compositor::Size::FHD,
+                    RTMPSink::new(RTMPParameters {
+                        location,
+                        audio_bitrate: recorder_settings.rtmp_audio_bitrate,
+                        audio_rate: recorder_settings.rtmp_audio_rate,
+                        video_bitrate: recorder_settings.rtmp_video_bitrate,
+                        video_speed_preset: recorder_settings.rtmp_video_speed_preset,
+                    }),
+                    Some(MAX_VISIBLES),
+                )
+            }
             _ => Talk::new(
                 compositor::Size::FHD,
                 Mp4Sink::new(Mp4Parameters {
