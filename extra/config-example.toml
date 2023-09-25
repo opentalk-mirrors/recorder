@@ -10,3 +10,18 @@ insecure = false
 [rabbitmq]
 uri = "amqp://guest:guest@p01nc.heinlein-video.de/%2F"
 queue = "recorder"
+
+# Allow to stream to the display
+#[recorder]
+#sink = "display"
+
+# Allows to stream to a rtmp server
+#[recorder]
+#sink = "rtmp"
+# required for the rtmp sink:
+#rtmp_uri = "rtmp://localhost:1935/live/$room live=1"
+# optional for the rtmp sink:
+#rtmp_audio_bitrate = 96000
+#rtmp_audio_rate = 48000
+#rtmp_video_bitrate = 6000
+#rtmp_video_speed_preset = fast
