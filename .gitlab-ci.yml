@@ -68,19 +68,30 @@ lint:yaml:
     - apk add --no-cache yamllint
   script: yamllint .
 
-# test:cargo_test:
-#  rules:
-#    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-#    - if: $CI_PIPELINE_SOURCE == 'schedule'
-#    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-#  stage: test
-#  before_script:
-#    - >
-#      apk add --no-cache
-#      musl-dev glib-dev openssl-dev
-#      gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev gst-plugins-good
-#  script:
-#    - cargo test --workspace --locked
+test:cargo_test:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+  stage: test
+  variables:
+    RUSTFLAGS: -Ctarget-feature=-crt-static -Clink-arg=-fuse-ld=lld
+  before_script:
+    - >
+      apk add --no-cache
+      musl-dev glib-dev openssl-dev
+      gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev gst-plugins-good ffmpeg
+  script:
+    # Use '--workspace' instead of -p compositor to test the whole project
+    # tests webrtc_scenario1 and generate_example_pipeline_picture are also ignored until fixed
+    - >
+      cargo test
+      -p compositor
+      --locked
+      --
+      --test-threads 1
+      --skip tests::webrtc::webrtc_scenario1
+      --skip tests::generate_example_pipeline_picture::generate_example_pipeline_picture
 
 test:doc:
   rules:

@@ -179,12 +179,11 @@ skip = [
     { name = "indexmap", version = "=1.9" },
     { name = "linux-raw-sys", version = "=0.3" },
     { name = "rustix", version = "=0.37" },
-    { name = "rustls-webpki", version = "=0.100" },
     { name = "spin",  version = "=0.5.2" },
     { name = "syn",  version = "=2" },
     { name = "toml",  version = "=0.5" },
-    { name = "webpki-roots", version = "=0.22" },
-    { name = "webpki-roots", version = "=0.23" },
+    { name = "webpki-roots", version = "=0.24" },
+    { name = "socket2", version = "=0.4" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
