@@ -45,8 +45,6 @@ impl SegmentType {
 #[derive(Derivative)]
 #[derivative(Debug, Clone)]
 pub struct DashParameters {
-    /// name of the sink's bin
-    pub name: &'static str,
     /// Path to write the dash files to.
     /// Existing files will be overridden.
     /// If None a temporary directory will be used.
@@ -64,15 +62,17 @@ pub struct DashParameters {
 
 impl DashSink {
     /// Create and add new DASH sink into existing pipeline.
-    pub fn new(params: DashParameters) -> Self {
+    pub fn new(name: &str, params: DashParameters) -> Self {
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
-            matroska_sink: MatroskaSink::new(MatroskaParameters {
-                name: params.name.to_string(),
-                // use fixed localhost but with given port
-                address: SocketAddr::from(([127, 0, 0, 1], 0)),
-            }),
+            matroska_sink: MatroskaSink::new(
+                name,
+                MatroskaParameters {
+                    // use fixed localhost but with given port
+                    address: SocketAddr::from(([127, 0, 0, 1], 0)),
+                },
+            ),
             params,
             process: None,
             temp_dir: None,
@@ -88,7 +88,6 @@ impl Default for DashParameters {
     /// File parameters default.
     fn default() -> Self {
         Self {
-            name: "Dash Sink",
             output_dir: None,
             bitrate: 0x100000,
             seg_duration: 5.0,

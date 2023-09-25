@@ -37,7 +37,6 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
         controller,
         rabbitmq,
         recorder: None,
-        matroska: None,
     };
     let client = reqwest::Client::new();
     let oidc = CoreClient::new(

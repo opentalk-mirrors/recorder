@@ -14,6 +14,7 @@ pub struct RTMPSink {
     audio_sink_pad: gst::GhostPad,
 }
 
+#[derive(Debug, Clone, Deserialize)]
 pub struct RTMPParameters {
     pub location: String,
     pub audio_bitrate: Option<usize>,
@@ -40,31 +41,33 @@ pub enum SpeedPreset {
 
 impl RTMPSink {
     /// Create and add new rtmp sink into existing pipeline.
-    pub fn new(parameters: RTMPParameters) -> RTMPSink {
-        trace!("new()");
+    pub fn new(name: &str, parameters: RTMPParameters) -> RTMPSink {
+        trace!("new({name})");
 
         let bin = gst::parse_bin_from_description(
             format!(
                 r#"
+            name="{name}"
+                
             videoconvert
-                name=rtmp-video
+                name=video
             ! x264enc speed-preset={video_speed_preset} tune=zerolatency bitrate={video_bitrate}
             ! video/x-h264,profile=high
             ! h264parse
-            ! rtmp-mux.
+            ! mux.
 
             audioconvert
-                name=rtmp-audio
+                name=audio
             ! audioresample
             ! audio/x-raw,rate={audio_rate}
             ! fdkaacenc bitrate={audio_bitrate}
             ! audio/mpeg
             ! aacparse
             ! audio/mpeg, mpegversion=4
-            ! rtmp-mux.
+            ! mux.
 
             flvmux
-                name=rtmp-mux
+                name=mux
                 streamable=true
             ! rtmpsink
                 location='{location}'
@@ -81,8 +84,8 @@ impl RTMPSink {
         .expect("failed to create rtmp sink pipeline");
 
         Self {
-            video_sink_pad: add_ghost_pad(&bin, "rtmp-video", "sink"),
-            audio_sink_pad: add_ghost_pad(&bin, "rtmp-audio", "sink"),
+            video_sink_pad: add_ghost_pad(&bin, "video", "sink"),
+            audio_sink_pad: add_ghost_pad(&bin, "audio", "sink"),
             bin,
         }
     }

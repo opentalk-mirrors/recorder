@@ -20,36 +20,35 @@ pub struct MatroskaSink {
 /// Specific parameters needed to create a Matroska sink
 #[derive(Clone, Debug, Deserialize)]
 pub struct MatroskaParameters {
-    /// name of the sink's bin
-    pub name: String,
     /// address to send output to
     pub address: SocketAddr,
 }
 
 impl MatroskaSink {
     /// Create and add new Matroska sink into existing pipeline.
-    pub fn new(params: MatroskaParameters) -> Self {
-        trace!("new( {params:?} )");
+    pub fn new(name: &str, params: MatroskaParameters) -> Self {
+        trace!("new({name})");
 
         // create bin including codecs and the Matroska sink
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#"
                 name="{name}"
+
                 videoconvert
                     name=video
                 ! videorate
                 ! videoscale
                 ! video/x-raw,format=I420,framerate=25/1,pixel-aspect-ratio=1/1,colorimetry=bt709
-                ! matroska-mux.
+                ! mux.
 
                 audioconvert
                     name=audio
                 ! audio/x-raw,format=S16LE,layout=interleaved,rate=48000
-                ! matroska-mux.
+                ! mux.
 
                 matroskamux
-                    name=matroska-mux
+                    name=mux
                     streamable=true
                     writing-app=OpenTalk
                 ! queue
@@ -61,7 +60,6 @@ impl MatroskaSink {
                     buffers-max={buffers_max}
                     sync-method=next-keyframe
                 "#,
-                name = params.name,
                 buffers_max = 500
             ),
             false,
@@ -113,7 +111,6 @@ impl Default for MatroskaParameters {
     /// File parameters default
     fn default() -> Self {
         Self {
-            name: "Matroska Sink".to_string(),
             address: SocketAddr::from(([127, 0, 0, 1], 0)),
         }
     }

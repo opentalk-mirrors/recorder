@@ -1,19 +1,23 @@
 use std::{fmt::Display, str::FromStr};
 
-use compositor::{MatroskaParameters, SpeedPreset};
+use compositor::{MatroskaParameters, RTMPParameters};
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct RecorderSettings {
-    pub sink: String,
-    pub rtmp_uri: Option<String>,
-    pub rtmp_audio_bitrate: Option<usize>,
-    pub rtmp_audio_rate: Option<usize>,
-    pub rtmp_video_bitrate: Option<usize>,
-    pub rtmp_video_speed_preset: Option<SpeedPreset>,
+    pub sinks: Vec<RecorderSink>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "lowercase")]
+pub enum RecorderSink {
+    Display,
+    Matroska(MatroskaParameters),
+    Rtmp(RTMPParameters),
 }
 
 #[derive(Debug, Deserialize)]
@@ -22,7 +26,6 @@ pub struct Settings {
     pub controller: ControllerSettings,
     pub rabbitmq: RabbitMqSettings,
     pub recorder: Option<RecorderSettings>,
-    pub matroska: Option<MatroskaParameters>,
 }
 
 impl Settings {

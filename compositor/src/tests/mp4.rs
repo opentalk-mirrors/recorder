@@ -7,10 +7,13 @@ fn test_mp4() {
     // create grid mixer with test sources for streams and a MatroskaSink
     let mut mixer = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
-        Mp4Sink::new(Mp4Parameters {
-            file_path: testing::output_file("mp4sink.mp4").into(),
-            ..Default::default()
-        }),
+        Mp4Sink::new(
+            "test",
+            Mp4Parameters {
+                file_path: testing::output_file("mp4sink.mp4").into(),
+                ..Default::default()
+            },
+        ),
         None,
     )
     .unwrap();
