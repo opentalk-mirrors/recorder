@@ -11,6 +11,7 @@ fn test_overlay() {
             .unwrap();
 
     talk.set_title("test_overlay");
+    talk.layout::<Grid>().unwrap();
 
     talk.dot("test_overlay-0", testing::DOT_PARAMS);
 
