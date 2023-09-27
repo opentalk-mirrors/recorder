@@ -287,6 +287,8 @@ impl RecordingSession {
                     )?;
                     self.talk.layout::<Layout>()?;
                     self.signaling.start_subscribe(stream_id).await?;
+                    // show if possible
+                    self.talk.try_show(&stream_id);
                 }
 
                 self.talk.layout::<Layout>()?;
@@ -313,6 +315,8 @@ impl RecordingSession {
                     )?;
                     self.talk.layout::<Layout>()?;
                     self.signaling.start_subscribe(stream_id).await?;
+                    // show if possible
+                    self.talk.try_show(&stream_id);
                 }
             }
             Event::ParticipantUpdated(id) => {
@@ -334,10 +338,8 @@ impl RecordingSession {
                                 media_state.into(),
                             )?;
                             self.signaling.start_subscribe(stream_id).await?;
-                            if participant_state.consents {
-                                // show if possible
-                                self.talk.try_show(&stream_id);
-                            }
+                            // show if possible
+                            self.talk.try_show(&stream_id);
                         }
                     } else if media_state.is_none() {
                         log::debug!("Update: unsubscribe stream of {id} {media_type}");
