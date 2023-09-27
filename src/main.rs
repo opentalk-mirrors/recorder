@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures::future::join_all;
 use futures::StreamExt;
 use gst::glib;
@@ -115,7 +115,7 @@ async fn rmq_session(
 }
 
 async fn main2(mut shutdown_rx: Receiver<bool>) -> Result<()> {
-    let settings = Settings::load("config.toml")?;
+    let settings = Settings::load("config.toml").context("Failed to read config")?;
 
     let http_client = HttpClient::discover(&settings.auth).await?;
     let recorder_context = Recorder::new(settings, http_client, shutdown_rx.clone());
