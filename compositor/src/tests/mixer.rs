@@ -95,6 +95,6 @@ fn test_remove() {
 
         talk.dot("test_remove_4", testing::DOT_PARAMS);
 
-        testing::wait_short();
+        testing::wait();
     }
 }
