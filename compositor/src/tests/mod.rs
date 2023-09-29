@@ -28,9 +28,19 @@ pub mod testing {
     static INIT: Once = Once::new();
 
     /// initialize for testing
-    pub fn init() {
+    pub fn init() -> glib::MainLoop {
         trace!("init()");
         INIT.call_once(init_function);
+
+        let main_loop = glib::MainLoop::new(None, false);
+        std::thread::spawn({
+            let main_loop = main_loop.clone();
+
+            move || {
+                main_loop.run();
+            }
+        });
+        main_loop
     }
 
     fn init_function() {
