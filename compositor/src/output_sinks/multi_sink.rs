@@ -1,5 +1,5 @@
-use gst::prelude::ElementExtManual;
-use gst_base::prelude::{GstBinExt, PadExt};
+use gst::prelude::{ElementExtManual, GstBinExtManual};
+use gst_base::prelude::{ElementExt, GstBinExt, PadExt};
 
 use crate::*;
 
@@ -68,23 +68,27 @@ impl MultiSink {
 
         // connect tees with there channel sinks
         for sink in &params.sinks {
-            // add sink to bin
-            bin.add(&sink.bin())
-                .expect("cannot add sink to play out bin");
+            // create a queue for each channel's tee
+            let video_queue = gst::ElementFactory::make_with_name("queue", None).unwrap();
+            let audio_queue = gst::ElementFactory::make_with_name("queue", None).unwrap();
 
-            // request new tee src pads for audio and video
-            let video_src = video_tee
-                .request_pad_simple("src_%u")
-                .expect("could not get video src pad at tee");
-            let audio_src = audio_tee
-                .request_pad_simple("src_%u")
-                .expect("could not get audio src pad at tee");
+            // add sink and queues to bin
+            bin.add_many(&[&video_queue, &audio_queue, sink.bin().as_ref()])
+                .expect("cannot add elements to multi sink bin");
+
+            // link tees to queues
+            video_tee.link(&video_queue).unwrap();
+            audio_tee.link(&audio_queue).unwrap();
 
             // link new tee src pads to sink's pads
-            video_src
+            video_queue
+                .static_pad("src")
+                .expect("cant find src of video queue")
                 .link(&sink.video())
                 .expect("could not link video tee to sink");
-            audio_src
+            audio_queue
+                .static_pad("src")
+                .expect("cant find src of audio queue")
                 .link(&sink.audio())
                 .expect("could not link audio tee to sink");
         }

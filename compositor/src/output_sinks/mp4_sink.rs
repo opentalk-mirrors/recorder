@@ -62,7 +62,6 @@ impl Mp4Sink {
                 .expect("failed to spawn FFmpeg process"),
         );
 
-        // watch pipeline bus for getting into `Playing` state
         // return new instance
         Mp4Sink {
             matroska_sink,

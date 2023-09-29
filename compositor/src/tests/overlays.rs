@@ -9,6 +9,9 @@ fn test_overlay() {
     let mut talk =
         Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), None).unwrap();
 
+    talk.set_speaker(Some(0), &SpeakerSwitchMode::FirstShift)
+        .unwrap();
+
     talk.set_title("test_overlay");
     talk.layout::<Grid>().unwrap();
 
@@ -21,7 +24,7 @@ fn test_overlay() {
     testing::wait();
 
     // add participants
-    let (_, ids) = testing::generate_streams(&mut talk, 3, 3);
+    let (_, ids) = testing::generate_streams(&mut talk, 0, 3, 3);
     ids.iter().for_each(|id| {
         talk.try_show(&StreamId::camera(*id));
     });

@@ -16,7 +16,6 @@ pub use super::layout::*;
 pub use overlay::*;
 pub use sink::*;
 pub use source::*;
-use std::sync::atomic::{AtomicBool, Ordering};
 pub use stream::*;
 pub use talk::*;
 pub use text_style::*;
@@ -27,30 +26,18 @@ use std::{
     collections::HashMap,
     fmt::{Debug, Display},
     hash::Hash,
-    sync::{Arc, Condvar, Mutex},
 };
 
 use anyhow::anyhow;
 
-macro_rules! log_err_like {
-    ($name:expr,$error:expr,$pipeline:expr) => {{
-        error!(
-            "{name} received from element {:?}: {}",
-            $error.src().map(|s| s.path_string()),
-            $error.error(),
-            name = $name,
-        );
-        debug::dot($pipeline, "BUS-ERROR");
-        if let Some(info) = $error.debug() {
-            debug!("Debugging information: {}", info);
-        }
-    }};
-}
-
 /// Maximum time a desired but missing re-layout is tolerated
 const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(500);
-/// Time to wait for EOS when dropping the mixer
-const BUS_EOS_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2000);
+
+enum Validation {
+    Valid,
+    Invalid,
+    Stop,
+}
 
 /// Mixer managing the GStreamer pipeline using the given layout and source type
 ///
@@ -88,12 +75,7 @@ where
     output: Box<dyn Sink>,
     /// over all generated output resolution
     output_resolution: Size,
-    /// signals when bus reading stops
-    is_reading_bus: Option<std::sync::mpsc::Receiver<bool>>,
-    /// needs layout if false
-    valid: Arc<(Mutex<bool>, Condvar)>,
-    /// if true we expect to get an EOS on bus
-    expect_eos: Arc<AtomicBool>,
+    valid: std::sync::mpsc::Sender<Validation>,
 }
 
 impl<SRC, ID> Mixer<SRC, ID>
@@ -108,7 +90,7 @@ where
     ///
     /// - `output_resolution`: Output video resolution.
     /// - `overlay`: List of overlays to attach behind the compositor
-    /// - `sink_params`: Output sink apramaters.
+    /// - `sink_params`: Output sink parameters.
     ///
     pub fn new(output_resolution: Size, overlay: AnyOverlay, sink: impl Sink) -> Result<Self> {
         trace!("new( {output_resolution:?} )");
@@ -183,12 +165,12 @@ where
             .static_pad("src")
             .expect("failed to get source pad from audio output");
 
-        // create output sink
+        // create output sink to pipeline
         pipeline.add(&sink.bin())?;
 
+        // add overlay to pipeline
         pipeline.add(overlay.element())?;
 
-        debug::dot(&pipeline, "new");
         // connect output pads to output sinks
         video_out_src
             .link(&overlay.sink())
@@ -205,6 +187,8 @@ where
         pipeline.set_state(gst::State::Playing)?;
         pipeline.sync_children_states()?;
 
+        let (valid, valid_receiver) = std::sync::mpsc::channel::<Validation>();
+
         // pack all together
         let mut mixer = Mixer {
             compositor,
@@ -215,13 +199,15 @@ where
             overlay,
             output: Box::new(sink),
             output_resolution,
-            is_reading_bus: None,
-            valid: Arc::new((Mutex::new(false), Condvar::new())),
-            expect_eos: Arc::new(AtomicBool::new(false)),
+            valid,
         };
 
         // start reading the pipeline bus
         mixer.read_bus()?;
+        mixer.monitor_layout(valid_receiver);
+
+        // inform output sink that pipeline is are playing now
+        mixer.output.on_play();
 
         Ok(mixer)
     }
@@ -246,7 +232,7 @@ where
         overlay: AnyOverlay,
         status: StreamStatus,
     ) -> Result<()> {
-        trace!("add_stream( {id}, '{display_name}', {params:?} )");
+        info!("add_stream( {id}, '{display_name}', {params:?} )");
 
         // check if stream ID is already known
         if self.streams.contains_key(&id) {
@@ -258,18 +244,15 @@ where
         let source = SRC::new(&id, params);
 
         // create a bin which will include the source and the overlay
-        let overlay_bin =
-            gst::ElementFactory::make_with_name("bin", Some(&format!("Overlay: {id}")))?
-                .dynamic_cast::<gst::Bin>()
-                .expect("creation of bin failed");
+        let bin = gst::ElementFactory::make_with_name("bin", Some(&format!("Overlay: {id}")))?
+            .dynamic_cast::<gst::Bin>()
+            .expect("creation of bin failed");
 
         // add source to the bin
-        overlay_bin
-            .add(&source.bin())
-            .expect("failed to add source to bin");
+        bin.add(&source.bin()).expect("failed to add source to bin");
 
         // add overlay to the bin
-        overlay_bin.add(overlay.element())?;
+        bin.add(overlay.element())?;
 
         // link source to overlay
         source
@@ -277,25 +260,24 @@ where
             .link(&overlay.sink())
             .expect("could not link video source to overlay");
 
-        let video_src = gst::GhostPad::with_target(Some("video"), &overlay.src())
+        let video = gst::GhostPad::with_target(Some("video"), &overlay.src())
             .expect("failed to create ghost pad for source video output");
-        overlay_bin
-            .add_pad(&video_src)
+        bin.add_pad(&video)
             .expect("failed to add video output ghost pad to source bin");
 
         // add the bin to the pipeline
         self.pipeline
-            .add(&overlay_bin)
+            .add(&bin)
             .expect("failed to add source bin to pipeline");
 
-        debug::dot(&overlay_bin, "compositor_request_pad");
+        debug::debug_dot(&bin, "compositor_request_pad");
 
         let compositor_sink = self
             .compositor
             .request_pad_simple("sink_%u")
             .expect("could not get sink at compositor");
         compositor_sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
-        video_src
+        video
             .link(&compositor_sink)
             .expect("could not connect video stream to compositor");
 
@@ -305,10 +287,9 @@ where
             _ => panic!("source's video pad is missing"),
         };
 
-        let audio_src = gst::GhostPad::with_target(Some("audio"), &audio_src)
+        let audio = gst::GhostPad::with_target(Some("audio"), &audio_src)
             .expect("failed to create ghost pad for source audio output");
-        overlay_bin
-            .add_pad(&audio_src)
+        bin.add_pad(&audio)
             .expect("failed to add video output ghost pad to source bin");
 
         // link source's audio to audiomixer sink with the name of the stream ID
@@ -316,26 +297,30 @@ where
             .audiomixer
             .request_pad_simple("sink_%u")
             .expect("could not get sink at audiomixer");
-        audio_src
+        audio
             .link(&audiomixer_sink)
             .expect("could not connect audio stream to audiomixer");
 
         // sync state with rest of pipeline
-        overlay_bin.sync_state_with_parent()?;
+        bin.sync_state_with_parent()?;
+
+        trace!(
+            "added stream {id}, {display_name:?}, {source},  {status:?}",
+            source = debug::name(&source.bin()),
+        );
 
         // remember the new A/V stream
         self.streams.insert(
             id,
-            Stream::new(
-                &id,
+            Stream {
                 display_name,
                 source,
-                overlay_bin,
-                video_src,
-                audio_src,
+                bin,
+                video,
+                audio,
                 overlay,
                 status,
-            ),
+            },
         );
 
         debug!("Added stream {id}");
@@ -345,14 +330,6 @@ where
 
     /// Continuously read the bus for errors and EOS.
     fn read_bus(&mut self) -> Result<()> {
-        // abort if we already are reading the bus
-        if self.is_reading_bus.is_some() {
-            return Ok(());
-        }
-        // signal that we start reading the bus
-        let (tx, rx) = std::sync::mpsc::sync_channel(1);
-        self.is_reading_bus = Some(rx);
-
         // get pipeline bus
         let bus = self
             .pipeline
@@ -361,28 +338,41 @@ where
 
         // add watch which continuous recalculates latency
         let pipeline_weak = self.pipeline.downgrade();
-        let expect_eos = self.expect_eos.clone();
         bus.add_watch(move |_, msg| {
             use gst::MessageView;
             // check several message types
             match (msg.view(), &pipeline_weak.upgrade()) {
                 (MessageView::Error(err), Some(pipeline)) => {
-                    log_err_like!("Error", err, pipeline)
+                    error!(
+                        "Error received from element {:?}: {}",
+                        err.src().map(|s| s.path_string()),
+                        err.error(),
+                    );
+                    debug::dot(pipeline, "BUS-ERROR");
+                    if let Some(info) = err.debug() {
+                        debug!("Debugging information: {}", info);
+                    }
                 }
                 (MessageView::Warning(warn), Some(pipeline)) => {
-                    log_err_like!("Warning", warn, pipeline)
+                    warn!(
+                        "Warning received from element {:?}: {}",
+                        warn.src().map(|s| s.path_string()),
+                        warn.error(),
+                    );
+                    debug::dot(pipeline, "BUS-WARNING");
+                    if let Some(info) = warn.debug() {
+                        debug!("Debugging information: {}", info);
+                    }
                 }
                 (MessageView::Info(info), Some(pipeline)) => {
-                    log_err_like!("Info", info, pipeline)
-                }
-                // check if EOS is one we send ourself and so is expected
-                (MessageView::Eos(..), _) => {
-                    if expect_eos.load(Ordering::SeqCst) {
-                        debug!("got expected EOS");
-                        tx.send(false).expect("could not send on sync channel");
-                    } else {
-                        error!("got unexpected EOS");
-                        tx.send(true).expect("could not send on sync channel");
+                    info!(
+                        "Info received from element {:?}: {}",
+                        info.src().map(|s| s.path_string()),
+                        info.error(),
+                    );
+                    debug::dot(pipeline, "BUS-INFO");
+                    if let Some(info) = info.debug() {
+                        debug!("Debugging information: {}", info);
                     }
                 }
                 (MessageView::Latency(_), Some(pipeline)) => {
@@ -392,7 +382,7 @@ where
                 _ => (),
             }
             // stop reading if we are expecting EOS after the following scan
-            Continue(!expect_eos.load(Ordering::SeqCst))
+            Continue(true)
         })?;
 
         Ok(())
@@ -410,9 +400,11 @@ where
     ///
     /// - `id`: Unique identifier of the stream.
     ///
-    pub fn remove_stream(&mut self, id: ID) -> Result<()> {
-        trace!("remove_stream( {id} )");
-        debug::debug_dot(&self.pipeline, "remove_stream");
+    pub fn remove_stream(&mut self, id: ID) -> Result<()>
+    where
+        SRC: Source,
+    {
+        info!("remove_stream( {id} )");
 
         // remove stream from stored streams
         let stream = self
@@ -420,15 +412,15 @@ where
             .remove(&id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?;
 
-        // remove requested pads from mixers
-        self.audiomixer
-            .release_request_pad(&stream.audiomixer_sink());
+        trace!("releasing requested pads from mixers");
+        // release video and audio sink pads
         self.compositor
             .release_request_pad(&stream.compositor_sink());
+        self.audiomixer
+            .release_request_pad(&stream.audiomixer_sink());
 
         // remove bin from pipeline
         stream.bin.set_state(gst::State::Null)?;
-        stream.bin.sync_children_states()?;
 
         self.pipeline
             .remove(&stream.bin)
@@ -545,7 +537,7 @@ where
             .get(id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?;
 
-        debug::dot(&self.pipeline, "set_status");
+        debug::debug_dot(&self.pipeline, "set_status");
         stream
             .audiomixer_sink()
             .set_property("volume", if new_status.has_audio { 1.0 } else { 0.0 });
@@ -641,12 +633,7 @@ where
             ]);
         }
 
-        // Signal that layout has been updated
-        let (valid, condvar) = &*self.valid;
-        if let Ok(mut valid) = valid.lock() {
-            *valid = true;
-        }
-        condvar.notify_one();
+        self.validate();
 
         Ok(())
     }
@@ -662,30 +649,40 @@ where
     fn invalidate(&mut self) {
         trace!("invalidate()");
 
-        // warn if no visibles were set
-        if self.visibles.is_empty() {
-            warn!("No visibles in layout! Talk closed?");
-        }
+        self.valid
+            .send(Validation::Invalid)
+            .expect("cannot send layout invalidation");
+    }
 
-        // set valid to false
-        if let Ok(mut valid) = self.valid.0.lock() {
-            *valid = false;
-        }
+    fn validate(&self) {
+        trace!("validate()");
 
+        self.valid
+            .send(Validation::Valid)
+            .expect("cannot send layout validation");
+    }
+
+    fn monitor_layout(&self, receiver: std::sync::mpsc::Receiver<Validation>) {
         // monitor in a thread if `valid` will be set within latency timeout
         std::thread::spawn({
-            let valid = self.valid.clone();
             move || {
-                let (valid, condvar) = &*valid;
-                if let Ok(valid) = valid.lock() {
-                    let result = condvar
-                        .wait_timeout_while(valid, MAX_LAYOUT_UPDATE_LATENCY, |valid| !*valid)
-                        .expect("invalid layout update latency timeout");
-                    if result.1.timed_out() {
-                        error!(
-                            "missing desired layout update since {duration}ms",
-                            duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
-                        )
+                let mut valid = Validation::Valid;
+                loop {
+                    match valid {
+                        Validation::Invalid => {
+                            match receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
+                                Ok(v) => valid = v,
+                                Err(_) => error!(
+                                    "missing desired layout update since {duration}ms",
+                                    duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
+                                ),
+                            }
+                        }
+                        Validation::Valid => match receiver.recv() {
+                            Ok(v) => valid = v,
+                            Err(_) => todo!(),
+                        },
+                        Validation::Stop => break,
                     }
                 }
             }
@@ -706,23 +703,11 @@ where
         assert_eq!(self.pipeline.current_state(), gst::State::Playing);
 
         debug!("Dropping mixer...");
+        debug::debug_dot(&self.pipeline, "DROP");
 
-        // send expected EOS
-        debug!("Sending EOS...");
-        self.expect_eos.store(true, Ordering::SeqCst);
-        self.pipeline.send_event(gst::event::Eos::new());
-        debug::debug_dot(&self.pipeline, "EOS");
-
-        // wait until the bus reader thread got the EOS and finishes
-        if let Some(is_reading_bus) = &self.is_reading_bus {
-            // Print an error message if the bus could not handle the timeout in the given time.
-            // If the pipeline is handling the EOS fast enough, the `is_reading_bus` queue will hung up early, which is a normal behaviour and not an error.
-            if is_reading_bus.recv_timeout(BUS_EOS_TIMEOUT)
-                == Err(std::sync::mpsc::RecvTimeoutError::Timeout)
-            {
-                error!("Could not stop reading pipeline bus");
-            }
-        }
+        self.valid
+            .send(Validation::Stop)
+            .expect("could not stop validation monitor");
 
         // call sink to prepare for dropping pipeline
         debug!("Stop sink...");
