@@ -8,12 +8,9 @@ fn test_speaker_mode() {
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
-    let mut talk = Talk::<TestSource, u32>::new(
-        testing::RESOLUTION,
-        testing::TestSink::default(),
-        Some(MAX_VISIBLES),
-    )
-    .unwrap();
+    let mut talk =
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), Some(MAX_VISIBLES))
+            .unwrap();
 
     // initialize scene
     talk.set_title("test_speaker_mode");
