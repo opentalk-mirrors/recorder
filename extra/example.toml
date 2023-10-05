@@ -1,11 +1,11 @@
 [auth]
-issuer = "https://accounts.testing.opentalk.eu/auth/realms/K3K"
-client_id = "Obelisk"
+issuer = "http://localhost:8080/auth/realms/MyRealm"
+client_id = "Recorder"
 client_secret = "INSERT_KEY"
 
 [controller]
-domain = "controller.testing.opentalk.eu"
-insecure = false
+domain = "localhost:11311"
+insecure = true
 
 [rabbitmq]
 uri = "amqp://guest:guest@p01nc.heinlein-video.de/%2F"
