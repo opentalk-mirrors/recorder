@@ -23,7 +23,7 @@ impl Default for TestBlinderParams {
         Self {
             name: Default::default(),
             resolution: Default::default(),
-            sink: Box::new(FakeSink::new("FakeSink")),
+            sink: Box::new(FakeSink::new("Fake Sink")),
             alt_source_params: Default::default(),
         }
     }

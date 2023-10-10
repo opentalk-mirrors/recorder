@@ -1,14 +1,14 @@
 use crate::http::HttpClient;
 use crate::rmq::StartRecording;
-use crate::settings::Settings;
+use crate::settings::{RecorderSettings, RecorderSink, Settings};
 use crate::signaling::incoming::MediaSessionState;
 use crate::signaling::{media_types, Event, Signaling};
 use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    DisplaySink, MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink,
-    StreamId, WebRtcSourceParams,
+    DisplaySink, MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, MultiParameters,
+    MultiSink, RTMPParameters, RTMPSink, Sink, StreamId, WebRtcSourceParams,
 };
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
@@ -146,64 +146,50 @@ impl RecordingSession {
 
         let (candidate_sender, candidate_receiver) = mpsc::channel(12);
 
-        let sink_setting = service_context
-            .settings
-            .recorder
-            .as_ref()
-            .map(|rec| rec.sink.as_str());
-
-        let talk = match sink_setting {
-            Some("display") => Talk::new(
-                compositor::Size::FHD,
-                DisplaySink::new("Display"),
-                Some(MAX_VISIBLES),
-            ),
-
-            Some("matroska") => Talk::new(
-                compositor::Size::FHD,
-                MatroskaSink::new(
-                    service_context
-                        .settings
-                        .matroska
-                        .as_ref()
-                        .cloned()
-                        .unwrap_or_default(),
-                ),
-                Some(MAX_VISIBLES),
-            ),
-            Some("rtmp") => {
-                let recorder_settings = service_context
-                    .settings
-                    .recorder
-                    .clone()
-                    .expect("recorder settings needs to be set for the rtmp sink");
-                let location = recorder_settings.rtmp_uri
-                    .expect("the rtmp_uri needs to be set in the recorder settings to allow streaming over RTMP")
-                    .replace("$room", &command.room);
-                Talk::new(
-                    compositor::Size::FHD,
-                    RTMPSink::new(RTMPParameters {
-                        location,
-                        audio_bitrate: recorder_settings.rtmp_audio_bitrate,
-                        audio_rate: recorder_settings.rtmp_audio_rate,
-                        video_bitrate: recorder_settings.rtmp_video_bitrate,
-                        video_speed_preset: recorder_settings.rtmp_video_speed_preset,
-                    }),
-                    Some(MAX_VISIBLES),
-                )
-            }
-            _ => Talk::new(
-                compositor::Size::FHD,
-                Mp4Sink::new(Mp4Parameters {
+        let recorder_settings = service_context.settings.recorder.as_ref();
+        let recorder_sinks = recorder_settings
+            .unwrap_or(&RecorderSettings { sinks: vec![] })
+            .sinks
+            .clone();
+        let sinks = recorder_sinks
+            .into_iter()
+            .enumerate()
+            .map::<Box<dyn Sink>, _>(|(index, sink)| {
+                let tag = match sink {
+                    RecorderSink::Display => "Display",
+                    RecorderSink::Matroska(_) => "Matroska",
+                    RecorderSink::Rtmp(_) => "RTMP",
+                };
+                let name = format!("{tag}-Sink-{index}");
+                match sink {
+                    RecorderSink::Display => Box::new(DisplaySink::new(name.as_str())),
+                    RecorderSink::Matroska(matroska_parameters) => Box::new(MatroskaSink::new(
+                        name.as_str(),
+                        matroska_parameters.clone(),
+                    )),
+                    RecorderSink::Rtmp(rtmp_parameters) => Box::new(RTMPSink::new(
+                        name.as_str(),
+                        RTMPParameters {
+                            location: rtmp_parameters.location.replace("$room", &command.room),
+                            ..rtmp_parameters.clone()
+                        },
+                    )),
+                }
+            })
+            .chain(std::iter::once::<Box<dyn Sink>>(Box::new(Mp4Sink::new(
+                "MP4-Sink",
+                Mp4Parameters {
                     file_path: file_path
                         .to_str()
                         .expect("failed to convert MP4 file path into string")
                         .into(),
                     name: "Recording",
-                }),
-                Some(MAX_VISIBLES),
-            ),
-        }?;
+                },
+            ))))
+            .collect::<Vec<_>>();
+
+        let multi_sink = MultiSink::new(MultiParameters::new(sinks));
+        let talk = Talk::new(compositor::Size::FHD, multi_sink, Some(MAX_VISIBLES))?;
 
         Ok(Self {
             service_context,
