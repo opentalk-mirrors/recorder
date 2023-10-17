@@ -28,19 +28,9 @@ pub mod testing {
     static INIT: Once = Once::new();
 
     /// initialize for testing
-    pub fn init() -> glib::MainLoop {
+    pub fn init() {
         trace!("init()");
         INIT.call_once(init_function);
-
-        let main_loop = glib::MainLoop::new(None, false);
-        std::thread::spawn({
-            let main_loop = main_loop.clone();
-
-            move || {
-                main_loop.run();
-            }
-        });
-        main_loop
     }
 
     fn init_function() {
@@ -68,6 +58,13 @@ pub mod testing {
         debug!("Current directory {:?}", std::env::current_dir().unwrap());
         info!("Output directory: {}", output_dir());
         info!("Image directory: {}", image_dir());
+
+        std::thread::spawn({
+            let main_loop = glib::MainLoop::new(None, false);
+            move || {
+                main_loop.run();
+            }
+        });
     }
 
     fn be_slow() -> bool {
@@ -109,14 +106,14 @@ pub mod testing {
     }
 
     /// generate IDs for given amount of participants
-    fn generate_ids<ID>(count: u32) -> Vec<(ID, String)>
+    fn generate_ids<ID>(first: u32, count: u32) -> Vec<(ID, String)>
     where
         ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
     {
         trace!("generate_ids( {count} )");
 
         // generate stream IDs and names
-        (0..count)
+        (first..(first + count))
             .map(|n| (n.into(), format!("Participant {n:?}")))
             .collect()
     }
@@ -124,6 +121,7 @@ pub mod testing {
     /// generate given number of participant streams
     pub fn generate_streams<ID>(
         talk: &mut Talk<TestSource, ID>,
+        first: u32,
         count: u32,
         visibles: usize,
     ) -> (Vec<(ID, String)>, Vec<ID>)
@@ -132,7 +130,7 @@ pub mod testing {
     {
         trace!("generate_streams( {count}, {visibles} )");
 
-        let streams = generate_ids(count);
+        let streams = generate_ids(first, count);
         let ids: Vec<ID> = streams.iter().map(|p| p.0).collect();
 
         let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];

@@ -35,7 +35,7 @@ fn generate_example_pipeline_picture() {
     )
     .unwrap();
 
-    testing::generate_streams(&mut talk, 3, 3);
+    testing::generate_streams(&mut talk, 0, 3, 3);
     talk.set_speaker(Some(0), &Default::default()).unwrap();
     talk.layout::<Grid>().unwrap();
     blinder.blind(false);

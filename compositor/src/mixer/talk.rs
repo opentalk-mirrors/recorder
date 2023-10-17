@@ -5,7 +5,6 @@ use core::{
     fmt::{Debug, Display},
     hash::Hash,
 };
-use gst_base::prelude::ElementExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -171,11 +170,6 @@ where
             unknown_speaker: None,
             speaker: None,
         })
-    }
-
-    pub fn play(&self) -> Result<()> {
-        self.mixer.pipeline.set_state(gst::State::Playing)?;
-        Ok(())
     }
 
     /// Add a stream with the given ID and media type

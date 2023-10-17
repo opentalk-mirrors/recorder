@@ -12,10 +12,14 @@ fn test_speaker_mode() {
         Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), Some(MAX_VISIBLES))
             .unwrap();
 
+    talk.set_speaker(Some(0), &SpeakerSwitchMode::FirstShift)
+        .unwrap();
+
     // initialize scene
     talk.set_title("test_speaker_mode");
 
-    let (streams, _) = testing::generate_streams(&mut talk, NUM_PARTICIPANTS as u32, MAX_VISIBLES);
+    let (streams, _) =
+        testing::generate_streams(&mut talk, 0, NUM_PARTICIPANTS as u32, MAX_VISIBLES);
 
     talk.add_stream(
         StreamId::screen(streams[0].0),

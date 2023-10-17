@@ -13,7 +13,7 @@ fn test_blinder() {
     let mut talk =
         Talk::<TestSource, u32>::new(testing::RESOLUTION, blinder.clone(), None).unwrap();
 
-    testing::generate_streams(&mut talk, 8, 5);
+    testing::generate_streams(&mut talk, 0, 8, 5);
     talk.set_speaker(Some(0), &Default::default()).unwrap();
     talk.layout::<Grid>().unwrap();
     blinder.blind(false);

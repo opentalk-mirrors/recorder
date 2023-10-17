@@ -22,7 +22,7 @@ where
 
     testing::wait_millis(100);
 
-    let (_, ids) = testing::generate_streams(&mut talk, 5, 5);
+    let (_, ids) = testing::generate_streams(&mut talk, 0, 5, 5);
     talk.layout::<L>().unwrap();
 
     talk.dot(&format!("test_layout_{}-0", L::NAME), testing::DOT_PARAMS);
@@ -50,45 +50,64 @@ fn test_remove() {
 
     talk.set_title("test_remove");
 
-    for _ in 0..50 {
-        testing::generate_streams(&mut talk, 8, 5);
-        talk.set_speaker(Some(1), &Default::default()).unwrap();
+    for i in 0..50 {
+        let (_, ids) = testing::generate_streams(&mut talk, i * 8, 8, 5);
+        for id in &ids {
+            talk.try_show(&StreamId::camera(*id));
+        }
+        talk.set_speaker(Some(ids[0]), &Default::default()).unwrap();
         talk.layout::<Grid>().unwrap();
 
         talk.dot("test_remove-0", testing::DOT_PARAMS);
 
-        testing::wait_short();
+        testing::wait();
 
-        talk.set_title("remove 0 (left 1-7)");
-        talk.remove_stream(StreamId::camera(0)).unwrap();
+        talk.set_title(&format!(
+            "remove {id0} (left {id1}-{id7})",
+            id0 = ids[0],
+            id1 = ids[1],
+            id7 = ids[7]
+        ));
+        talk.remove_stream(StreamId::camera(ids[0])).unwrap();
         talk.layout::<Grid>().unwrap();
 
         talk.dot("test_remove-1", testing::DOT_PARAMS);
 
-        testing::wait_short();
+        testing::wait();
 
-        talk.set_title("remove 1-2 (left 3-7)");
-        talk.remove_stream(StreamId::camera(1)).unwrap();
-        talk.remove_stream(StreamId::camera(2)).unwrap();
+        talk.set_title(&format!(
+            "remove {id1}-{id2} (left {id3}-{id7})",
+            id1 = ids[1],
+            id2 = ids[2],
+            id3 = ids[3],
+            id7 = ids[7],
+        ));
+        talk.remove_stream(StreamId::camera(ids[1])).unwrap();
+        talk.remove_stream(StreamId::camera(ids[2])).unwrap();
         talk.layout::<Grid>().unwrap();
 
         talk.dot("test_remove_2", testing::DOT_PARAMS);
 
-        testing::wait_short();
+        testing::wait();
 
-        talk.set_title("remove 3-6 (left 7)");
-        talk.remove_stream(StreamId::camera(3)).unwrap();
-        talk.remove_stream(StreamId::camera(4)).unwrap();
-        talk.remove_stream(StreamId::camera(5)).unwrap();
-        talk.remove_stream(StreamId::camera(6)).unwrap();
+        talk.set_title(&format!(
+            "remove {id3}-{id6} (left {id7})",
+            id3 = ids[3],
+            id6 = ids[6],
+            id7 = ids[7],
+        ));
+        talk.remove_stream(StreamId::camera(ids[3])).unwrap();
+        talk.remove_stream(StreamId::camera(ids[4])).unwrap();
+        talk.remove_stream(StreamId::camera(ids[5])).unwrap();
+        talk.remove_stream(StreamId::camera(ids[6])).unwrap();
         talk.layout::<Grid>().unwrap();
 
         talk.dot("test_remove_3", testing::DOT_PARAMS);
 
-        testing::wait_short();
+        testing::wait();
 
-        talk.set_title("remove 7 (none left)");
-        talk.remove_stream(StreamId::camera(7)).unwrap();
+        talk.set_title(&format!("remove {id7} (none left)", id7 = ids[7]));
+        talk.remove_stream(StreamId::camera(ids[7])).unwrap();
         talk.layout::<Grid>().unwrap();
 
         talk.dot("test_remove_4", testing::DOT_PARAMS);

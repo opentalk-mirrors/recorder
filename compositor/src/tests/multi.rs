@@ -17,7 +17,7 @@ fn test_multi() {
     )
     .unwrap();
 
-    testing::generate_streams(&mut talk, 3, 3);
+    testing::generate_streams(&mut talk, 0, 3, 3);
     talk.set_speaker(Some(0), &SpeakerSwitchMode::FirstShift)
         .unwrap();
     talk.layout::<Grid>().unwrap();

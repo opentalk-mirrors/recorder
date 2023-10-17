@@ -6,7 +6,7 @@ fn test_dash() {
     testing::init();
 
     // create grid mixer with test sources for streams and a MatroskaSink
-    let mut mixer = Talk::<TestSource, u32>::new(
+    let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         DashSink::new(
             "test",
@@ -20,18 +20,18 @@ fn test_dash() {
     )
     .unwrap();
 
+    talk.set_speaker(Some(0), &Default::default()).unwrap();
     // add a stream
-    mixer
-        .add_stream(
-            StreamId::camera(0),
-            "Participant 0",
-            Default::default(),
-            StreamStatus::default(),
-        )
-        .unwrap();
-    mixer.layout::<Grid>().unwrap();
+    talk.add_stream(
+        StreamId::camera(0),
+        "Participant 0",
+        Default::default(),
+        StreamStatus::default(),
+    )
+    .unwrap();
+    talk.layout::<Grid>().unwrap();
 
-    mixer.dot("test_dash", testing::DOT_PARAMS);
+    talk.dot("test_dash", testing::DOT_PARAMS);
 
     // stir until done
     testing::wait_secs(5);

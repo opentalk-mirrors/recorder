@@ -76,9 +76,6 @@ pub fn dot_ext(
 
     // check if env var `GST_DEBUG_DUMP_DOT_DIR` has been set properly
     let Ok(path) = std::env::var("GST_DEBUG_DUMP_DOT_DIR") else {
-        if COUNT.load(Ordering::SeqCst) == 0 {
-            debug!("You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
-        };
         return;
     };
 

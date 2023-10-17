@@ -86,44 +86,6 @@ where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
 {
-    /// Create new stream and a source of type `SRC` into the given GStreamer pipeline.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: Unique ID of the stream.
-    /// - `display_name`: Name to be displayed within the sub title text.
-    /// - `source_bin`: A/V source bin.
-    /// - `status`: Initial status of the stream.
-    ///
-    #[allow(clippy::too_many_arguments)]
-    pub fn new<ID>(
-        id: &ID,
-        display_name: String,
-        source: SRC,
-        bin: gst::Bin,
-        video_src: gst::GhostPad,
-        audio_src: gst::GhostPad,
-        overlay: AnyOverlay,
-        status: StreamStatus,
-    ) -> Self
-    where
-        ID: Display,
-    {
-        trace!(
-            "new({id}, {display_name:?}, {source},  {status:?} )",
-            source = debug::name(&source.bin()),
-        );
-
-        Self {
-            display_name,
-            source,
-            bin,
-            video: video_src,
-            audio: audio_src,
-            overlay,
-            status,
-        }
-    }
     pub fn compositor_sink(&self) -> gst::Pad {
         // find compositor sink by looking where our ghost pad is connected to
         self.video
