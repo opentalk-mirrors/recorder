@@ -23,7 +23,7 @@ impl MultiParameters {
 #[derive(Debug)]
 pub struct MultiSink {
     /// for later use to access complex sinks (like blinders)
-    _sinks: Vec<Box<dyn Sink>>,
+    sinks: Vec<Box<dyn Sink>>,
     /// bin of the multi sink
     bin: gst::Bin,
     /// ghost pad for incoming video
@@ -91,7 +91,7 @@ impl MultiSink {
 
         // return new display sink
         MultiSink {
-            _sinks: params.sinks,
+            sinks: params.sinks,
             video,
             audio,
             bin,
@@ -110,5 +110,19 @@ impl Sink for MultiSink {
 
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
+    }
+
+    fn on_play(&mut self) {
+        self.sinks.iter_mut().for_each(|sink| sink.on_play());
+    }
+
+    fn on_pause(&mut self) {
+        self.sinks.iter_mut().for_each(|sink| sink.on_pause());
+    }
+
+    fn on_exit(&mut self, pipeline: &gst::Pipeline) {
+        self.sinks
+            .iter_mut()
+            .for_each(|sink| sink.on_exit(pipeline));
     }
 }
