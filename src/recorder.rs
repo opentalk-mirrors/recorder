@@ -234,6 +234,26 @@ impl RecordingSession {
         Ok(())
     }
 
+    async fn subscribe(
+        &mut self,
+        stream_id: StreamId<ParticipantId>,
+        display_name: &str,
+        media_state: MediaSessionState,
+    ) -> Result<()> {
+        self.talk.add_stream(
+            stream_id,
+            display_name,
+            stream_params(stream_id, self.candidate_sender.clone()),
+            media_state.into(),
+        )?;
+        self.talk.layout::<Layout>()?;
+        self.signaling.start_subscribe(stream_id).await?;
+        // show if possible
+        self.talk.try_show(&stream_id);
+
+        Ok(())
+    }
+
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
         match event {
             Event::JoinSuccess(_id) => {
@@ -265,16 +285,8 @@ impl RecordingSession {
                 for (id, display_name, media_type, media_state) in available_media_streams {
                     log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
                     let stream_id = StreamId::new(id, media_type);
-                    self.talk.add_stream(
-                        stream_id,
-                        &display_name,
-                        stream_params(stream_id, self.candidate_sender.clone()),
-                        media_state.into(),
-                    )?;
-                    self.talk.layout::<Layout>()?;
-                    self.signaling.start_subscribe(stream_id).await?;
-                    // show if possible
-                    self.talk.try_show(&stream_id);
+                    self.subscribe(stream_id, &display_name, media_state)
+                        .await?;
                 }
 
                 self.talk.layout::<Layout>()?;
@@ -293,16 +305,8 @@ impl RecordingSession {
                 for (media_type, media_state) in available_media_streams {
                     log::debug!("Join: subscribe stream of {id} {media_type}");
                     let stream_id = StreamId::new(id, media_type);
-                    self.talk.add_stream(
-                        stream_id,
-                        &participant_state.display_name,
-                        stream_params(stream_id, self.candidate_sender.clone()),
-                        media_state.into(),
-                    )?;
-                    self.talk.layout::<Layout>()?;
-                    self.signaling.start_subscribe(stream_id).await?;
-                    // show if possible
-                    self.talk.try_show(&stream_id);
+                    self.subscribe(stream_id, &participant_state.display_name, media_state)
+                        .await?;
                 }
             }
             Event::ParticipantUpdated(id) => {
@@ -317,15 +321,8 @@ impl RecordingSession {
                         if let Some(media_state) = media_state {
                             log::debug!("Update: subscribe stream of {id} {media_type}");
                             let stream_id = StreamId::new(id, media_type);
-                            self.talk.add_stream(
-                                stream_id,
-                                &participant_state.display_name,
-                                stream_params(stream_id, self.candidate_sender.clone()),
-                                media_state.into(),
-                            )?;
-                            self.signaling.start_subscribe(stream_id).await?;
-                            // show if possible
-                            self.talk.try_show(&stream_id);
+                            self.subscribe(stream_id, &participant_state.display_name, media_state)
+                                .await?;
                         }
                     } else if media_state.is_none() {
                         log::debug!("Update: unsubscribe stream of {id} {media_type}");
