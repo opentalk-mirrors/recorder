@@ -104,7 +104,6 @@ test:cargo_test:
       --locked
       --
       --test-threads 1
-      --skip tests::webrtc::webrtc_scenario1
 
     # Extract code coverage data
     - >

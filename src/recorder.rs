@@ -189,7 +189,7 @@ impl RecordingSession {
             .collect::<Vec<_>>();
 
         let multi_sink = MultiSink::new(MultiParameters::new(sinks));
-        let talk = Talk::new(compositor::Size::FHD, multi_sink, Some(MAX_VISIBLES))?;
+        let talk = Talk::new(compositor::Size::FHD, multi_sink, MAX_VISIBLES)?;
 
         Ok(Self {
             service_context,
@@ -248,8 +248,10 @@ impl RecordingSession {
         )?;
         self.talk.layout::<Layout>()?;
         self.signaling.start_subscribe(stream_id).await?;
-        // show if possible
-        self.talk.try_show(&stream_id);
+
+        if media_state.video {
+            self.talk.show_stream(&stream_id);
+        }
 
         Ok(())
     }
@@ -401,11 +403,9 @@ impl RecordingSession {
                 log::debug!("Event::FocusUpdate");
                 log::debug!("Set active speaker to {:?}", focus_change);
                 if let Some(speaker) = focus_change {
-                    self.talk
-                        .set_speaker(Some(speaker), &compositor::SpeakerSwitchMode::FirstShift)?;
+                    self.talk.set_speaker(speaker);
                 } else {
-                    self.talk
-                        .set_speaker(None, &compositor::SpeakerSwitchMode::FirstShift)?;
+                    self.talk.unset_speaker();
                 }
                 self.talk.layout::<Layout>()?;
             }

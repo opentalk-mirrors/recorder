@@ -53,16 +53,15 @@ enum Validation {
 /// - `ID`: stream identifier type
 ///
 #[derive(Debug)]
-pub struct Mixer<SRC, ID>
+pub struct Mixer<SRC, STREAMID>
 where
-    SRC: Source + Debug,
-    SRC::Parameters: Debug,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
+    SRC: Source,
+    STREAMID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// Current streams.
-    streams: HashMap<ID, Stream<SRC>>,
+    streams: HashMap<STREAMID, Stream<SRC>>,
     /// Currently visible streams.
-    visibles: Vec<ID>,
+    visibles: Vec<STREAMID>,
     /// GStreamer element which composes the output video out of the source videos.
     compositor: gst::Element,
     /// GStreamer element which composes the output audio out of the source audios.
@@ -78,11 +77,10 @@ where
     valid: std::sync::mpsc::Sender<Validation>,
 }
 
-impl<SRC, ID> Mixer<SRC, ID>
+impl<SRC, STREAMID> Mixer<SRC, STREAMID>
 where
-    SRC: Source + Debug,
-    SRC::Parameters: Debug,
-    ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
+    SRC: Source,
+    STREAMID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
     ///
@@ -226,7 +224,7 @@ where
     ///
     pub fn add_stream(
         &mut self,
-        id: ID,
+        id: STREAMID,
         display_name: String,
         params: SRC::Parameters,
         overlay: AnyOverlay,
@@ -400,7 +398,7 @@ where
     ///
     /// - `id`: Unique identifier of the stream.
     ///
-    pub fn remove_stream(&mut self, id: ID) -> Result<()>
+    pub fn remove_stream(&mut self, id: STREAMID) -> Result<()>
     where
         SRC: Source,
     {
@@ -435,105 +433,84 @@ where
         Ok(())
     }
 
-    /// Select the streams which are visible.
-    ///
-    /// All previously visible streams get invisible if they are not in the list.
-    /// See set_speaker() for further info about how the order will be interpreted.
+    /// Show stream.
     ///
     /// # Arguments
     ///
-    /// - `ids`: List of identifiers of streams which shall get visible
-    ///
-    pub fn set_visibles(&mut self, ids: &[ID]) {
-        trace!("set_visibles( {ids:?} )");
-        trace!("currently visible: {:?} ", self.visibles);
+    /// `id`: ID of stream
+    /// `position_first`: Decides of the id should be pushed an the first or last position
+    pub fn show_stream(&mut self, id: &STREAMID, position_first: bool) {
+        if self.is_visible(id) {
+            return;
+        }
 
-        // copy ID list of visibles
-        self.visibles = ids.into();
+        if position_first {
+            self.visibles.insert(0, *id);
+        } else {
+            self.visibles.push(*id);
+        }
+
         self.invalidate();
-
-        debug!("set visibles to {:?}", self.visibles);
     }
 
-    /// Set visibility of a participant.
+    /// Set stream to the first position
     ///
     /// # Arguments
     ///
-    /// `id`: ID of participant
-    /// `position_first`: Decides of the id should be pushed an the first or last position
-    /// `visible`: Show if `true` otherwise hide.
+    /// `id`: ID of stream
+    pub fn set_stream_to_first_position(&mut self, id: &STREAMID) {
+        self.set_stream_to_position(id, 0);
+    }
+
+    /// Set stream to the first position
     ///
-    /// # Return
+    /// # Arguments
     ///
-    /// - `false` if stream has been made visible.
-    /// - `true` if max visibles was exceeded and stream could not be shown.
+    /// `id`: ID of stream
+    pub fn set_stream_to_second_position(&mut self, id: &STREAMID) {
+        self.set_stream_to_position(id, 1);
+    }
+
+    /// Set stream to the first position
     ///
-    pub fn set_visible(&mut self, id: &ID, position_first: bool, visible: bool) -> bool {
-        // only show if not already visible or vice versa
-        match (visible, self.is_visible(id)) {
-            (true, false) => {
-                // Clone current visibles
-                let mut ids = self.visibles.clone();
-                // add stream to visibles
-                debug!("show {id}");
-                // add the new one
-                // If the media type is a screen capture, push it to first position
-                // Otherwise it's ja video feed and can be added to the end
-                if position_first {
-                    ids.insert(0, *id);
-                } else {
-                    ids.push(*id);
-                }
-                // set new visibles
-                self.set_visibles(&ids);
-                // recalculate layout
-                self.invalidate();
-                false
-            }
-            (false, true) => {
-                // Clone current visibles
-                let mut ids = self.visibles.clone();
-                // add stream to visibles
-                debug!("hide {id}");
-                // add the new one (self.is_visible(id)==true ensures success)
-                ids.retain(|other_id| other_id != id);
-                // set new visibles
-                self.set_visibles(&ids);
-                // recalculate layout
-                self.invalidate();
-                false
-            }
-            (true, true) => {
-                warn!("try to show already visible {id}");
-                if position_first {
-                    // Clone current visibles
-                    let mut ids = self.visibles.clone();
-                    debug!("move {id} to first position");
-                    ids.retain(|other_id| other_id != id);
-                    ids.insert(0, *id);
-                    // set new visibles
-                    self.set_visibles(&ids);
-                    // recalculate layout
-                    self.invalidate();
-                }
-                true
-            }
-            (false, false) => {
-                warn!("try to hide already invisible {id}");
-                true
-            }
+    /// # Arguments
+    ///
+    /// `id`: ID of stream
+    pub fn set_stream_to_position(&mut self, id: &STREAMID, position: usize) {
+        if self.visibles.first() == Some(id) {
+            return;
         }
+
+        self.visibles.retain(|other_id| other_id != id);
+        self.visibles.insert(position, *id);
+
+        self.invalidate();
+    }
+
+    /// Hide stream.
+    ///
+    /// # Arguments
+    ///
+    /// `id`: ID of stream
+    pub fn hide_stream(&mut self, id: &STREAMID) {
+        if !self.is_visible(id) {
+            return;
+        }
+
+        self.visibles.retain(|other_id| other_id != id);
+
+        self.invalidate();
     }
 
     /// Return `true`, if stream is currently visible
     ///
-    pub fn is_visible(&self, id: &ID) -> bool {
+    pub fn is_visible(&self, id: &STREAMID) -> bool {
         self.visibles.contains(id)
     }
 
     /// Return `true`, if stream currently provides video
     ///
-    pub fn has_video(&self, id: &ID) -> Result<bool> {
+    pub fn has_video(&self, id: &STREAMID) -> Result<bool> {
         Ok(self.get_stream(id)?.status.has_video)
     }
 
@@ -546,24 +523,16 @@ where
     /// - `id`: Describes which stream shall be updated.
     /// - `new_status`: New status to override.
     ///
-    pub fn set_status(&mut self, id: &ID, new_status: StreamStatus) -> Result<()> {
-        trace!("set_status( {id}, {new_status} )");
-
-        // get old stream's status
-        let stream = self
-            .streams
-            .get(id)
-            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?;
+    pub fn set_status(&mut self, id: &STREAMID, new_status: StreamStatus) -> Result<()> {
+        info!("set_status( {id}, {new_status} )");
 
         debug::debug_dot(&self.pipeline, "set_status");
-        stream
+
+        let current_stream = self.get_stream_mut(id)?;
+        current_stream
             .audiomixer_sink()
             .set_property("volume", if new_status.has_audio { 1.0 } else { 0.0 });
-
-        self.invalidate();
-
-        // set stream's new status
-        self.get_stream_mut(id)?.status = new_status;
+        current_stream.status = new_status;
 
         Ok(())
     }
@@ -574,7 +543,7 @@ where
     ///
     /// - `id`: ID of the stream.
     ///
-    fn get_stream_mut(&mut self, id: &ID) -> Result<&mut Stream<SRC>> {
+    fn get_stream_mut(&mut self, id: &STREAMID) -> Result<&mut Stream<SRC>> {
         self.streams
             .get_mut(id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
@@ -586,7 +555,7 @@ where
     ///
     /// - `id`: ID of the stream.
     ///
-    fn get_stream(&self, id: &ID) -> Result<&Stream<SRC>> {
+    fn get_stream(&self, id: &STREAMID) -> Result<&Stream<SRC>> {
         self.streams
             .get(id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
@@ -603,13 +572,14 @@ where
         debug::dot_ext(&self.pipeline, filename_without_extension, params)
     }
 
-    fn invisibles(&self) -> Vec<ID> {
+    fn invisibles(&self) -> Vec<STREAMID> {
         self.streams
             .keys()
             .cloned()
             .filter(|id| !self.visibles.contains(id))
             .collect()
     }
+
     /// Re-layout the current compositor scene.
     ///
     pub fn layout<L>(&mut self) -> Result<()>
@@ -708,11 +678,10 @@ where
     }
 }
 
-impl<SRC, ID> Drop for Mixer<SRC, ID>
+impl<SRC, STREAMID> Drop for Mixer<SRC, STREAMID>
 where
-    SRC: Source + Debug,
-    SRC::Parameters: Debug,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
+    SRC: Source,
+    STREAMID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// halt pipeline (can not be played again)
     ///

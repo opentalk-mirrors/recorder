@@ -1,9 +1,11 @@
 //! Source trait.
 
+use std::fmt::Debug;
+
 /// Trait of a participant's audio/video source.
-pub trait Source {
+pub trait Source: Debug {
     /// Generic parameter type to overwrite by trait implementers.
-    type Parameters;
+    type Parameters: Debug;
 
     /// Create an add a new source to a pipeline.
     ///

@@ -14,6 +14,7 @@ impl DisplaySink {
         trace!("new({name})");
 
         // create new GStreamer pipeline
+        // HINT: Enabling the sync for video and audio for the same time is blocking in multisink
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#" 
@@ -21,7 +22,7 @@ impl DisplaySink {
 
                 autovideosink
                     name=video
-                    sync=true
+                    sync=false
 
                 autoaudiosink
                     name=audio

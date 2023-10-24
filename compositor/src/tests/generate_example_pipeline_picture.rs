@@ -31,12 +31,12 @@ fn generate_example_pipeline_picture() {
         MultiSink::new(MultiParameters {
             sinks: vec![blinder.clone(), Box::new(TestSink::new("Recording"))],
         }),
-        None,
+        100,
     )
     .unwrap();
 
     testing::generate_streams(&mut talk, 0, 3, 3);
-    talk.set_speaker(Some(0), &Default::default()).unwrap();
+    talk.set_speaker(0);
     talk.layout::<Grid>().unwrap();
     blinder.blind(false);
 

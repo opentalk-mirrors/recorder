@@ -38,18 +38,18 @@ impl Display for MediaSessionType {
     }
 }
 
-/// Stream ID consisting of one participant ID and a stream type.
+/// Stream ID consisting of one stream ID and a stream type.
 ///
 /// # Types
 ///
-/// - `ID`: Type which can identify a participant.
+/// - `ID`: Type which can identify a stream.
 ///
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StreamId<ID>
 where
     ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
-    /// ID identifying the participant
+    /// ID identifying the stream
     pub id: ID,
     /// Type of the stream.
     pub media_type: MediaSessionType,
@@ -63,7 +63,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `id`: ID of the participant
+    /// - `id`: ID of the stream
     ///
     pub fn camera(id: ID) -> Self {
         Self {
@@ -75,7 +75,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `id`: ID of the participant
+    /// - `id`: ID of the stream
     ///
     pub fn screen(id: ID) -> Self {
         Self {
@@ -107,7 +107,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `id`: ID of the participant
+    /// - `id`: ID of the stream
     /// - `stream`: type of the stream
     ///
     pub fn new(id: ID, stream: MediaSessionType) -> Self {
@@ -118,37 +118,32 @@ where
     }
 }
 
-/// A talk consisting of participants and managing maximum amount of visibles.
+/// A talk consisting of streams and managing maximum amount of visibles.
 ///
 /// # Types
 ///
-/// - `SRC`: Source type which will be created when adding a participant.
-/// - `SINK`: Sink type which will be created.
+/// - `SRC`: Source type which will be created when adding a stream.
 /// - `ID`: Type which can identify a stream.
 ///
 #[derive(Debug)]
 pub struct Talk<SRC, ID>
 where
-    SRC: Source + Debug,
-    SRC::Parameters: Debug,
+    SRC: Source,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Underlying A/V mixer.
     mixer: Mixer<SRC, StreamId<ID>>,
-    /// Maximum number of visible participants in layouts.
-    max_visibles: Option<usize>,
+    /// Maximum number of visible streams in layouts.
+    max_visibles: usize,
     /// Display names that will appear in output video
     names: HashMap<StreamId<ID>, String>,
-    /// Will be used to cache a speaker whose stream was not added yet
-    speaker_id: Option<(ID, SpeakerSwitchMode)>,
-    /// participant who is currently speaking or `None`
-    speaker: Option<ID>,
+    /// stream who is currently speaking or `None`
+    current_speaker: Option<ID>,
 }
 
 impl<SRC, ID> Talk<SRC, ID>
 where
-    SRC: Source + Debug,
-    SRC::Parameters: Debug,
+    SRC: Source,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     /// Create new Talk.
@@ -159,7 +154,7 @@ where
     /// - `sink_params`: Parameters to create the output sink.
     /// - `max_visibles`: Maximum number of currently visible streams.
     ///
-    pub fn new(resolution: Size, sink: impl Sink, max_visibles: Option<usize>) -> Result<Self> {
+    pub fn new(resolution: Size, sink: impl Sink, max_visibles: usize) -> Result<Self> {
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
@@ -167,8 +162,7 @@ where
             mixer: Mixer::<SRC, StreamId<ID>>::new(resolution, TalkOverlay::new().into(), sink)?,
             max_visibles,
             names: HashMap::new(),
-            speaker_id: None,
-            speaker: None,
+            current_speaker: None,
         })
     }
 
@@ -190,7 +184,6 @@ where
     ) -> Result<()>
     where
         SRC: Source,
-        SRC::Parameters: Debug,
     {
         trace!("add_stream( {id}, '{display_name}', {params:?}, {initial} )");
 
@@ -222,24 +215,7 @@ where
         self.names.insert(id, display_name.to_string());
 
         // if available turn on audio but leave video off until `set_visibles()` is used
-        if initial.has_audio {
-            self.mixer.set_status(
-                &id,
-                StreamStatus {
-                    has_audio: true,
-                    has_video: false,
-                },
-            )?;
-        }
-
-        // check if the added stream was set as speaker before
-        if let Some((speaker, mode)) = self.speaker_id.clone() {
-            if speaker == id.id {
-                // set added stream to speaker now
-                self.set_speaker(Some(speaker), &mode)?;
-                self.speaker_id = None;
-            }
-        }
+        self.mixer.set_status(&id, initial)?;
 
         Ok(())
     }
@@ -258,10 +234,10 @@ where
         // forward to mixer
         self.mixer.remove_stream(id)?;
 
-        println!("remove a");
-        if let Some(id) = self.get_first_screen_capture() {
-            println!("remove a: {id:#?}");
-            self.mixer.set_visible(&id.clone(), true, true);
+        // After removing push the next screen share in the list to the first
+        // position
+        if let Some(stream_id) = self.get_first_screen_capture() {
+            self.mixer.set_stream_to_first_position(&stream_id);
         }
 
         Ok(())
@@ -289,11 +265,11 @@ where
         self.mixer.streams.contains_key(id)
     }
 
-    /// Check if a given participant ID is known by the mixer.
+    /// Check if a given stream ID is known by the mixer.
     ///
     /// # Arguments
     ///
-    /// - `id`: Describes which participant to search for.
+    /// - `id`: Describes which stream to search for.
     ///
     pub fn contains_any_stream(&self, id: &ID) -> bool {
         media_types().any(|media_type| self.contains_stream(&StreamId::new(*id, media_type)))
@@ -305,109 +281,47 @@ where
         self.mixer.streams.get_mut(id)
     }
 
-    /// Set which participant will be visualized as speaker.
+    /// Set which stream will be visualized as speaker.
     ///
     /// # Arguments
     ///
     /// - `speaker`: Stream of the speaker or `None`.
     /// - `mode`: How the speaker comes into the scene.
     ///
-    pub fn set_speaker(&mut self, speaker: Option<ID>, mode: &SpeakerSwitchMode) -> Result<()> {
-        info!("set_speaker( {speaker:?}, {mode:?} )");
+    pub fn set_speaker(&mut self, speaker: ID) {
+        info!("set_speaker( {speaker:?} )");
 
-        // we may need to change the visibles if speaker is not visible already
-        let mut visibles = self.mixer.visibles.clone();
+        self.current_speaker = Some(speaker);
 
-        // reset any previous memorized speaker (which wasn't available before)
-        self.speaker_id = None;
-
-        if let Some(speaker) = &speaker {
-            // check if speaker is stream
-            if !self.contains_any_stream(speaker) {
-                debug!("unknown speaker is remembered to activate later");
-                self.speaker_id = Some((*speaker, mode.clone()));
-                return Ok(());
+        let stream_id = StreamId::new(speaker, MediaSessionType::ScreenCapture);
+        if let Some(stream) = self.mixer.streams.get(&stream_id) {
+            // The speaker has no screen, so it doesn't need to update the position
+            if stream.status.has_video {
+                self.mixer.set_stream_to_first_position(&stream_id);
             }
-
-            match mode {
-                SpeakerSwitchMode::FirstShift => {
-                    // remove all speaker's streams
-                    while let Some(pos) = visibles.iter().position(|id| id.id == *speaker) {
-                        trace!(
-                            "remove {speaker} ({media_type}) from position {pos}",
-                            media_type = visibles[pos].media_type
-                        );
-                        visibles.remove(pos);
-                    }
-                    // make all available media of the speaker visible
-                    for media_type in media_types() {
-                        let stream = StreamId::new(*speaker, media_type);
-                        if self.contains_stream(&stream) {
-                            let media_type_is_camera = media_type == MediaSessionType::Camera;
-                            // If there is an active screen capture from someone
-                            // and the updated focus is just a screen capture
-                            // then the position should be the second place.
-                            // Otherwise the main view would be replaced.
-                            let position = if self.get_first_screen_capture().is_some()
-                                && media_type_is_camera
-                            {
-                                1
-                            } else {
-                                0
-                            };
-                            trace!("insert new speaker {speaker} ({media_type}) at position ({position})");
-                            visibles.insert(position, stream);
-                        }
-                    }
-                }
-                SpeakerSwitchMode::FirstSwap => {
-                    let streams_ids = media_types()
-                        .rev()
-                        .map(|media_type| StreamId::new(*speaker, media_type));
-
-                    for stream in streams_ids {
-                        // check if this speaker stream is visible
-                        match visibles.iter().position(|id| *id == stream) {
-                            Some(pos) => {
-                                trace!(
-                                    "swap visible at position 0 with new speaker at position {pos}"
-                                );
-                                visibles.swap(0, pos);
-                            }
-                            None => {
-                                if self.contains_stream(&stream) {
-                                    // insert speaker at first
-                                    trace!("insert speaker {speaker} at position 0");
-                                    visibles.insert(0, stream);
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => (),
-            }
-
-            // remove last visibles if visibles are too many
-            if let Some(max_visible) = self.max_visibles {
-                while visibles.len() > max_visible {
-                    trace!("remove last visible");
-                    visibles.pop();
-                }
-            }
-
-            // update visibles
-            self.mixer.set_visibles(&visibles);
-        } else {
-            warn!("setting no speaker currently ignored")
         }
-        self.speaker = speaker;
 
-        Ok(())
+        let stream_id = StreamId::new(speaker, MediaSessionType::Camera);
+        if let Some(stream) = self.mixer.streams.get(&stream_id) {
+            // The speaker has no screen, so it doesn't need to update the position
+            if stream.status.has_video {
+                // check if noone is sharing their screen or the new speaker is also screen sharing
+                if self.get_first_screen_capture().is_none() {
+                    self.mixer.set_stream_to_first_position(&stream_id);
+                } else {
+                    self.mixer.set_stream_to_second_position(&stream_id);
+                }
+            }
+        }
+    }
+
+    pub fn unset_speaker(&mut self) {
+        self.current_speaker = None;
     }
 
     /// Get ID of current speaker or `None`
-    pub fn get_speaker(&self) -> Option<ID> {
-        self.speaker
+    pub fn get_current_speaker(&self) -> Option<ID> {
+        self.current_speaker
     }
 
     /// Set status of stream with `id`.
@@ -416,12 +330,28 @@ where
     ///
     /// # Arguments
     ///
-    /// - `id`: ID of the participant's stream
+    /// - `id`: ID of the stream
     /// - `new_status`: new status for that stream
     ///
     pub fn set_status(&mut self, id: &StreamId<ID>, new_status: StreamStatus) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
-        self.mixer.set_status(id, new_status.clone())
+        let old_status = match self.mixer.streams.get(id) {
+            Some(current_stream) => current_stream.status.clone(),
+            None => {
+                debug!("current_stream not found for id: {id:?}");
+                return Ok(());
+            }
+        };
+
+        self.mixer.set_status(id, new_status.clone())?;
+
+        match (old_status.has_video, new_status.has_video) {
+            (false, true) => self.show_stream(id),
+            (true, false) => self.hide_stream(id),
+            _ => {}
+        }
+
+        Ok(())
     }
 
     /// Set title of the talk which is displayed in overlay
@@ -463,11 +393,11 @@ where
         panic!("talk has no clock overlay!")
     }
 
-    /// Set title in a participant's stream
+    /// Set title in a stream
     ///
     /// # Arguments
     ///
-    /// - `id`: ID of the participant's stream
+    /// - `id`: ID of the stream
     /// - `title`: title text
     ///
     pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) -> Result<()> {
@@ -480,7 +410,7 @@ where
         panic!("source {id} title overlay missing")
     }
 
-    /// Show titles in participants' streams
+    /// Show titles in streams
     ///
     /// # Arguments
     ///
@@ -503,24 +433,36 @@ where
     /// - `false` if stream has been made visible.
     /// - `true` if max visibles was exceeded and stream could not be shown.
     ///
-    pub fn try_show(&mut self, stream_id: &StreamId<ID>) -> bool {
-        let new_stream_is_screen_capture = stream_id.media_type == MediaSessionType::ScreenCapture;
-        let noone_is_screen_capturing = self.get_first_screen_capture().is_none();
-        let current_speaker_is_same_user =
-            self.speaker_id == Some((stream_id.id, SpeakerSwitchMode::FirstShift));
+    pub fn show_stream(&mut self, stream_id: &StreamId<ID>) {
+        // Check if the maximum amount of streams is reached
+        if self.mixer.visibles.len() > self.max_visibles {
+            // If the new stream is just a camera feed, then don't show them
+            if stream_id.media_type == MediaSessionType::Camera {
+                return;
+            }
+            // The new camera feed is a screen share, which has a higher
+            // priority, so the latest stream will be removed
+            if let Some(id) = self.mixer.visibles.last().cloned() {
+                self.mixer.hide_stream(&id);
+            }
+        }
         // Check if the new stream is a screen capture
         // If it's a screen capture and noone else is streaming, push it to the first position
         // If someone is streaming, but the current speaker is the same user, push it to the first position
-        let position_first = new_stream_is_screen_capture
-            && (noone_is_screen_capturing || current_speaker_is_same_user);
-        self.mixer.set_visible(stream_id, position_first, true)
+        let position_first = stream_id.media_type == MediaSessionType::ScreenCapture
+            && self.get_first_screen_capture().is_none();
+        self.mixer.show_stream(stream_id, position_first);
     }
 
-    /// Return `true`, if a participant's stream is currently visible
+    pub fn hide_stream(&mut self, stream_id: &StreamId<ID>) {
+        self.mixer.hide_stream(stream_id);
+    }
+
+    /// Return `true`, if a stream is currently visible
     ///
     /// # Arguments
     ///
-    /// - `id`: ID of the participant's stream
+    /// - `id`: ID of the stream
     ///
     pub fn is_any_visible(&self, id: &ID) -> bool {
         media_types().any(|media_type| self.mixer.is_visible(&StreamId::new(*id, media_type)))
@@ -564,41 +506,18 @@ where
             .visibles
             .clone()
             .into_iter()
-            .filter(|visible| visible.media_type == MediaSessionType::ScreenCapture)
-            .collect::<Vec<_>>()
-            .first()
-            .cloned()
+            .find(|visible| visible.media_type == MediaSessionType::ScreenCapture)
     }
 }
 
 impl<SRC, ID> Drop for Talk<SRC, ID>
 where
-    SRC: Source + Debug,
-    SRC::Parameters: Debug,
+    SRC: Source,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
     fn drop(&mut self) {
         debug!("Stopped Talk");
         // remove all streams
         self.clear().unwrap();
-    }
-}
-
-/// Mode in which the current speaker shall be displayed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SpeakerSwitchMode {
-    /// Do not visualize who speaks
-    None,
-    /// Put the current speaker in front of all others and shift the remaining visible participants down.
-    /// If the maximum of visibles is reached and speaker was not visible before the last visible will be shifted out.
-    FirstShift,
-    /// Put the current speaker in front of all others and if the speaker was visible before swap it with the previous speaker.
-    /// If the maximum of visibles is reached and< speaker was not visible before the last visible will be shifted out.
-    FirstSwap,
-}
-
-impl Default for SpeakerSwitchMode {
-    fn default() -> Self {
-        Self::FirstShift
     }
 }
