@@ -460,6 +460,7 @@ where
     /// # Arguments
     ///
     /// `id`: ID of participant
+    /// `position_first`: Decides of the id should be pushed an the first or last position
     /// `visible`: Show if `true` otherwise hide.
     ///
     /// # Return
@@ -467,7 +468,7 @@ where
     /// - `false` if stream has been made visible.
     /// - `true` if max visibles was exceeded and stream could not be shown.
     ///
-    pub fn set_visible(&mut self, id: &ID, visible: bool) -> bool {
+    pub fn set_visible(&mut self, id: &ID, position_first: bool, visible: bool) -> bool {
         // only show if not already visible or vice versa
         match (visible, self.is_visible(id)) {
             (true, false) => {
@@ -476,7 +477,13 @@ where
                 // add stream to visibles
                 debug!("show {id}");
                 // add the new one
-                ids.push(*id);
+                // If the media type is a screen capture, push it to first position
+                // Otherwise it's ja video feed and can be added to the end
+                if position_first {
+                    ids.insert(0, *id);
+                } else {
+                    ids.push(*id);
+                }
                 // set new visibles
                 self.set_visibles(&ids);
                 // recalculate layout
@@ -489,7 +496,7 @@ where
                 // add stream to visibles
                 debug!("hide {id}");
                 // add the new one (self.is_visible(id)==true ensures success)
-                ids.remove(ids.iter().position(|i| i == id).unwrap());
+                ids.retain(|other_id| other_id != id);
                 // set new visibles
                 self.set_visibles(&ids);
                 // recalculate layout
@@ -498,6 +505,17 @@ where
             }
             (true, true) => {
                 warn!("try to show already visible {id}");
+                if position_first {
+                    // Clone current visibles
+                    let mut ids = self.visibles.clone();
+                    debug!("move {id} to first position");
+                    ids.retain(|other_id| other_id != id);
+                    ids.insert(0, *id);
+                    // set new visibles
+                    self.set_visibles(&ids);
+                    // recalculate layout
+                    self.invalidate();
+                }
                 true
             }
             (false, false) => {
