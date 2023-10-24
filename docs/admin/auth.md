@@ -1,8 +1,3 @@
-<!--
-SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
-SPDX-License-Identifier: EUPL-1.2
--->
-
 # Auth
 
 The OpenTalk Controller uses [keycloak](https://www.keycloak.org/), an OpenID Connect compatible
