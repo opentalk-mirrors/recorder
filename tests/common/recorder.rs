@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use compositor::{Talk, TestSink};
+use compositor::{MultiParameters, MultiSink, Sink, Talk, TestSink};
 use openidconnect::{
     core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl, JsonWebKeySet,
 };
@@ -61,12 +61,10 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let signaling = Signaling::new(None, HashMap::new(), connection);
     let (candidate_sender, candidate_receiver) = mpsc::channel(12);
     let temp_dir = TempDir::new().expect("unable to create temp dir");
-    let talk = Talk::new(
-        compositor::Size::FHD,
-        TestSink::new("TestSink"),
-        Some(MAX_VISIBLES),
-    )
-    .expect("unable to create Talk");
+
+    let sinks: Vec<Box<dyn Sink>> = vec![Box::new(TestSink::new("TestSink"))];
+    let multi_sink = MultiSink::new(MultiParameters::new(sinks));
+    let talk = Talk::new(compositor::Size::FHD, multi_sink, MAX_VISIBLES).unwrap();
 
     let mut recording_session = RecordingSession::new(
         Arc::new(recorder),

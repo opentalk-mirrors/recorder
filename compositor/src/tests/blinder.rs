@@ -11,10 +11,11 @@ fn test_blinder() {
         ..Default::default()
     });
     let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, blinder.clone(), None).unwrap();
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, blinder.clone(), testing::MAX_STREAMS)
+            .unwrap();
 
     testing::generate_streams(&mut talk, 0, 8, 5);
-    talk.set_speaker(Some(0), &Default::default()).unwrap();
+    talk.set_speaker(0);
     talk.layout::<Grid>().unwrap();
     blinder.blind(false);
 

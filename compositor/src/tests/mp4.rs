@@ -14,7 +14,7 @@ fn test_mp4() {
                 ..Default::default()
             },
         ),
-        None,
+        testing::MAX_STREAMS,
     )
     .unwrap();
 

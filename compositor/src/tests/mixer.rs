@@ -17,8 +17,12 @@ where
     // initialize for testing
     testing::init();
 
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), None).unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        TestSink::default(),
+        testing::MAX_STREAMS,
+    )
+    .unwrap();
 
     testing::wait_millis(100);
 
@@ -31,7 +35,7 @@ where
 
     (0..ids.len()).for_each(|i| {
         talk.set_title(&format!("Showing {i} Participant(s)", i = i + 1));
-        talk.try_show(&StreamId::camera(ids[i]));
+        talk.show_stream(&StreamId::camera(ids[i]));
         talk.layout::<L>().unwrap();
         talk.dot(&format!("test_layout_{}-{i}", L::NAME), testing::DOT_PARAMS);
         testing::wait();
@@ -45,17 +49,21 @@ fn test_remove() {
     // initialize for testing
     testing::init();
 
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), None).unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        TestSink::default(),
+        testing::MAX_STREAMS,
+    )
+    .unwrap();
 
     talk.set_title("test_remove");
 
     for i in 0..50 {
         let (_, ids) = testing::generate_streams(&mut talk, i * 8, 8, 5);
         for id in &ids {
-            talk.try_show(&StreamId::camera(*id));
+            talk.show_stream(&StreamId::camera(*id));
         }
-        talk.set_speaker(Some(ids[0]), &Default::default()).unwrap();
+        talk.set_speaker(ids[0]);
         talk.layout::<Grid>().unwrap();
 
         talk.dot("test_remove-0", testing::DOT_PARAMS);

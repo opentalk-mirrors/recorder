@@ -6,11 +6,14 @@ fn test_overlay() {
     testing::init();
 
     // get output resolution from arguments
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), None).unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        TestSink::default(),
+        testing::MAX_STREAMS,
+    )
+    .unwrap();
 
-    talk.set_speaker(Some(0), &SpeakerSwitchMode::FirstShift)
-        .unwrap();
+    talk.set_speaker(0);
 
     talk.set_title("test_overlay");
     talk.layout::<Grid>().unwrap();
@@ -26,7 +29,7 @@ fn test_overlay() {
     // add participants
     let (_, ids) = testing::generate_streams(&mut talk, 0, 3, 3);
     ids.iter().for_each(|id| {
-        talk.try_show(&StreamId::camera(*id));
+        talk.show_stream(&StreamId::camera(*id));
     });
     talk.layout::<Grid>().unwrap();
     talk.dot("test_overlay-3", testing::DOT_PARAMS);

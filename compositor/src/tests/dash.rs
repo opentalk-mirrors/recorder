@@ -16,11 +16,11 @@ fn test_dash() {
                 ..Default::default()
             },
         ),
-        None,
+        testing::MAX_STREAMS,
     )
     .unwrap();
 
-    talk.set_speaker(Some(0), &Default::default()).unwrap();
+    talk.set_speaker(0);
     // add a stream
     talk.add_stream(
         StreamId::camera(0),

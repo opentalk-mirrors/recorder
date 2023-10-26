@@ -25,6 +25,9 @@ pub mod testing {
     /// GStreamer debug details to use when generating DOT files of pipeline within testing
     pub const DOT_PARAMS: &debug::Params = &debug::Params::all();
 
+    // The maximum amount of streams which will be used in tests.
+    pub const MAX_STREAMS: usize = 100;
+
     static INIT: Once = Once::new();
 
     /// initialize for testing
