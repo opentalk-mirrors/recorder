@@ -62,7 +62,7 @@ impl ParticipantState {
 /// Event emitted by [`Signaling::run`]
 #[derive(Debug)]
 pub enum Event {
-    JoinSuccess(ParticipantId),
+    JoinSuccess(ParticipantId, String),
     ParticipantJoined(ParticipantId),
     ParticipantUpdated(ParticipantId),
     ParticipantLeft(ParticipantId),
@@ -169,7 +169,6 @@ impl Signaling {
         match msg {
             incoming::Message::Control(msg) => match msg {
                 incoming::ControlMessage::JoinSuccess(state) => {
-                    self._id = Some(state.id);
                     self.participants = HashMap::from_iter(
                         state
                             .participants
@@ -177,7 +176,7 @@ impl Signaling {
                             .map(|p| (p.id, ParticipantState::from_incoming(p))),
                     );
 
-                    Ok(Some(Event::JoinSuccess(state.id)))
+                    Ok(Some(Event::JoinSuccess(state.id, state.event_info.title)))
                 }
                 incoming::ControlMessage::Joined(participant) => {
                     let id = participant.id;
@@ -328,6 +327,12 @@ pub mod incoming {
     pub struct JoinSuccess {
         pub id: ParticipantId,
         pub participants: Vec<Participant>,
+        pub event_info: EventInfo,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct EventInfo {
+        pub title: String,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

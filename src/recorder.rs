@@ -258,7 +258,7 @@ impl RecordingSession {
 
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
         match event {
-            Event::JoinSuccess(_id) => {
+            Event::JoinSuccess(_id, title) => {
                 // find all active media streams
 
                 let available_media_streams: Vec<(
@@ -292,6 +292,7 @@ impl RecordingSession {
                 }
 
                 self.talk.layout::<Layout>()?;
+                self.talk.set_title(title.as_str());
             }
 
             Event::ParticipantJoined(id) => {

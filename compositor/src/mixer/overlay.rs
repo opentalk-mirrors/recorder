@@ -11,7 +11,7 @@ pub trait Overlay {
     fn sink(&self) -> gst::Pad {
         self.element()
             .static_pad("video_sink")
-            .expect("overlay has no pad named `sink`")
+            .expect("overlay has no pad named `video_sink`")
     }
     fn src(&self) -> gst::Pad {
         self.element()

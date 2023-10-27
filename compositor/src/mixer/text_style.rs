@@ -44,18 +44,18 @@ impl std::fmt::Display for Color {
 
 /// Text padding.
 #[derive(Debug)]
-pub struct Padding {
+pub struct TextPadding {
     pub x: i32,
     pub y: i32,
 }
 
-impl Default for Padding {
-    fn default() -> Padding {
-        Padding { x: 10, y: 10 }
+impl Default for TextPadding {
+    fn default() -> TextPadding {
+        TextPadding { x: 10, y: 10 }
     }
 }
 
-impl std::fmt::Display for Padding {
+impl std::fmt::Display for TextPadding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{x}/{y}", x = self.x, y = self.y)
     }
@@ -72,7 +72,7 @@ impl Default for Font {
     fn default() -> Font {
         Font {
             name: "Sans",
-            size: 14,
+            size: 10,
         }
     }
 }
@@ -177,7 +177,7 @@ impl std::fmt::Display for Align {
 #[derive(Debug, Default)]
 pub struct TextStyle {
     pub font: Font,
-    pub padding: Padding,
+    pub padding: TextPadding,
     pub color: Color,
     pub align: Align,
 }

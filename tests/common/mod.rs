@@ -138,6 +138,7 @@ impl EventRunner {
                 Event::StartRecording => {
                     log::info!("Start the recorder, everyone should be able to give consent");
                     start_recorder(websocket_addr, shutdown_rx.clone()).await;
+                    event_runner.start_recorder().await
                 }
                 Event::StopRecording => {
                     log::info!("Stop the recording");
@@ -169,6 +170,11 @@ impl EventRunner {
             !error_occurred.load(atomic::Ordering::Relaxed),
             "GStreamer error was logged"
         );
+    }
+
+    async fn start_recorder(&mut self) {
+        log::info!("StartRecorder event received");
+        self.mock_controller.send_join_success().await;
     }
 
     async fn join_user(&mut self, index: usize) {

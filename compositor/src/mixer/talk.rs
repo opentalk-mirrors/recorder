@@ -192,11 +192,9 @@ where
             "Name Overlay",
             display_name,
             TextStyle {
-                color: Color {
-                    r: 0xff,
-                    g: 0xff,
-                    b: 0xff,
-                    a: 0x80,
+                font: Font {
+                    name: "Sans",
+                    size: 40,
                 },
                 ..Default::default()
             },

@@ -5,6 +5,7 @@ use crate::*;
 /// Parameters of TalkOverlay
 #[allow(dead_code)]
 pub struct TalkOverlaysParams {
+    padding: TextPadding,
     // title invisible if `None`
     title_style: Option<TextStyle>,
     // clock invisible if `None`
@@ -16,6 +17,7 @@ pub struct TalkOverlaysParams {
 /// Overlay which is used on top of a talk.
 #[derive(Debug, Clone)]
 pub struct TalkOverlay {
+    _padding_overlay: PaddingOverlay,
     text_overlay: TextOverlay,
     clock_overlay: ClockOverlay,
     bin: gst::Bin,
@@ -41,6 +43,14 @@ impl TalkOverlay {
     /// Create and add new overlay sink into existing pipeline.
     pub fn new() -> Self {
         let bin = gst::Bin::new(Some("Talk Overlay"));
+        let padding_overlay = PaddingOverlay::new(
+            "padding",
+            Padding {
+                // TODO hard-coded :/
+                top: 56,
+                ..Default::default()
+            },
+        );
         let text_overlay = TextOverlay::new(
             "Title Overlay",
             "",
@@ -64,15 +74,21 @@ impl TalkOverlay {
             },
         );
 
+        bin.add(padding_overlay.element())
+            .expect("can not add padding overlay to video overlay bin");
         bin.add(text_overlay.element())
             .expect("can not add text overlay to video overlay bin");
         bin.add(clock_overlay.element())
             .expect("can not add clock overlay to video overlay bin");
 
-        gst::Element::link_many(&[text_overlay.element(), clock_overlay.element()])
-            .expect("cannot link participant overlay together");
+        gst::Element::link_many(&[
+            padding_overlay.element(),
+            text_overlay.element(),
+            clock_overlay.element(),
+        ])
+        .expect("cannot link participant overlay together");
 
-        let video_sink = gst::GhostPad::with_target(Some("video_sink"), &text_overlay.sink())
+        let video_sink = gst::GhostPad::with_target(Some("video_sink"), &padding_overlay.sink())
             .expect("failed to create video ghost pad for participant overlay sink");
         bin.add_pad(&video_sink)
             .expect("failed to add video ghost pad to participant overlay sink bin");
@@ -82,6 +98,7 @@ impl TalkOverlay {
             .expect("failed to add video ghost pad to participant overlay sink bin");
 
         TalkOverlay {
+            _padding_overlay: padding_overlay,
             text_overlay,
             clock_overlay,
             bin,
