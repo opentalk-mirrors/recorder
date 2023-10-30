@@ -3,7 +3,10 @@ use std::{collections::BTreeMap, sync::Arc};
 use gst::{prelude::ObjectExt, traits::GstBinExt, Promise};
 use gst_sdp::SDPMessage;
 use gst_webrtc::{WebRTCSDPType, WebRTCSessionDescription};
-use opentalk_recorder::signaling::{incoming, outgoing, ParticipantId};
+use opentalk_recorder::signaling::{
+    incoming::{self, EventInfo},
+    outgoing, ParticipantId,
+};
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
@@ -64,6 +67,9 @@ impl MockController {
                 incoming::ControlMessage::JoinSuccess(incoming::JoinSuccess {
                     id: ParticipantId(Uuid::new_v4()),
                     participants,
+                    event_info: EventInfo {
+                        title: "Test Recording Title".to_string(),
+                    },
                 }),
             ))
             .await
@@ -148,6 +154,26 @@ impl MockController {
 
             webrtc.emit_by_name::<()>("add-ice-candidate", &[&0u32, &None::<String>]);
         }
+    }
+
+    pub(crate) async fn send_join_success(&self) {
+        let users = self.users.lock().await;
+        let participants: Vec<incoming::Participant> = users
+            .values()
+            .map(|user| user.participant.clone())
+            .collect::<Vec<_>>();
+        self.to_recorder_tx
+            .send(incoming::Message::Control(
+                incoming::ControlMessage::JoinSuccess(incoming::JoinSuccess {
+                    id: ParticipantId(Uuid::new_v4()),
+                    participants,
+                    event_info: EventInfo {
+                        title: "Test Recording Title".to_string(),
+                    },
+                }),
+            ))
+            .await
+            .expect("unable to send join success event to recorder");
     }
 
     pub(crate) async fn send_joined(&mut self, index: usize) -> incoming::Participant {
