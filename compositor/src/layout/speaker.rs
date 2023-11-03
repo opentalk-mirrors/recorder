@@ -18,22 +18,21 @@ impl Layout for Speaker {
         }
     }
 
-    fn view(&self, n: usize) -> View {
+    fn view(&self, n: usize) -> Option<View> {
         if n >= self.visibles {
-            return Default::default();
+            return None;
         }
-        match n {
+        let view = match n {
             0 => View {
                 pos: self.speaker_position(),
                 size: self.speaker_size(),
-                alpha: 1.0,
             },
             _ => View {
                 pos: self.viewers_position(n - 1),
                 size: self.viewers_size(n - 1),
-                alpha: 1.0,
             },
-        }
+        };
+        Some(view)
     }
 
     const NAME: &'static str = "speaker";

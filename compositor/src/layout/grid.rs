@@ -17,20 +17,19 @@ impl Layout for Grid {
         }
     }
 
-    fn view(&self, n: usize) -> View {
+    fn view(&self, n: usize) -> Option<View> {
         if n >= self.visibles {
-            return Default::default();
+            return None;
         }
         let row = n / self.columns();
         let column = n % self.columns();
-        View {
+        Some(View {
             pos: Position {
                 x: (self.width() * column) as i64,
                 y: (self.height() * row + self.padding()) as i64,
             },
             size: self.uni_size(),
-            alpha: 1.0,
-        }
+        })
     }
 
     const NAME: &'static str = "grid";

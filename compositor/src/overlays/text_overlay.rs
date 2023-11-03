@@ -41,6 +41,7 @@ impl TextOverlay {
         element.set_property("color", style.color);
         element.set_property_from_str("halignment", style.align.horizontal.into());
         element.set_property_from_str("valignment", style.align.vertical.into());
+        element.set_property("auto-resize", false);
 
         // return Overlay
         Self { element }

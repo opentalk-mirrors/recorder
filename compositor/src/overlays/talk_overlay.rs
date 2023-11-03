@@ -2,6 +2,9 @@ use gst_base::prelude::*;
 
 use crate::*;
 
+const TOP_PADDING: i32 = 56;
+const OVERLAY_FONT_SIZE: u32 = 20;
+
 /// Parameters of TalkOverlay
 #[allow(dead_code)]
 pub struct TalkOverlaysParams {
@@ -46,8 +49,7 @@ impl TalkOverlay {
         let padding_overlay = PaddingOverlay::new(
             "padding",
             Padding {
-                // TODO hard-coded :/
-                top: 56,
+                top: TOP_PADDING,
                 ..Default::default()
             },
         );
@@ -59,6 +61,10 @@ impl TalkOverlay {
                     horizontal: HAlign::Left,
                     vertical: VAlign::Top,
                 },
+                font: Font {
+                    size: OVERLAY_FONT_SIZE,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         );
@@ -69,6 +75,10 @@ impl TalkOverlay {
                 align: Align {
                     horizontal: HAlign::Right,
                     vertical: VAlign::Top,
+                },
+                font: Font {
+                    size: OVERLAY_FONT_SIZE,
+                    ..Default::default()
                 },
                 ..Default::default()
             },

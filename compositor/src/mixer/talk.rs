@@ -10,6 +10,8 @@ use std::collections::HashMap;
 
 use crate::*;
 
+const NAME_FONT_SIZE: u32 = 16;
+
 /// return available media types
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     // order is priority for set speaker (first available will get focus)
@@ -193,8 +195,8 @@ where
             display_name,
             TextStyle {
                 font: Font {
-                    name: "Sans",
-                    size: 40,
+                    size: NAME_FONT_SIZE,
+                    ..Default::default()
                 },
                 ..Default::default()
             },
