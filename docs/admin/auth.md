@@ -16,7 +16,7 @@ The section in the [configuration file](configuration.md) is called `auth`.
 ### Example
 
 ```toml
-[keycloak]
+[auth]
 issuer = "http://localhost:8080/auth/realms/MyRealm"
 client_id = "Recorder"
 client_secret = "INSERT_KEY"
