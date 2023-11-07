@@ -26,11 +26,11 @@ Test talk overlay (which is placed on the output picture) and source overlays wh
 ## Automatic Test
 
 - usage of the built-in overlays of Talk
-  - `TextOverlay`
-  - `ClockOverlay`
+    - `TextOverlay`
+    - `ClockOverlay`
 - usage of methods in `Talk`
-  - `set_title()`
-  - `set_stream_title()`
+    - `set_title()`
+    - `set_stream_title()`
 - Handling of overlays within the pipeline
 
 ## Manual Test

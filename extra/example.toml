@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
+#
+# SPDX-License-Identifier: EUPL-1.2
+
 [auth]
 issuer = "http://localhost:8080/auth/realms/MyRealm"
 client_id = "Recorder"

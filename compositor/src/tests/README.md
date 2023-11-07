@@ -20,8 +20,8 @@ The following tests are testing several units of the compositor library:
 - DASH output: [dash](doc/dash.md)
 - Matroska output: [matroska](doc/matroska.md)
 - Mixer tests
-  - Several layouts: [layout](doc/layout.md)
-  - Removing streams: [remove](doc/remove.md)
+    - Several layouts: [layout](doc/layout.md)
+    - Removing streams: [remove](doc/remove.md)
 - MP4 output: [mp4](doc/mp4.md)
 - Multi sink output:  [multi](doc/multi.md)
 - Source and talk overlays: [overlays](doc/overlays.md)

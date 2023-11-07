@@ -15,14 +15,14 @@ Activates and deactivates video and audio of every stream within a `Talk`.
 - create a `Talk` which uses a `TestSink`
 - add some streams
 - repeat for every stream:
-  - turn video on and audio off
-  - wait
-  - turn video off and audio on
-  - wait
-  - turn video and audio off
-  - wait
-  - turn video off and audio on
-  - wait
+    - turn video on and audio off
+    - wait
+    - turn video off and audio on
+    - wait
+    - turn video and audio off
+    - wait
+    - turn video off and audio on
+    - wait
 
 ## Automatic Test
 

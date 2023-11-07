@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
+//
+// SPDX-License-Identifier: EUPL-1.2
+
 use crate::settings::RabbitMqSettings;
 use anyhow::{Context as ErrorContext, Result};
 use lapin::message::Delivery;
