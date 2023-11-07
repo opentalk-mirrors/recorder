@@ -14,20 +14,20 @@ Periodically adds some streams to a `Talk` and removes them bunch by bunch.
 
 - create a `Talk` which uses a `TestSink`
 - repeat many times (ID0-ID7 will count like: `0`-`7`, `8`-`15`, ...):
-  - add eight streams (ID0-ID7)
-  - set a speaker and layout
-  - set talk title to `remove` ID0 ` (left `ID1 `-` ID7 `)`
-  - remove first stream (ID0)
-  - wait
-  - set talk title to `remove` ID1 `-` ID2 `(left` ID3 `-` ID7 `)`
-  - remove streams ID1 and ID2
-  - wait
-  - set talk title to `remove` ID3 `-` ID6 `(left` ID7 `)`
-  - remove streams ID3 - ID6
-  - wait
-  - set talk title to `remove` ID7 `(none left)`
-  - remove streams ID7
-  - wait
+    - add eight streams (ID0-ID7)
+    - set a speaker and layout
+    - set talk title to `remove` ID0 `(left` ID1 `-` ID7 `)`
+    - remove first stream (ID0)
+    - wait
+    - set talk title to `remove` ID1 `-` ID2 `(left` ID3 `-` ID7 `)`
+    - remove streams ID1 and ID2
+    - wait
+    - set talk title to `remove` ID3 `-` ID6 `(left` ID7 `)`
+    - remove streams ID3 - ID6
+    - wait
+    - set talk title to `remove` ID7 `(none left)`
+    - remove streams ID7
+    - wait
 
 ## Automatic Test
 

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
+//
+// SPDX-License-Identifier: EUPL-1.2
+
 use compositor::{debug, MediaSessionType};
 use gst::prelude::*;
 use gst::traits::{ElementExt, GstBinExt};

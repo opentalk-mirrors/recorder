@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
+//
+// SPDX-License-Identifier: EUPL-1.2
+
 use crate::recorder::{Recorder, RecordingSession};
 use gst::glib::MainLoop;
 use crate::rmq::StartRecording;

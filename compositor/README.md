@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
+
+SPDX-License-Identifier: EUPL-1.2
+-->
+
 # OpenTalk Mixer
 
 [![pipeline status](https://git.heinlein-video.de/p.hoffmann/recorder/badges/main/pipeline.svg)](https://git.heinlein-video.de/p.hoffmann/recorder/-/commits/main)
@@ -5,19 +11,19 @@
 ## Content
 
 - [OpenTalk Mixer](#opentalk-mixer)
-  - [Content](#content)
-  - [Purpose](#purpose)
-  - [Composites](#composites)
-    - [Speaker Composite](#speaker-composite)
-    - [Grid Composite](#grid-composite)
-  - [Start DASH demo](#start-dash-demo)
-  - [GStreamer Pipeline](#gstreamer-pipeline)
-  - [Known Problems](#known-problems)
-  - [Further Documentation](#further-documentation)
-  - [Tests](#tests)
-  - [Links](#links)
-    - [Dash](#dash)
-    - [GStreamer](#gstreamer)
+    - [Content](#content)
+    - [Purpose](#purpose)
+    - [Composites](#composites)
+        - [Speaker Composite](#speaker-composite)
+        - [Grid Composite](#grid-composite)
+    - [Start DASH demo](#start-dash-demo)
+    - [GStreamer Pipeline](#gstreamer-pipeline)
+    - [Known Problems](#known-problems)
+    - [Further Documentation](#further-documentation)
+    - [Tests](#tests)
+    - [Links](#links)
+        - [Dash](#dash)
+        - [GStreamer](#gstreamer)
 
 ## Purpose
 
