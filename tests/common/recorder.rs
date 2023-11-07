@@ -68,7 +68,13 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
 
     let sinks: Vec<Box<dyn Sink>> = vec![Box::new(TestSink::new("TestSink"))];
     let multi_sink = MultiSink::new(MultiParameters::new(sinks));
-    let talk = Talk::new(compositor::Size::FHD, multi_sink, MAX_VISIBLES).unwrap();
+    let talk = Talk::new(
+        compositor::Size::FHD,
+        compositor::layout::Speaker::default(),
+        multi_sink,
+        MAX_VISIBLES,
+    )
+    .unwrap();
 
     let mut recording_session = RecordingSession::new(
         Arc::new(recorder),

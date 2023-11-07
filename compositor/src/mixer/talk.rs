@@ -160,12 +160,22 @@ where
     /// - `sink_params`: Parameters to create the output sink.
     /// - `max_visibles`: Maximum number of currently visible streams.
     ///
-    pub fn new(resolution: Size, sink: impl Sink, max_visibles: usize) -> Result<Self> {
+    pub fn new(
+        resolution: Size,
+        layout: impl Layout,
+        sink: impl Sink,
+        max_visibles: usize,
+    ) -> Result<Self> {
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
         Ok(Self {
-            mixer: Mixer::<SRC, StreamId<ID>>::new(resolution, TalkOverlay::new().into(), sink)?,
+            mixer: Mixer::<SRC, StreamId<ID>>::new(
+                resolution,
+                layout,
+                TalkOverlay::new().into(),
+                sink,
+            )?,
             max_visibles,
             names: HashMap::new(),
             current_speaker: None,
@@ -439,7 +449,7 @@ where
     ///
     pub fn show_stream(&mut self, stream_id: &StreamId<ID>) {
         // Check if the maximum amount of streams is reached
-        if self.mixer.visibles.len() > self.max_visibles {
+        if self.mixer.visibles.len() >= self.max_visibles {
             // If the new stream is just a camera feed, then don't show them
             if stream_id.media_type == MediaSessionType::Camera {
                 return;
@@ -472,13 +482,8 @@ where
         media_types().any(|media_type| self.mixer.is_visible(&StreamId::new(*id, media_type)))
     }
 
-    /// Apply given layout `L` to mixer.
-    pub fn layout<L>(&mut self) -> Result<()>
-    where
-        L: Layout,
-    {
-        // forward to mixer^
-        self.mixer.layout::<L>()
+    pub fn change_layout(&mut self, layout: impl Layout) {
+        self.mixer.change_layout(layout);
     }
 
     /// Get mutable access to a source specified by stream ID.

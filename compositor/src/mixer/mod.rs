@@ -79,6 +79,7 @@ where
     /// over all generated output resolution
     output_resolution: Size,
     valid: std::sync::mpsc::Sender<Validation>,
+    layout: Box<dyn Layout>,
 }
 
 impl<SRC, STREAMID> Mixer<SRC, STREAMID>
@@ -91,10 +92,16 @@ where
     /// # Arguments
     ///
     /// - `output_resolution`: Output video resolution.
+    /// - `layout`: The layout which will be used.
     /// - `overlay`: List of overlays to attach behind the compositor
     /// - `sink_params`: Output sink parameters.
     ///
-    pub fn new(output_resolution: Size, overlay: AnyOverlay, sink: impl Sink) -> Result<Self> {
+    pub fn new(
+        output_resolution: Size,
+        layout: impl Layout,
+        overlay: AnyOverlay,
+        sink: impl Sink,
+    ) -> Result<Self> {
         trace!("new( {output_resolution:?} )");
 
         // get width/height
@@ -202,6 +209,7 @@ where
             output: Box::new(sink),
             output_resolution,
             valid,
+            layout: Box::new(layout),
         };
 
         // start reading the pipeline bus
@@ -303,6 +311,7 @@ where
             .request_pad_simple("sink_%u")
             .expect("could not get sink at compositor");
         compositor_sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
+        compositor_sink.set_property("alpha", 0.0);
         video
             .link(&compositor_sink)
             .expect("could not connect video stream to compositor");
@@ -455,6 +464,7 @@ where
         // remove stream from visibles
         if let Some(index) = self.visibles.iter().position(|i| *i == id) {
             self.visibles.remove(index);
+            self.rerender_layout();
         }
 
         debug!("Removed stream {id}");
@@ -477,8 +487,7 @@ where
         } else {
             self.visibles.push(*id);
         }
-
-        self.invalidate();
+        self.rerender_layout();
     }
 
     /// Set stream to the first position
@@ -511,8 +520,7 @@ where
 
         self.visibles.retain(|other_id| other_id != id);
         self.visibles.insert(position, *id);
-
-        self.invalidate();
+        self.rerender_layout();
     }
 
     /// Hide stream.
@@ -526,8 +534,7 @@ where
         }
 
         self.visibles.retain(|other_id| other_id != id);
-
-        self.invalidate();
+        self.rerender_layout();
     }
 
     /// Return `true`, if stream is currently visible
@@ -608,15 +615,17 @@ where
             .collect()
     }
 
+    /// Replace the current layout with the new one.
+    pub fn change_layout(&mut self, layout: impl Layout) {
+        self.layout = Box::new(layout);
+        self.rerender_layout();
+    }
+
     /// Re-layout the current compositor scene.
     ///
-    pub fn layout<L>(&mut self) -> Result<()>
-    where
-        L: Layout,
-    {
+    pub fn rerender_layout(&mut self) {
         trace!(
-            "layout<{}>({}): {}{}",
-            L::NAME,
+            "layout({}): {}{}",
             self.output_resolution,
             if self.visibles.is_empty() {
                 "(no visibles)"
@@ -629,9 +638,10 @@ where
                 .collect::<Vec<String>>()
                 .join(",")
         );
+        self.invalidate();
 
-        // initialize the layout with current mixer setup
-        let layout = L::new(self.visibles.len(), self.output_resolution);
+        self.layout.set_resolution_changed(self.output_resolution);
+        self.layout.set_amount_of_visibles(self.visibles.len());
 
         let mut streams = self.visibles.clone();
         streams.append(&mut self.invisibles());
@@ -640,7 +650,7 @@ where
         for (n, id) in streams.iter().enumerate() {
             let stream = self.streams.get(id).expect("stream not found");
             let compositor_sink = stream.compositor_sink();
-            if let Some(view) = layout.view(n) {
+            if let Some(view) = self.layout.calculate_stream_view(n) {
                 compositor_sink.set_properties(&[
                     ("xpos", &(view.pos.x as i32).to_value()),
                     ("ypos", &(view.pos.y as i32).to_value()),
@@ -668,8 +678,6 @@ where
         }
 
         self.validate();
-
-        Ok(())
     }
 
     /// Signal that layout has to be renewed from here

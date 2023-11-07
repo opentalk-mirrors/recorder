@@ -12,6 +12,7 @@ fn test_overlay() {
     // get output resolution from arguments
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
+        Speaker::default(),
         TestSink::default(),
         testing::MAX_STREAMS,
     )
@@ -20,7 +21,6 @@ fn test_overlay() {
     talk.set_speaker(0);
 
     talk.set_title("test_overlay");
-    talk.layout::<Grid>().unwrap();
 
     talk.dot("test_overlay-0", testing::DOT_PARAMS);
 
@@ -35,7 +35,6 @@ fn test_overlay() {
     ids.iter().for_each(|id| {
         talk.show_stream(&StreamId::camera(*id));
     });
-    talk.layout::<Grid>().unwrap();
     talk.dot("test_overlay-3", testing::DOT_PARAMS);
 
     testing::wait();

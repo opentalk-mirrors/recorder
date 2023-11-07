@@ -88,14 +88,13 @@ pub struct Alignment {
 }
 
 /// Trait of video picture layouts.
-pub trait Layout: Send + Sync + 'static {
-    /// create a new layout instance
-    ///
-    /// # Arguments
-    ///
-    /// - `visibles`: number of streams which shall be visible
-    ///
-    fn new(visibles: usize, resolution: Size) -> Self;
+pub trait Layout: std::fmt::Debug + Send + Sync + 'static {
+    /// Update the current layout for changes on the resolution.
+    fn set_resolution_changed(&mut self, resolution: Size);
+
+    /// Update the current layout for changes on the amount of visibles.
+    fn set_amount_of_visibles(&mut self, visibles: usize);
+
     /// Get view of the nth stream.
     ///
     /// # Arguments
@@ -106,8 +105,5 @@ pub trait Layout: Send + Sync + 'static {
     ///
     /// Returns Some(view) if the stream should be visible and be shown.
     /// Returns None if the stream should NOT be visible.
-    fn view(&self, n: usize) -> Option<View>;
-
-    /// Name of the layout
-    const NAME: &'static str;
+    fn calculate_stream_view(&self, stream_position: usize) -> Option<View>;
 }

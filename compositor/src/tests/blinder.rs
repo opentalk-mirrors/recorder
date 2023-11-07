@@ -14,13 +14,16 @@ fn test_blinder() {
         resolution: testing::RESOLUTION,
         ..Default::default()
     });
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, blinder.clone(), testing::MAX_STREAMS)
-            .unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        Speaker::default(),
+        blinder.clone(),
+        testing::MAX_STREAMS,
+    )
+    .unwrap();
 
     testing::generate_streams(&mut talk, 0, 8, 5);
     talk.set_speaker(0);
-    talk.layout::<Grid>().unwrap();
     blinder.blind(false);
 
     talk.set_title("not blinded");

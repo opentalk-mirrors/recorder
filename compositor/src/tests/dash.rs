@@ -12,6 +12,7 @@ fn test_dash() {
     // create grid mixer with test sources for streams and a MatroskaSink
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
+        Speaker::default(),
         DashSink::new(
             "test",
             DashParameters {
@@ -33,7 +34,6 @@ fn test_dash() {
         StreamStatus::default(),
     )
     .unwrap();
-    talk.layout::<Grid>().unwrap();
 
     talk.dot("test_dash", testing::DOT_PARAMS);
 
