@@ -157,11 +157,6 @@ impl Source for TestSource {
                         halignment=center
                         text="{name}"
                         color=0xffffff80
-                    ! videoconvert
-                        name="Video Converter"
-                    ! capssetter
-                        name="Video Capssetter"
-                        caps=video/x-raw,format=RGB
                     ! imagefreeze
                         name="Video Generator"
                         is-live=true
@@ -180,11 +175,6 @@ impl Source for TestSource {
                             name="Video Test Source"
                             pattern={pattern}
                             is-live=true
-                        ! videoconvert
-                            name="Video Converter"
-                        ! capssetter
-                            name="Video Capssetter"
-                            caps=video/x-raw,format=RGB
                         ! queue
                             name=video
                             max-size-time=2000000000

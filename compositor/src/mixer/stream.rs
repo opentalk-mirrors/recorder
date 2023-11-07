@@ -92,6 +92,19 @@ where
             .peer()
             .expect("expecting video source bin to be connected to compositor")
     }
+
+    pub fn videoconvertscale(&self) -> gst::Element {
+        self.bin
+            .by_name("videoconvertscale")
+            .expect("unable to get the videoconvertscale from the bin")
+    }
+
+    pub fn capsfilter(&self) -> gst::Element {
+        self.bin
+            .by_name("capsfilter")
+            .expect("unable to get the capsfilter from the bin")
+    }
+
     pub fn audiomixer_sink(&self) -> gst::Pad {
         // find audiomixer sink by looking where our ghost pad is connected to
         self.audio

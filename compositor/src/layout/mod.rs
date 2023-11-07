@@ -9,7 +9,6 @@ pub use speaker::*;
 pub struct View {
     pub pos: Position,
     pub size: Size,
-    pub alpha: f64,
 }
 
 /// Cartesian pixel position
@@ -99,7 +98,11 @@ pub trait Layout: Send + Sync + 'static {
     ///
     /// - `n`: index of the stream within this layout.
     ///
-    fn view(&self, n: usize) -> View;
+    /// Returns
+    ///
+    /// Returns Some(view) if the stream should be visible and be shown.
+    /// Returns None if the stream should NOT be visible.
+    fn view(&self, n: usize) -> Option<View>;
 
     /// Name of the layout
     const NAME: &'static str;
