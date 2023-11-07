@@ -62,7 +62,7 @@ domain = "localhost:11311"
 insecure = true
 
 [rabbitmq]
-uri = "amqp://guest:guest@p01nc.heinlein-video.de/%2F"
+uri = "amqp://username:password@localhost/%2F"
 queue = "recorder"
 
 # Allow to stream to the display
