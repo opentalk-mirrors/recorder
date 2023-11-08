@@ -63,6 +63,7 @@ async fn exec_events(events: Vec<Event>) {
 
     let mut talk = Talk::new(
         Size::FHD,
+        Speaker::default(),
         // Mp4SinkParams {
         //     file_path: "out.mp4".into(),
         // },
@@ -70,8 +71,6 @@ async fn exec_events(events: Vec<Event>) {
         MAX_VISIBLES,
     )
     .unwrap();
-
-    talk.layout::<Grid>().unwrap();
 
     let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -173,7 +172,6 @@ fn handle_user_event(
 
             create_publish_pipeline(tx, id, state, talk);
             talk.show_stream(&StreamId::camera(id));
-            talk.layout::<Grid>().unwrap();
         }
         Event::Unpublish(id) => {
             log::debug!("Participant with id={id} stops publishing");
@@ -185,7 +183,6 @@ fn handle_user_event(
 
             let id = StreamId::new(id, crate::MediaSessionType::Camera);
             talk.remove_stream(id).unwrap();
-            talk.layout::<Grid>().unwrap();
         }
     }
 }

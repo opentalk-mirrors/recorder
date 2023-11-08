@@ -5,41 +5,40 @@
 use super::*;
 
 /// Speaker layout
-#[derive(Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Speaker {
-    visibles: usize,
     // Size of the target picture in pixels.
     resolution: Size,
+    visibles: usize,
 }
 
 const VIEWER_SCALE: usize = 4;
 
 impl Layout for Speaker {
-    fn new(visibles: usize, resolution: Size) -> Self {
-        Self {
-            visibles,
-            resolution,
-        }
+    fn set_resolution_changed(&mut self, resolution: Size) {
+        self.resolution = resolution;
     }
 
-    fn view(&self, n: usize) -> Option<View> {
-        if n >= self.visibles {
+    fn set_amount_of_visibles(&mut self, visibles: usize) {
+        self.visibles = visibles;
+    }
+
+    fn calculate_stream_view(&self, stream_position: usize) -> Option<View> {
+        if stream_position >= self.visibles {
             return None;
         }
-        let view = match n {
+        let view = match stream_position {
             0 => View {
                 pos: self.speaker_position(),
                 size: self.speaker_size(),
             },
             _ => View {
-                pos: self.viewers_position(n - 1),
-                size: self.viewers_size(n - 1),
+                pos: self.viewers_position(stream_position - 1),
+                size: self.viewers_size(),
             },
         };
         Some(view)
     }
-
-    const NAME: &'static str = "speaker";
 }
 
 impl Speaker {
@@ -74,7 +73,7 @@ impl Speaker {
         (self.speaker_height() as f64 * self.ratio()) as usize
     }
 
-    fn viewers_position(&self, n: usize) -> Position {
+    fn viewers_position(&self, stream_position: usize) -> Position {
         // calculate viewers' positions
         match self.visibles {
             0 | 1 => Position { x: 0, y: 0 },
@@ -85,17 +84,17 @@ impl Speaker {
             },
             // otherwise arrange viewers at the right side of the picture
             _ => {
-                if n < VIEWER_SCALE {
+                if stream_position < VIEWER_SCALE {
                     Position {
                         x: self.speaker_width() as i64,
-                        y: (self.viewers_height() * n) as i64,
+                        y: (self.viewers_height() * stream_position) as i64,
                     }
                 } else {
                     // All the viewers where `n < VIEWER_SCALE` are placed on the right side of the column.
                     // The entire right column is filled with participants.
                     // That's the reason why there is an offset by 1, to avoid overlapping of two participants.
                     const HORIZONTAL_INDEX_OFFSET: usize = 1;
-                    let horizontal_index = n - VIEWER_SCALE + HORIZONTAL_INDEX_OFFSET;
+                    let horizontal_index = stream_position - VIEWER_SCALE + HORIZONTAL_INDEX_OFFSET;
                     let horizontal_offset = (self.viewers_width() * horizontal_index) as i64;
                     Position {
                         x: self.speaker_width() as i64 - horizontal_offset,
@@ -106,7 +105,7 @@ impl Speaker {
         }
     }
 
-    fn viewers_size(&self, _n: usize) -> Size {
+    fn viewers_size(&self) -> Size {
         // calculate viewers' size
         match self.visibles {
             // fit one viewer beside the speaker

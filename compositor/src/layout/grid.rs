@@ -6,27 +6,24 @@ use super::*;
 
 /// Grid layout
 /// Places all the *visible* participants in a grid on screen.
-#[derive(Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Grid {
-    visibles: usize,
-    // Size of the target picture in pixels.
     resolution: Size,
+    visibles: usize,
 }
 
 impl Layout for Grid {
-    fn new(visibles: usize, resolution: Size) -> Self {
-        Self {
-            visibles,
-            resolution,
-        }
+    fn set_resolution_changed(&mut self, resolution: Size) {
+        self.resolution = resolution;
     }
 
-    fn view(&self, n: usize) -> Option<View> {
-        if n >= self.visibles {
-            return None;
-        }
-        let row = n / self.columns();
-        let column = n % self.columns();
+    fn set_amount_of_visibles(&mut self, visibles: usize) {
+        self.visibles = visibles;
+    }
+
+    fn calculate_stream_view(&self, stream_position: usize) -> Option<View> {
+        let row = stream_position / self.columns();
+        let column = stream_position % self.columns();
         Some(View {
             pos: Position {
                 x: (self.width() * column) as i64,
@@ -35,8 +32,6 @@ impl Layout for Grid {
             size: self.uni_size(),
         })
     }
-
-    const NAME: &'static str = "grid";
 }
 
 impl Grid {

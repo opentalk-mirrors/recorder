@@ -32,6 +32,7 @@ fn generate_example_pipeline_picture() {
     // setup mixer
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
+        Speaker::default(),
         MultiSink::new(MultiParameters {
             sinks: vec![blinder.clone(), Box::new(TestSink::new("Recording"))],
         }),
@@ -41,7 +42,6 @@ fn generate_example_pipeline_picture() {
 
     testing::generate_streams(&mut talk, 0, 3, 3);
     talk.set_speaker(0);
-    talk.layout::<Grid>().unwrap();
     blinder.blind(false);
 
     talk.set_title("not blinded");

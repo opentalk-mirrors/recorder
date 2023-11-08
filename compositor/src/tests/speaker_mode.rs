@@ -12,9 +12,13 @@ fn test_speaker_mode_without_prio() {
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), MAX_VISIBLES)
-            .unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        Speaker::default(),
+        TestSink::default(),
+        MAX_VISIBLES,
+    )
+    .unwrap();
 
     talk.set_speaker(0);
 
@@ -23,13 +27,10 @@ fn test_speaker_mode_without_prio() {
     let (streams, _) =
         testing::generate_streams(&mut talk, 0, NUM_PARTICIPANTS as u32, MAX_VISIBLES);
 
-    talk.layout::<Speaker>().unwrap();
-
     for stream in &streams[0..NUM_PARTICIPANTS] {
         talk.set_title(&format!("Speaker: {}", stream.1));
 
         talk.set_speaker(stream.0);
-        talk.layout::<Speaker>().unwrap();
 
         talk.dot(
             &format!("test_speaker_mode_without_prio-{}", stream.0 + 1),
@@ -48,9 +49,13 @@ fn test_speaker_mode_with_prio() {
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, TestSink::default(), MAX_VISIBLES)
-            .unwrap();
+    let mut talk = Talk::<TestSource, u32>::new(
+        testing::RESOLUTION,
+        Speaker::default(),
+        TestSink::default(),
+        MAX_VISIBLES,
+    )
+    .unwrap();
 
     talk.set_speaker(0);
 
@@ -70,7 +75,6 @@ fn test_speaker_mode_with_prio() {
         StreamStatus::default(),
     )
     .unwrap();
-    talk.layout::<Speaker>().unwrap();
 
     talk.dot("test_speaker_mode_with_prio-0", testing::DOT_PARAMS);
 
@@ -80,7 +84,6 @@ fn test_speaker_mode_with_prio() {
         talk.set_title(&format!("Speaker: {}", stream.1));
 
         talk.set_speaker(stream.0);
-        talk.layout::<Speaker>().unwrap();
 
         talk.dot(
             &format!("test_speaker_mode_with_prio-{}", stream.0 + 1),

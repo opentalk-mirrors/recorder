@@ -99,7 +99,7 @@
 #[macro_use]
 extern crate log;
 
-mod layout;
+pub mod layout;
 mod mixer;
 mod output_sinks;
 mod overlays;

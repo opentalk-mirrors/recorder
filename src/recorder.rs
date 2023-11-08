@@ -31,7 +31,6 @@ use tokio::task::{spawn_blocking, JoinHandle};
 pub const MAX_VISIBLES: usize = 8;
 
 type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
-type Layout = compositor::Speaker;
 
 #[derive(Clone, Debug)]
 pub struct Recorder {
@@ -193,7 +192,12 @@ impl RecordingSession {
             .collect::<Vec<_>>();
 
         let multi_sink = MultiSink::new(MultiParameters::new(sinks));
-        let talk = Talk::new(compositor::Size::FHD, multi_sink, MAX_VISIBLES)?;
+        let talk = Talk::new(
+            compositor::Size::FHD,
+            compositor::layout::Speaker::default(),
+            multi_sink,
+            MAX_VISIBLES,
+        )?;
 
         Ok(Self {
             service_context,
@@ -250,7 +254,6 @@ impl RecordingSession {
             stream_params(stream_id, self.candidate_sender.clone()),
             media_state.into(),
         )?;
-        self.talk.layout::<Layout>()?;
         self.signaling.start_subscribe(stream_id).await?;
 
         if media_state.video {
@@ -295,7 +298,6 @@ impl RecordingSession {
                         .await?;
                 }
 
-                self.talk.layout::<Layout>()?;
                 self.talk.set_title(title.as_str());
             }
 
@@ -346,7 +348,6 @@ impl RecordingSession {
                         );
                         return Ok(());
                     }
-                    self.talk.layout::<Layout>()?;
                 }
 
                 return Ok(());
@@ -356,7 +357,6 @@ impl RecordingSession {
                 for media_type in media_types() {
                     if self.talk.contains_stream(&StreamId::new(id, media_type)) {
                         self.talk.remove_stream(StreamId::new(id, media_type))?;
-                        self.talk.layout::<Layout>()?;
                     }
                 }
                 if self.signaling.participants().is_empty() {
@@ -412,7 +412,6 @@ impl RecordingSession {
                 } else {
                     self.talk.unset_speaker();
                 }
-                self.talk.layout::<Layout>()?;
             }
             Event::MediaConnectionError(error) => {
                 log::debug!("Event::MediaConnectionError");

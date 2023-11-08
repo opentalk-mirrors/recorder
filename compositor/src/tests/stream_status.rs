@@ -11,6 +11,7 @@ fn test_stream_status() {
 
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
+        Speaker::default(),
         TestSink::default(),
         testing::MAX_STREAMS,
     )
@@ -19,7 +20,6 @@ fn test_stream_status() {
     talk.dot("test_stream_status-0", testing::DOT_PARAMS);
 
     testing::generate_streams(&mut talk, 0, 8, 5);
-    talk.layout::<Speaker>().unwrap();
 
     testing::wait_millis(500);
 
@@ -35,7 +35,6 @@ fn test_stream_status() {
             },
         )
         .unwrap();
-        talk.layout::<Speaker>().unwrap();
         talk.dot(
             &format!("test_stream_status-{}-audio-off", i + 1),
             testing::DOT_PARAMS,
@@ -52,7 +51,6 @@ fn test_stream_status() {
             },
         )
         .unwrap();
-        talk.layout::<Speaker>().unwrap();
         talk.dot(
             &format!("test_stream_status-{}-video-off", i + 1),
             testing::DOT_PARAMS,
@@ -69,7 +67,6 @@ fn test_stream_status() {
             },
         )
         .unwrap();
-        talk.layout::<Speaker>().unwrap();
         talk.dot(
             &format!("test_stream_status-{}-av-off", i + 1),
             testing::DOT_PARAMS,
@@ -78,7 +75,6 @@ fn test_stream_status() {
         testing::wait();
 
         talk.set_title(&format!("Speaker {i} (a/v on)"));
-        talk.layout::<Speaker>().unwrap();
         talk.set_status(
             &StreamId::camera(i),
             StreamStatus {
@@ -87,7 +83,6 @@ fn test_stream_status() {
             },
         )
         .unwrap();
-        talk.layout::<Speaker>().unwrap();
         talk.dot(
             &format!("test_stream_status-{}-av-on", i + 1),
             testing::DOT_PARAMS,
