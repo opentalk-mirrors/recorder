@@ -264,7 +264,7 @@ where
     ///
     pub fn clear(&mut self) -> Result<()> {
         trace!("remove_all_stream()");
-        let ids: Vec<StreamId<ID>> = self.mixer.streams.keys().cloned().collect();
+        let ids: Vec<StreamId<ID>> = self.mixer.streams.keys().copied().collect();
         for id in ids {
             self.remove_stream(id).expect("cannot remove stream")
         }
@@ -462,7 +462,7 @@ where
             }
             // The new camera feed is a screen share, which has a higher
             // priority, so the latest stream will be removed
-            if let Some(id) = self.mixer.visibles.last().cloned() {
+            if let Some(id) = self.mixer.visibles.last().copied() {
                 self.mixer.hide_stream(&id);
             }
         }

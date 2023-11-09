@@ -610,7 +610,7 @@ where
     fn invisibles(&self) -> Vec<STREAMID> {
         self.streams
             .keys()
-            .cloned()
+            .copied()
             .filter(|id| !self.visibles.contains(id))
             .collect()
     }
