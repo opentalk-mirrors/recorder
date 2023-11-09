@@ -96,6 +96,9 @@ where
     /// - `overlay`: List of overlays to attach behind the compositor
     /// - `sink_params`: Output sink parameters.
     ///
+    /// # Errors
+    ///
+    /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
     pub fn new(
         output_resolution: Size,
         layout: impl Layout,
@@ -234,6 +237,9 @@ where
     /// - `params`: Source specific parameters.
     /// - `overlays`: list of overlays to attach behind source
     ///
+    /// # Errors
+    ///
+    /// This can fail if adding the stream to the `GStreamer` pipeline fails.
     pub fn add_stream(
         &mut self,
         id: STREAMID,
@@ -433,6 +439,9 @@ where
     ///
     /// - `id`: Unique identifier of the stream.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream bin can't be set to NULL.
     pub fn remove_stream(&mut self, id: STREAMID) -> Result<()>
     where
         SRC: Source,
@@ -543,6 +552,9 @@ where
 
     /// Return `true`, if stream currently provides video
     ///
+    /// # Errors
+    ///
+    /// This can fail if there is no stream with the given `id`.
     pub fn has_video(&self, id: &STREAMID) -> Result<bool> {
         Ok(self.get_stream(id)?.status.has_video)
     }
@@ -556,6 +568,9 @@ where
     /// - `id`: Describes which stream shall be updated.
     /// - `new_status`: New status to override.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream isn't in the `streams` list.
     pub fn set_status(&mut self, id: &STREAMID, new_status: StreamStatus) -> Result<()> {
         info!("set_status( {id}, {new_status} )");
 
@@ -576,6 +591,9 @@ where
     ///
     /// - `id`: ID of the stream.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream isn't in the `streams` list.
     fn get_stream_mut(&mut self, id: &STREAMID) -> Result<&mut Stream<SRC>> {
         self.streams
             .get_mut(id)

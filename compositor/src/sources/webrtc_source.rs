@@ -140,6 +140,14 @@ impl Source for WebRtcSource {
 }
 
 impl WebRtcSource {
+    /// Send the `offer` to the webrtc main thread.
+    ///
+    /// # Arguments
+    /// - `offer` The offer which was sent.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the the SDP answer can't be send to the main webrtc thread.
     pub async fn receive_offer(&self, offer: String) -> anyhow::Result<String> {
         trace!("receive_offer()");
 

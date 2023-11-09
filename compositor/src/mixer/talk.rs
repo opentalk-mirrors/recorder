@@ -164,6 +164,9 @@ where
     /// - `sink_params`: Parameters to create the output sink.
     /// - `max_visibles`: Maximum number of currently visible streams.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the `Mixer` can't be initialized.
     pub fn new(
         resolution: Size,
         layout: impl Layout,
@@ -173,13 +176,11 @@ where
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
+        let mixer =
+            Mixer::<SRC, StreamId<ID>>::new(resolution, layout, TalkOverlay::new().into(), sink)?;
+
         Ok(Self {
-            mixer: Mixer::<SRC, StreamId<ID>>::new(
-                resolution,
-                layout,
-                TalkOverlay::new().into(),
-                sink,
-            )?,
+            mixer,
             max_visibles,
             names: HashMap::new(),
             current_speaker: None,
@@ -195,6 +196,9 @@ where
     /// - `params`: Proprietary parameters to use when creating sink instance.
     /// - `initial`: Initial A/V display status.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the status of the stream can't be set.
     pub fn add_stream(
         &mut self,
         id: StreamId<ID>,
@@ -244,6 +248,9 @@ where
     ///
     /// - `id`: Describes which stream shall be removed.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream can't be removed from the `Mixer`.
     pub fn remove_stream(&mut self, id: StreamId<ID>) -> Result<()> {
         trace!("remove_stream( {id} )");
 
@@ -350,6 +357,9 @@ where
     /// - `id`: ID of the stream
     /// - `new_status`: new status for that stream
     ///
+    /// # Errors
+    ///
+    /// This can fail if the status of the stream can't be set in the `Mixer`.
     pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &StreamStatus) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
         let Some(current_stream) = self.mixer.streams.get(id) else {
