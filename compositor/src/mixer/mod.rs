@@ -316,9 +316,8 @@ where
             .expect("could not connect video stream to compositor");
 
         // get audio source pad (no audio overlay yet)
-        let audio_src = match source.bin().static_pad("audio") {
-            Some(source_audio) => source_audio,
-            _ => panic!("source's video pad is missing"),
+        let Some(audio_src )= source.bin().static_pad("audio") else {
+            panic!("source's video pad is missing")
         };
 
         let audio = gst::GhostPad::with_target(Some("audio"), &audio_src)
