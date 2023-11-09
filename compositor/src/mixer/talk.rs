@@ -376,7 +376,8 @@ where
     ///
     pub fn set_title(&self, title: &str) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
-            return overlay.set_title(title);
+            overlay.set_title(title);
+            return;
         }
         panic!("talk has no title overlay!")
     }
@@ -390,6 +391,7 @@ where
     pub fn show_title(&self, show: bool) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_title(show);
+            return;
         }
         panic!("talk has no title overlay!")
     }
@@ -403,6 +405,7 @@ where
     pub fn show_clock(&self, show: bool) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_clock(show);
+            return;
         }
         panic!("talk has no clock overlay!")
     }
@@ -414,11 +417,11 @@ where
     /// - `id`: ID of the stream
     /// - `title`: title text
     ///
-    pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) -> Result<()> {
+    pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) {
         if let Some(stream) = self.mixer.streams.get(id) {
             if let AnyOverlay::Text(overlay) = &stream.overlay {
                 overlay.set(title);
-                return Ok(());
+                return;
             }
         }
         panic!("source {id} title overlay missing")

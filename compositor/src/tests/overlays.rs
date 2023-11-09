@@ -41,8 +41,7 @@ fn test_overlay() {
 
     for id in ids {
         // add text overlay to source
-        talk.set_stream_title(&StreamId::camera(id), "new text")
-            .unwrap();
+        talk.set_stream_title(&StreamId::camera(id), "new text");
         talk.dot("test_overlay-4", testing::DOT_PARAMS);
         testing::wait();
     }
