@@ -151,12 +151,12 @@ impl TestBlinder {
         Self {
             video,
             video_selector,
-            video_blind_sink,
             video_signal_sink,
+            video_blind_sink,
             audio,
             audio_selector,
-            audio_blind_sink,
             audio_signal_sink,
+            audio_blind_sink,
             bin,
         }
     }
