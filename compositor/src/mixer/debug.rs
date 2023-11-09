@@ -60,7 +60,7 @@ pub fn debug_dot(element: &impl glib::IsA<gst::Element>, filename_without_extens
 /// - `element`: Element in the pipeline which shall be generated a DOT file from.
 ///
 pub fn dot(element: &impl glib::IsA<gst::Element>, filename_without_extension: &str) {
-    dot_ext(element, filename_without_extension, &Default::default());
+    dot_ext(element, filename_without_extension, &Params::default());
 }
 
 /// Make a DOT file of the given element with a counting index and the given parameters.

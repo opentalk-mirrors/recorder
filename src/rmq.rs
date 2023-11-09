@@ -2,11 +2,14 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::settings::RabbitMqSettings;
 use anyhow::{Context as ErrorContext, Result};
 use lapin::message::Delivery;
+use lapin::options::{BasicAckOptions, BasicConsumeOptions, QueueDeclareOptions};
+use lapin::types::FieldTable;
 use lapin::Consumer;
 use serde::Deserialize;
+
+use crate::settings::RabbitMqSettings;
 
 // Commands this recorder receives via RabbitMQ
 
@@ -28,15 +31,19 @@ pub async fn connect_rabbitmq(settings: &RabbitMqSettings) -> Result<Consumer> {
     let rmq_channel = rmq_conn.create_channel().await?;
 
     let queue = rmq_channel
-        .queue_declare(&settings.queue, Default::default(), Default::default())
+        .queue_declare(
+            &settings.queue,
+            QueueDeclareOptions::default(),
+            FieldTable::default(),
+        )
         .await?;
 
     rmq_channel
         .basic_consume(
             queue.name().as_str(),
             "",
-            Default::default(),
-            Default::default(),
+            BasicConsumeOptions::default(),
+            FieldTable::default(),
         )
         .await
         .context("Failed to create consumer for RMQ channel")
@@ -44,7 +51,7 @@ pub async fn connect_rabbitmq(settings: &RabbitMqSettings) -> Result<Consumer> {
 
 pub async fn handle_delivery(delivery: &Delivery) -> Result<StartRecording> {
     delivery
-        .ack(Default::default())
+        .ack(BasicAckOptions::default())
         .await
         .context("failed to ACK")?;
 

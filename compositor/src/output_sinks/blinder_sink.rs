@@ -26,9 +26,9 @@ impl Default for TestBlinderParams {
     fn default() -> Self {
         Self {
             name: Default::default(),
-            resolution: Default::default(),
+            resolution: Size::default(),
             sink: Box::new(FakeSink::new("Fake Sink")),
-            alt_source_params: Default::default(),
+            alt_source_params: TestSourceParameters::default(),
         }
     }
 }
@@ -81,7 +81,7 @@ impl TestBlinder {
     /// Create new blinder sink.
     pub fn new(params: TestBlinderParams) -> Self {
         // check if resolution has been set
-        assert_ne!(params.resolution, Default::default());
+        assert_ne!(params.resolution, Size::default());
 
         let bin = gst::parse_bin_from_description(
             &format!(
