@@ -434,7 +434,7 @@ impl RecordingSession {
                     stream_id,
                     TrickleCandidate {
                         candidate: candidate.clone(),
-                        sdp_m_line_index: mline as u64,
+                        sdp_m_line_index: u64::from(mline),
                     },
                 )
                 .await
