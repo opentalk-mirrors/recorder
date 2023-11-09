@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+#![allow(clippy::module_name_repetitions)]
+
 use anyhow::{Context, Result};
 use futures::future::join_all;
 use futures::StreamExt;
