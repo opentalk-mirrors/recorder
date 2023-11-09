@@ -379,7 +379,7 @@ where
                 (MessageView::Error(err), Some(pipeline)) => {
                     error!(
                         "Error received from element {:?}: {}",
-                        err.src().map(|s| s.path_string()),
+                        err.src().map(GstObjectExt::path_string),
                         err.error(),
                     );
                     debug::dot(pipeline, "BUS-ERROR");
@@ -390,7 +390,7 @@ where
                 (MessageView::Warning(warn), Some(pipeline)) => {
                     warn!(
                         "Warning received from element {:?}: {}",
-                        warn.src().map(|s| s.path_string()),
+                        warn.src().map(GstObjectExt::path_string),
                         warn.error(),
                     );
                     debug::dot(pipeline, "BUS-WARNING");
@@ -401,7 +401,7 @@ where
                 (MessageView::Info(info), Some(pipeline)) => {
                     info!(
                         "Info received from element {:?}: {}",
-                        info.src().map(|s| s.path_string()),
+                        info.src().map(GstObjectExt::path_string),
                         info.error(),
                     );
                     debug::dot(pipeline, "BUS-INFO");
