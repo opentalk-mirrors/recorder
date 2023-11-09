@@ -220,7 +220,7 @@ async fn async_http_client_inner(
     let response = client.execute(request).await.map_err(Error::Reqwest)?;
 
     let status_code = response.status();
-    let headers = response.headers().to_owned();
+    let headers = response.headers().clone();
     let chunks = response.bytes().await.map_err(Error::Reqwest)?;
     Ok(HttpResponse {
         status_code,
