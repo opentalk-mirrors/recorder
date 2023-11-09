@@ -262,6 +262,8 @@ impl RecordingSession {
         Ok(())
     }
 
+    // TODO: This makes no sense at the current state, docs will be created after some major refactoring.
+    #[allow(clippy::too_many_lines)]
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
         match event {
             Event::JoinSuccess(_id, title) => {
