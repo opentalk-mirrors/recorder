@@ -5,7 +5,11 @@
 use derivative::Derivative;
 use gst::prelude::*;
 use inotify::{Inotify, WatchMask};
-use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
+use std::{
+    ffi::OsStr,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 use tempfile::TempDir;
 
 use crate::{MatroskaParameters, MatroskaSink, Sink};
@@ -218,10 +222,12 @@ impl Sink for DashSink {
                     let files: Vec<&OsStr> = events
                         .filter_map(|event| event.name)
                         .filter(|name| {
-                            !name
-                                .to_str()
-                                .expect("failed to convert Inotify event name into string")
-                                .ends_with(".tmp")
+                            !Path::new(
+                                name.to_str()
+                                    .expect("failed to convert Inotify event name into string"),
+                            )
+                            .extension()
+                            .map_or(false, |ext| ext.eq_ignore_ascii_case("tmp"))
                         })
                         .collect();
                     if !files.is_empty() {
