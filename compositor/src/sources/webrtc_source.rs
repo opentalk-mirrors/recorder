@@ -204,7 +204,7 @@ impl WebRtcSource {
         recv.await?
     }
 
-    pub fn receive_candidate(&self, mline: u32, candidate: String) {
+    pub fn receive_candidate(&self, mline: u32, candidate: &str) {
         trace!("receive_candidate()");
 
         self.webrtcbin
@@ -238,20 +238,17 @@ fn webrtcbin_on_pad_added(
             return;
         }
 
-        if let Err(e) = try_webrtcbin_on_pad_added(
-            bin,
-            pad.clone(),
-            audio_ghost_pad.clone(),
-            video_ghost_pad.clone(),
-        ) {
+        if let Err(e) =
+            try_webrtcbin_on_pad_added(&bin, pad, audio_ghost_pad.clone(), video_ghost_pad.clone())
+        {
             log::error!("Failed to handle webrtcbin's pad-added event, {e:?}",);
         }
     }
 }
 
 fn try_webrtcbin_on_pad_added(
-    bin: gst::Bin,
-    pad: gst::Pad,
+    bin: &gst::Bin,
+    pad: &gst::Pad,
     audio_ghost_pad: WeakRef<gst::GhostPad>,
     video_ghost_pad: WeakRef<gst::GhostPad>,
 ) -> Result<()> {
@@ -315,14 +312,14 @@ fn decodebin_on_pad_added(
             return;
         }
 
-        if let Err(e) = try_decodebin_on_pad_added(bin, pad, audio_ghost_pad, video_ghost_pad) {
+        if let Err(e) = try_decodebin_on_pad_added(&bin, pad, audio_ghost_pad, video_ghost_pad) {
             log::error!("Failed to handle decodebin's pad-added event, {e:?}");
         }
     }
 }
 
 fn try_decodebin_on_pad_added(
-    bin: gst::Bin,
+    bin: &gst::Bin,
     pad: &gst::Pad,
     audio_ghost_pad: gst::GhostPad,
     video_ghost_pad: gst::GhostPad,

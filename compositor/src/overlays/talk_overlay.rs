@@ -55,7 +55,7 @@ impl TalkOverlay {
         let bin = gst::Bin::new(Some("Talk Overlay"));
         let padding_overlay = PaddingOverlay::new(
             "padding",
-            Padding {
+            &Padding {
                 top: TOP_PADDING,
                 ..Default::default()
             },

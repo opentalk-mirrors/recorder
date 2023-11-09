@@ -24,7 +24,7 @@ pub struct Padding {
 
 impl PaddingOverlay {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(name: &str, padding: Padding) -> PaddingOverlay {
+    pub fn new(name: &str, padding: &Padding) -> PaddingOverlay {
         trace!("new( {padding:?} )");
 
         // create videobox element

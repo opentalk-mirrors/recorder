@@ -36,8 +36,8 @@ impl Default for Mp4Parameters {
 
 impl Mp4Sink {
     /// Create and add new MP4 sink into existing pipeline.
-    pub fn new(name: &str, params: Mp4Parameters) -> Self {
-        let matroska_sink = MatroskaSink::new(name, MatroskaParameters::default());
+    pub fn new(name: &str, params: &Mp4Parameters) -> Self {
+        let matroska_sink = MatroskaSink::new(name, &MatroskaParameters::default());
         let address = &format!("tcp://{}", matroska_sink.address);
 
         // TODO: use free codecs instead of ffmpeg's mp4 default.

@@ -62,7 +62,7 @@ pub struct DashParameters {
     pub seg_type: SegmentType,
     /// Called when new files are ready
     #[derivative(Debug = "ignore")]
-    pub update_callback: fn(files: Vec<&OsStr>),
+    pub update_callback: fn(files: &[&OsStr]),
 }
 
 impl DashSink {
@@ -73,7 +73,7 @@ impl DashSink {
         Self {
             matroska_sink: MatroskaSink::new(
                 name,
-                MatroskaParameters {
+                &MatroskaParameters {
                     // use fixed localhost but with given port
                     address: SocketAddr::from(([127, 0, 0, 1], 0)),
                 },
@@ -85,7 +85,7 @@ impl DashSink {
     }
 }
 
-fn update(files: Vec<&OsStr>) {
+fn update(files: &[&OsStr]) {
     debug!("Updated files: {:?}", files);
 }
 
@@ -221,7 +221,7 @@ impl Sink for DashSink {
                         })
                         .collect();
                     if !files.is_empty() {
-                        update(files);
+                        update(&files);
                     }
                 }
             }

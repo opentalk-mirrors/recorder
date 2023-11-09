@@ -23,7 +23,7 @@ fn generate_example_pipeline_picture() {
         ..debug::Params::states()
     };
 
-    let blinder = Box::new(TestBlinder::new(TestBlinderParams {
+    let blinder = Box::new(TestBlinder::new(&TestBlinderParams {
         sink: Box::new(TestSink::new("Streaming")),
         resolution: testing::RESOLUTION,
         ..Default::default()

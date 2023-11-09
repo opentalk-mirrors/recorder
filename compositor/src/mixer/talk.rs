@@ -350,7 +350,7 @@ where
     /// - `id`: ID of the stream
     /// - `new_status`: new status for that stream
     ///
-    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: StreamStatus) -> Result<()> {
+    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &StreamStatus) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
         let old_status = match self.mixer.streams.get(id) {
             Some(current_stream) => current_stream.status.clone(),

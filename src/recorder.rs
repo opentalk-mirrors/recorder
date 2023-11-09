@@ -166,10 +166,9 @@ impl RecordingSession {
                 let name = format!("{tag}-Sink-{index}");
                 match sink {
                     RecorderSink::Display => Box::new(DisplaySink::new(name.as_str())),
-                    RecorderSink::Matroska(matroska_parameters) => Box::new(MatroskaSink::new(
-                        name.as_str(),
-                        matroska_parameters.clone(),
-                    )),
+                    RecorderSink::Matroska(matroska_parameters) => {
+                        Box::new(MatroskaSink::new(name.as_str(), &matroska_parameters))
+                    }
                     RecorderSink::Rtmp(rtmp_parameters) => Box::new(RTMPSink::new(
                         name.as_str(),
                         RTMPParameters {
@@ -181,7 +180,7 @@ impl RecordingSession {
             })
             .chain(std::iter::once::<Box<dyn Sink>>(Box::new(Mp4Sink::new(
                 "MP4-Sink",
-                Mp4Parameters {
+                &Mp4Parameters {
                     file_path: file_path
                         .to_str()
                         .expect("failed to convert MP4 file path into string")
@@ -341,7 +340,7 @@ impl RecordingSession {
                             "Update: update status of stream of {id} {media_type} to {media_state}"
                         );
                         self.talk
-                            .set_status(&StreamId::new(id, media_type), media_state.into())?;
+                            .set_status(&StreamId::new(id, media_type), &media_state.into())?;
                     } else {
                         log::trace!(
                             "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"
@@ -381,7 +380,7 @@ impl RecordingSession {
                 log::debug!("Event::SdpCandidate");
                 if let Some(source) = self.talk.get_source(&stream_id) {
                     source
-                        .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate);
+                        .receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
                 }
             }
             Event::SdpEndOfCandidates(stream_id) => {

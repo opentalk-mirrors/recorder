@@ -31,7 +31,7 @@ pub struct MatroskaParameters {
 
 impl MatroskaSink {
     /// Create and add new Matroska sink into existing pipeline.
-    pub fn new(name: &str, params: MatroskaParameters) -> Self {
+    pub fn new(name: &str, params: &MatroskaParameters) -> Self {
         trace!("new({name})");
 
         // create bin including codecs and the Matroska sink

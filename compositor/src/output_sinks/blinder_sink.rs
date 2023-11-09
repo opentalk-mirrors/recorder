@@ -79,7 +79,7 @@ impl Sink for TestBlinder {
 
 impl TestBlinder {
     /// Create new blinder sink.
-    pub fn new(params: TestBlinderParams) -> Self {
+    pub fn new(params: &TestBlinderParams) -> Self {
         // check if resolution has been set
         assert_ne!(params.resolution, Size::default());
 
