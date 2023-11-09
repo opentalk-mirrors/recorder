@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
-
 use anyhow::{anyhow, bail, Context, Result};
 use glib::WeakRef;
 use gst::prelude::*;
@@ -11,6 +9,8 @@ use gst_webrtc::WebRTCPeerConnectionState;
 use std::fmt::{Debug, Display};
 use std::sync::Arc;
 use tokio::sync::oneshot;
+
+use crate::{log, Source};
 
 /// Source that connects to an WebRTC source and provides the incoming streams as participant's input.
 #[derive(Debug)]

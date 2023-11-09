@@ -4,7 +4,7 @@
 
 use gst_base::prelude::*;
 
-use crate::*;
+use crate::{FakeSink, Sink, Size, TestSourceParameters};
 
 /// Trait to use blinders
 /// @TODO: move out of this file if more blinders exist

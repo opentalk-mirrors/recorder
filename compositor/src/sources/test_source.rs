@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
 use std::fmt::Display;
+
+use crate::{add_ghost_pad, Size, Source};
 
 /// Video test patterns.
 #[derive(Clone, Debug)]

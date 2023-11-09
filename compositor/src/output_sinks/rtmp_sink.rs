@@ -4,7 +4,7 @@
 
 use serde::Deserialize;
 
-use crate::*;
+use crate::{add_ghost_pad, Sink};
 
 const DEFAULT_AUDIO_RATE: usize = 48000;
 const DEFAULT_AUDIO_BITRATE: usize = 96000;

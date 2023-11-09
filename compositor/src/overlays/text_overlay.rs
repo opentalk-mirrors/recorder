@@ -4,8 +4,9 @@
 
 //! Overlay which displays a changeable text.
 
-use crate::*;
 use gst::prelude::*;
+
+use crate::{Overlay, TextStyle};
 
 /// Text overlay.
 #[derive(Debug, Clone)]

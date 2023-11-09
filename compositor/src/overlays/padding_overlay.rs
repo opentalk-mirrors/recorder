@@ -4,8 +4,9 @@
 
 //! Overlay which adds extra padding to the picture
 
-use crate::*;
 use gst::prelude::*;
+
+use crate::Overlay;
 
 /// Text overlay.
 #[derive(Debug, Clone)]

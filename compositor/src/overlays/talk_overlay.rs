@@ -4,7 +4,10 @@
 
 use gst_base::prelude::*;
 
-use crate::*;
+use crate::{
+    Align, ClockOverlay, Font, HAlign, Overlay, Padding, PaddingOverlay, TextOverlay, TextPadding,
+    TextStyle, VAlign,
+};
 
 const TOP_PADDING: i32 = 56;
 const OVERLAY_FONT_SIZE: u32 = 20;

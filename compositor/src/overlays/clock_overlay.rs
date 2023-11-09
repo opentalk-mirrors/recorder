@@ -4,8 +4,9 @@
 
 //! Overlay displaying the current time.
 
-use crate::*;
 use gst::prelude::*;
+
+use crate::{Overlay, TextStyle};
 
 /// Overlay displaying current time.
 #[derive(Debug, Clone)]

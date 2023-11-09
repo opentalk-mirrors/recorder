@@ -4,9 +4,10 @@
 
 //! Stream status.
 
-use crate::*;
 use core::fmt::{Debug, Display};
 use gst_base::prelude::*;
+
+use crate::{AnyOverlay, Source};
 
 /// Turns on or off video or audio.
 #[derive(Debug, Clone)]

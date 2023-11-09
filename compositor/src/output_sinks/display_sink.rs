@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{add_ghost_pad, Sink};
 
 /// Displays compositor output on the screen.
 #[derive(Debug)]

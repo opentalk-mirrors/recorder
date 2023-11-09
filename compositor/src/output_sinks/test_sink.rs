@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{DisplaySink, FakeSink, Sink};
 
 /// Fake sink to catch the compositor output without any further processing.
 #[derive(Debug)]

@@ -6,7 +6,7 @@
 
 use gst_base::prelude::ElementExt;
 
-use crate::*;
+use crate::{ClockOverlay, TalkOverlay, TextOverlay};
 
 /// Trait of overlays as the mixer sees it.
 pub trait Overlay {

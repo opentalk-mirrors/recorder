@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
 use gst::prelude::*;
 use serde::Deserialize;
 use std::{
@@ -10,6 +9,8 @@ use std::{
     os::unix::prelude::AsRawFd,
     sync::mpsc,
 };
+
+use crate::{add_ghost_pad, Sink};
 
 /// Writes out *Matroska* mux-ed raw A/V on a TCP port
 #[derive(Debug)]

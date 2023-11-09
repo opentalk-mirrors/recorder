@@ -2,12 +2,13 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
 use derivative::Derivative;
 use gst::prelude::*;
 use inotify::{Inotify, WatchMask};
 use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
 use tempfile::TempDir;
+
+use crate::{MatroskaParameters, MatroskaSink, Sink};
 
 /// Writes out *DASH* A/V files.
 #[derive(Debug)]

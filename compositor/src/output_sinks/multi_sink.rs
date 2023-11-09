@@ -5,7 +5,7 @@
 use gst::prelude::{ElementExtManual, GstBinExtManual};
 use gst_base::prelude::{ElementExt, GstBinExt, PadExt};
 
-use crate::*;
+use crate::{add_ghost_pad, Sink};
 
 /// Parameters for a multi sink
 ///

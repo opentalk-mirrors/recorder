@@ -12,7 +12,10 @@ use core::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::*;
+use crate::{
+    debug, AnyOverlay, Font, Layout, Mixer, Overlay, Sink, Size, Source, Stream, StreamStatus,
+    TalkOverlay, TextOverlay, TextStyle,
+};
 
 const NAME_FONT_SIZE: u32 = 16;
 
