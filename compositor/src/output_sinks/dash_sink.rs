@@ -117,7 +117,7 @@ impl Sink for DashSink {
         self.matroska_sink.bin()
     }
 
-    /// Starts the FFmpeg receiver which catches the output of the matroska sink.
+    /// Starts the `FFmpeg` receiver which catches the output of the matroska sink.
     fn on_play(&mut self) {
         trace!("on_play()");
 

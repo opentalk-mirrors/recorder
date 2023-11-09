@@ -12,7 +12,7 @@ use crate::{
 const TOP_PADDING: i32 = 56;
 const OVERLAY_FONT_SIZE: u32 = 20;
 
-/// Parameters of TalkOverlay
+/// Parameters of `TalkOverlay`
 #[allow(dead_code)]
 pub struct TalkOverlaysParams {
     padding: TextPadding,

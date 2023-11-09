@@ -108,7 +108,7 @@ pub struct TestSource {
     audio_src: gst::GhostPad,
 }
 
-/// Specific parameters needed to create a [TestSource]
+/// Specific parameters needed to create a [`TestSource`]
 #[derive(Clone, Debug)]
 pub struct TestSourceParameters {
     /// Pattern to produce
@@ -120,7 +120,7 @@ pub struct TestSourceParameters {
 }
 
 impl Default for TestSourceParameters {
-    /// [TestSource]'s default parameters
+    /// [`TestSource`]'s default parameters
     fn default() -> Self {
         Self {
             pattern: Pattern::Smpte,
@@ -131,10 +131,10 @@ impl Default for TestSourceParameters {
 }
 
 impl Source for TestSource {
-    /// Forward parameters to [Source]'s generic type
+    /// Forward parameters to [`Source`]'s generic type
     type Parameters = TestSourceParameters;
 
-    /// Create a new [TestSource] and add it to the given pipeline.
+    /// Create a new [`TestSource`] and add it to the given pipeline.
     fn new<ID>(id: &ID, params: Self::Parameters) -> TestSource
     where
         ID: Display,

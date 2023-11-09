@@ -13,7 +13,7 @@ pub trait Blinder {
     fn blind(&self, blind: bool);
 }
 
-/// Parameters of BlinderSink
+/// Parameters of `BlinderSink`
 #[allow(dead_code)]
 pub struct TestBlinderParams {
     pub name: &'static str,

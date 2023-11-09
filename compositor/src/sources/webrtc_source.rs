@@ -12,7 +12,7 @@ use tokio::sync::oneshot;
 
 use crate::{log, Source};
 
-/// Source that connects to an WebRTC source and provides the incoming streams as participant's input.
+/// Source that connects to an `WebRTC` source and provides the incoming streams as participant's input.
 #[derive(Debug)]
 pub struct WebRtcSource {
     /// GStreamer bin surrounding all included elements
@@ -49,7 +49,7 @@ impl WebRtcSourceParams {
 impl Source for WebRtcSource {
     type Parameters = WebRtcSourceParams;
 
-    /// Create a new WebRTC source
+    /// Create a new `WebRTC` source
     fn new<ID>(id: &ID, params: Self::Parameters) -> Self
     where
         ID: Display,

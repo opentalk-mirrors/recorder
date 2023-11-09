@@ -5,7 +5,7 @@
 use super::matroska_sink::MatroskaSink;
 use crate::{MatroskaParameters, Sink};
 
-/// Writes out a single MP4 file using FFmpeg
+/// Writes out a single MP4 file using `FFmpeg`
 #[derive(Debug)]
 pub struct Mp4Sink {
     /// Underlying Matroska sink.
@@ -90,7 +90,7 @@ impl Sink for Mp4Sink {
         self.matroska_sink.bin()
     }
 
-    /// Starts the FFmpeg receiver which catches the output of the matroska sink.
+    /// Starts the `FFmpeg` receiver which catches the output of the matroska sink.
     fn on_play(&mut self) {
         trace!("on_play()");
 

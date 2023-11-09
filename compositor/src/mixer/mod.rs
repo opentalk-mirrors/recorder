@@ -43,7 +43,7 @@ enum Validation {
     Stop,
 }
 
-/// Mixer managing the GStreamer pipeline using the given layout and source type
+/// Mixer managing the `GStreamer` pipeline using the given layout and source type
 ///
 /// Here is an example pipeline:
 /// <div>
@@ -87,7 +87,7 @@ where
     SRC: Source,
     STREAMID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
-    /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
+    /// Create a new mixer and setup the initial `GStreamer` pipeline with the given type of sink.
     ///
     /// # Arguments
     ///
