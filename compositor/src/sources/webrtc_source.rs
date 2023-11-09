@@ -205,14 +205,14 @@ impl WebRtcSource {
         recv.await?
     }
 
-    pub async fn receive_candidate(&self, mline: u32, candidate: String) {
+    pub fn receive_candidate(&self, mline: u32, candidate: String) {
         trace!("receive_candidate()");
 
         self.webrtcbin
             .emit_by_name("add-ice-candidate", &[&mline, &candidate])
     }
 
-    pub async fn receive_end_of_candidates(&self, mline: u32) {
+    pub fn receive_end_of_candidates(&self, mline: u32) {
         trace!("receive_end_of_candidates()");
 
         self.webrtcbin

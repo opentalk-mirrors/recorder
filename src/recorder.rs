@@ -381,8 +381,7 @@ impl RecordingSession {
                 log::debug!("Event::SdpCandidate");
                 if let Some(source) = self.talk.get_source(&stream_id) {
                     source
-                        .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
-                        .await;
+                        .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate);
                 }
             }
             Event::SdpEndOfCandidates(stream_id) => {
@@ -402,7 +401,7 @@ impl RecordingSession {
                     );
                 };
 
-                source.receive_end_of_candidates(0).await;
+                source.receive_end_of_candidates(0);
             }
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Event::FocusUpdate");
