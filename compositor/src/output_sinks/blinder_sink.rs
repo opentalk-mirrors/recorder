@@ -79,6 +79,10 @@ impl Sink for TestBlinder {
 
 impl TestBlinder {
     /// Create new blinder sink.
+    ///
+    /// # Panics
+    ///
+    /// This can panic of creating the blinder failed.
     #[must_use]
     pub fn new(params: &TestBlinderParams) -> Self {
         // check if resolution has been set

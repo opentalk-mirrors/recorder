@@ -270,6 +270,9 @@ where
 
     /// Remove all streams from mixer.
     ///
+    /// # Panics
+    ///
+    /// This can panic if the stream can't be removed.
     pub fn clear(&mut self) {
         trace!("remove_all_stream()");
         let ids: Vec<StreamId<ID>> = self.mixer.streams.keys().copied().collect();
@@ -385,6 +388,9 @@ where
     ///
     /// - `title`: title text
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no `AnyOverlay::Talk`
     pub fn set_title(&self, title: &str) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.set_title(title);
@@ -399,6 +405,9 @@ where
     ///
     /// - `show`: Visible if `true`
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no `AnyOverlay::Talk`
     pub fn show_title(&self, show: bool) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_title(show);
@@ -413,6 +422,9 @@ where
     ///
     /// - `show`: Visible if `true`
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no `AnyOverlay::Talk`
     pub fn show_clock(&self, show: bool) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_clock(show);
@@ -428,6 +440,9 @@ where
     /// - `id`: ID of the stream
     /// - `title`: title text
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no stream or `AnyOverlay::Text`
     pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) {
         if let Some(stream) = self.mixer.streams.get(id) {
             if let AnyOverlay::Text(overlay) = &stream.overlay {

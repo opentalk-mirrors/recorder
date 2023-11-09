@@ -23,6 +23,11 @@ pub struct Padding {
 }
 
 impl PaddingOverlay {
+    /// Creates a new padding overlay.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `PaddingOverlay` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str, padding: &Padding) -> PaddingOverlay {
         trace!("new( {padding:?} )");

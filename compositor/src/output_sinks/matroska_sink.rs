@@ -31,6 +31,10 @@ pub struct MatroskaParameters {
 
 impl MatroskaSink {
     /// Create and add new Matroska sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `MatroskaSink` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str, params: &MatroskaParameters) -> Self {
         trace!("new({name})");

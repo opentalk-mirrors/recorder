@@ -14,6 +14,10 @@ pub struct DisplaySink {
 
 impl DisplaySink {
     /// Create and add new display sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `DisplaySink` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str) -> Self {
         trace!("new({name})");

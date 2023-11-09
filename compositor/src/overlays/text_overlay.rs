@@ -23,6 +23,9 @@ impl TextOverlay {
     /// - `text`: Text to display.
     /// - `style`: Style of the text display.
     ///
+    /// # Panics
+    ///
+    /// This can panic if the `TextOverlay` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str, text: &str, style: TextStyle) -> TextOverlay {
         trace!("new( '{text}', {style:?} )");

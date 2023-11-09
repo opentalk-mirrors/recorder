@@ -45,6 +45,10 @@ impl From<MultiParameters> for MultiSink {
 
 impl MultiSink {
     /// Create new sink with given parameters
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the 'tee' bin can't be created.
     #[must_use]
     pub fn new(params: MultiParameters) -> Self {
         trace!("new()");

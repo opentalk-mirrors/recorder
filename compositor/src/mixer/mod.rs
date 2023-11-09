@@ -99,6 +99,10 @@ where
     /// # Errors
     ///
     /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `Mixer` can't be created in `GStreamer`.
     pub fn new(
         output_resolution: Size,
         layout: impl Layout,
@@ -240,6 +244,10 @@ where
     /// # Errors
     ///
     /// This can fail if adding the stream to the `GStreamer` pipeline fails.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if creating the `gst::Bin` fails.
     pub fn add_stream(
         &mut self,
         id: STREAMID,
@@ -442,6 +450,10 @@ where
     /// # Errors
     ///
     /// This can fail if the stream bin can't be set to NULL.
+    ///
+    /// # Panics
+    ///
+    /// This panics if the stream's bin can't be found in the pipeline.
     pub fn remove_stream(&mut self, id: STREAMID) -> Result<()>
     where
         SRC: Source,
@@ -639,6 +651,9 @@ where
 
     /// Re-layout the current compositor scene.
     ///
+    /// # Panics
+    ///
+    /// This can panic if it's unable to get the src pad from the `videoconvertscale`.
     pub fn rerender_layout(&mut self) {
         trace!(
             "layout({}): {}{}",

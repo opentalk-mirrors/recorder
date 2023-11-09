@@ -24,6 +24,9 @@ impl ClockOverlay {
     /// - `format`: Clock format string.
     /// - `style`: Style of the clock display.
     ///
+    /// # Panics
+    ///
+    /// This can panic if the `ClockOverlay` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str, format: &str, style: TextStyle) -> ClockOverlay {
         trace!("new( {format:?}, {style:?} )");

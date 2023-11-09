@@ -45,6 +45,10 @@ pub enum SpeedPreset {
 
 impl RTMPSink {
     /// Create and add new rtmp sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `RTMPSink` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str, parameters: RTMPParameters) -> RTMPSink {
         trace!("new({name})");

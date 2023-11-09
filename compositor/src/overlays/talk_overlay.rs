@@ -54,6 +54,10 @@ impl Overlay for TalkOverlay {
 
 impl TalkOverlay {
     /// Create and add new overlay sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `TalkOverlay` can't be created in `GStreamer`.
     #[must_use]
     pub fn new() -> Self {
         let bin = gst::Bin::new(Some("Talk Overlay"));

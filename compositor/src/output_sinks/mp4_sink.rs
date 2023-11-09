@@ -36,6 +36,10 @@ impl Default for Mp4Parameters {
 
 impl Mp4Sink {
     /// Create and add new MP4 sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `Mp4Sink` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str, params: &Mp4Parameters) -> Self {
         let matroska_sink = MatroskaSink::new(name, &MatroskaParameters::default());

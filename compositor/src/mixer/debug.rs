@@ -71,6 +71,9 @@ pub fn dot(element: &impl glib::IsA<gst::Element>, filename_without_extension: &
 ///
 /// - `element`: Element in the pipeline which shall be generated a DOT file from.
 ///
+/// # Panics
+///
+/// This can fail if the danamic cast from the `gst::Element` to a `gst::object` failed.
 pub fn dot_ext(
     element: &impl glib::IsA<gst::Element>,
     filename_without_extension: &str,
@@ -95,7 +98,7 @@ pub fn dot_ext(
     if let Some(parent) = element
         .clone()
         .dynamic_cast::<gst::Object>()
-        .unwrap()
+        .expect("unable to dynamic cast the `element` to 'gst::Object'")
         .parent()
     {
         return dot(

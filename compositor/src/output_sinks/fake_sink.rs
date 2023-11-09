@@ -14,6 +14,10 @@ pub struct FakeSink {
 
 impl FakeSink {
     /// Create and add new fake sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `FakeSink` can't be created in `GStreamer`.
     #[must_use]
     pub fn new(name: &str) -> Self {
         trace!("new({name})");
