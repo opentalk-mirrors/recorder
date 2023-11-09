@@ -353,13 +353,11 @@ where
     ///
     pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &StreamStatus) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
-        let old_status = match self.mixer.streams.get(id) {
-            Some(current_stream) => current_stream.status.clone(),
-            None => {
-                debug!("current_stream not found for id: {id:?}");
-                return Ok(());
-            }
+        let Some(current_stream) = self.mixer.streams.get(id) else {
+            debug!("current_stream not found for id: {id:?}");
+            return Ok(());
         };
+        let old_status = current_stream.status.clone();
 
         self.mixer.set_status(id, new_status.clone())?;
 

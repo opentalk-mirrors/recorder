@@ -147,8 +147,8 @@ impl Source for TestSource {
                 r#"
                 name="Test Input Source: {id}"
                 "#,
-            ) + &match params.pattern {
-                Pattern::Location(location) => format!(
+            ) + &if let Pattern::Location(location) = params.pattern {
+                format!(
                     r#"
                     filesrc
                         name="Picture File Loader"
@@ -170,12 +170,11 @@ impl Source for TestSource {
                         max-size-time=2000000000
                     "#,
                     name = params.name.clone().unwrap_or_default()
-                ),
-
-                _ => {
-                    let pattern: &str = params.pattern.into();
-                    format!(
-                        r#"
+                )
+            } else {
+                let pattern: &str = params.pattern.into();
+                format!(
+                    r#"
                         videotestsrc
                             name="Video Test Source"
                             pattern={pattern}
@@ -184,8 +183,7 @@ impl Source for TestSource {
                             name=video
                             max-size-time=2000000000
                         "#,
-                    )
-                }
+                )
             } + r#"
                 audiotestsrc
                     name="Audio Test Source"

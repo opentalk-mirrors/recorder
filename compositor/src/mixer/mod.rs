@@ -711,12 +711,13 @@ where
                 loop {
                     match valid {
                         Validation::Invalid => {
-                            match receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
-                                Ok(v) => valid = v,
-                                Err(_) => error!(
+                            if let Ok(v) = receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
+                                valid = v
+                            } else {
+                                error!(
                                     "missing desired layout update since {duration}ms",
                                     duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
-                                ),
+                                )
                             }
                         }
                         Validation::Valid => match receiver.recv() {
