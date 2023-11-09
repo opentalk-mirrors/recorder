@@ -143,7 +143,7 @@ impl WebRtcSource {
         trace!("receive_offer()");
 
         let sdp_offer = gst_sdp::SDPMessage::parse_buffer(offer.as_bytes())
-            .with_context(|| format!("failed to parse webrtc offer {}", offer))?;
+            .with_context(|| format!("failed to parse webrtc offer {offer}"))?;
 
         let offer_description =
             gst_webrtc::WebRTCSessionDescription::new(gst_webrtc::WebRTCSDPType::Offer, sdp_offer);
@@ -175,8 +175,7 @@ impl WebRtcSource {
                         })
                         .with_context(|| {
                             format!(
-                                "webrtc session could not configure local_description for offer {}",
-                                offer
+                                "webrtc session could not configure local_description for offer {offer}",
                             )
                         }),
                     Ok(None) => Err(anyhow!(

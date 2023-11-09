@@ -71,7 +71,7 @@ fn main() -> Result<()> {
     });
 
     if let Err(e) = runtime.block_on(main2(shutdown_rx)) {
-        eprintln!("Exit on failure: {:?}", e);
+        eprintln!("Exit on failure: {e:?}");
         std::process::exit(-1);
     }
 

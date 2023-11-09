@@ -256,14 +256,13 @@ where
         let bin = gst::parse_bin_from_description(
             format!(
                 r#"
-            name="Overlay: {}"
+            name="Overlay: {id}"
 
             videoconvertscale
                 name=videoconvertscale
             ! capsfilter
                 name=capsfilter
-            "#,
-                id
+            "#
             )
             .as_str(),
             false,

@@ -105,7 +105,7 @@ impl Signaling {
         let mut websocket_request = settings.websocket_url().into_client_request()?;
         websocket_request.headers_mut().insert(
             SEC_WEBSOCKET_PROTOCOL,
-            format!("opentalk-signaling-json-v1.0,ticket#{}", ticket).try_into()?,
+            format!("opentalk-signaling-json-v1.0,ticket#{ticket}").try_into()?,
         );
 
         let (mut stream, _) = tt::connect_async(websocket_request)
