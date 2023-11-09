@@ -603,7 +603,7 @@ where
     /// - `params`: Parameters of graph.
     ///
     pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
-        debug::dot_ext(&self.pipeline, filename_without_extension, params)
+        debug::dot_ext(&self.pipeline, filename_without_extension, params);
     }
 
     fn invisibles(&self) -> Vec<STREAMID> {
@@ -712,12 +712,12 @@ where
                     match valid {
                         Validation::Invalid => {
                             if let Ok(v) = receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
-                                valid = v
+                                valid = v;
                             } else {
                                 error!(
                                     "missing desired layout update since {duration}ms",
                                     duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
-                                )
+                                );
                             }
                         }
                         Validation::Valid => match receiver.recv() {

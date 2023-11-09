@@ -437,11 +437,10 @@ impl RecordingSession {
                         sdp_m_line_index: mline as u64,
                     },
                 )
-                .await?
+                .await
         } else {
-            self.signaling.send_end_of_candidates(stream_id).await?
+            self.signaling.send_end_of_candidates(stream_id).await
         }
-        Ok(())
     }
 
     async fn upload(self) -> Result<()> {

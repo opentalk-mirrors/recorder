@@ -102,7 +102,7 @@ impl Source for WebRtcSource {
                     .property::<gst_webrtc::WebRTCICEGatheringState>("ice-gathering-state");
 
                 if state == gst_webrtc::WebRTCICEGatheringState::Complete {
-                    on_candidate(0, None) // TODO: Setting mline_index to 0 here because there's just no way to tell
+                    on_candidate(0, None); // TODO: Setting mline_index to 0 here because there's just no way to tell
                 }
             });
         }
@@ -209,14 +209,14 @@ impl WebRtcSource {
         trace!("receive_candidate()");
 
         self.webrtcbin
-            .emit_by_name("add-ice-candidate", &[&mline, &candidate])
+            .emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);
     }
 
     pub fn receive_end_of_candidates(&self, mline: u32) {
         trace!("receive_end_of_candidates()");
 
         self.webrtcbin
-            .emit_by_name("add-ice-candidate", &[&mline, &None::<String>])
+            .emit_by_name::<()>("add-ice-candidate", &[&mline, &None::<String>]);
     }
 }
 

@@ -263,13 +263,12 @@ where
 
     /// Remove all streams from mixer.
     ///
-    pub fn clear(&mut self) -> Result<()> {
+    pub fn clear(&mut self) {
         trace!("remove_all_stream()");
         let ids: Vec<StreamId<ID>> = self.mixer.streams.keys().copied().collect();
         for id in ids {
-            self.remove_stream(id).expect("cannot remove stream")
+            self.remove_stream(id).expect("cannot remove stream");
         }
-        Ok(())
     }
 
     /// Check if a given stream ID is known by the mixer.
@@ -512,7 +511,7 @@ where
     /// - `details`: Details of graph.
     ///
     pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
-        self.mixer.dot(filename_without_extension, params)
+        self.mixer.dot(filename_without_extension, params);
     }
 
     fn get_first_screen_capture(&self) -> Option<StreamId<ID>> {
@@ -532,6 +531,6 @@ where
     fn drop(&mut self) {
         debug!("Stopped Talk");
         // remove all streams
-        self.clear().unwrap();
+        self.clear();
     }
 }
