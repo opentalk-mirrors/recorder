@@ -57,11 +57,11 @@ impl ParticipantState {
     }
 
     #[must_use]
-    pub fn publishes(&self, typ: &MediaSessionType) -> Option<MediaSessionState> {
+    pub fn publishes(&self, typ: MediaSessionType) -> Option<MediaSessionState> {
         if !self.consents {
             return None;
         }
-        self.publishing.get(typ).copied()
+        self.publishing.get(&typ).copied()
     }
 }
 

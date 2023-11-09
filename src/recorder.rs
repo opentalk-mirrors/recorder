@@ -280,7 +280,7 @@ impl RecordingSession {
                     .iter()
                     .flat_map(|(id, participant_state)| {
                         media_types().filter_map(|media_type| {
-                            participant_state.publishes(&media_type).map(|media_state| {
+                            participant_state.publishes(media_type).map(|media_state| {
                                 (
                                     *id,
                                     participant_state.display_name.clone(),
@@ -308,7 +308,7 @@ impl RecordingSession {
                 let participant_state = self.signaling.participant(&id)?.clone();
                 let available_media_streams = media_types().filter_map(|media_type| {
                     participant_state
-                        .publishes(&media_type)
+                        .publishes(media_type)
                         .map(|media_state| (media_type, media_state))
                 });
 
@@ -325,7 +325,7 @@ impl RecordingSession {
 
                 for media_type in media_types() {
                     let is_subscribed = self.talk.contains_stream(&StreamId::new(id, media_type));
-                    let media_state = participant_state.publishes(&media_type);
+                    let media_state = participant_state.publishes(media_type);
 
                     if !is_subscribed {
                         if let Some(media_state) = media_state {
@@ -389,7 +389,7 @@ impl RecordingSession {
                 log::debug!("Event::SdpEndOfCandidates");
                 let participant_state = self.signaling.participant(&stream_id.id)?;
 
-                if participant_state.publishes(&stream_id.media_type).is_none() {
+                if participant_state.publishes(stream_id.media_type).is_none() {
                     bail!(
                         "EndOfCandidates message for {:?} with no media stream",
                         stream_id
