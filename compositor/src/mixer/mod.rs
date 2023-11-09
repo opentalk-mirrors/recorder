@@ -214,7 +214,7 @@ where
 
         // start reading the pipeline bus
         mixer.read_bus()?;
-        mixer.monitor_layout(valid_receiver);
+        monitor_layout(valid_receiver);
 
         // inform output sink that pipeline is are playing now
         mixer.output.on_play();
@@ -701,34 +701,34 @@ where
             .send(Validation::Valid)
             .expect("cannot send layout validation");
     }
+}
 
-    fn monitor_layout(&self, receiver: std::sync::mpsc::Receiver<Validation>) {
-        // monitor in a thread if `valid` will be set within latency timeout
-        std::thread::spawn({
-            move || {
-                let mut valid = Validation::Valid;
-                loop {
-                    match valid {
-                        Validation::Invalid => {
-                            if let Ok(v) = receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
-                                valid = v;
-                            } else {
-                                error!(
-                                    "missing desired layout update since {duration}ms",
-                                    duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
-                                );
-                            }
+fn monitor_layout(receiver: std::sync::mpsc::Receiver<Validation>) {
+    // monitor in a thread if `valid` will be set within latency timeout
+    std::thread::spawn({
+        move || {
+            let mut valid = Validation::Valid;
+            loop {
+                match valid {
+                    Validation::Invalid => {
+                        if let Ok(v) = receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
+                            valid = v;
+                        } else {
+                            error!(
+                                "missing desired layout update since {duration}ms",
+                                duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
+                            );
                         }
-                        Validation::Valid => match receiver.recv() {
-                            Ok(v) => valid = v,
-                            Err(_) => todo!(),
-                        },
-                        Validation::Stop => break,
                     }
+                    Validation::Valid => match receiver.recv() {
+                        Ok(v) => valid = v,
+                        Err(_) => todo!(),
+                    },
+                    Validation::Stop => break,
                 }
             }
-        });
-    }
+        }
+    });
 }
 
 impl<SRC, STREAMID> Drop for Mixer<SRC, STREAMID>
