@@ -40,7 +40,19 @@ lint:clippy:
       musl-dev glib-dev openssl-dev
       gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev
   script:
-    - cargo clippy --all-features --tests -- --deny warnings
+    # Use clippy::pedantic for the entire source code
+    # TODO: This it temporary and this rules will be added in the future
+    - >
+      cargo clippy --all-features
+      -- --deny warnings --deny clippy::pedantic
+      --allow clippy::cast-possible-truncation
+      --allow clippy::cast-possible-wrap
+      --allow clippy::cast-precision-loss
+      --allow clippy::cast-sign-loss
+    # Use clippy::all for tests
+    - >
+      cargo clippy --all-features --tests
+      -- --deny warnings --deny clippy::all
 
 lint:dependency_check_advisories:
   image: git.opentalk.dev:5050/opentalk/backend/containers/cargo-deny:latest
