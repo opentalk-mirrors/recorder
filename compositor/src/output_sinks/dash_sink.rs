@@ -93,7 +93,7 @@ impl Default for DashParameters {
     fn default() -> Self {
         Self {
             output_dir: None,
-            bitrate: 0x100000,
+            bitrate: 0x0010_0000,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
             update_callback: update,
