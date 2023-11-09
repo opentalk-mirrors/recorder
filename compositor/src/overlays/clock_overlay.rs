@@ -24,6 +24,7 @@ impl ClockOverlay {
     /// - `format`: Clock format string.
     /// - `style`: Style of the clock display.
     ///
+    #[must_use]
     pub fn new(name: &str, format: &str, style: TextStyle) -> ClockOverlay {
         trace!("new( {format:?}, {style:?} )");
 
@@ -54,6 +55,7 @@ impl ClockOverlay {
 }
 
 impl Overlay for ClockOverlay {
+    #[must_use]
     fn element(&self) -> &gst::Element {
         &self.element
     }

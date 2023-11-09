@@ -13,6 +13,7 @@ pub enum TestSink {
 
 impl TestSink {
     /// Create and add new fake sink into existing pipeline.
+    #[must_use]
     pub fn new(name: &str) -> Self {
         trace!("new({name})");
 
@@ -34,6 +35,7 @@ impl Default for TestSink {
 }
 
 impl Sink for TestSink {
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         match self {
             Self::Fake(sink) => sink.bin(),
@@ -41,6 +43,7 @@ impl Sink for TestSink {
         }
     }
     /// Get video sink pad.
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         match self {
             Self::Fake(sink) => sink.video(),
@@ -49,6 +52,7 @@ impl Sink for TestSink {
     }
 
     /// Get audio sink pad.
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         match self {
             Self::Fake(sink) => sink.audio(),

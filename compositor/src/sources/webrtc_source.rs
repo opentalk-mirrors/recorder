@@ -37,6 +37,7 @@ impl Debug for WebRtcSourceParams {
 }
 
 impl WebRtcSourceParams {
+    #[must_use]
     pub fn on_ice_candidate<F>(mut self, f: F) -> Self
     where
         F: Fn(u32, Option<String>) + Send + Sync + 'static,

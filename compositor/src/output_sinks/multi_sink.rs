@@ -17,6 +17,7 @@ pub struct MultiParameters {
 }
 
 impl MultiParameters {
+    #[must_use]
     pub fn new(sinks: Vec<Box<dyn Sink>>) -> Self {
         Self { sinks }
     }
@@ -44,6 +45,7 @@ impl From<MultiParameters> for MultiSink {
 
 impl MultiSink {
     /// Create new sink with given parameters
+    #[must_use]
     pub fn new(params: MultiParameters) -> Self {
         trace!("new()");
 
@@ -108,14 +110,17 @@ impl MultiSink {
 }
 
 impl Sink for MultiSink {
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.video.clone()
     }
 
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.audio.clone()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
     }

@@ -17,6 +17,7 @@ pub struct Params {
 
 impl Params {
     /// all details
+    #[must_use]
     pub const fn all() -> Self {
         Self {
             details: DebugGraphDetails::ALL,
@@ -24,6 +25,7 @@ impl Params {
         }
     }
     /// show states
+    #[must_use]
     pub const fn states() -> Self {
         Self {
             details: DebugGraphDetails::STATES,

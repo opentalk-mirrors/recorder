@@ -38,6 +38,7 @@ pub struct ParticipantState {
 }
 
 impl ParticipantState {
+    #[must_use]
     fn from_incoming(p: incoming::Participant) -> Self {
         let mut publishing = HashMap::new();
         if let Some(camera) = p.media.video {
@@ -55,6 +56,7 @@ impl ParticipantState {
         }
     }
 
+    #[must_use]
     pub fn publishes(&self, typ: &MediaSessionType) -> Option<MediaSessionState> {
         if !self.consents {
             return None;
@@ -572,6 +574,7 @@ pub struct TrickleCandidate {
 
 type MediaSessionType = compositor::MediaSessionType;
 
+#[must_use]
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     compositor::media_types()
 }

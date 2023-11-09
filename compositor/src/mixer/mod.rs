@@ -423,7 +423,7 @@ where
     }
 
     /// Return current pipeline state.
-    ///
+    #[must_use]
     pub fn state(&self) -> gst::State {
         self.pipeline.current_state()
     }

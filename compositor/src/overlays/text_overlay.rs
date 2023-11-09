@@ -23,7 +23,7 @@ impl TextOverlay {
     /// - `text`: Text to display.
     /// - `style`: Style of the text display.
     ///
-    #[allow(clippy::new_ret_no_self)]
+    #[must_use]
     pub fn new(name: &str, text: &str, style: TextStyle) -> TextOverlay {
         trace!("new( '{text}', {style:?} )");
 

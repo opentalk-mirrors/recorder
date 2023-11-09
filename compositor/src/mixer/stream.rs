@@ -19,18 +19,21 @@ pub struct StreamStatus {
 }
 
 impl StreamStatus {
+    #[must_use]
     pub fn none() -> Self {
         Self {
             has_audio: false,
             has_video: false,
         }
     }
+    #[must_use]
     pub fn audio() -> Self {
         Self {
             has_audio: true,
             has_video: false,
         }
     }
+    #[must_use]
     pub fn video() -> Self {
         Self {
             has_audio: false,

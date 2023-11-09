@@ -45,6 +45,7 @@ pub enum SpeedPreset {
 
 impl RTMPSink {
     /// Create and add new rtmp sink into existing pipeline.
+    #[must_use]
     pub fn new(name: &str, parameters: RTMPParameters) -> RTMPSink {
         trace!("new({name})");
 
@@ -96,14 +97,17 @@ impl RTMPSink {
 }
 
 impl Sink for RTMPSink {
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.video_sink_pad.clone()
     }
 
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.audio_sink_pad.clone()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
     }

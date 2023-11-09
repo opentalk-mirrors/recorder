@@ -23,7 +23,7 @@ pub struct Padding {
 }
 
 impl PaddingOverlay {
-    #[allow(clippy::new_ret_no_self)]
+    #[must_use]
     pub fn new(name: &str, padding: &Padding) -> PaddingOverlay {
         trace!("new( {padding:?} )");
 
@@ -43,12 +43,14 @@ impl PaddingOverlay {
 }
 
 impl Overlay for PaddingOverlay {
+    #[must_use]
     fn element(&self) -> &gst::Element {
         &self.element
     }
     fn show(&self, _: bool) {
         unimplemented!()
     }
+    #[must_use]
     fn sink(&self) -> gst::Pad {
         self.element()
             .static_pad("sink")

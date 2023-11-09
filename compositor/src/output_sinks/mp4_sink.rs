@@ -36,6 +36,7 @@ impl Default for Mp4Parameters {
 
 impl Mp4Sink {
     /// Create and add new MP4 sink into existing pipeline.
+    #[must_use]
     pub fn new(name: &str, params: &Mp4Parameters) -> Self {
         let matroska_sink = MatroskaSink::new(name, &MatroskaParameters::default());
         let address = &format!("tcp://{}", matroska_sink.address);
@@ -77,15 +78,18 @@ impl Mp4Sink {
 
 impl Sink for Mp4Sink {
     /// Get video sink pad from Matroska sink.
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.matroska_sink.video()
     }
 
     /// Get audio sink pad from Matroska sink.
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.matroska_sink.audio()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.matroska_sink.bin()
     }

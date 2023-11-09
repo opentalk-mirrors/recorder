@@ -20,6 +20,7 @@ use crate::{
 const NAME_FONT_SIZE: u32 = 16;
 
 /// return available media types
+#[must_use]
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     // order is priority for set speaker (first available will get focus)
 

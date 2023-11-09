@@ -67,6 +67,7 @@ pub struct DashParameters {
 
 impl DashSink {
     /// Create and add new DASH sink into existing pipeline.
+    #[must_use]
     pub fn new(name: &str, params: DashParameters) -> Self {
         // watch pipeline bus for getting into `Playing` state
         // return new instance
@@ -104,15 +105,18 @@ impl Default for DashParameters {
 
 impl Sink for DashSink {
     /// Get video sink pad from Matroska sink.
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.matroska_sink.video()
     }
 
     /// Get audio sink pad from Matroska sink.
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.matroska_sink.audio()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.matroska_sink.bin()
     }

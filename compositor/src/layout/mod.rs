@@ -71,6 +71,7 @@ impl Size {
         height: 4320,
     };
     /// return ratio between width and height
+    #[must_use]
     pub fn ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }
