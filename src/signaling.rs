@@ -175,12 +175,11 @@ impl Signaling {
         match msg {
             incoming::Message::Control(msg) => match msg {
                 incoming::ControlMessage::JoinSuccess(state) => {
-                    self.participants = HashMap::from_iter(
-                        state
-                            .participants
-                            .into_iter()
-                            .map(|p| (p.id, ParticipantState::from_incoming(p))),
-                    );
+                    self.participants = state
+                        .participants
+                        .into_iter()
+                        .map(|p| (p.id, ParticipantState::from_incoming(p)))
+                        .collect();
 
                     Ok(Some(Event::JoinSuccess(state.id, state.event_info.title)))
                 }
