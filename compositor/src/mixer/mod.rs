@@ -316,7 +316,7 @@ where
             .expect("could not connect video stream to compositor");
 
         // get audio source pad (no audio overlay yet)
-        let Some(audio_src )= source.bin().static_pad("audio") else {
+        let Some(audio_src) = source.bin().static_pad("audio") else {
             panic!("source's video pad is missing")
         };
 

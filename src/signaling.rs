@@ -219,9 +219,9 @@ impl Signaling {
                 incoming::MediaMessage::SdpEndOfCandidates(source) => {
                     Ok(Some(Event::SdpEndOfCandidates(source.into())))
                 }
-                incoming::MediaMessage::WebRtcUp(_) => Ok(None),
-                incoming::MediaMessage::WebRtcDown(_) => Ok(None),
-
+                incoming::MediaMessage::WebRtcUp(_) | incoming::MediaMessage::WebRtcDown(_) => {
+                    Ok(None)
+                }
                 incoming::MediaMessage::FocusUpdate(focus) => {
                     Ok(Some(Event::FocusUpdate(focus.focus)))
                 }
