@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{add_ghost_pad, Sink};
 
 /// Displays compositor output on the screen.
 #[derive(Debug)]
@@ -14,6 +14,11 @@ pub struct DisplaySink {
 
 impl DisplaySink {
     /// Create and add new display sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `DisplaySink` can't be created in `GStreamer`.
+    #[must_use]
     pub fn new(name: &str) -> Self {
         trace!("new({name})");
 
@@ -54,14 +59,17 @@ impl Default for DisplaySink {
 
 impl Sink for DisplaySink {
     /// Get video sink pad.
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.video_sink.clone()
     }
 
     /// Get audio sink pad.
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.audio_sink.clone()
     }
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
     }

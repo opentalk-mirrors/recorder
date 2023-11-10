@@ -12,11 +12,15 @@ use core::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::*;
+use crate::{
+    debug, AnyOverlay, Font, Layout, Mixer, Overlay, Sink, Size, Source, Stream, StreamStatus,
+    TalkOverlay, TextOverlay, TextStyle,
+};
 
 const NAME_FONT_SIZE: u32 = 16;
 
 /// return available media types
+#[must_use]
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     // order is priority for set speaker (first available will get focus)
 
@@ -160,6 +164,9 @@ where
     /// - `sink_params`: Parameters to create the output sink.
     /// - `max_visibles`: Maximum number of currently visible streams.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the `Mixer` can't be initialized.
     pub fn new(
         resolution: Size,
         layout: impl Layout,
@@ -169,13 +176,11 @@ where
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
+        let mixer =
+            Mixer::<SRC, StreamId<ID>>::new(resolution, layout, TalkOverlay::new().into(), sink)?;
+
         Ok(Self {
-            mixer: Mixer::<SRC, StreamId<ID>>::new(
-                resolution,
-                layout,
-                TalkOverlay::new().into(),
-                sink,
-            )?,
+            mixer,
             max_visibles,
             names: HashMap::new(),
             current_speaker: None,
@@ -191,6 +196,9 @@ where
     /// - `params`: Proprietary parameters to use when creating sink instance.
     /// - `initial`: Initial A/V display status.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the status of the stream can't be set.
     pub fn add_stream(
         &mut self,
         id: StreamId<ID>,
@@ -240,6 +248,9 @@ where
     ///
     /// - `id`: Describes which stream shall be removed.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream can't be removed from the `Mixer`.
     pub fn remove_stream(&mut self, id: StreamId<ID>) -> Result<()> {
         trace!("remove_stream( {id} )");
 
@@ -259,13 +270,15 @@ where
 
     /// Remove all streams from mixer.
     ///
-    pub fn clear(&mut self) -> Result<()> {
+    /// # Panics
+    ///
+    /// This can panic if the stream can't be removed.
+    pub fn clear(&mut self) {
         trace!("remove_all_stream()");
-        let ids: Vec<StreamId<ID>> = self.mixer.streams.keys().cloned().collect();
+        let ids: Vec<StreamId<ID>> = self.mixer.streams.keys().copied().collect();
         for id in ids {
-            self.remove_stream(id).expect("cannot remove stream")
+            self.remove_stream(id).expect("cannot remove stream");
         }
-        Ok(())
     }
 
     /// Check if a given stream ID is known by the mixer.
@@ -347,15 +360,16 @@ where
     /// - `id`: ID of the stream
     /// - `new_status`: new status for that stream
     ///
-    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: StreamStatus) -> Result<()> {
+    /// # Errors
+    ///
+    /// This can fail if the status of the stream can't be set in the `Mixer`.
+    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &StreamStatus) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
-        let old_status = match self.mixer.streams.get(id) {
-            Some(current_stream) => current_stream.status.clone(),
-            None => {
-                debug!("current_stream not found for id: {id:?}");
-                return Ok(());
-            }
+        let Some(current_stream) = self.mixer.streams.get(id) else {
+            debug!("current_stream not found for id: {id:?}");
+            return Ok(());
         };
+        let old_status = current_stream.status.clone();
 
         self.mixer.set_status(id, new_status.clone())?;
 
@@ -374,6 +388,9 @@ where
     ///
     /// - `title`: title text
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no `AnyOverlay::Talk`
     pub fn set_title(&self, title: &str) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.set_title(title);
@@ -388,6 +405,9 @@ where
     ///
     /// - `show`: Visible if `true`
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no `AnyOverlay::Talk`
     pub fn show_title(&self, show: bool) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_title(show);
@@ -402,6 +422,9 @@ where
     ///
     /// - `show`: Visible if `true`
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no `AnyOverlay::Talk`
     pub fn show_clock(&self, show: bool) {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_clock(show);
@@ -417,6 +440,9 @@ where
     /// - `id`: ID of the stream
     /// - `title`: title text
     ///
+    /// # Panics
+    ///
+    /// This can panic if there is no stream or `AnyOverlay::Text`
     pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) {
         if let Some(stream) = self.mixer.streams.get(id) {
             if let AnyOverlay::Text(overlay) = &stream.overlay {
@@ -459,7 +485,7 @@ where
             }
             // The new camera feed is a screen share, which has a higher
             // priority, so the latest stream will be removed
-            if let Some(id) = self.mixer.visibles.last().cloned() {
+            if let Some(id) = self.mixer.visibles.last().copied() {
                 self.mixer.hide_stream(&id);
             }
         }
@@ -510,7 +536,7 @@ where
     /// - `details`: Details of graph.
     ///
     pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
-        self.mixer.dot(filename_without_extension, params)
+        self.mixer.dot(filename_without_extension, params);
     }
 
     fn get_first_screen_capture(&self) -> Option<StreamId<ID>> {
@@ -530,6 +556,6 @@ where
     fn drop(&mut self) {
         debug!("Stopped Talk");
         // remove all streams
-        self.clear().unwrap();
+        self.clear();
     }
 }

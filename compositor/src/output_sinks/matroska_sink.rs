@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
 use gst::prelude::*;
 use serde::Deserialize;
 use std::{
@@ -10,6 +9,8 @@ use std::{
     os::unix::prelude::AsRawFd,
     sync::mpsc,
 };
+
+use crate::{add_ghost_pad, Sink};
 
 /// Writes out *Matroska* mux-ed raw A/V on a TCP port
 #[derive(Debug)]
@@ -30,7 +31,12 @@ pub struct MatroskaParameters {
 
 impl MatroskaSink {
     /// Create and add new Matroska sink into existing pipeline.
-    pub fn new(name: &str, params: MatroskaParameters) -> Self {
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `MatroskaSink` can't be created in `GStreamer`.
+    #[must_use]
+    pub fn new(name: &str, params: &MatroskaParameters) -> Self {
         trace!("new({name})");
 
         // create bin including codecs and the Matroska sink
@@ -122,15 +128,18 @@ impl Default for MatroskaParameters {
 
 impl Sink for MatroskaSink {
     /// Get video sink pad.
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.video_sink.clone()
     }
 
     /// Get audio sink pad.
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.audio_sink.clone()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
     }

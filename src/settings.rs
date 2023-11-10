@@ -57,12 +57,14 @@ pub struct ControllerSettings {
 }
 
 impl ControllerSettings {
+    #[must_use]
     pub fn websocket_url(&self) -> String {
         let scheme = if self.insecure { "ws" } else { "wss" };
 
         format!("{scheme}://{}/signaling", self.domain)
     }
 
+    #[must_use]
     pub fn v1_api_base_url(&self) -> String {
         let scheme = if self.insecure { "http" } else { "https" };
 

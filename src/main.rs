@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+#![allow(clippy::module_name_repetitions)]
+
 use anyhow::{Context, Result};
 use futures::future::join_all;
 use futures::StreamExt;
@@ -69,7 +71,7 @@ fn main() -> Result<()> {
     });
 
     if let Err(e) = runtime.block_on(main2(shutdown_rx)) {
-        eprintln!("Exit on failure: {:?}", e);
+        eprintln!("Exit on failure: {e:?}");
         std::process::exit(-1);
     }
 

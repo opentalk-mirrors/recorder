@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
-
 use anyhow::{anyhow, bail, Context, Result};
 use glib::WeakRef;
 use gst::prelude::*;
@@ -12,7 +10,9 @@ use std::fmt::{Debug, Display};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
-/// Source that connects to an WebRTC source and provides the incoming streams as participant's input.
+use crate::{log, Source};
+
+/// Source that connects to an `WebRTC` source and provides the incoming streams as participant's input.
 #[derive(Debug)]
 pub struct WebRtcSource {
     /// GStreamer bin surrounding all included elements
@@ -37,6 +37,7 @@ impl Debug for WebRtcSourceParams {
 }
 
 impl WebRtcSourceParams {
+    #[must_use]
     pub fn on_ice_candidate<F>(mut self, f: F) -> Self
     where
         F: Fn(u32, Option<String>) + Send + Sync + 'static,
@@ -49,7 +50,7 @@ impl WebRtcSourceParams {
 impl Source for WebRtcSource {
     type Parameters = WebRtcSourceParams;
 
-    /// Create a new WebRTC source
+    /// Create a new `WebRTC` source
     fn new<ID>(id: &ID, params: Self::Parameters) -> Self
     where
         ID: Display,
@@ -101,7 +102,7 @@ impl Source for WebRtcSource {
                     .property::<gst_webrtc::WebRTCICEGatheringState>("ice-gathering-state");
 
                 if state == gst_webrtc::WebRTCICEGatheringState::Complete {
-                    on_candidate(0, None) // TODO: Setting mline_index to 0 here because there's just no way to tell
+                    on_candidate(0, None); // TODO: Setting mline_index to 0 here because there's just no way to tell
                 }
             });
         }
@@ -139,11 +140,19 @@ impl Source for WebRtcSource {
 }
 
 impl WebRtcSource {
+    /// Send the `offer` to the webrtc main thread.
+    ///
+    /// # Arguments
+    /// - `offer` The offer which was sent.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the the SDP answer can't be send to the main webrtc thread.
     pub async fn receive_offer(&self, offer: String) -> anyhow::Result<String> {
         trace!("receive_offer()");
 
         let sdp_offer = gst_sdp::SDPMessage::parse_buffer(offer.as_bytes())
-            .with_context(|| format!("failed to parse webrtc offer {}", offer))?;
+            .with_context(|| format!("failed to parse webrtc offer {offer}"))?;
 
         let offer_description =
             gst_webrtc::WebRTCSessionDescription::new(gst_webrtc::WebRTCSDPType::Offer, sdp_offer);
@@ -175,8 +184,7 @@ impl WebRtcSource {
                         })
                         .with_context(|| {
                             format!(
-                                "webrtc session could not configure local_description for offer {}",
-                                offer
+                                "webrtc session could not configure local_description for offer {offer}",
                             )
                         }),
                     Ok(None) => Err(anyhow!(
@@ -205,18 +213,18 @@ impl WebRtcSource {
         recv.await?
     }
 
-    pub async fn receive_candidate(&self, mline: u32, candidate: String) {
+    pub fn receive_candidate(&self, mline: u32, candidate: &str) {
         trace!("receive_candidate()");
 
         self.webrtcbin
-            .emit_by_name("add-ice-candidate", &[&mline, &candidate])
+            .emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);
     }
 
-    pub async fn receive_end_of_candidates(&self, mline: u32) {
+    pub fn receive_end_of_candidates(&self, mline: u32) {
         trace!("receive_end_of_candidates()");
 
         self.webrtcbin
-            .emit_by_name("add-ice-candidate", &[&mline, &None::<String>])
+            .emit_by_name::<()>("add-ice-candidate", &[&mline, &None::<String>]);
     }
 }
 
@@ -239,20 +247,17 @@ fn webrtcbin_on_pad_added(
             return;
         }
 
-        if let Err(e) = try_webrtcbin_on_pad_added(
-            bin,
-            pad.clone(),
-            audio_ghost_pad.clone(),
-            video_ghost_pad.clone(),
-        ) {
+        if let Err(e) =
+            try_webrtcbin_on_pad_added(&bin, pad, audio_ghost_pad.clone(), video_ghost_pad.clone())
+        {
             log::error!("Failed to handle webrtcbin's pad-added event, {e:?}",);
         }
     }
 }
 
 fn try_webrtcbin_on_pad_added(
-    bin: gst::Bin,
-    pad: gst::Pad,
+    bin: &gst::Bin,
+    pad: &gst::Pad,
     audio_ghost_pad: WeakRef<gst::GhostPad>,
     video_ghost_pad: WeakRef<gst::GhostPad>,
 ) -> Result<()> {
@@ -316,14 +321,14 @@ fn decodebin_on_pad_added(
             return;
         }
 
-        if let Err(e) = try_decodebin_on_pad_added(bin, pad, audio_ghost_pad, video_ghost_pad) {
+        if let Err(e) = try_decodebin_on_pad_added(&bin, pad, audio_ghost_pad, video_ghost_pad) {
             log::error!("Failed to handle decodebin's pad-added event, {e:?}");
         }
     }
 }
 
 fn try_decodebin_on_pad_added(
-    bin: gst::Bin,
+    bin: &gst::Bin,
     pad: &gst::Pad,
     audio_ghost_pad: gst::GhostPad,
     video_ghost_pad: gst::GhostPad,

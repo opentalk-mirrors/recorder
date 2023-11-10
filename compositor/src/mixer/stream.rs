@@ -4,9 +4,10 @@
 
 //! Stream status.
 
-use crate::*;
 use core::fmt::{Debug, Display};
 use gst_base::prelude::*;
+
+use crate::{AnyOverlay, Source};
 
 /// Turns on or off video or audio.
 #[derive(Debug, Clone)]
@@ -18,18 +19,21 @@ pub struct StreamStatus {
 }
 
 impl StreamStatus {
+    #[must_use]
     pub fn none() -> Self {
         Self {
             has_audio: false,
             has_video: false,
         }
     }
+    #[must_use]
     pub fn audio() -> Self {
         Self {
             has_audio: true,
             has_video: false,
         }
     }
+    #[must_use]
     pub fn video() -> Self {
         Self {
             has_audio: false,
@@ -90,27 +94,45 @@ where
     SRC: Source + Debug,
     SRC::Parameters: Debug,
 {
+    /// Find compositor sink by looking where our ghost pad is connected to.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the stream has no video `Pad`.
     pub fn compositor_sink(&self) -> gst::Pad {
-        // find compositor sink by looking where our ghost pad is connected to
         self.video
             .peer()
             .expect("expecting video source bin to be connected to compositor")
     }
 
+    /// Get the videoconvertscale `Pad` from the stream.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the stream has no videoconvertscale `Pad`.
     pub fn videoconvertscale(&self) -> gst::Element {
         self.bin
             .by_name("videoconvertscale")
             .expect("unable to get the videoconvertscale from the bin")
     }
 
+    /// Get the capsfilter `Pad` from the stream.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the stream has no capsfilter `Pad`.
     pub fn capsfilter(&self) -> gst::Element {
         self.bin
             .by_name("capsfilter")
             .expect("unable to get the capsfilter from the bin")
     }
 
+    /// Find audiomixer sink by looking where our ghost pad is connected to.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the stream has no audio `Pad`.
     pub fn audiomixer_sink(&self) -> gst::Pad {
-        // find audiomixer sink by looking where our ghost pad is connected to
         self.audio
             .peer()
             .expect("expecting audio source bin to be connected to audiomixer")

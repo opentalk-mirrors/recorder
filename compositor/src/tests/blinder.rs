@@ -9,7 +9,7 @@ fn test_blinder() {
     // initialize for testing
     testing::init();
 
-    let blinder = TestBlinder::new(TestBlinderParams {
+    let blinder = TestBlinder::new(&TestBlinderParams {
         sink: Box::new(TestSink::new("Testing Sink")),
         resolution: testing::RESOLUTION,
         ..Default::default()

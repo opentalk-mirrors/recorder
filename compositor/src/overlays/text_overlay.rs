@@ -4,8 +4,9 @@
 
 //! Overlay which displays a changeable text.
 
-use crate::*;
 use gst::prelude::*;
+
+use crate::{Overlay, TextStyle};
 
 /// Text overlay.
 #[derive(Debug, Clone)]
@@ -22,7 +23,10 @@ impl TextOverlay {
     /// - `text`: Text to display.
     /// - `style`: Style of the text display.
     ///
-    #[allow(clippy::new_ret_no_self)]
+    /// # Panics
+    ///
+    /// This can panic if the `TextOverlay` can't be created in `GStreamer`.
+    #[must_use]
     pub fn new(name: &str, text: &str, style: TextStyle) -> TextOverlay {
         trace!("new( '{text}', {style:?} )");
 

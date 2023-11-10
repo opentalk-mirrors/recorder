@@ -4,12 +4,15 @@
 
 use gst_base::prelude::*;
 
-use crate::*;
+use crate::{
+    Align, ClockOverlay, Font, HAlign, Overlay, Padding, PaddingOverlay, TextOverlay, TextPadding,
+    TextStyle, VAlign,
+};
 
 const TOP_PADDING: i32 = 56;
 const OVERLAY_FONT_SIZE: u32 = 20;
 
-/// Parameters of TalkOverlay
+/// Parameters of `TalkOverlay`
 #[allow(dead_code)]
 pub struct TalkOverlaysParams {
     padding: TextPadding,
@@ -31,6 +34,7 @@ pub struct TalkOverlay {
 }
 
 impl Overlay for TalkOverlay {
+    #[must_use]
     fn element(&self) -> &gst::Element {
         self.bin.as_ref()
     }
@@ -38,9 +42,11 @@ impl Overlay for TalkOverlay {
         self.text_overlay.show(show);
         self.clock_overlay.show(show);
     }
+    #[must_use]
     fn sink(&self) -> gst::Pad {
         self.text_overlay.sink()
     }
+    #[must_use]
     fn src(&self) -> gst::Pad {
         self.clock_overlay.src()
     }
@@ -48,11 +54,16 @@ impl Overlay for TalkOverlay {
 
 impl TalkOverlay {
     /// Create and add new overlay sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `TalkOverlay` can't be created in `GStreamer`.
+    #[must_use]
     pub fn new() -> Self {
         let bin = gst::Bin::new(Some("Talk Overlay"));
         let padding_overlay = PaddingOverlay::new(
             "padding",
-            Padding {
+            &Padding {
                 top: TOP_PADDING,
                 ..Default::default()
             },

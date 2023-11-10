@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
 use std::fmt::Display;
+
+use crate::{add_ghost_pad, Size, Source};
 
 /// Video test patterns.
 #[derive(Clone, Debug)]
@@ -107,7 +108,7 @@ pub struct TestSource {
     audio_src: gst::GhostPad,
 }
 
-/// Specific parameters needed to create a [TestSource]
+/// Specific parameters needed to create a [`TestSource`]
 #[derive(Clone, Debug)]
 pub struct TestSourceParameters {
     /// Pattern to produce
@@ -119,7 +120,7 @@ pub struct TestSourceParameters {
 }
 
 impl Default for TestSourceParameters {
-    /// [TestSource]'s default parameters
+    /// [`TestSource`]'s default parameters
     fn default() -> Self {
         Self {
             pattern: Pattern::Smpte,
@@ -130,10 +131,10 @@ impl Default for TestSourceParameters {
 }
 
 impl Source for TestSource {
-    /// Forward parameters to [Source]'s generic type
+    /// Forward parameters to [`Source`]'s generic type
     type Parameters = TestSourceParameters;
 
-    /// Create a new [TestSource] and add it to the given pipeline.
+    /// Create a new [`TestSource`] and add it to the given pipeline.
     fn new<ID>(id: &ID, params: Self::Parameters) -> TestSource
     where
         ID: Display,
@@ -146,8 +147,8 @@ impl Source for TestSource {
                 r#"
                 name="Test Input Source: {id}"
                 "#,
-            ) + &match params.pattern {
-                Pattern::Location(location) => format!(
+            ) + &if let Pattern::Location(location) = params.pattern {
+                format!(
                     r#"
                     filesrc
                         name="Picture File Loader"
@@ -169,12 +170,11 @@ impl Source for TestSource {
                         max-size-time=2000000000
                     "#,
                     name = params.name.clone().unwrap_or_default()
-                ),
-
-                _ => {
-                    let pattern: &str = params.pattern.into();
-                    format!(
-                        r#"
+                )
+            } else {
+                let pattern: &str = params.pattern.into();
+                format!(
+                    r#"
                         videotestsrc
                             name="Video Test Source"
                             pattern={pattern}
@@ -183,8 +183,7 @@ impl Source for TestSource {
                             name=video
                             max-size-time=2000000000
                         "#,
-                    )
-                }
+                )
             } + r#"
                 audiotestsrc
                     name="Audio Test Source"

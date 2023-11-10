@@ -96,6 +96,8 @@
       Generates a name from an element which includes parent names for better tracing.
 */
 
+#![allow(clippy::module_name_repetitions)]
+
 #[macro_use]
 extern crate log;
 

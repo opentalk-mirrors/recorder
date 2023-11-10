@@ -166,10 +166,9 @@ impl RecordingSession {
                 let name = format!("{tag}-Sink-{index}");
                 match sink {
                     RecorderSink::Display => Box::new(DisplaySink::new(name.as_str())),
-                    RecorderSink::Matroska(matroska_parameters) => Box::new(MatroskaSink::new(
-                        name.as_str(),
-                        matroska_parameters.clone(),
-                    )),
+                    RecorderSink::Matroska(matroska_parameters) => {
+                        Box::new(MatroskaSink::new(name.as_str(), &matroska_parameters))
+                    }
                     RecorderSink::Rtmp(rtmp_parameters) => Box::new(RTMPSink::new(
                         name.as_str(),
                         RTMPParameters {
@@ -181,7 +180,7 @@ impl RecordingSession {
             })
             .chain(std::iter::once::<Box<dyn Sink>>(Box::new(Mp4Sink::new(
                 "MP4-Sink",
-                Mp4Parameters {
+                &Mp4Parameters {
                     file_path: file_path
                         .to_str()
                         .expect("failed to convert MP4 file path into string")
@@ -263,6 +262,8 @@ impl RecordingSession {
         Ok(())
     }
 
+    // TODO: This makes no sense at the current state, docs will be created after some major refactoring.
+    #[allow(clippy::too_many_lines)]
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
         match event {
             Event::JoinSuccess(_id, title) => {
@@ -279,7 +280,7 @@ impl RecordingSession {
                     .iter()
                     .flat_map(|(id, participant_state)| {
                         media_types().filter_map(|media_type| {
-                            participant_state.publishes(&media_type).map(|media_state| {
+                            participant_state.publishes(media_type).map(|media_state| {
                                 (
                                     *id,
                                     participant_state.display_name.clone(),
@@ -307,7 +308,7 @@ impl RecordingSession {
                 let participant_state = self.signaling.participant(&id)?.clone();
                 let available_media_streams = media_types().filter_map(|media_type| {
                     participant_state
-                        .publishes(&media_type)
+                        .publishes(media_type)
                         .map(|media_state| (media_type, media_state))
                 });
 
@@ -324,7 +325,7 @@ impl RecordingSession {
 
                 for media_type in media_types() {
                     let is_subscribed = self.talk.contains_stream(&StreamId::new(id, media_type));
-                    let media_state = participant_state.publishes(&media_type);
+                    let media_state = participant_state.publishes(media_type);
 
                     if !is_subscribed {
                         if let Some(media_state) = media_state {
@@ -341,7 +342,7 @@ impl RecordingSession {
                             "Update: update status of stream of {id} {media_type} to {media_state}"
                         );
                         self.talk
-                            .set_status(&StreamId::new(id, media_type), media_state.into())?;
+                            .set_status(&StreamId::new(id, media_type), &media_state.into())?;
                     } else {
                         log::trace!(
                             "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"
@@ -381,15 +382,14 @@ impl RecordingSession {
                 log::debug!("Event::SdpCandidate");
                 if let Some(source) = self.talk.get_source(&stream_id) {
                     source
-                        .receive_candidate(candidate.sdp_m_line_index as u32, candidate.candidate)
-                        .await;
+                        .receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
                 }
             }
             Event::SdpEndOfCandidates(stream_id) => {
                 log::debug!("Event::SdpEndOfCandidates");
                 let participant_state = self.signaling.participant(&stream_id.id)?;
 
-                if participant_state.publishes(&stream_id.media_type).is_none() {
+                if participant_state.publishes(stream_id.media_type).is_none() {
                     bail!(
                         "EndOfCandidates message for {:?} with no media stream",
                         stream_id
@@ -402,7 +402,7 @@ impl RecordingSession {
                     );
                 };
 
-                source.receive_end_of_candidates(0).await;
+                source.receive_end_of_candidates(0);
             }
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Event::FocusUpdate");
@@ -436,14 +436,13 @@ impl RecordingSession {
                     stream_id,
                     TrickleCandidate {
                         candidate: candidate.clone(),
-                        sdp_m_line_index: mline as u64,
+                        sdp_m_line_index: u64::from(mline),
                     },
                 )
-                .await?
+                .await
         } else {
-            self.signaling.send_end_of_candidates(stream_id).await?
+            self.signaling.send_end_of_candidates(stream_id).await
         }
-        Ok(())
     }
 
     async fn upload(self) -> Result<()> {

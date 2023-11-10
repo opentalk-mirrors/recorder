@@ -4,7 +4,7 @@
 
 use gst_base::prelude::*;
 
-use crate::*;
+use crate::{FakeSink, Sink, Size, TestSourceParameters};
 
 /// Trait to use blinders
 /// @TODO: move out of this file if more blinders exist
@@ -13,7 +13,7 @@ pub trait Blinder {
     fn blind(&self, blind: bool);
 }
 
-/// Parameters of BlinderSink
+/// Parameters of `BlinderSink`
 #[allow(dead_code)]
 pub struct TestBlinderParams {
     pub name: &'static str,
@@ -26,9 +26,9 @@ impl Default for TestBlinderParams {
     fn default() -> Self {
         Self {
             name: Default::default(),
-            resolution: Default::default(),
+            resolution: Size::default(),
             sink: Box::new(FakeSink::new("Fake Sink")),
-            alt_source_params: Default::default(),
+            alt_source_params: TestSourceParameters::default(),
         }
     }
 }
@@ -79,9 +79,14 @@ impl Sink for TestBlinder {
 
 impl TestBlinder {
     /// Create new blinder sink.
-    pub fn new(params: TestBlinderParams) -> Self {
+    ///
+    /// # Panics
+    ///
+    /// This can panic of creating the blinder failed.
+    #[must_use]
+    pub fn new(params: &TestBlinderParams) -> Self {
         // check if resolution has been set
-        assert_ne!(params.resolution, Default::default());
+        assert_ne!(params.resolution, Size::default());
 
         let bin = gst::parse_bin_from_description(
             &format!(
@@ -150,12 +155,12 @@ impl TestBlinder {
         Self {
             video,
             video_selector,
-            video_blind_sink,
             video_signal_sink,
+            video_blind_sink,
             audio,
             audio_selector,
-            audio_blind_sink,
             audio_signal_sink,
+            audio_blind_sink,
             bin,
         }
     }

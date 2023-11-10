@@ -26,16 +26,19 @@ impl Default for Color {
 
 impl From<Color> for u32 {
     fn from(color: Color) -> u32 {
-        (color.r as u32) << 24 | (color.g as u32) << 16 | (color.b as u32) << 8 | (color.a as u32)
+        (u32::from(color.r)) << 24
+            | (u32::from(color.g)) << 16
+            | (u32::from(color.b)) << 8
+            | (u32::from(color.a))
     }
 }
 impl From<Color> for glib::Value {
     fn from(color: Color) -> glib::Value {
         glib::Value::from(
-            (color.a as u32) << 24
-                | (color.b as u32) << 16
-                | (color.g as u32) << 8
-                | (color.r as u32),
+            (u32::from(color.a)) << 24
+                | (u32::from(color.b)) << 16
+                | (u32::from(color.g)) << 8
+                | (u32::from(color.r)),
         )
     }
 }

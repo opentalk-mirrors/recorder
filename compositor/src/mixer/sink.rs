@@ -30,6 +30,12 @@ pub trait Sink: Send + Debug + 'static {
     fn on_exit(&mut self, _pipeline: &gst::Pipeline) {}
 }
 
+/// Adds a `GhostPad` to the given `Bin`.
+///
+/// # Panics
+///
+/// This can panic if creating and adding the `Ghostpad` is failing.
+#[allow(clippy::must_use_candidate)]
 pub fn add_ghost_pad(bin: &gst::Bin, name: &str, pad: &str) -> gst::GhostPad {
     trace!(
         "add_ghost_pad({bin}, {name}, {pad}) ",

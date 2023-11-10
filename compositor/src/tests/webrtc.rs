@@ -132,11 +132,11 @@ async fn handle_webrtc_event(
         }
         WebRtcBinToMainLoopEvent::SdpCandidate(id, mline, candidate) => {
             let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
-            source.receive_candidate(mline, candidate).await;
+            source.receive_candidate(mline, &candidate);
         }
         WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id) => {
             let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
-            source.receive_end_of_candidates(0).await;
+            source.receive_end_of_candidates(0);
         }
     }
 }

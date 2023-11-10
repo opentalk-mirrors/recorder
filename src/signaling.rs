@@ -38,6 +38,7 @@ pub struct ParticipantState {
 }
 
 impl ParticipantState {
+    #[must_use]
     fn from_incoming(p: incoming::Participant) -> Self {
         let mut publishing = HashMap::new();
         if let Some(camera) = p.media.video {
@@ -55,11 +56,12 @@ impl ParticipantState {
         }
     }
 
-    pub fn publishes(&self, typ: &MediaSessionType) -> Option<MediaSessionState> {
+    #[must_use]
+    pub fn publishes(&self, typ: MediaSessionType) -> Option<MediaSessionState> {
         if !self.consents {
             return None;
         }
-        self.publishing.get(typ).copied()
+        self.publishing.get(&typ).copied()
     }
 }
 
@@ -105,7 +107,7 @@ impl Signaling {
         let mut websocket_request = settings.websocket_url().into_client_request()?;
         websocket_request.headers_mut().insert(
             SEC_WEBSOCKET_PROTOCOL,
-            format!("opentalk-signaling-json-v1.0,ticket#{}", ticket).try_into()?,
+            format!("opentalk-signaling-json-v1.0,ticket#{ticket}").try_into()?,
         );
 
         let (mut stream, _) = tt::connect_async(websocket_request)
@@ -173,12 +175,11 @@ impl Signaling {
         match msg {
             incoming::Message::Control(msg) => match msg {
                 incoming::ControlMessage::JoinSuccess(state) => {
-                    self.participants = HashMap::from_iter(
-                        state
-                            .participants
-                            .into_iter()
-                            .map(|p| (p.id, ParticipantState::from_incoming(p))),
-                    );
+                    self.participants = state
+                        .participants
+                        .into_iter()
+                        .map(|p| (p.id, ParticipantState::from_incoming(p)))
+                        .collect();
 
                     Ok(Some(Event::JoinSuccess(state.id, state.event_info.title)))
                 }
@@ -218,9 +219,9 @@ impl Signaling {
                 incoming::MediaMessage::SdpEndOfCandidates(source) => {
                     Ok(Some(Event::SdpEndOfCandidates(source.into())))
                 }
-                incoming::MediaMessage::WebRtcUp(_) => Ok(None),
-                incoming::MediaMessage::WebRtcDown(_) => Ok(None),
-
+                incoming::MediaMessage::WebRtcUp(_) | incoming::MediaMessage::WebRtcDown(_) => {
+                    Ok(None)
+                }
                 incoming::MediaMessage::FocusUpdate(focus) => {
                     Ok(Some(Event::FocusUpdate(focus.focus)))
                 }
@@ -572,6 +573,7 @@ pub struct TrickleCandidate {
 
 type MediaSessionType = compositor::MediaSessionType;
 
+#[must_use]
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     compositor::media_types()
 }

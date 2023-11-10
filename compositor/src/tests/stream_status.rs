@@ -29,7 +29,7 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (audio off)"));
         talk.set_status(
             &StreamId::camera(i),
-            StreamStatus {
+            &StreamStatus {
                 has_audio: false,
                 has_video: true,
             },
@@ -45,7 +45,7 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (video off)"));
         talk.set_status(
             &StreamId::camera(i),
-            StreamStatus {
+            &StreamStatus {
                 has_audio: true,
                 has_video: false,
             },
@@ -61,7 +61,7 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (a/v off)"));
         talk.set_status(
             &StreamId::camera(i),
-            StreamStatus {
+            &StreamStatus {
                 has_audio: false,
                 has_video: false,
             },
@@ -77,7 +77,7 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (a/v on)"));
         talk.set_status(
             &StreamId::camera(i),
-            StreamStatus {
+            &StreamStatus {
                 has_audio: true,
                 has_video: true,
             },

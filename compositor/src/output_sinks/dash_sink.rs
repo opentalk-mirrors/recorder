@@ -2,12 +2,17 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
 use derivative::Derivative;
 use gst::prelude::*;
 use inotify::{Inotify, WatchMask};
-use std::{ffi::OsStr, net::SocketAddr, path::PathBuf};
+use std::{
+    ffi::OsStr,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 use tempfile::TempDir;
+
+use crate::{MatroskaParameters, MatroskaSink, Sink};
 
 /// Writes out *DASH* A/V files.
 #[derive(Debug)]
@@ -61,18 +66,19 @@ pub struct DashParameters {
     pub seg_type: SegmentType,
     /// Called when new files are ready
     #[derivative(Debug = "ignore")]
-    pub update_callback: fn(files: Vec<&OsStr>),
+    pub update_callback: fn(files: &[&OsStr]),
 }
 
 impl DashSink {
     /// Create and add new DASH sink into existing pipeline.
+    #[must_use]
     pub fn new(name: &str, params: DashParameters) -> Self {
         // watch pipeline bus for getting into `Playing` state
         // return new instance
         Self {
             matroska_sink: MatroskaSink::new(
                 name,
-                MatroskaParameters {
+                &MatroskaParameters {
                     // use fixed localhost but with given port
                     address: SocketAddr::from(([127, 0, 0, 1], 0)),
                 },
@@ -84,7 +90,7 @@ impl DashSink {
     }
 }
 
-fn update(files: Vec<&OsStr>) {
+fn update(files: &[&OsStr]) {
     debug!("Updated files: {:?}", files);
 }
 
@@ -93,7 +99,7 @@ impl Default for DashParameters {
     fn default() -> Self {
         Self {
             output_dir: None,
-            bitrate: 0x100000,
+            bitrate: 0x0010_0000,
             seg_duration: 5.0,
             seg_type: SegmentType::AUTO,
             update_callback: update,
@@ -103,20 +109,23 @@ impl Default for DashParameters {
 
 impl Sink for DashSink {
     /// Get video sink pad from Matroska sink.
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.matroska_sink.video()
     }
 
     /// Get audio sink pad from Matroska sink.
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.matroska_sink.audio()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.matroska_sink.bin()
     }
 
-    /// Starts the FFmpeg receiver which catches the output of the matroska sink.
+    /// Starts the `FFmpeg` receiver which catches the output of the matroska sink.
     fn on_play(&mut self) {
         trace!("on_play()");
 
@@ -213,14 +222,16 @@ impl Sink for DashSink {
                     let files: Vec<&OsStr> = events
                         .filter_map(|event| event.name)
                         .filter(|name| {
-                            !name
-                                .to_str()
-                                .expect("failed to convert Inotify event name into string")
-                                .ends_with(".tmp")
+                            !Path::new(
+                                name.to_str()
+                                    .expect("failed to convert Inotify event name into string"),
+                            )
+                            .extension()
+                            .map_or(false, |ext| ext.eq_ignore_ascii_case("tmp"))
                         })
                         .collect();
                     if !files.is_empty() {
-                        update(files);
+                        update(&files);
                     }
                 }
             }

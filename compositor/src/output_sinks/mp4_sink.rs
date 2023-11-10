@@ -5,7 +5,7 @@
 use super::matroska_sink::MatroskaSink;
 use crate::{MatroskaParameters, Sink};
 
-/// Writes out a single MP4 file using FFmpeg
+/// Writes out a single MP4 file using `FFmpeg`
 #[derive(Debug)]
 pub struct Mp4Sink {
     /// Underlying Matroska sink.
@@ -36,8 +36,13 @@ impl Default for Mp4Parameters {
 
 impl Mp4Sink {
     /// Create and add new MP4 sink into existing pipeline.
-    pub fn new(name: &str, params: Mp4Parameters) -> Self {
-        let matroska_sink = MatroskaSink::new(name, MatroskaParameters::default());
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `Mp4Sink` can't be created in `GStreamer`.
+    #[must_use]
+    pub fn new(name: &str, params: &Mp4Parameters) -> Self {
+        let matroska_sink = MatroskaSink::new(name, &MatroskaParameters::default());
         let address = &format!("tcp://{}", matroska_sink.address);
 
         // TODO: use free codecs instead of ffmpeg's mp4 default.
@@ -77,20 +82,23 @@ impl Mp4Sink {
 
 impl Sink for Mp4Sink {
     /// Get video sink pad from Matroska sink.
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.matroska_sink.video()
     }
 
     /// Get audio sink pad from Matroska sink.
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.matroska_sink.audio()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.matroska_sink.bin()
     }
 
-    /// Starts the FFmpeg receiver which catches the output of the matroska sink.
+    /// Starts the `FFmpeg` receiver which catches the output of the matroska sink.
     fn on_play(&mut self) {
         trace!("on_play()");
 

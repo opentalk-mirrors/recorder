@@ -43,7 +43,7 @@ enum Validation {
     Stop,
 }
 
-/// Mixer managing the GStreamer pipeline using the given layout and source type
+/// Mixer managing the `GStreamer` pipeline using the given layout and source type
 ///
 /// Here is an example pipeline:
 /// <div>
@@ -87,7 +87,7 @@ where
     SRC: Source,
     STREAMID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
-    /// Create a new mixer and setup the initial GStreamer pipeline with the given type of sink.
+    /// Create a new mixer and setup the initial `GStreamer` pipeline with the given type of sink.
     ///
     /// # Arguments
     ///
@@ -96,6 +96,13 @@ where
     /// - `overlay`: List of overlays to attach behind the compositor
     /// - `sink_params`: Output sink parameters.
     ///
+    /// # Errors
+    ///
+    /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `Mixer` can't be created in `GStreamer`.
     pub fn new(
         output_resolution: Size,
         layout: impl Layout,
@@ -214,7 +221,7 @@ where
 
         // start reading the pipeline bus
         mixer.read_bus()?;
-        mixer.monitor_layout(valid_receiver);
+        monitor_layout(valid_receiver);
 
         // inform output sink that pipeline is are playing now
         mixer.output.on_play();
@@ -234,6 +241,13 @@ where
     /// - `params`: Source specific parameters.
     /// - `overlays`: list of overlays to attach behind source
     ///
+    /// # Errors
+    ///
+    /// This can fail if adding the stream to the `GStreamer` pipeline fails.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if creating the `gst::Bin` fails.
     pub fn add_stream(
         &mut self,
         id: STREAMID,
@@ -256,14 +270,13 @@ where
         let bin = gst::parse_bin_from_description(
             format!(
                 r#"
-            name="Overlay: {}"
+            name="Overlay: {id}"
 
             videoconvertscale
                 name=videoconvertscale
             ! capsfilter
                 name=capsfilter
-            "#,
-                id
+            "#
             )
             .as_str(),
             false,
@@ -317,9 +330,8 @@ where
             .expect("could not connect video stream to compositor");
 
         // get audio source pad (no audio overlay yet)
-        let audio_src = match source.bin().static_pad("audio") {
-            Some(source_audio) => source_audio,
-            _ => panic!("source's video pad is missing"),
+        let Some(audio_src) = source.bin().static_pad("audio") else {
+            panic!("source's video pad is missing")
         };
 
         let audio = gst::GhostPad::with_target(Some("audio"), &audio_src)
@@ -380,7 +392,7 @@ where
                 (MessageView::Error(err), Some(pipeline)) => {
                     error!(
                         "Error received from element {:?}: {}",
-                        err.src().map(|s| s.path_string()),
+                        err.src().map(GstObjectExt::path_string),
                         err.error(),
                     );
                     debug::dot(pipeline, "BUS-ERROR");
@@ -391,7 +403,7 @@ where
                 (MessageView::Warning(warn), Some(pipeline)) => {
                     warn!(
                         "Warning received from element {:?}: {}",
-                        warn.src().map(|s| s.path_string()),
+                        warn.src().map(GstObjectExt::path_string),
                         warn.error(),
                     );
                     debug::dot(pipeline, "BUS-WARNING");
@@ -402,7 +414,7 @@ where
                 (MessageView::Info(info), Some(pipeline)) => {
                     info!(
                         "Info received from element {:?}: {}",
-                        info.src().map(|s| s.path_string()),
+                        info.src().map(GstObjectExt::path_string),
                         info.error(),
                     );
                     debug::dot(pipeline, "BUS-INFO");
@@ -424,7 +436,7 @@ where
     }
 
     /// Return current pipeline state.
-    ///
+    #[must_use]
     pub fn state(&self) -> gst::State {
         self.pipeline.current_state()
     }
@@ -435,6 +447,13 @@ where
     ///
     /// - `id`: Unique identifier of the stream.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream bin can't be set to NULL.
+    ///
+    /// # Panics
+    ///
+    /// This panics if the stream's bin can't be found in the pipeline.
     pub fn remove_stream(&mut self, id: STREAMID) -> Result<()>
     where
         SRC: Source,
@@ -545,6 +564,9 @@ where
 
     /// Return `true`, if stream currently provides video
     ///
+    /// # Errors
+    ///
+    /// This can fail if there is no stream with the given `id`.
     pub fn has_video(&self, id: &STREAMID) -> Result<bool> {
         Ok(self.get_stream(id)?.status.has_video)
     }
@@ -558,6 +580,9 @@ where
     /// - `id`: Describes which stream shall be updated.
     /// - `new_status`: New status to override.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream isn't in the `streams` list.
     pub fn set_status(&mut self, id: &STREAMID, new_status: StreamStatus) -> Result<()> {
         info!("set_status( {id}, {new_status} )");
 
@@ -578,6 +603,9 @@ where
     ///
     /// - `id`: ID of the stream.
     ///
+    /// # Errors
+    ///
+    /// This can fail if the stream isn't in the `streams` list.
     fn get_stream_mut(&mut self, id: &STREAMID) -> Result<&mut Stream<SRC>> {
         self.streams
             .get_mut(id)
@@ -604,13 +632,13 @@ where
     /// - `params`: Parameters of graph.
     ///
     pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
-        debug::dot_ext(&self.pipeline, filename_without_extension, params)
+        debug::dot_ext(&self.pipeline, filename_without_extension, params);
     }
 
     fn invisibles(&self) -> Vec<STREAMID> {
         self.streams
             .keys()
-            .cloned()
+            .copied()
             .filter(|id| !self.visibles.contains(id))
             .collect()
     }
@@ -623,6 +651,9 @@ where
 
     /// Re-layout the current compositor scene.
     ///
+    /// # Panics
+    ///
+    /// This can panic if it's unable to get the src pad from the `videoconvertscale`.
     pub fn rerender_layout(&mut self) {
         trace!(
             "layout({}): {}{}",
@@ -703,33 +734,34 @@ where
             .send(Validation::Valid)
             .expect("cannot send layout validation");
     }
+}
 
-    fn monitor_layout(&self, receiver: std::sync::mpsc::Receiver<Validation>) {
-        // monitor in a thread if `valid` will be set within latency timeout
-        std::thread::spawn({
-            move || {
-                let mut valid = Validation::Valid;
-                loop {
-                    match valid {
-                        Validation::Invalid => {
-                            match receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
-                                Ok(v) => valid = v,
-                                Err(_) => error!(
-                                    "missing desired layout update since {duration}ms",
-                                    duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
-                                ),
-                            }
+fn monitor_layout(receiver: std::sync::mpsc::Receiver<Validation>) {
+    // monitor in a thread if `valid` will be set within latency timeout
+    std::thread::spawn({
+        move || {
+            let mut valid = Validation::Valid;
+            loop {
+                match valid {
+                    Validation::Invalid => {
+                        if let Ok(v) = receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
+                            valid = v;
+                        } else {
+                            error!(
+                                "missing desired layout update since {duration}ms",
+                                duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
+                            );
                         }
-                        Validation::Valid => match receiver.recv() {
-                            Ok(v) => valid = v,
-                            Err(_) => todo!(),
-                        },
-                        Validation::Stop => break,
                     }
+                    Validation::Valid => match receiver.recv() {
+                        Ok(v) => valid = v,
+                        Err(_) => todo!(),
+                    },
+                    Validation::Stop => break,
                 }
             }
-        });
-    }
+        }
+    });
 }
 
 impl<SRC, STREAMID> Drop for Mixer<SRC, STREAMID>

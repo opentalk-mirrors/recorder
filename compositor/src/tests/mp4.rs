@@ -14,7 +14,7 @@ fn test_mp4() {
         Speaker::default(),
         Mp4Sink::new(
             "test",
-            Mp4Parameters {
+            &Mp4Parameters {
                 file_path: testing::output_file("mp4sink.mp4").into(),
                 ..Default::default()
             },

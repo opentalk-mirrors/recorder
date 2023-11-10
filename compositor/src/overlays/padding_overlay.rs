@@ -4,8 +4,9 @@
 
 //! Overlay which adds extra padding to the picture
 
-use crate::*;
 use gst::prelude::*;
+
+use crate::Overlay;
 
 /// Text overlay.
 #[derive(Debug, Clone)]
@@ -22,8 +23,13 @@ pub struct Padding {
 }
 
 impl PaddingOverlay {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(name: &str, padding: Padding) -> PaddingOverlay {
+    /// Creates a new padding overlay.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `PaddingOverlay` can't be created in `GStreamer`.
+    #[must_use]
+    pub fn new(name: &str, padding: &Padding) -> PaddingOverlay {
         trace!("new( {padding:?} )");
 
         // create videobox element
@@ -42,12 +48,14 @@ impl PaddingOverlay {
 }
 
 impl Overlay for PaddingOverlay {
+    #[must_use]
     fn element(&self) -> &gst::Element {
         &self.element
     }
     fn show(&self, _: bool) {
         unimplemented!()
     }
+    #[must_use]
     fn sink(&self) -> gst::Pad {
         self.element()
             .static_pad("sink")

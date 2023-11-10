@@ -4,7 +4,7 @@
 
 use serde::Deserialize;
 
-use crate::*;
+use crate::{add_ghost_pad, Sink};
 
 const DEFAULT_AUDIO_RATE: usize = 48000;
 const DEFAULT_AUDIO_BITRATE: usize = 96000;
@@ -45,6 +45,11 @@ pub enum SpeedPreset {
 
 impl RTMPSink {
     /// Create and add new rtmp sink into existing pipeline.
+    ///
+    /// # Panics
+    ///
+    /// This can panic if the `RTMPSink` can't be created in `GStreamer`.
+    #[must_use]
     pub fn new(name: &str, parameters: RTMPParameters) -> RTMPSink {
         trace!("new({name})");
 
@@ -96,14 +101,17 @@ impl RTMPSink {
 }
 
 impl Sink for RTMPSink {
+    #[must_use]
     fn video(&self) -> gst::GhostPad {
         self.video_sink_pad.clone()
     }
 
+    #[must_use]
     fn audio(&self) -> gst::GhostPad {
         self.audio_sink_pad.clone()
     }
 
+    #[must_use]
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
     }
