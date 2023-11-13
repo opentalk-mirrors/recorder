@@ -71,6 +71,7 @@ fn test_speaker_mode_with_prio() {
             resolution: Size::SD,
             name: Some(format!("{}'s screen", streams[0].1)),
             pattern: Pattern::Smpte75,
+            has_video: true,
         },
         StreamStatus::default(),
     )

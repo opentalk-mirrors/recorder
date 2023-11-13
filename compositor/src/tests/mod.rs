@@ -154,6 +154,7 @@ pub mod testing {
                 resolution: resolutions[i % images.len()],
                 pattern: Pattern::Location(testing::image_file(images[i % images.len()])),
                 name: Some(name.clone()),
+                has_video: true,
             };
             talk.add_stream(StreamId::camera(*id), name, params, StreamStatus::default())
                 .unwrap();

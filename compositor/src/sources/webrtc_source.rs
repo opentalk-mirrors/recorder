@@ -19,15 +19,25 @@ pub struct WebRtcSource {
     bin: gst::Bin,
     /// WebRTC GStreamer element which manages mostly everything.
     webrtcbin: gst::Element,
-    video_src: gst::GhostPad,
+    video_src: Option<gst::GhostPad>,
     audio_src: gst::GhostPad,
 }
 
 type OnCandidateCallback = Arc<dyn Fn(u32, Option<String>) + Send + Sync>;
 
-#[derive(Default)]
 pub struct WebRtcSourceParams {
     on_ice_candidate: Option<OnCandidateCallback>,
+    has_video: bool,
+}
+
+impl WebRtcSourceParams {
+    #[must_use]
+    pub fn new(has_video: bool) -> Self {
+        Self {
+            on_ice_candidate: None,
+            has_video,
+        }
+    }
 }
 
 impl Debug for WebRtcSourceParams {
@@ -72,18 +82,23 @@ impl Source for WebRtcSource {
             .by_name("webrtc")
             .expect("failed to find webrtc in pipeline");
 
-        let video_src = gst::GhostPad::new(Some("video"), gst::PadDirection::Src);
-        let audio_src = gst::GhostPad::new(Some("audio"), gst::PadDirection::Src);
+        let video_src = if params.has_video {
+            let video_src = gst::GhostPad::new(Some("video"), gst::PadDirection::Src);
+            bin.add_pad(&video_src)
+                .expect("failed to add video output ghost pad to webrtc bin");
+            Some(video_src)
+        } else {
+            None
+        };
 
-        bin.add_pad(&video_src)
-            .expect("failed to add video output ghost pad to webrtc bin");
+        let audio_src = gst::GhostPad::new(Some("audio"), gst::PadDirection::Src);
         bin.add_pad(&audio_src)
             .expect("failed to add audio output ghost pad to webrtc bin");
 
         webrtcbin.connect_pad_added(webrtcbin_on_pad_added(
             bin.downgrade(),
             audio_src.downgrade(),
-            video_src.downgrade(),
+            video_src.clone().map(|video_src| video_src.downgrade()),
         ));
 
         if let Some(on_candidate) = params.on_ice_candidate {
@@ -119,7 +134,7 @@ impl Source for WebRtcSource {
         self.bin.clone()
     }
 
-    fn video(&self) -> gst::GhostPad {
+    fn video(&self) -> Option<gst::GhostPad> {
         self.video_src.clone()
     }
 
@@ -234,7 +249,7 @@ impl WebRtcSource {
 fn webrtcbin_on_pad_added(
     bin: WeakRef<gst::Bin>,
     audio_ghost_pad: WeakRef<gst::GhostPad>,
-    video_ghost_pad: WeakRef<gst::GhostPad>,
+    video_ghost_pad: Option<WeakRef<gst::GhostPad>>,
 ) -> impl Fn(&gst::Element, &gst::Pad) {
     move |_, pad| {
         let Some(bin) = bin.upgrade() else {
@@ -259,7 +274,7 @@ fn try_webrtcbin_on_pad_added(
     bin: &gst::Bin,
     pad: &gst::Pad,
     audio_ghost_pad: WeakRef<gst::GhostPad>,
-    video_ghost_pad: WeakRef<gst::GhostPad>,
+    video_ghost_pad: Option<WeakRef<gst::GhostPad>>,
 ) -> Result<()> {
     // Check what kind of media this pad emits
     let caps = pad.caps().context("no caps in added pad")?;
@@ -269,21 +284,30 @@ fn try_webrtcbin_on_pad_added(
         .get("media")
         .context("Failed to get media type from rtp field")?;
 
-    let name = match media.as_str() {
-        "audio" => "audio-in",
-        "video" => "video-in",
-        _ => bail!("Got unknown media type {media} on new pad from webrtcbin"),
+    let ghost_pad = match (media.as_str(), video_ghost_pad) {
+        ("audio", _) => audio_ghost_pad,
+        ("video", Some(video_ghost_pad)) => video_ghost_pad,
+        _ => {
+            let fakesink = gst::ElementFactory::make("fakesink").build()?;
+            bin.add(&fakesink)
+                .context("unable to add `fakesink` to `bin`")?;
+            let fakesink_sink_pad = fakesink
+                .static_pad("sink")
+                .context("unable to get static pad `sink` from `fakesink`")?;
+            pad.link(&fakesink_sink_pad)
+                .context("unable to link `pad` to `fakesink_sink_pad`")?;
+            fakesink
+                .sync_state_with_parent()
+                .context("unable to sync `fakesink` with parent")?;
+            return Ok(());
+        }
     };
 
     // Create a decodebin which will decode the rtp to raw media (audio/video)
-    let decodebin = gst::ElementFactory::make("decodebin").name(name).build()?;
+    let decodebin = gst::ElementFactory::make("decodebin").build()?;
 
     // Handle new source pads created by decodebin
-    decodebin.connect_pad_added(decodebin_on_pad_added(
-        bin.downgrade(),
-        audio_ghost_pad,
-        video_ghost_pad,
-    ));
+    decodebin.connect_pad_added(decodebin_on_pad_added(ghost_pad));
 
     // Add the decodebin to the subscriber bin and sync its current running state
     bin.add(&decodebin)?;
@@ -292,7 +316,7 @@ fn try_webrtcbin_on_pad_added(
     // link the new pad with the decodebin
     let decode_sink_pad = decodebin
         .static_pad("sink")
-        .expect("decodebin has a static_pad named `sink`");
+        .context("decodebin has a static_pad named `sink`")?;
     pad.link(&decode_sink_pad)?;
 
     Ok(())
@@ -301,17 +325,9 @@ fn try_webrtcbin_on_pad_added(
 /// Creates a closure which is called by gstreamer when the decodebin object added a new pad.
 ///
 /// Pads are created for every media format decodebin recogizes on its sink
-fn decodebin_on_pad_added(
-    bin: WeakRef<gst::Bin>,
-    audio_ghost_pad: WeakRef<gst::GhostPad>,
-    video_ghost_pad: WeakRef<gst::GhostPad>,
-) -> impl Fn(&gst::Element, &gst::Pad) {
+fn decodebin_on_pad_added(ghost_pad: WeakRef<gst::GhostPad>) -> impl Fn(&gst::Element, &gst::Pad) {
     move |_, pad| {
-        let Some(bin) = bin.upgrade() else { return };
-        let Some(audio_ghost_pad) = audio_ghost_pad.upgrade() else {
-            return;
-        };
-        let Some(video_ghost_pad) = video_ghost_pad.upgrade() else {
+        let Some(ghost_pad) = ghost_pad.upgrade() else {
             return;
         };
 
@@ -321,61 +337,20 @@ fn decodebin_on_pad_added(
             return;
         }
 
-        if let Err(e) = try_decodebin_on_pad_added(&bin, pad, audio_ghost_pad, video_ghost_pad) {
+        if let Err(e) = try_decodebin_on_pad_added(pad, &ghost_pad) {
             log::error!("Failed to handle decodebin's pad-added event, {e:?}");
         }
     }
 }
 
-fn try_decodebin_on_pad_added(
-    bin: &gst::Bin,
-    pad: &gst::Pad,
-    audio_ghost_pad: gst::GhostPad,
-    video_ghost_pad: gst::GhostPad,
-) -> Result<()> {
-    // Check what kind of media this pad emits
-    let caps = pad.caps().context("no caps in added pad")?;
-    let caps = caps.structure(0).context("empty caps list")?;
-
-    let (convert_name, scale_name, ghost_pad) = if caps.name().starts_with("audio") {
-        ("audioconvert", "audioresample", audio_ghost_pad)
-    } else if caps.name().starts_with("video") {
-        ("videoconvert", "videoscale", video_ghost_pad)
-    } else {
-        // If it neither audio nor video we ignore it
-        warn!(
-            "Receiving unknown media media, expected either audio or video (got {})",
-            caps.name()
-        );
-        return Ok(());
-    };
-
+fn try_decodebin_on_pad_added(pad: &gst::Pad, ghost_pad: &gst::GhostPad) -> Result<()> {
     // Check if the ghost pad for the audio or video has already has it's target set.
     // If the target has been set it means we've received a second stream with the same media type (audio/video)
     if ghost_pad.target().is_some() {
-        warn!("Received another {} stream in the same WebRTC subscription, discarding duplicate media types", caps.name());
-        return Ok(());
+        bail!("Received another stream in the same WebRTC subscription, discarding duplicate media types");
     }
 
-    let convert = gst::ElementFactory::make(convert_name).build()?;
-    let scale = gst::ElementFactory::make(scale_name).build()?;
-    let queue = gst::ElementFactory::make("queue").build()?;
-
-    bin.add_many(&[&convert, &scale, &queue])?;
-    gst::Element::link_many(&[&convert, &scale, &queue])?;
-
-    let convert_sink = convert
-        .static_pad("sink")
-        .expect("convert element has a static pad `sink`");
-    pad.link(&convert_sink)?;
-
-    let queue_src = queue.static_pad("src").expect("queue has static pad `src`");
-
-    ghost_pad.set_target(Some(&queue_src))?;
-
-    convert.sync_state_with_parent()?;
-    scale.sync_state_with_parent()?;
-    queue.sync_state_with_parent()?;
+    ghost_pad.set_target(Some(pad))?;
 
     Ok(())
 }

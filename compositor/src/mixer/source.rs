@@ -37,6 +37,6 @@ pub trait Source: Debug {
         true
     }
 
-    fn video(&self) -> gst::GhostPad;
+    fn video(&self) -> Option<gst::GhostPad>;
     fn audio(&self) -> gst::GhostPad;
 }

@@ -302,7 +302,7 @@ fn create_publish_pipeline(
     talk.add_stream(
         StreamId::camera(id),
         &format!("Mock {id}"),
-        WebRtcSourceParams::default().on_ice_candidate(move |mline, candidate| {
+        WebRtcSourceParams::new(true).on_ice_candidate(move |mline, candidate| {
             if let Some(webrtcbin) = webrtcbin_weak.upgrade() {
                 webrtcbin.emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);
             }

@@ -475,7 +475,7 @@ fn stream_params(
     id: StreamId<ParticipantId>,
     sender: mpsc::Sender<(StreamId<ParticipantId>, u32, Option<String>)>,
 ) -> WebRtcSourceParams {
-    WebRtcSourceParams::default().on_ice_candidate(move |mline, candidate| {
+    WebRtcSourceParams::new(true).on_ice_candidate(move |mline, candidate| {
         let _ = sender.blocking_send((id, mline, candidate));
     })
 }

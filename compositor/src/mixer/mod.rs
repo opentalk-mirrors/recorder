@@ -267,50 +267,58 @@ where
         // create new source bin
         let source = SRC::new(&id, params);
 
-        let bin = gst::parse_bin_from_description(
-            format!(
+        let bin = if source.video().is_some() {
+            let description = format!(
                 r#"
-            name="Overlay: {id}"
+                    name="Overlay: {id}"
 
-            videoconvertscale
-                name=videoconvertscale
-            ! capsfilter
-                name=capsfilter
-            "#
-            )
-            .as_str(),
-            false,
-        )
-        .expect("creation of bin failed");
+                    videoconvertscale
+                        name=videoconvertscale
+                    ! capsfilter
+                        name=capsfilter
+                "#
+            );
+            gst::parse_bin_from_description(&description, false).expect("creation of bin failed")
+        } else {
+            gst::ElementFactory::make_with_name("bin", Some(&format!("Overlay: {id}")))?
+                .dynamic_cast::<gst::Bin>()
+                .expect("creation of bin failed")
+        };
 
         // add source to the bin
         bin.add(&source.bin()).expect("failed to add source to bin");
 
-        // add overlay to the bin
-        bin.add(overlay.element())?;
+        let video = if let Some(video) = source.video() {
+            // add overlay to the bin
+            bin.add(overlay.element())?;
 
-        bin.by_name("capsfilter")
-            .expect("unable to get capfilter from bin")
-            .static_pad("src")
-            .expect("unable to get src of capsfilter")
-            .link(&overlay.sink())
-            .expect("unable to link the capsfilter to the overlay");
+            bin.by_name("capsfilter")
+                .expect("unable to get capfilter from bin")
+                .static_pad("src")
+                .expect("unable to get src of capsfilter")
+                .link(&overlay.sink())
+                .expect("unable to link the capsfilter to the overlay");
 
-        // link source to overlay
-        source
-            .video()
-            .link(
-                &bin.by_name("videoconvertscale")
-                    .expect("unable to get videoconvertscale from bin")
-                    .static_pad("sink")
-                    .expect("unable to get sink of videoconvertscale"),
-            )
-            .expect("could not link video source to overlay");
+            // link source to overlay
+            video
+                .link(
+                    &bin.by_name("videoconvertscale")
+                        .expect("unable to get videoconvertscale from bin")
+                        .static_pad("sink")
+                        .expect("unable to get sink of videoconvertscale"),
+                )
+                .expect("could not link video source to overlay");
 
-        let video = gst::GhostPad::with_target(Some("video"), &overlay.src())
-            .expect("failed to create ghost pad for source video output");
-        bin.add_pad(&video)
-            .expect("failed to add video output ghost pad to source bin");
+            let video = gst::GhostPad::with_target(Some("video"), &overlay.src())
+                .expect("failed to create ghost pad for source video output");
+
+            bin.add_pad(&video)
+                .expect("failed to add video output ghost pad to source bin");
+
+            Some(video)
+        } else {
+            None
+        };
 
         // add the bin to the pipeline
         self.pipeline
@@ -325,9 +333,12 @@ where
             .expect("could not get sink at compositor");
         compositor_sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
         compositor_sink.set_property("alpha", 0.0);
-        video
-            .link(&compositor_sink)
-            .expect("could not connect video stream to compositor");
+
+        if let Some(video) = video.clone() {
+            video
+                .link(&compositor_sink)
+                .expect("could not connect video stream to compositor");
+        }
 
         // get audio source pad (no audio overlay yet)
         let Some(audio_src) = source.bin().static_pad("audio") else {
@@ -468,8 +479,9 @@ where
 
         trace!("releasing requested pads from mixers");
         // release video and audio sink pads
-        self.compositor
-            .release_request_pad(&stream.compositor_sink());
+        if let Some(compositor_sink) = &stream.compositor_sink() {
+            self.compositor.release_request_pad(compositor_sink);
+        }
         self.audiomixer
             .release_request_pad(&stream.audiomixer_sink());
 
@@ -680,32 +692,33 @@ where
         // layout all video streams
         for (n, id) in streams.iter().enumerate() {
             let stream = self.streams.get(id).expect("stream not found");
-            let compositor_sink = stream.compositor_sink();
-            if let Some(view) = self.layout.calculate_stream_view(n) {
-                compositor_sink.set_properties(&[
-                    ("xpos", &(view.pos.x as i32).to_value()),
-                    ("ypos", &(view.pos.y as i32).to_value()),
-                    ("width", &(view.size.width as i32).to_value()),
-                    ("height", &(view.size.height as i32).to_value()),
-                    ("alpha", &(1.0).to_value()),
-                ]);
-                // Scale down the original video so the text overlay can be rendered properly
-                stream.capsfilter().set_property(
-                    "caps",
-                    gst::Caps::builder("video/x-raw")
-                        .field("width", view.size.width as i32)
-                        .field("height", view.size.height as i32)
-                        .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
-                        .build(),
-                );
-                // Reconfigure the videoconverscale after changing the size
-                stream
-                    .videoconvertscale()
-                    .static_pad("src")
-                    .expect("unable to get src from videoconvertscale")
-                    .send_event(gst::event::Reconfigure::new());
-            } else {
-                compositor_sink.set_property("alpha", 0.0);
+            if let Some(compositor_sink) = stream.compositor_sink() {
+                if let Some(view) = self.layout.calculate_stream_view(n) {
+                    compositor_sink.set_properties(&[
+                        ("xpos", &(view.pos.x as i32).to_value()),
+                        ("ypos", &(view.pos.y as i32).to_value()),
+                        ("width", &(view.size.width as i32).to_value()),
+                        ("height", &(view.size.height as i32).to_value()),
+                        ("alpha", &(1.0).to_value()),
+                    ]);
+                    // Scale down the original video so the text overlay can be rendered properly
+                    stream.capsfilter().set_property(
+                        "caps",
+                        gst::Caps::builder("video/x-raw")
+                            .field("width", view.size.width as i32)
+                            .field("height", view.size.height as i32)
+                            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+                            .build(),
+                    );
+                    // Reconfigure the videoconverscale after changing the size
+                    stream
+                        .videoconvertscale()
+                        .static_pad("src")
+                        .expect("unable to get src from videoconvertscale")
+                        .send_event(gst::event::Reconfigure::new());
+                } else {
+                    compositor_sink.set_property("alpha", 0.0);
+                }
             }
         }
 
