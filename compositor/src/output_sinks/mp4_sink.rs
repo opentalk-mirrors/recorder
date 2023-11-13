@@ -83,7 +83,7 @@ impl Mp4Sink {
 impl Sink for Mp4Sink {
     /// Get video sink pad from Matroska sink.
     #[must_use]
-    fn video(&self) -> gst::GhostPad {
+    fn video(&self) -> Option<gst::GhostPad> {
         self.matroska_sink.video()
     }
 

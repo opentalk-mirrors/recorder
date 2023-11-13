@@ -8,8 +8,8 @@ use crate::{add_ghost_pad, Sink};
 #[derive(Debug)]
 pub struct DisplaySink {
     bin: gst::Bin,
-    video_sink: gst::GhostPad,
     audio_sink: gst::GhostPad,
+    video_sink: Option<gst::GhostPad>,
 }
 
 impl DisplaySink {
@@ -19,48 +19,59 @@ impl DisplaySink {
     ///
     /// This can panic if the `DisplaySink` can't be created in `GStreamer`.
     #[must_use]
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, has_video: bool) -> Self {
         trace!("new({name})");
 
-        // create new GStreamer pipeline
-        // HINT: Enabling the sync for video and audio for the same time is blocking in multisink
-        let bin = gst::parse_bin_from_description(
-            &format!(
-                r#" 
+        let mut description = format!(
+            r#" 
                 name="{name}"
-
-                autovideosink
-                    name=video
-                    sync=false
-
+                
                 autoaudiosink
                     name=audio
                     sync=true
                 "#
-            ),
-            false,
         )
-        .expect("could not parse display link pipeline");
+        .to_string();
 
-        // return new display sink
+        if has_video {
+            description += r#"
+                autovideosink
+                    name=video
+                    sync=false
+                "#;
+        }
+
+        // create new GStreamer pipeline
+        // HINT: Enabling the sync for video and audio for the same time is blocking in multisink
+        let bin = gst::parse_bin_from_description(&description, false)
+            .expect("could not parse display link pipeline");
+
+        let video_sink = if has_video {
+            Some(add_ghost_pad(&bin, "video", "sink"))
+        } else {
+            None
+        };
+
+        let audio_sink = add_ghost_pad(&bin, "audio", "sink");
+
         Self {
-            video_sink: add_ghost_pad(&bin, "video", "sink"),
-            audio_sink: add_ghost_pad(&bin, "audio", "sink"),
             bin,
+            audio_sink,
+            video_sink,
         }
     }
 }
 
 impl Default for DisplaySink {
     fn default() -> Self {
-        Self::new("Display Sink")
+        Self::new("Display Sink", true)
     }
 }
 
 impl Sink for DisplaySink {
     /// Get video sink pad.
     #[must_use]
-    fn video(&self) -> gst::GhostPad {
+    fn video(&self) -> Option<gst::GhostPad> {
         self.video_sink.clone()
     }
 

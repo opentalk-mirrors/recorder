@@ -102,8 +102,8 @@ impl RTMPSink {
 
 impl Sink for RTMPSink {
     #[must_use]
-    fn video(&self) -> gst::GhostPad {
-        self.video_sink_pad.clone()
+    fn video(&self) -> Option<gst::GhostPad> {
+        Some(self.video_sink_pad.clone())
     }
 
     #[must_use]

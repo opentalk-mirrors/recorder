@@ -110,7 +110,7 @@ impl Default for DashParameters {
 impl Sink for DashSink {
     /// Get video sink pad from Matroska sink.
     #[must_use]
-    fn video(&self) -> gst::GhostPad {
+    fn video(&self) -> Option<gst::GhostPad> {
         self.matroska_sink.video()
     }
 

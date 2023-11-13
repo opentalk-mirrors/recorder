@@ -67,14 +67,15 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let temp_dir = TempDir::new().expect("unable to create temp dir");
 
     let sinks: Vec<Box<dyn Sink>> = vec![Box::new(TestSink::new("TestSink"))];
-    let multi_sink = MultiSink::new(MultiParameters::new(sinks));
+    let multi_sink =
+        MultiSink::new(MultiParameters::new(sinks)).expect("unablt to create multisink");
     let talk = Talk::new(
         compositor::Size::FHD,
         compositor::layout::Speaker::default(),
         multi_sink,
         MAX_VISIBLES,
     )
-    .unwrap();
+    .expect("unable to create talk");
 
     let mut recording_session = RecordingSession::new(
         Arc::new(recorder),

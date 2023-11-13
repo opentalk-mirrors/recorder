@@ -17,7 +17,8 @@ fn test_multi() {
                 Box::new(TestSink::new("Sink 1")),
                 Box::new(TestSink::new("Sink 2")),
             ],
-        }),
+        })
+        .unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();

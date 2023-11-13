@@ -4,7 +4,7 @@
 
 //! Talk manages a conference recording.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use core::{
     fmt::{Debug, Display},
     hash::Hash,
@@ -177,7 +177,8 @@ where
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
         let mixer =
-            Mixer::<SRC, StreamId<ID>>::new(resolution, layout, TalkOverlay::new().into(), sink)?;
+            Mixer::<SRC, StreamId<ID>>::new(resolution, layout, TalkOverlay::new().into(), sink)
+                .context("unable to create mixer")?;
 
         Ok(Self {
             mixer,

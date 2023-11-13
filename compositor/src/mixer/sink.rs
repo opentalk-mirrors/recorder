@@ -13,7 +13,7 @@ use crate::debug;
 /// Trait of an output sink.
 pub trait Sink: Send + Debug + 'static {
     /// Get sink pad of the video sink.
-    fn video(&self) -> gst::GhostPad;
+    fn video(&self) -> Option<gst::GhostPad>;
 
     /// Get sink pad of the audio sink.
     fn audio(&self) -> gst::GhostPad;

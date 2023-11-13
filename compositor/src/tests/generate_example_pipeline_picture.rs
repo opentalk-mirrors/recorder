@@ -23,11 +23,14 @@ fn generate_example_pipeline_picture() {
         ..debug::Params::states()
     };
 
-    let blinder = Box::new(TestBlinder::new(&TestBlinderParams {
-        sink: Box::new(TestSink::new("Streaming")),
-        resolution: testing::RESOLUTION,
-        ..Default::default()
-    }));
+    let blinder = Box::new(
+        TestBlinder::new(&TestBlinderParams {
+            sink: Box::new(TestSink::new("Streaming")),
+            resolution: testing::RESOLUTION,
+            ..Default::default()
+        })
+        .unwrap(),
+    );
 
     // setup mixer
     let mut talk = Talk::<TestSource, u32>::new(
@@ -35,7 +38,8 @@ fn generate_example_pipeline_picture() {
         Speaker::default(),
         MultiSink::new(MultiParameters {
             sinks: vec![blinder.clone(), Box::new(TestSink::new("Recording"))],
-        }),
+        })
+        .unwrap(),
         100,
     )
     .unwrap();

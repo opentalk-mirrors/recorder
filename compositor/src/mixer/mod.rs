@@ -67,7 +67,7 @@ where
     /// Currently visible streams.
     visibles: Vec<STREAMID>,
     /// GStreamer element which composes the output video out of the source videos.
-    compositor: gst::Element,
+    compositor: Option<gst::Element>,
     /// GStreamer element which composes the output audio out of the source audios.
     audiomixer: gst::Element,
     /// The mixer GStreamer pipeline.
@@ -103,6 +103,7 @@ where
     /// # Panics
     ///
     /// This can panic if the `Mixer` can't be created in `GStreamer`.
+    #[allow(clippy::too_many_lines)]
     pub fn new(
         output_resolution: Size,
         layout: impl Layout,
@@ -119,24 +120,7 @@ where
             output_resolution.ratio()
         );
 
-        // create new GStreamer pipeline
-        let pipeline = gst::parse_launch(&format!(
-            r#"
-            
-            videotestsrc
-            name="Video Background Source"
-            pattern=black
-                is-live=true
-            ! capssetter
-                name="Video Background Capssetter"
-                caps=video/x-raw,format=RGB,width={width},height={height}
-            ! compositor
-                name=video-compositor
-                ignore-inactive-pads=true
-                zero-size-is-unscaled=false
-            ! queue
-                name=video
-
+        let mut description = r#"
             audiotestsrc
                 name="Audio Background Source"
                 is-live=true
@@ -150,8 +134,33 @@ where
             ! queue
                 name=audio
             "#
-        ))
-        .expect("can not create pipeline");
+        .to_string();
+
+        if sink.video().is_some() {
+            description += format!(
+                r#"
+            videotestsrc
+                name="Video Background Source"
+                pattern=black
+                is-live=true
+            ! capssetter
+                name="Video Background Capssetter"
+                caps=video/x-raw,format=RGB,width={width},height={height}
+            ! compositor
+                name=video-compositor
+                ignore-inactive-pads=true
+                zero-size-is-unscaled=false
+            ! queue
+                name=video
+            "#
+            )
+            .as_str();
+        }
+
+        // create new GStreamer pipeline
+        let pipeline = gst::parse_launch(&description).context("can not create pipeline")?;
+
+        debug::dot(&pipeline, "mod");
 
         pipeline.set_property("name", "OpenTalk");
 
@@ -159,45 +168,55 @@ where
             .downcast::<gst::Pipeline>()
             .expect("not a pipeline");
 
-        // get video elements from bin
-        let compositor = pipeline
-            .by_name("video-compositor")
-            .expect("failed to get compositor from pipeline");
-        let video_out = pipeline
-            .by_name("video")
-            .expect("failed to get video output from pipeline");
-        let video_out_src = video_out
-            .static_pad("src")
-            .expect("failed to get source pad from video output");
-
         // get audio elements from bin
         let audio_mixer = pipeline
             .by_name("audio-mixer")
-            .expect("failed to get audio mixer from pipeline");
+            .context("failed to get audio mixer from pipeline")?;
         let audio_out = pipeline
             .by_name("audio")
-            .expect("failed to ger audio output from pipeline");
+            .context("failed to ger audio output from pipeline")?;
         let audio_out_src = audio_out
             .static_pad("src")
-            .expect("failed to get source pad from audio output");
+            .context("failed to get source pad from audio output")?;
 
-        // create output sink to pipeline
-        pipeline.add(&sink.bin())?;
+        let compositor = if let Some(video_sink) = &sink.video() {
+            // get video elements from bin
+            let compositor = pipeline
+                .by_name("video-compositor")
+                .context("failed to get compositor from pipeline")?;
 
-        // add overlay to pipeline
-        pipeline.add(overlay.element())?;
+            let video_out = pipeline
+                .by_name("video")
+                .context("failed to get video output from pipeline")?;
+            let video_out_src = video_out
+                .static_pad("src")
+                .context("failed to get source pad from video output")?;
 
-        // connect output pads to output sinks
-        video_out_src
-            .link(&overlay.sink())
-            .expect("failed to link video output pad to overlay sink");
-        overlay
-            .src()
-            .link(&sink.video())
-            .expect("failed to link overlay src pad to video output sink");
+            // create output sink to pipeline
+            pipeline.add(&sink.bin())?;
+            // add overlay to pipeline
+            pipeline.add(overlay.element())?;
+
+            // connect output pads to output sinks
+            video_out_src
+                .link(&overlay.sink())
+                .context("failed to link video output pad to overlay sink")?;
+            overlay
+                .src()
+                .link(video_sink)
+                .context("failed to link overlay src pad to video output sink")?;
+
+            Some(compositor)
+        } else {
+            // create output sink to pipeline
+            pipeline.add(&sink.bin())?;
+
+            None
+        };
+
         audio_out_src
             .link(&sink.audio())
-            .expect("failed to link output pad to audio output sink");
+            .context("failed to link output pad to audio output sink")?;
 
         // start pipeline
         pipeline.set_state(gst::State::Playing)?;
@@ -248,6 +267,7 @@ where
     /// # Panics
     ///
     /// This can panic if creating the `gst::Bin` fails.
+    #[allow(clippy::too_many_lines)]
     pub fn add_stream(
         &mut self,
         id: STREAMID,
@@ -267,7 +287,7 @@ where
         // create new source bin
         let source = SRC::new(&id, params);
 
-        let bin = if source.video().is_some() {
+        let bin = if self.compositor.is_some() && source.video().is_some() {
             let description = format!(
                 r#"
                     name="Overlay: {id}"
@@ -289,33 +309,50 @@ where
         bin.add(&source.bin()).expect("failed to add source to bin");
 
         let video = if let Some(video) = source.video() {
-            // add overlay to the bin
-            bin.add(overlay.element())?;
+            if self.compositor.is_some() {
+                // add overlay to the bin
+                bin.add(overlay.element())?;
 
-            bin.by_name("capsfilter")
-                .expect("unable to get capfilter from bin")
-                .static_pad("src")
-                .expect("unable to get src of capsfilter")
-                .link(&overlay.sink())
-                .expect("unable to link the capsfilter to the overlay");
+                bin.by_name("capsfilter")
+                    .expect("unable to get capfilter from bin")
+                    .static_pad("src")
+                    .expect("unable to get src of capsfilter")
+                    .link(&overlay.sink())
+                    .expect("unable to link the capsfilter to the overlay");
 
-            // link source to overlay
-            video
-                .link(
-                    &bin.by_name("videoconvertscale")
-                        .expect("unable to get videoconvertscale from bin")
-                        .static_pad("sink")
-                        .expect("unable to get sink of videoconvertscale"),
-                )
-                .expect("could not link video source to overlay");
+                // link source to overlay
+                video
+                    .link(
+                        &bin.by_name("videoconvertscale")
+                            .expect("unable to get videoconvertscale from bin")
+                            .static_pad("sink")
+                            .expect("unable to get sink of videoconvertscale"),
+                    )
+                    .expect("could not link video source to overlay");
 
-            let video = gst::GhostPad::with_target(Some("video"), &overlay.src())
-                .expect("failed to create ghost pad for source video output");
+                let video = gst::GhostPad::with_target(Some("video"), &overlay.src())
+                    .expect("failed to create ghost pad for source video output");
 
-            bin.add_pad(&video)
-                .expect("failed to add video output ghost pad to source bin");
+                bin.add_pad(&video)
+                    .expect("failed to add video output ghost pad to source bin");
 
-            Some(video)
+                Some(video)
+            } else {
+                let fakesink = gst::ElementFactory::make("fakesink").build()?;
+                bin.add(&fakesink)
+                    .context("unable to add `fakesink` to `bin`")?;
+                let fakesink_sink_pad = fakesink
+                    .static_pad("sink")
+                    .context("unable to get static pad `sink` from `fakesink`")?;
+                video
+                    .link(&fakesink_sink_pad)
+                    .context("failed to link video selector with target sink")?;
+                fakesink
+                    .sync_state_with_parent()
+                    .context("unable to sync `fakesink` with parent")?;
+
+                None
+            }
         } else {
             None
         };
@@ -327,17 +364,18 @@ where
 
         debug::debug_dot(&bin, "compositor_request_pad");
 
-        let compositor_sink = self
-            .compositor
-            .request_pad_simple("sink_%u")
-            .expect("could not get sink at compositor");
-        compositor_sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
-        compositor_sink.set_property("alpha", 0.0);
+        if let Some(compositor) = &self.compositor {
+            let compositor_sink = compositor
+                .request_pad_simple("sink_%u")
+                .expect("could not get sink at compositor");
+            compositor_sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
+            compositor_sink.set_property("alpha", 0.0);
 
-        if let Some(video) = video.clone() {
-            video
-                .link(&compositor_sink)
-                .expect("could not connect video stream to compositor");
+            if let Some(video) = video.clone() {
+                video
+                    .link(&compositor_sink)
+                    .expect("could not connect video stream to compositor");
+            }
         }
 
         // get audio source pad (no audio overlay yet)
@@ -479,8 +517,10 @@ where
 
         trace!("releasing requested pads from mixers");
         // release video and audio sink pads
-        if let Some(compositor_sink) = &stream.compositor_sink() {
-            self.compositor.release_request_pad(compositor_sink);
+        if let Some(compositor) = &self.compositor {
+            if let Some(compositor_sink) = &stream.compositor_sink() {
+                compositor.release_request_pad(compositor_sink);
+            }
         }
         self.audiomixer
             .release_request_pad(&stream.audiomixer_sink());
@@ -667,6 +707,11 @@ where
     ///
     /// This can panic if it's unable to get the src pad from the `videoconvertscale`.
     pub fn rerender_layout(&mut self) {
+        if self.compositor.is_none() {
+            // Doesn't need to rerender, if there is no compositor.
+            return;
+        };
+
         trace!(
             "layout({}): {}{}",
             self.output_resolution,
@@ -787,7 +832,6 @@ where
     ///
     fn drop(&mut self) {
         // ensure playing
-        assert_eq!(self.pipeline.current_state(), gst::State::Playing);
 
         debug!("Dropping mixer...");
         debug::debug_dot(&self.pipeline, "DROP");

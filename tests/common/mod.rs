@@ -90,7 +90,7 @@ impl EventRunner {
             }
         })
         .await;
-        assert!(result.is_ok(), "Event handler thread crashed");
+        result.expect("Event handler thread crashed");
     }
 
     async fn run_events(events: Vec<Event>) {

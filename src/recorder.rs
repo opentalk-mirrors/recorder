@@ -165,7 +165,7 @@ impl RecordingSession {
                 };
                 let name = format!("{tag}-Sink-{index}");
                 match sink {
-                    RecorderSink::Display => Box::new(DisplaySink::new(name.as_str())),
+                    RecorderSink::Display => Box::new(DisplaySink::new(name.as_str(), true)),
                     RecorderSink::Matroska(matroska_parameters) => {
                         Box::new(MatroskaSink::new(name.as_str(), &matroska_parameters))
                     }
@@ -190,7 +190,8 @@ impl RecordingSession {
             ))))
             .collect::<Vec<_>>();
 
-        let multi_sink = MultiSink::new(MultiParameters::new(sinks));
+        let multi_sink =
+            MultiSink::new(MultiParameters::new(sinks)).expect("unable to create mutlisink");
         let talk = Talk::new(
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),
