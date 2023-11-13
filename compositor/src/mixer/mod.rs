@@ -695,6 +695,7 @@ where
                     gst::Caps::builder("video/x-raw")
                         .field("width", view.size.width as i32)
                         .field("height", view.size.height as i32)
+                        .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
                         .build(),
                 );
                 // Reconfigure the videoconverscale after changing the size
