@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{Context, Result};
 use gst_base::prelude::*;
 
 use crate::{
@@ -43,11 +44,11 @@ impl Overlay for TalkOverlay {
         self.clock_overlay.show(show);
     }
     #[must_use]
-    fn sink(&self) -> gst::Pad {
+    fn sink(&self) -> Option<gst::Pad> {
         self.text_overlay.sink()
     }
     #[must_use]
-    fn src(&self) -> gst::Pad {
+    fn src(&self) -> Option<gst::Pad> {
         self.clock_overlay.src()
     }
 }
@@ -55,11 +56,14 @@ impl Overlay for TalkOverlay {
 impl TalkOverlay {
     /// Create and add new overlay sink into existing pipeline.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `TalkOverlay` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new() -> Self {
+    /// This can fail for the following reasons:
+    /// - The `PaddingOverlay` cannot be created.
+    /// - The `TextOverlay` cannot be created.
+    /// - The `ClockOverlay` cannot be created.
+    /// - Adding the elements to Gstreamer or linking them.
+    pub fn new() -> Result<Self> {
         let bin = gst::Bin::new(Some("Talk Overlay"));
         let padding_overlay = PaddingOverlay::new(
             "padding",
@@ -67,7 +71,8 @@ impl TalkOverlay {
                 top: TOP_PADDING,
                 ..Default::default()
             },
-        );
+        )
+        .context("unable to create PaddingOverlay")?;
         let text_overlay = TextOverlay::new(
             "Title Overlay",
             "",
@@ -82,7 +87,7 @@ impl TalkOverlay {
                 },
                 ..Default::default()
             },
-        );
+        )?;
         let clock_overlay = ClockOverlay::new(
             "Real Time Clock Overlay",
             "%x %X %Z",
@@ -97,37 +102,43 @@ impl TalkOverlay {
                 },
                 ..Default::default()
             },
-        );
+        )?;
 
-        bin.add(padding_overlay.element())
-            .expect("can not add padding overlay to video overlay bin");
-        bin.add(text_overlay.element())
-            .expect("can not add text overlay to video overlay bin");
-        bin.add(clock_overlay.element())
-            .expect("can not add clock overlay to video overlay bin");
+        bin.add_many(&[
+            padding_overlay.element(),
+            text_overlay.element(),
+            clock_overlay.element(),
+        ])
+        .context("unable to add padding_overlay, text_overlay and clock_overlay to the bin")?;
 
         gst::Element::link_many(&[
             padding_overlay.element(),
             text_overlay.element(),
             clock_overlay.element(),
         ])
-        .expect("cannot link participant overlay together");
+        .context("unable to link padding_overlay, text_overlay and clock_overlay together")?;
 
-        let video_sink = gst::GhostPad::with_target(Some("video_sink"), &padding_overlay.sink())
-            .expect("failed to create video ghost pad for participant overlay sink");
+        let padding_overlay_sink = padding_overlay
+            .sink()
+            .context("unable to get sink for padding_overlay")?;
+        let video_sink = gst::GhostPad::with_target(Some("video_sink"), &padding_overlay_sink)
+            .context("failed to create video ghost pad for participant overlay sink")?;
         bin.add_pad(&video_sink)
-            .expect("failed to add video ghost pad to participant overlay sink bin");
-        let video_src = gst::GhostPad::with_target(Some("src"), &clock_overlay.src())
-            .expect("failed to create video ghost pad for participant overlay sink");
+            .context("failed to add video ghost pad to participant overlay sink bin")?;
+        let clock_overlay_src = &clock_overlay
+            .src()
+            .context("unable to get src for clock_overlay")?;
+        let video_src = gst::GhostPad::with_target(Some("src"), clock_overlay_src)
+            .context("failed to create video ghost pad for participant overlay sink")?;
         bin.add_pad(&video_src)
-            .expect("failed to add video ghost pad to participant overlay sink bin");
+            .context("failed to add video ghost pad to participant overlay sink bin")?;
 
-        TalkOverlay {
+        Ok(Self {
             _padding_overlay: padding_overlay,
             text_overlay,
             clock_overlay,
             bin,
-        }
+        })
     }
     pub fn set_title(&self, title: &str) {
         self.text_overlay.set(title);
@@ -137,11 +148,5 @@ impl TalkOverlay {
     }
     pub fn show_clock(&self, visible: bool) {
         self.clock_overlay.show(visible);
-    }
-}
-
-impl Default for TalkOverlay {
-    fn default() -> Self {
-        Self::new()
     }
 }

@@ -38,19 +38,13 @@ pub struct MultiSink {
     audio: gst::GhostPad,
 }
 
-impl From<MultiParameters> for MultiSink {
-    fn from(params: MultiParameters) -> Self {
-        Self::new(params).expect("unable to initialise multisink")
-    }
-}
-
 impl MultiSink {
     /// Create new sink with given parameters
     ///
     /// # Errors
     ///
-    /// This can throw an error if the underlaying `GStreamer` is having
-    /// trouble.
+    /// This can throw an error if the `tee` cannot created for `GStreamer`.
+    /// Or if adding the `GhostPad` is failing for the `video` and `audio` sink
     pub fn new(params: MultiParameters) -> Result<Self> {
         trace!("new()");
 
@@ -70,8 +64,10 @@ impl MultiSink {
         .context("could not parse display link pipeline")?;
 
         // link tee sinks to ghostpads (must stay here - before the following code)
-        let video = add_ghost_pad(&bin, "video", "sink");
-        let audio = add_ghost_pad(&bin, "audio", "sink");
+        let video = add_ghost_pad(&bin, "video", "sink")
+            .context("unable to add GhostPad for video sink")?;
+        let audio = add_ghost_pad(&bin, "audio", "sink")
+            .context("unable to add GhostPad for audio sink")?;
 
         // get tees from bin
         let video_tee = bin.by_name("video").context("can't find video tee")?;
@@ -153,17 +149,21 @@ impl Sink for MultiSink {
         self.bin.clone()
     }
 
-    fn on_play(&mut self) {
-        self.sinks.iter_mut().for_each(|sink| sink.on_play());
+    fn on_play(&mut self) -> Result<()> {
+        self.sinks
+            .iter_mut()
+            .try_for_each(|sink| sink.on_play())
+            .context("unable to call on_exit on every sink")
     }
 
     fn on_pause(&mut self) {
         self.sinks.iter_mut().for_each(|sink| sink.on_pause());
     }
 
-    fn on_exit(&mut self, pipeline: &gst::Pipeline) {
+    fn on_exit(&mut self, pipeline: &gst::Pipeline) -> Result<()> {
         self.sinks
             .iter_mut()
-            .for_each(|sink| sink.on_exit(pipeline));
+            .try_for_each(|sink| sink.on_exit(pipeline))
+            .context("unable to call on_exit on every sink")
     }
 }

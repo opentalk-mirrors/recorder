@@ -12,7 +12,7 @@ fn test_stream_status() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        TestSink::default(),
+        TestSink::new("Testing Sink").unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();
@@ -26,7 +26,7 @@ fn test_stream_status() {
     for i in 0..5 {
         debug!("Testing stream {i}");
 
-        talk.set_title(&format!("Speaker {i} (audio off)"));
+        talk.set_title(&format!("Speaker {i} (audio off)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
             &StreamStatus {
@@ -42,7 +42,7 @@ fn test_stream_status() {
 
         testing::wait();
 
-        talk.set_title(&format!("Speaker {i} (video off)"));
+        talk.set_title(&format!("Speaker {i} (video off)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
             &StreamStatus {
@@ -58,7 +58,7 @@ fn test_stream_status() {
 
         testing::wait();
 
-        talk.set_title(&format!("Speaker {i} (a/v off)"));
+        talk.set_title(&format!("Speaker {i} (a/v off)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
             &StreamStatus {
@@ -74,7 +74,7 @@ fn test_stream_status() {
 
         testing::wait();
 
-        talk.set_title(&format!("Speaker {i} (a/v on)"));
+        talk.set_title(&format!("Speaker {i} (a/v on)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
             &StreamStatus {

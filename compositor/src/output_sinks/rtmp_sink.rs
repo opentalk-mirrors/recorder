@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{Context, Result};
 use serde::Deserialize;
 
 use crate::{add_ghost_pad, Sink};
@@ -46,11 +47,21 @@ pub enum SpeedPreset {
 impl RTMPSink {
     /// Create and add new rtmp sink into existing pipeline.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `RTMPSink` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new(name: &str, parameters: RTMPParameters) -> RTMPSink {
+    /// This can fail for the following reasons:
+    /// - Unable to create `videoconvert` for `GStreamer`.
+    /// - Unable to create `x264enc` for `GStreamer`.
+    /// - Unable to create `h264parse` for `GStreamer`.
+    /// - Unable to create `mux` for `GStreamer`.
+    /// - Unable to create `audioconvert` for `GStreamer`.
+    /// - Unable to create `audioresample` for `GStreamer`.
+    /// - Unable to create `fdkaacenc` for `GStreamer`.
+    /// - Unable to create `aacparse` for `GStreamer`.
+    /// - Unable to create `flvmux` for `GStreamer`.
+    /// - Unable to create `rtmpsink` for `GStreamer`.
+    /// - `GhostPad` cannot be created for the `video_sink_pad` or `audio_sink_pad`.
+    pub fn new(name: &str, parameters: RTMPParameters) -> Result<RTMPSink> {
         trace!("new({name})");
 
         let bin = gst::parse_bin_from_description(
@@ -90,13 +101,18 @@ impl RTMPSink {
             .as_str(),
             false,
         )
-        .expect("failed to create rtmp sink pipeline");
+        .context("failed to create rtmp sink pipeline")?;
 
-        Self {
-            video_sink_pad: add_ghost_pad(&bin, "video", "sink"),
-            audio_sink_pad: add_ghost_pad(&bin, "audio", "sink"),
+        let video_sink_pad = add_ghost_pad(&bin, "video", "sink")
+            .context("unable to add GhostPad for video sink")?;
+        let audio_sink_pad = add_ghost_pad(&bin, "audio", "sink")
+            .context("unable to add GhostPad for audio sink")?;
+
+        Ok(Self {
             bin,
-        }
+            video_sink_pad,
+            audio_sink_pad,
+        })
     }
 }
 

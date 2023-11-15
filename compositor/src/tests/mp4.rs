@@ -15,10 +15,11 @@ fn test_mp4() {
         Mp4Sink::new(
             "test",
             &Mp4Parameters {
+                name: "MP4 Sink",
                 file_path: testing::output_file("mp4sink.mp4").into(),
-                ..Default::default()
             },
-        ),
+        )
+        .unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();

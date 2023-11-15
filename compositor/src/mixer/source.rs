@@ -4,6 +4,7 @@
 
 //! Source trait.
 
+use anyhow::Result;
 use std::fmt::Debug;
 
 /// Trait of a participant's audio/video source.
@@ -20,8 +21,12 @@ pub trait Source: Debug {
     /// - `id`: Stream identifier under which this stream can be addressed later.
     /// - `params`: Source's proprietary parameters.
     ///
-    fn new<ID>(id: &ID, params: Self::Parameters) -> Self
+    /// # Errors
+    ///
+    /// This can fail if the `Source` cannot be created.
+    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
     where
+        Self: Sized,
         ID: std::fmt::Display;
 
     /// Return the source's bin.

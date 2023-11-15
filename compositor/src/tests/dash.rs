@@ -20,12 +20,13 @@ fn test_dash() {
                 seg_duration: 1.0,
                 ..Default::default()
             },
-        ),
+        )
+        .unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();
 
-    talk.set_speaker(0);
+    talk.set_speaker(0).unwrap();
     // add a stream
     talk.add_stream(
         StreamId::camera(0),

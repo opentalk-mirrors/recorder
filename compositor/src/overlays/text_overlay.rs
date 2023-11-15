@@ -6,6 +6,8 @@
 
 use gst::prelude::*;
 
+use anyhow::{Context, Result};
+
 use crate::{Overlay, TextStyle};
 
 /// Text overlay.
@@ -23,16 +25,15 @@ impl TextOverlay {
     /// - `text`: Text to display.
     /// - `style`: Style of the text display.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `TextOverlay` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new(name: &str, text: &str, style: TextStyle) -> TextOverlay {
+    /// This can fail if the `textoverlay` cannot be created in `GStreamer`.
+    pub fn new(name: &str, text: &str, style: TextStyle) -> Result<Self> {
         trace!("new( '{text}', {style:?} )");
 
         // create text overlay
         let element = gst::ElementFactory::make_with_name("textoverlay", Some(name))
-            .expect("failed to create text overlay");
+            .context("failed to create text overlay")?;
 
         // set up properties
         element.set_property("text", text);
@@ -52,7 +53,7 @@ impl TextOverlay {
         element.set_property("auto-resize", false);
 
         // return Overlay
-        Self { element }
+        Ok(Self { element })
     }
 
     /// Change text to display.

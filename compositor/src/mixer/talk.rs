@@ -4,7 +4,7 @@
 
 //! Talk manages a conference recording.
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use core::{
     fmt::{Debug, Display},
     hash::Hash,
@@ -176,9 +176,15 @@ where
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
-        let mixer =
-            Mixer::<SRC, StreamId<ID>>::new(resolution, layout, TalkOverlay::new().into(), sink)
-                .context("unable to create mixer")?;
+        let mixer = Mixer::<SRC, StreamId<ID>>::new(
+            resolution,
+            layout,
+            TalkOverlay::new()
+                .context("unable to create TalkOverlay")?
+                .into(),
+            sink,
+        )
+        .context("unable to create mixer")?;
 
         Ok(Self {
             mixer,
@@ -223,7 +229,8 @@ where
                 },
                 ..Default::default()
             },
-        );
+        )
+        .context("unable to create TextOverlay")?;
 
         // forward to mixer
         self.mixer.add_stream(
@@ -263,7 +270,9 @@ where
         // After removing push the next screen share in the list to the first
         // position
         if let Some(stream_id) = self.get_first_screen_capture() {
-            self.mixer.set_stream_to_first_position(&stream_id);
+            self.mixer
+                .set_stream_to_first_position(&stream_id)
+                .context("unable to set stream with id '{stream_id}' to first position")?;
         }
 
         Ok(())
@@ -271,15 +280,18 @@ where
 
     /// Remove all streams from mixer.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the stream can't be removed.
-    pub fn clear(&mut self) {
+    /// This can fail if some stream cannot be removed.
+    pub fn clear(&mut self) -> Result<()> {
         trace!("remove_all_stream()");
         let ids: Vec<StreamId<ID>> = self.mixer.streams.keys().copied().collect();
         for id in ids {
-            self.remove_stream(id).expect("cannot remove stream");
+            self.remove_stream(id)
+                .with_context(|| format!("cannot remove stream {id}"))?;
         }
+
+        Ok(())
     }
 
     /// Check if a given stream ID is known by the mixer.
@@ -316,7 +328,10 @@ where
     /// - `speaker`: Stream of the speaker or `None`.
     /// - `mode`: How the speaker comes into the scene.
     ///
-    pub fn set_speaker(&mut self, speaker: ID) {
+    /// # Errors
+    ///
+    /// This can fail if the speaker cannot be set to the first or second position.
+    pub fn set_speaker(&mut self, speaker: ID) -> Result<()> {
         info!("set_speaker( {speaker:?} )");
 
         self.current_speaker = Some(speaker);
@@ -325,7 +340,9 @@ where
         if let Some(stream) = self.mixer.streams.get(&stream_id) {
             // The speaker has no screen, so it doesn't need to update the position
             if stream.status.has_video {
-                self.mixer.set_stream_to_first_position(&stream_id);
+                self.mixer
+                    .set_stream_to_first_position(&stream_id)
+                    .context("unable to set stream with id '{stream_id}' to first position")?;
             }
         }
 
@@ -335,12 +352,18 @@ where
             if stream.status.has_video {
                 // check if noone is sharing their screen or the new speaker is also screen sharing
                 if self.get_first_screen_capture().is_none() {
-                    self.mixer.set_stream_to_first_position(&stream_id);
+                    self.mixer
+                        .set_stream_to_first_position(&stream_id)
+                        .context("unable to set stream with id '{stream_id}' to first position")?;
                 } else {
-                    self.mixer.set_stream_to_second_position(&stream_id);
+                    self.mixer
+                        .set_stream_to_second_position(&stream_id)
+                        .context("unable to set stream with id '{stream_id}' to second position")?;
                 }
             }
         }
+
+        Ok(())
     }
 
     pub fn unset_speaker(&mut self) {
@@ -375,8 +398,12 @@ where
         self.mixer.set_status(id, new_status.clone())?;
 
         match (old_status.has_video, new_status.has_video) {
-            (false, true) => self.show_stream(id),
-            (true, false) => self.hide_stream(id),
+            (false, true) => self
+                .show_stream(id)
+                .context("unable to show stream for id '{id}'")?,
+            (true, false) => self
+                .hide_stream(id)
+                .context("unable to hide stream for id '{id}'")?,
             _ => {}
         }
 
@@ -389,15 +416,15 @@ where
     ///
     /// - `title`: title text
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if there is no `AnyOverlay::Talk`
-    pub fn set_title(&self, title: &str) {
+    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
+    pub fn set_title(&self, title: &str) -> Result<()> {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.set_title(title);
-            return;
+            return Ok(());
         }
-        panic!("talk has no title overlay!")
+        bail!("talk has no title overlay!")
     }
 
     /// Show title of the talk
@@ -406,15 +433,15 @@ where
     ///
     /// - `show`: Visible if `true`
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if there is no `AnyOverlay::Talk`
-    pub fn show_title(&self, show: bool) {
+    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
+    pub fn show_title(&self, show: bool) -> Result<()> {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_title(show);
-            return;
+            return Ok(());
         }
-        panic!("talk has no title overlay!")
+        bail!("talk has no title overlay!")
     }
 
     /// Show clock in the talk
@@ -423,15 +450,15 @@ where
     ///
     /// - `show`: Visible if `true`
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if there is no `AnyOverlay::Talk`
-    pub fn show_clock(&self, show: bool) {
+    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
+    pub fn show_clock(&self, show: bool) -> Result<()> {
         if let AnyOverlay::Talk(overlay) = &self.mixer.overlay {
             overlay.show_clock(show);
-            return;
+            return Ok(());
         }
-        panic!("talk has no clock overlay!")
+        bail!("talk has no clock overlay!")
     }
 
     /// Set title in a stream
@@ -441,17 +468,17 @@ where
     /// - `id`: ID of the stream
     /// - `title`: title text
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if there is no stream or `AnyOverlay::Text`
-    pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) {
+    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
+    pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) -> Result<()> {
         if let Some(stream) = self.mixer.streams.get(id) {
             if let AnyOverlay::Text(overlay) = &stream.overlay {
                 overlay.set(title);
-                return;
+                return Ok(());
             }
         }
-        panic!("source {id} title overlay missing")
+        bail!("source {id} title overlay missing")
     }
 
     /// Show titles in streams
@@ -477,17 +504,22 @@ where
     /// - `false` if stream has been made visible.
     /// - `true` if max visibles was exceeded and stream could not be shown.
     ///
-    pub fn show_stream(&mut self, stream_id: &StreamId<ID>) {
+    /// # Errors
+    ///
+    /// This can fail if the `Mixer` cannot hide an old stream or show the new stream.
+    pub fn show_stream(&mut self, stream_id: &StreamId<ID>) -> Result<()> {
         // Check if the maximum amount of streams is reached
         if self.mixer.visibles.len() >= self.max_visibles {
             // If the new stream is just a camera feed, then don't show them
             if stream_id.media_type == MediaSessionType::Camera {
-                return;
+                return Ok(());
             }
             // The new camera feed is a screen share, which has a higher
             // priority, so the latest stream will be removed
             if let Some(id) = self.mixer.visibles.last().copied() {
-                self.mixer.hide_stream(&id);
+                self.mixer
+                    .hide_stream(&id)
+                    .context("unable hide stream for id '{id}'")?;
             }
         }
         // Check if the new stream is a screen capture
@@ -495,11 +527,19 @@ where
         // If someone is streaming, but the current speaker is the same user, push it to the first position
         let position_first = stream_id.media_type == MediaSessionType::ScreenCapture
             && self.get_first_screen_capture().is_none();
-        self.mixer.show_stream(stream_id, position_first);
+
+        self.mixer.show_stream(stream_id, position_first)
     }
 
-    pub fn hide_stream(&mut self, stream_id: &StreamId<ID>) {
-        self.mixer.hide_stream(stream_id);
+    /// Try to hide the stream.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `Mixer` cannot hide the given stream.
+    pub fn hide_stream(&mut self, stream_id: &StreamId<ID>) -> Result<()> {
+        self.mixer
+            .hide_stream(stream_id)
+            .context("unable to hide_stream in mixer")
     }
 
     /// Return `true`, if a stream is currently visible
@@ -512,8 +552,15 @@ where
         media_types().any(|media_type| self.mixer.is_visible(&StreamId::new(*id, media_type)))
     }
 
-    pub fn change_layout(&mut self, layout: impl Layout) {
-        self.mixer.change_layout(layout);
+    /// Change the current layout
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `Mixer` cannot rerender the new layout.
+    pub fn change_layout(&mut self, layout: impl Layout) -> Result<()> {
+        self.mixer
+            .change_layout(layout)
+            .context("unable to change_layout in mixer")
     }
 
     /// Get mutable access to a source specified by stream ID.
@@ -557,6 +604,8 @@ where
     fn drop(&mut self) {
         debug!("Stopped Talk");
         // remove all streams
-        self.clear();
+        if let Err(error) = self.clear() {
+            error!("unable to clear the Talk, error: {error}");
+        }
     }
 }

@@ -61,7 +61,7 @@ impl Source for WebRtcSource {
     type Parameters = WebRtcSourceParams;
 
     /// Create a new `WebRTC` source
-    fn new<ID>(id: &ID, params: Self::Parameters) -> Self
+    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
     where
         ID: Display,
     {
@@ -76,16 +76,16 @@ impl Source for WebRtcSource {
             "#,
             false,
         )
-        .expect("Failed to parse and load WebRtc pipeline. Is a gst plugin missing?");
+        .context("Failed to parse and load WebRtc pipeline. Is a gst plugin missing?")?;
 
         let webrtcbin = bin
             .by_name("webrtc")
-            .expect("failed to find webrtc in pipeline");
+            .context("failed to find webrtc in pipeline")?;
 
         let video_src = if params.has_video {
             let video_src = gst::GhostPad::new(Some("video"), gst::PadDirection::Src);
             bin.add_pad(&video_src)
-                .expect("failed to add video output ghost pad to webrtc bin");
+                .context("failed to add video output ghost pad to webrtc bin")?;
             Some(video_src)
         } else {
             None
@@ -93,7 +93,7 @@ impl Source for WebRtcSource {
 
         let audio_src = gst::GhostPad::new(Some("audio"), gst::PadDirection::Src);
         bin.add_pad(&audio_src)
-            .expect("failed to add audio output ghost pad to webrtc bin");
+            .context("failed to add audio output ghost pad to webrtc bin")?;
 
         webrtcbin.connect_pad_added(webrtcbin_on_pad_added(
             bin.downgrade(),
@@ -122,12 +122,12 @@ impl Source for WebRtcSource {
             });
         }
 
-        Self {
+        Ok(Self {
             bin,
             webrtcbin,
             video_src,
             audio_src,
-        }
+        })
     }
 
     fn bin(&self) -> gst::Bin {

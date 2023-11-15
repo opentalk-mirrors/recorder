@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{bail, Context, Result};
+
 use super::matroska_sink::MatroskaSink;
 use crate::{MatroskaParameters, Sink};
 
@@ -25,24 +27,17 @@ pub struct Mp4Parameters {
     pub file_path: std::path::PathBuf,
 }
 
-impl Default for Mp4Parameters {
-    fn default() -> Self {
-        Self {
-            name: "MP4 Sink",
-            file_path: std::env::current_dir().expect("could not get current directory"),
-        }
-    }
-}
-
 impl Mp4Sink {
     /// Create and add new MP4 sink into existing pipeline.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `Mp4Sink` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new(name: &str, params: &Mp4Parameters) -> Self {
-        let matroska_sink = MatroskaSink::new(name, &MatroskaParameters::default());
+    /// This can fail for the following reasons:
+    /// - `MatroskaSink` couln't initialized
+    /// - `ffmpeg` is missing
+    /// - `params.file_path` cannot converted to UTF-8
+    pub fn new(name: &str, params: &Mp4Parameters) -> Result<Self> {
+        let matroska_sink = MatroskaSink::new(name, &MatroskaParameters::default()).context("")?;
         let address = &format!("tcp://{}", matroska_sink.address);
 
         // TODO: use free codecs instead of ffmpeg's mp4 default.
@@ -58,7 +53,12 @@ impl Mp4Sink {
         let filename = params
             .file_path
             .to_str()
-            .expect("invalid path which could not be converted into UTF8")
+            .with_context(|| {
+                format!(
+                    "file path '{:?}' cannot be converted to UTF-8",
+                    params.file_path
+                )
+            })?
             .to_string();
         let process = Some(
             std::process::Command::new("ffmpeg")
@@ -68,15 +68,15 @@ impl Mp4Sink {
                     address, "-f", "mp4", &filename,
                 ])
                 .spawn()
-                .expect("failed to spawn FFmpeg process"),
+                .context("failed to spawn FFmpeg process")?,
         );
 
         // return new instance
-        Mp4Sink {
+        Ok(Mp4Sink {
             matroska_sink,
             process,
             filename,
-        }
+        })
     }
 }
 
@@ -99,28 +99,34 @@ impl Sink for Mp4Sink {
     }
 
     /// Starts the `FFmpeg` receiver which catches the output of the matroska sink.
-    fn on_play(&mut self) {
+    fn on_play(&mut self) -> Result<()> {
         trace!("on_play()");
 
         // check if FFmpeg process is still running
         if let Some(process) = &mut self.process {
             let result = process
                 .try_wait()
-                .expect("failed to get FFmpeg process status");
+                .context("failed to get FFmpeg process status")?;
 
             if let Some(code) = result {
-                error!("ffmpeg process died with code {}", code);
+                bail!("ffmpeg process died with code {}", code);
             }
         }
+
+        Ok(())
     }
 
-    fn on_exit(&mut self, pipeline: &gst::Pipeline) {
+    fn on_exit(&mut self, pipeline: &gst::Pipeline) -> Result<()> {
         trace!("on_exit()");
 
         crate::mixer::debug::debug_dot(pipeline, "on_exit");
 
         debug!("Closing file '{}'", self.filename);
-        self.matroska_sink.on_exit(pipeline);
+        self.matroska_sink
+            .on_exit(pipeline)
+            .context("unable to call on_exit on matroska_sink")?;
+
+        Ok(())
     }
 }
 
@@ -129,10 +135,12 @@ impl Drop for Mp4Sink {
         trace!("drop()");
 
         // Wait for ffmpeg to exit
-        let mut handle = self
-            .process
-            .take()
-            .expect("Failed to get the ffmpeg process handle. Crashed?");
-        handle.wait().expect("Wait on ffmpeg process failed.");
+        if let Some(mut handle) = self.process.take() {
+            if let Err(error) = handle.wait() {
+                error!("Wait on ffmpeg process failed, error: {error}");
+            }
+        } else {
+            error!("Failed to get the ffmpeg process handle. Crashed?");
+        }
     }
 }

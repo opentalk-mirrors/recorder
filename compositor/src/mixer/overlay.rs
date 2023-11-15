@@ -12,15 +12,11 @@ use crate::{ClockOverlay, TalkOverlay, TextOverlay};
 pub trait Overlay {
     /// Add overlay element
     fn element(&self) -> &gst::Element;
-    fn sink(&self) -> gst::Pad {
-        self.element()
-            .static_pad("video_sink")
-            .expect("overlay has no pad named `video_sink`")
+    fn sink(&self) -> Option<gst::Pad> {
+        self.element().static_pad("video_sink")
     }
-    fn src(&self) -> gst::Pad {
-        self.element()
-            .static_pad("src")
-            .expect("overlay has no pad named `src`")
+    fn src(&self) -> Option<gst::Pad> {
+        self.element().static_pad("src")
     }
     /// show or hide overlay element
     fn show(&self, show: bool);

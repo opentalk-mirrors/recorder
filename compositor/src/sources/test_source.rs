@@ -4,6 +4,8 @@
 
 use std::fmt::Display;
 
+use anyhow::{bail, Context, Result};
+
 use crate::{add_ghost_pad, Size, Source};
 
 /// Video test patterns.
@@ -66,10 +68,12 @@ pub enum Pattern {
     SmpteRp219,
 }
 
-impl From<Pattern> for &'static str {
-    fn from(s: Pattern) -> &'static str {
-        match s {
-            Pattern::Location(_) => panic!("location can not be used as pattern!"),
+impl TryFrom<Pattern> for &'static str {
+    type Error = anyhow::Error;
+
+    fn try_from(s: Pattern) -> Result<Self, Self::Error> {
+        let pattern = match s {
+            Pattern::Location(_) => bail!("location can not be used as pattern!"),
             Pattern::Smpte => "smpte",
             Pattern::Snow => "snow",
             Pattern::Black => "black",
@@ -96,7 +100,9 @@ impl From<Pattern> for &'static str {
             Pattern::Gradient => "gradient",
             Pattern::Colors => "colors",
             Pattern::SmpteRp219 => "smpte-rp-219",
-        }
+        };
+
+        Ok(pattern)
     }
 }
 
@@ -137,7 +143,7 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [`TestSource`] and add it to the given pipeline.
-    fn new<ID>(id: &ID, params: Self::Parameters) -> TestSource
+    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<TestSource>
     where
         ID: Display,
     {
@@ -171,7 +177,10 @@ impl Source for TestSource {
                     name = params.name.clone().unwrap_or_default()
                 )
             } else {
-                let pattern: &str = params.pattern.into();
+                let pattern: &str = params
+                    .pattern
+                    .try_into()
+                    .context("unable to get 'str' from pattern")?;
                 format!(
                     r#"
                         videotestsrc
@@ -202,20 +211,20 @@ impl Source for TestSource {
 
         // create bin including codecs and the dash sink
         let bin = gst::parse_bin_from_description(&description, false)
-            .expect("failed to create test source bin");
+            .context("failed to create test source bin")?;
 
-        let video_src = if params.has_video {
-            Some(add_ghost_pad(&bin, "video", "src"))
-        } else {
-            None
-        };
+        let video_src = Some(
+            add_ghost_pad(&bin, "video", "src").context("unable to add GhostPad for video src")?,
+        );
 
-        TestSource {
-            // remember elements and pads for connect/disconnect
-            video_src,
-            audio_src: add_ghost_pad(&bin, "audio", "src"),
+        let audio_src =
+            add_ghost_pad(&bin, "audio", "src").context("unable to add GhostPad for audio src")?;
+
+        Ok(TestSource {
             bin,
-        }
+            video_src,
+            audio_src,
+        })
     }
 
     fn bin(&self) -> gst::Bin {

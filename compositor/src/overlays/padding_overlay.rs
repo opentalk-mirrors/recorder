@@ -4,6 +4,7 @@
 
 //! Overlay which adds extra padding to the picture
 
+use anyhow::{Context, Result};
 use gst::prelude::*;
 
 use crate::Overlay;
@@ -25,16 +26,15 @@ pub struct Padding {
 impl PaddingOverlay {
     /// Creates a new padding overlay.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `PaddingOverlay` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new(name: &str, padding: &Padding) -> PaddingOverlay {
+    /// This can fail if the `videobox` cannot be created in `GStreamer`.
+    pub fn new(name: &str, padding: &Padding) -> Result<Self> {
         trace!("new( {padding:?} )");
 
         // create videobox element
         let element = gst::ElementFactory::make_with_name("videobox", Some(name))
-            .expect("failed to create videobox element");
+            .context("failed to create videobox element")?;
 
         // set up properties
         element.set_property("left", -padding.left);
@@ -43,7 +43,7 @@ impl PaddingOverlay {
         element.set_property("bottom", -padding.bottom);
 
         // return Overlay
-        Self { element }
+        Ok(Self { element })
     }
 }
 
@@ -52,13 +52,13 @@ impl Overlay for PaddingOverlay {
     fn element(&self) -> &gst::Element {
         &self.element
     }
+
     fn show(&self, _: bool) {
         unimplemented!()
     }
+
     #[must_use]
-    fn sink(&self) -> gst::Pad {
-        self.element()
-            .static_pad("sink")
-            .expect("overlay has no pad named `sink`")
+    fn sink(&self) -> Option<gst::Pad> {
+        self.element().static_pad("sink")
     }
 }
