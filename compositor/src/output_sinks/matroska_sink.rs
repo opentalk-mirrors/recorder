@@ -129,8 +129,8 @@ impl Default for MatroskaParameters {
 impl Sink for MatroskaSink {
     /// Get video sink pad.
     #[must_use]
-    fn video(&self) -> gst::GhostPad {
-        self.video_sink.clone()
+    fn video(&self) -> Option<gst::GhostPad> {
+        Some(self.video_sink.clone())
     }
 
     /// Get audio sink pad.

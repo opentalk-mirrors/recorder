@@ -81,6 +81,7 @@ The starting point to that documentation will then be `/recorder/target/doc/comp
 - `GST_DEBUG_DUMP_DOT_DIR`
 - `USER_TEST`
 - `USE_DISPLAY`
+- `USE_VIDEO`
 - `BE_SLOW`
 
 ## Links

@@ -80,7 +80,7 @@ where
     // the bin of the source
     pub bin: gst::Bin,
     // the video src ghost pad
-    pub video: gst::GhostPad,
+    pub video: Option<gst::GhostPad>,
     // the audio src ghost pad
     pub audio: gst::GhostPad,
     // source's overlay
@@ -99,10 +99,12 @@ where
     /// # Panics
     ///
     /// This can panic if the stream has no video `Pad`.
-    pub fn compositor_sink(&self) -> gst::Pad {
-        self.video
-            .peer()
-            .expect("expecting video source bin to be connected to compositor")
+    pub fn compositor_sink(&self) -> Option<gst::Pad> {
+        self.video.clone().map(|video| {
+            video
+                .peer()
+                .expect("expecting video source bin to be connected to compositor")
+        })
     }
 
     /// Get the videoconvertscale `Pad` from the stream.

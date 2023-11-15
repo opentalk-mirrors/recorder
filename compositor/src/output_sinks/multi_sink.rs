@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{Context, Result};
 use gst::prelude::{ElementExtManual, GstBinExtManual};
 use gst_base::prelude::{ElementExt, GstBinExt, PadExt};
 
@@ -39,18 +40,18 @@ pub struct MultiSink {
 
 impl From<MultiParameters> for MultiSink {
     fn from(params: MultiParameters) -> Self {
-        Self::new(params)
+        Self::new(params).expect("unable to initialise multisink")
     }
 }
 
 impl MultiSink {
     /// Create new sink with given parameters
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the 'tee' bin can't be created.
-    #[must_use]
-    pub fn new(params: MultiParameters) -> Self {
+    /// This can throw an error if the underlaying `GStreamer` is having
+    /// trouble.
+    pub fn new(params: MultiParameters) -> Result<Self> {
         trace!("new()");
 
         // create new GStreamer pipeline
@@ -66,57 +67,80 @@ impl MultiSink {
             "#,
             false,
         )
-        .expect("could not parse display link pipeline");
+        .context("could not parse display link pipeline")?;
 
         // link tee sinks to ghostpads (must stay here - before the following code)
         let video = add_ghost_pad(&bin, "video", "sink");
         let audio = add_ghost_pad(&bin, "audio", "sink");
 
         // get tees from bin
-        let video_tee = bin.by_name("video").expect("can't find video tee");
-        let audio_tee = bin.by_name("audio").expect("can't find audio tee");
+        let video_tee = bin.by_name("video").context("can't find video tee")?;
+        let audio_tee = bin.by_name("audio").context("can't find audio tee")?;
 
         // connect tees with there channel sinks
         for sink in &params.sinks {
             // create a queue for each channel's tee
-            let video_queue = gst::ElementFactory::make_with_name("queue", None).unwrap();
-            let audio_queue = gst::ElementFactory::make_with_name("queue", None).unwrap();
+            let video_queue = gst::ElementFactory::make_with_name("queue", None)
+                .context("unable to create queue for video")?;
+            let audio_queue = gst::ElementFactory::make_with_name("queue", None)
+                .context("unable to create queue for audio")?;
 
             // add sink and queues to bin
             bin.add_many(&[&video_queue, &audio_queue, sink.bin().as_ref()])
-                .expect("cannot add elements to multi sink bin");
+                .context("cannot add elements to multi sink bin")?;
 
             // link tees to queues
-            video_tee.link(&video_queue).unwrap();
-            audio_tee.link(&audio_queue).unwrap();
+            video_tee
+                .link(&video_queue)
+                .context("unable to link video_queue with video_tee")?;
+            audio_tee
+                .link(&audio_queue)
+                .context("unable to link autio_queue with audio_tee")?;
+
+            if let Some(video_sink) = &sink.video() {
+                video_queue
+                    .static_pad("src")
+                    .context("cant find src of video queue")?
+                    .link(video_sink)
+                    .context("could not link video tee to sink")?;
+            } else {
+                let fakesink = gst::ElementFactory::make("fakesink").build()?;
+                bin.add(&fakesink)
+                    .context("unable to add `fakesink` to `bin`")?;
+                let fakesink_sink_pad = fakesink
+                    .static_pad("sink")
+                    .context("unable to get static pad `sink` from `fakesink`")?;
+                video_queue
+                    .static_pad("src")
+                    .context("cant find src of video queue")?
+                    .link(&fakesink_sink_pad)
+                    .context("could not link video tee to sink")?;
+                fakesink
+                    .sync_state_with_parent()
+                    .context("unable to sync `fakesink` with parent")?;
+            }
 
             // link new tee src pads to sink's pads
-            video_queue
-                .static_pad("src")
-                .expect("cant find src of video queue")
-                .link(&sink.video())
-                .expect("could not link video tee to sink");
             audio_queue
                 .static_pad("src")
-                .expect("cant find src of audio queue")
+                .context("cant find src of audio queue")?
                 .link(&sink.audio())
-                .expect("could not link audio tee to sink");
+                .context("could not link audio tee to sink")?;
         }
 
-        // return new display sink
-        MultiSink {
+        Ok(MultiSink {
             sinks: params.sinks,
             video,
             audio,
             bin,
-        }
+        })
     }
 }
 
 impl Sink for MultiSink {
     #[must_use]
-    fn video(&self) -> gst::GhostPad {
-        self.video.clone()
+    fn video(&self) -> Option<gst::GhostPad> {
+        Some(self.video.clone())
     }
 
     #[must_use]

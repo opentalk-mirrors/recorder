@@ -18,12 +18,13 @@ impl TestSink {
         trace!("new({name})");
 
         let use_display = std::env::var("USE_DISPLAY").is_ok();
+        let use_video = std::env::var("USE_VIDEO").is_ok();
         if use_display {
             info!("using display sink because display is available");
-            Self::Display(DisplaySink::new(name))
+            Self::Display(DisplaySink::new(name, use_video))
         } else {
             info!("using fake sink");
-            Self::Fake(FakeSink::new(name))
+            Self::Fake(FakeSink::new(name, use_video))
         }
     }
 }
@@ -44,7 +45,7 @@ impl Sink for TestSink {
     }
     /// Get video sink pad.
     #[must_use]
-    fn video(&self) -> gst::GhostPad {
+    fn video(&self) -> Option<gst::GhostPad> {
         match self {
             Self::Fake(sink) => sink.video(),
             Self::Display(sink) => sink.video(),

@@ -49,6 +49,7 @@ All tests using `TestSink` for output can be influenced in where they are puttin
 
 - `USER_TEST=1` to slow down test speed
 - `USE_DISPLAY=1` to show output in window(s)
+- `USE_VIDEO=1` to use video in pipeline
 
 ### Dump Pipeline Graphs
 

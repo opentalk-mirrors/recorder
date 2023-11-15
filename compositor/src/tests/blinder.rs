@@ -13,7 +13,8 @@ fn test_blinder() {
         sink: Box::new(TestSink::new("Testing Sink")),
         resolution: testing::RESOLUTION,
         ..Default::default()
-    });
+    })
+    .unwrap();
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),

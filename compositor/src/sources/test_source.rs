@@ -104,7 +104,7 @@ impl From<Pattern> for &'static str {
 #[derive(Clone, Debug)]
 pub struct TestSource {
     bin: gst::Bin,
-    video_src: gst::GhostPad,
+    video_src: Option<gst::GhostPad>,
     audio_src: gst::GhostPad,
 }
 
@@ -117,6 +117,7 @@ pub struct TestSourceParameters {
     pub resolution: Size,
     // name that will be display as overlay
     pub name: Option<String>,
+    pub has_video: bool,
 }
 
 impl Default for TestSourceParameters {
@@ -126,6 +127,7 @@ impl Default for TestSourceParameters {
             pattern: Pattern::Smpte,
             resolution: Size::SD,
             name: None,
+            has_video: true,
         }
     }
 }
@@ -141,13 +143,10 @@ impl Source for TestSource {
     {
         trace!("new( {id}, {params:?} )",);
 
-        // create bin including codecs and the dash sink
-        let bin = gst::parse_bin_from_description(
-            &(format!(
-                r#"
-                name="Test Input Source: {id}"
-                "#,
-            ) + &if let Pattern::Location(location) = params.pattern {
+        let mut description = format!("name=\"Test Input Source: {id}\"").to_string();
+
+        if params.has_video {
+            description += if let Pattern::Location(location) = params.pattern {
                 format!(
                     r#"
                     filesrc
@@ -184,7 +183,11 @@ impl Source for TestSource {
                             max-size-time=2000000000
                         "#,
                 )
-            } + r#"
+            }
+            .as_str();
+        }
+
+        description += r#"
                 audiotestsrc
                     name="Audio Test Source"
                     volume=0.01
@@ -195,14 +198,21 @@ impl Source for TestSource {
                 ! queue
                     name=audio
                     max-size-time=2000000000
-            "#),
-            false,
-        )
-        .expect("failed to create test source bin");
+            "#;
+
+        // create bin including codecs and the dash sink
+        let bin = gst::parse_bin_from_description(&description, false)
+            .expect("failed to create test source bin");
+
+        let video_src = if params.has_video {
+            Some(add_ghost_pad(&bin, "video", "src"))
+        } else {
+            None
+        };
 
         TestSource {
             // remember elements and pads for connect/disconnect
-            video_src: add_ghost_pad(&bin, "video", "src"),
+            video_src,
             audio_src: add_ghost_pad(&bin, "audio", "src"),
             bin,
         }
@@ -211,7 +221,7 @@ impl Source for TestSource {
     fn bin(&self) -> gst::Bin {
         self.bin.clone()
     }
-    fn video(&self) -> gst::GhostPad {
+    fn video(&self) -> Option<gst::GhostPad> {
         self.video_src.clone()
     }
     fn audio(&self) -> gst::GhostPad {

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{Context, Result};
 use gst_base::prelude::*;
 
 use crate::{FakeSink, Sink, Size, TestSourceParameters};
@@ -27,7 +28,7 @@ impl Default for TestBlinderParams {
         Self {
             name: Default::default(),
             resolution: Size::default(),
-            sink: Box::new(FakeSink::new("Fake Sink")),
+            sink: Box::new(FakeSink::new("Fake Sink", true)),
             alt_source_params: TestSourceParameters::default(),
         }
     }
@@ -68,8 +69,8 @@ impl Sink for TestBlinder {
         self.bin.clone()
     }
 
-    fn video(&self) -> gst::GhostPad {
-        self.video.clone()
+    fn video(&self) -> Option<gst::GhostPad> {
+        Some(self.video.clone())
     }
 
     fn audio(&self) -> gst::GhostPad {
@@ -80,14 +81,11 @@ impl Sink for TestBlinder {
 impl TestBlinder {
     /// Create new blinder sink.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic of creating the blinder failed.
-    #[must_use]
-    pub fn new(params: &TestBlinderParams) -> Self {
-        // check if resolution has been set
-        assert_ne!(params.resolution, Size::default());
-
+    /// This can throw an error if the underlaying `GStreamer` is having
+    /// trouble.
+    pub fn new(params: &TestBlinderParams) -> Result<Self> {
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#"
@@ -109,50 +107,68 @@ impl TestBlinder {
             ),
             false,
         )
-        .expect("could not create blinder bin");
+        .context("could not create blinder bin")?;
 
         bin.add(&params.sink.bin())
-            .expect("could not add target sink to bin");
+            .context("could not add target sink to bin")?;
 
         let video_selector = bin
             .by_name("video-selector")
-            .expect("can not file video input selector");
+            .context("can not file video input selector")?;
         let video_blind_sink = video_selector
             .static_pad("sink_0")
-            .expect("could not get video selector blind sink");
+            .context("could not get video selector blind sink")?;
         let video_signal_sink = video_selector
             .request_pad_simple("sink_%u")
-            .expect("could not get sink at video input selector");
+            .context("could not get sink at video input selector")?;
         let video = gst::GhostPad::with_target(Some("video"), &video_signal_sink)
-            .expect("failed to create video ghost pad for participant overlay sink");
+            .context("failed to create video ghost pad for participant overlay sink")?;
         bin.add_pad(&video)
-            .expect("failed to add video ghost pad to participant overlay bin");
-        video_selector
-            .static_pad("src")
-            .expect("could not get src pad from video input selector")
-            .link(&params.sink.video())
-            .expect("failed to link video selector with target sink");
+            .context("failed to add video ghost pad to participant overlay bin")?;
+
+        if let Some(video_sink) = &params.sink.video() {
+            video_selector
+                .static_pad("src")
+                .context("could not get src pad from video input selector")?
+                .link(video_sink)
+                .context("failed to link video selector with target sink")?;
+        } else {
+            let fakesink = gst::ElementFactory::make("fakesink").build()?;
+            bin.add(&fakesink)
+                .context("unable to add `fakesink` to `bin`")?;
+            let fakesink_sink_pad = fakesink
+                .static_pad("sink")
+                .context("unable to get static pad `sink` from `fakesink`")?;
+            video_selector
+                .static_pad("src")
+                .context("could not get src pad from video input selector")?
+                .link(&fakesink_sink_pad)
+                .context("failed to link video selector with target sink")?;
+            fakesink
+                .sync_state_with_parent()
+                .context("unable to sync `fakesink` with parent")?;
+        }
 
         let audio_selector = bin
             .by_name("audio-selector")
-            .expect("can not file audio input selector");
+            .context("can not file audio input selector")?;
         let audio_blind_sink = audio_selector
             .static_pad("sink_0")
-            .expect("could not get audio selector blind sink");
+            .context("could not get audio selector blind sink")?;
         let audio_signal_sink = audio_selector
             .request_pad_simple("sink_%u")
-            .expect("could not get sink at audio input selector");
+            .context("could not get sink at audio input selector")?;
         let audio = gst::GhostPad::with_target(Some("audio-sink"), &audio_signal_sink)
-            .expect("failed to create audio ghost pad for blinder overlay sink");
+            .context("failed to create audio ghost pad for blinder overlay sink")?;
         bin.add_pad(&audio)
-            .expect("failed to add audio ghost pad to blinder overlay bin");
+            .context("failed to add audio ghost pad to blinder overlay bin")?;
         audio_selector
             .static_pad("src")
-            .expect("could not get src pad from audio input selector")
+            .context("could not get src pad from audio input selector")?
             .link(&params.sink.audio())
-            .expect("failed to link audio selector with target sink");
+            .context("failed to link audio selector with target sink")?;
 
-        Self {
+        Ok(Self {
             video,
             video_selector,
             video_signal_sink,
@@ -162,6 +178,6 @@ impl TestBlinder {
             audio_signal_sink,
             audio_blind_sink,
             bin,
-        }
+        })
     }
 }
