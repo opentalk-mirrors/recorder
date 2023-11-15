@@ -9,6 +9,7 @@ use core::{
     fmt::{Debug, Display},
     hash::Hash,
 };
+use gst::Pipeline;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -156,7 +157,7 @@ where
     SRC: Source,
     ID: Eq + Ord + Hash + Copy + Display + Debug + Sync + Send,
 {
-    /// Create new Talk.
+    /// Create new Talk which creates an own Pipeline.
     ///
     /// # Arguments
     ///
@@ -176,7 +177,39 @@ where
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
+        Self::new_with_pipeline(
+            Pipeline::new(Some("Compositor")),
+            resolution,
+            layout,
+            sink,
+            max_visibles,
+        )
+    }
+
+    /// Create new Talk for the given Pipeline.
+    ///
+    /// # Arguments
+    ///
+    /// - `pipeline`: The base pipeline which should be used to add the mixer.
+    /// - `resolution`: Output video resolution.
+    /// - `sink_params`: Parameters to create the output sink.
+    /// - `max_visibles`: Maximum number of currently visible streams.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `Mixer` can't be initialized.
+    pub fn new_with_pipeline(
+        pipeline: Pipeline,
+        resolution: Size,
+        layout: impl Layout,
+        sink: impl Sink,
+        max_visibles: usize,
+    ) -> Result<Self> {
+        debug!("Starting a new talk...");
+        trace!("new( {resolution:?}, {max_visibles:?} )");
+
         let mixer = Mixer::<SRC, StreamId<ID>>::new(
+            pipeline,
             resolution,
             layout,
             TalkOverlay::new()
