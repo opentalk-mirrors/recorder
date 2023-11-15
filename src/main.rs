@@ -4,7 +4,7 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use futures::future::join_all;
 use futures::StreamExt;
 use gst::glib;
@@ -33,6 +33,76 @@ use crate::recorder::Recorder;
 const RECONNECT_INTERVAL: Duration = Duration::from_millis(3_000); //ms
 const DOT_OUTPUT_PATH: &str = "./pipelines";
 
+fn check_for_ffmpeg() -> Result<()> {
+    _ = std::process::Command::new("ffmpeg")
+        .args(["--help"])
+        .output()?;
+
+    Ok(())
+}
+
+fn check_for_nice() -> Result<bool> {
+    let pkg_config_run = std::process::Command::new("pkg-config")
+        .args(["--version"])
+        .output()?
+        .status
+        .success();
+
+    if !pkg_config_run {
+        return Err(Error::msg("pkg-config isn't installed on this system."));
+    }
+
+    Ok(std::process::Command::new("pkg-config")
+        .args(["--libs", "nice"])
+        .output()?
+        .status
+        .success())
+}
+
+fn check_plugins() -> Result<()> {
+    if check_for_ffmpeg().is_err() {
+        warn!("ffmpeg is not present on the system. Some features may not work.");
+    }
+
+    match check_for_nice() {
+        Ok(false) => anyhow::bail!("libnice is missing on the system."),
+        Err(_) => {
+            warn!("pkg-config is absent from the system, cannot check for presence of libnice.");
+        }
+        _ => {}
+    }
+
+    let registry = gst::Registry::get();
+
+    let required = [
+        "audiomixer",
+        "audiotestsrc",
+        "autodetect",
+        "compositor",
+        "debug",
+        "rtp",
+        "pango",
+        "udp",
+        "videotestsrc",
+        "vpx",
+        "webrtc",
+    ];
+
+    let missing: Vec<_> = required
+        .into_iter()
+        .filter(|plug| registry.find_plugin(plug).is_none())
+        .collect();
+
+    if !missing.is_empty() {
+        anyhow::bail!(
+            "The following plugins could not be loaded: {}",
+            missing.join(", ")
+        );
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     env_logger::init();
 
@@ -42,6 +112,7 @@ fn main() -> Result<()> {
     };
 
     gst::init()?;
+    check_plugins()?;
 
     // Run a MainLoop on a separate thread so gstreamer bus watches work
     let main_loop = glib::MainLoop::new(None, false);
