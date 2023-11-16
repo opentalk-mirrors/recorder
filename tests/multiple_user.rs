@@ -17,7 +17,7 @@ mod tests {
             Event::StartRecording,
             Event::Sleep(Duration::from_secs(2)),
             Event::UpdateConsents(10, true),
-            Event::Sleep(Duration::from_secs(2)),
+            Event::Sleep(Duration::from_secs(20)),
             Event::StopRecording,
             Event::Sleep(Duration::from_secs(2)),
         ])
