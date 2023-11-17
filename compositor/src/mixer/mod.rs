@@ -3,13 +3,16 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use anyhow::{anyhow, Context, Result};
-use gst::{prelude::*, Caps, ElementFactory, Pipeline};
+use gst::{
+    event::Reconfigure, prelude::*, Bin, Element, ElementFactory, Fraction, GhostPad, Pipeline,
+};
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
     hash::Hash,
 };
 
+mod audio_mixer;
 pub mod debug;
 mod overlay;
 mod sink;
@@ -17,6 +20,9 @@ mod source;
 mod stream;
 mod talk;
 mod text_style;
+mod video_mixer;
+
+use self::{audio_mixer::AudioMixer, video_mixer::VideoMixer};
 
 pub use super::layout::*;
 pub use overlay::*;
@@ -59,15 +65,15 @@ where
     /// Currently visible streams.
     visibles: Vec<STREAMID>,
     /// GStreamer element which composes the output video out of the source videos.
-    compositor: Option<gst::Element>,
-    /// GStreamer element which composes the output audio out of the source audios.
-    audiomixer: gst::Element,
+    // compositor: Option<gst::Element>,
+    audio_mixer: AudioMixer,
+    video_mixer: Option<VideoMixer>,
     /// The mixer GStreamer pipeline.
     pipeline: gst::Pipeline,
     /// Overlay behind compositor
     overlay: AnyOverlay,
     /// Holds the output sink.
-    output: Box<dyn Sink>,
+    sinks: Vec<Box<dyn Sink>>,
     /// over all generated output resolution
     output_resolution: Size,
     valid: std::sync::mpsc::Sender<Validation>,
@@ -91,155 +97,49 @@ where
     /// # Errors
     ///
     /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
-    #[allow(clippy::too_many_lines)]
     pub fn create(
         pipeline: Pipeline,
         output_resolution: Size,
         layout: impl Layout,
         overlay: AnyOverlay,
-        sink: impl Sink,
+        sinks: Vec<Box<dyn Sink>>,
     ) -> Result<Self> {
-        let audiotestsrc = ElementFactory::make("audiotestsrc")
-            .name("Audio Background Source")
-            .property("is-live", true)
-            .property("volume", 0.0)
-            .build()
-            .context("unable to build audiotestsrc")?;
-        let audio_capssetter = ElementFactory::make("capssetter")
-            .name("Audio Background Capssetter")
-            .property(
-                "caps",
-                Caps::builder("audio/x-raw")
-                    .field("format", "S16LE")
-                    .field("channels", 2)
-                    .field("layout", "interleaved")
-                    .field("rate", 48000)
-                    .build(),
-            )
-            .build()
-            .context("unable to build audio_capssetter")?;
-        let audiomixer = ElementFactory::make("audiomixer")
-            .name("audio-mixer")
-            .property("ignore-inactive-pads", true)
-            .build()
-            .context("unable to build audiomixer")?;
-        let audio_queue = ElementFactory::make("queue")
-            .name("audio")
-            .build()
-            .context("unable to build audio_queue")?;
+        // TODO: Set as parameter
+        let video_support = true;
 
+        let audio_mixer = AudioMixer::create().context("unable to create AudioMixer")?;
         pipeline
-            .add_many(&[&audiotestsrc, &audio_capssetter, &audiomixer, &audio_queue])
-            .context("unable to add audio elements to pipeline")?;
+            .add(audio_mixer.bin())
+            .context("unable to add 'audio_mixer' to 'pipeline'")?;
 
-        let audio_requested_pad = audiomixer
-            .request_pad_simple("sink_%u")
-            .context("unable to request sink pad for audiomixer")?;
-
-        audiotestsrc.link(&audio_capssetter)?;
-        audio_capssetter
-            .static_pad("src")
-            .context("unable to get static pad src from audio_capssetter")?
-            .link(&audio_requested_pad)
-            .context("unable to link audio_requested_pad with audio_capssetter")?;
-        audiomixer.link(&audio_queue)?;
-
-        let compositor = if let Some(video_sink) = &sink.video() {
-            let videotestsrc = ElementFactory::make("videotestsrc")
-                .name("Video Background Source")
-                .property_from_str("pattern", "black")
-                .property("is-live", true)
-                .build()
-                .context("unable to build videotestsrc")?;
-            let video_capssetter = ElementFactory::make("capssetter")
-                .name("Video Background Capssetter")
-                .property(
-                    "caps",
-                    Caps::builder("video/x-raw")
-                        .field("format", "RGB")
-                        .field("width", output_resolution.width as i32)
-                        .field("height", output_resolution.height as i32)
-                        .build(),
-                )
-                .build()
-                .context("unable to build audio_capssetter")?;
-            let compositor = ElementFactory::make("compositor")
-                .name("video-compositor")
-                .property("ignore-inactive-pads", true)
-                .property("zero-size-is-unscaled", true)
-                .build()
-                .context("unable to build compositor")?;
-            let video_queue = ElementFactory::make("queue")
-                .name("video")
-                .build()
-                .context("unable to build video_queue")?;
+        let video_mixer = if video_support {
+            let video_mixer = VideoMixer::create(output_resolution, &overlay)
+                .context("unable to create VideoMixer")?;
 
             pipeline
-                .add_many(&[&videotestsrc, &video_capssetter, &compositor, &video_queue])
-                .context("unable to add video elements to pipeline")?;
+                .add(video_mixer.bin())
+                .context("unable to add 'video_mixer' to 'pipeline'")?;
 
-            let video_requested_pad = compositor
-                .request_pad_simple("sink_%u")
-                .context("unable to request sink pad for compositor")?;
-
-            videotestsrc.link(&video_capssetter)?;
-            video_capssetter
-                .static_pad("src")
-                .context("unable to get static pad src from video_capssetter")?
-                .link(&video_requested_pad)
-                .context("unable to link video_requested_pad with video_capssetter")?;
-            compositor.link(&video_queue)?;
-
-            // get video elements from bin
-            let compositor = pipeline
-                .by_name("video-compositor")
-                .context("failed to get compositor from pipeline")?;
-
-            let video_out = pipeline
-                .by_name("video")
-                .context("failed to get video output from pipeline")?;
-            let video_out_src = video_out
-                .static_pad("src")
-                .context("failed to get source pad from video output")?;
-
-            // create output sink to pipeline
-            pipeline
-                .add(&sink.bin())
-                .context("unable to add sink to pipeline")?;
-            // add overlay to pipeline
-            pipeline
-                .add(overlay.element())
-                .context("unable to add overlay to pipeline")?;
-
-            // connect output pads to output sinks
-            let overlay_sink = overlay.sink().context("unable to get sink for overlay")?;
-            video_out_src
-                .link(&overlay_sink)
-                .context("failed to link video output pad to overlay sink")?;
-
-            overlay
-                .src()
-                .context("unable to get src for overlay")?
-                .link(video_sink)
-                .context("failed to link overlay src pad to video output sink")?;
-
-            Some(compositor)
+            Some(video_mixer)
         } else {
-            // create output sink to pipeline
-            pipeline
-                .add(&sink.bin())
-                .context("unable to add sink to pipeline")?;
-
             None
         };
 
-        let audio_out_src = audio_queue
-            .static_pad("src")
-            .context("failed to get source pad from audio output")?;
+        for output_sink in &sinks {
+            pipeline
+                .add(&output_sink.bin())
+                .context("unable to add sink to pipeline")?;
 
-        audio_out_src
-            .link(&sink.audio())
-            .context("failed to link output pad to audio output sink")?;
+            audio_mixer
+                .link_sink(&output_sink.audio())
+                .context("unable to add 'output_sink' to 'audio_mixer'")?;
+
+            if let (Some(video_mixer), Some(video_sink)) = (&video_mixer, output_sink.video()) {
+                video_mixer
+                    .link_sink(&video_sink)
+                    .context("unable to add 'output_sink' to 'video_mixer'")?;
+            }
+        }
 
         pipeline.set_state(gst::State::Playing)?;
         pipeline.sync_children_states()?;
@@ -247,13 +147,13 @@ where
         let (valid, valid_receiver) = std::sync::mpsc::channel::<Validation>();
 
         let mut mixer = Mixer {
-            compositor,
-            audiomixer,
+            audio_mixer,
+            video_mixer,
             visibles: Vec::new(),
             pipeline,
             streams: HashMap::new(),
             overlay,
-            output: Box::new(sink),
+            sinks,
             output_resolution,
             valid,
             layout: Box::new(layout),
@@ -265,9 +165,10 @@ where
 
         // inform output sink that pipeline is are playing now
         mixer
-            .output
-            .on_play()
-            .context("unable to call on_play output")?;
+            .sinks
+            .iter_mut()
+            .try_for_each(|output_sink| output_sink.on_play())
+            .context("unable to call on_play on all sinks")?;
 
         Ok(mixer)
     }
@@ -287,7 +188,6 @@ where
     /// # Errors
     ///
     /// This can fail if adding the stream to the `GStreamer` pipeline fails.
-    #[allow(clippy::too_many_lines)]
     pub fn add_stream(
         &mut self,
         id: STREAMID,
@@ -306,135 +206,81 @@ where
 
         // create new source bin
         let source = SRC::create(&id, params).context("unable to create Source")?;
+        let bin = Bin::new(Some(format!("Overlay: {id}").as_str()));
 
-        let bin = if self.compositor.is_some() && source.video().is_some() {
-            let description = format!(
-                r#"
-                    name="Overlay: {id}"
-
-                    videoconvertscale
-                        name=videoconvertscale
-                    ! capsfilter
-                        name=capsfilter
-                "#
-            );
-            gst::parse_bin_from_description(&description, false)
-                .context("creation of bin failed")?
-        } else {
-            gst::ElementFactory::make_with_name("bin", Some(&format!("Overlay: {id}")))
-                .context(format!("unable to create bin with name 'Overlay: {id}'"))?
-                .dynamic_cast::<gst::Bin>()
-                .map_err(|element| {
-                    anyhow!("unable to dynamic cast Elemenet '{element:?}' to gst::Bin")
-                })
-                .context("creation of bin failed")?
-        };
-
-        // add source to the bin
+        // Add source bin to bin
         bin.add(&source.bin())
-            .context("failed to add source to bin")?;
+            .context("unable to add source bin to bin")?;
 
-        let video = if let Some(video) = source.video() {
-            if self.compositor.is_some() {
-                // add overlay to the bin
-                bin.add(overlay.element())?;
+        // Setup video in pipeline
+        if self.video_mixer.is_some() {
+            if let Some(video) = source.video() {
+                let videoconvertscale = ElementFactory::make("videoconvertscale")
+                    .name("videoconvertscale")
+                    .build()
+                    .context("unable to build videoconvertscale")?;
+                let capsfilter = ElementFactory::make("capsfilter")
+                    .name("capsfilter")
+                    .build()
+                    .context("unable to build capsfilter")?;
 
-                let overlay_sink = overlay.sink().context("unable to get sink for overlay")?;
-                bin.by_name("capsfilter")
-                    .context("unable to get capfilter from bin")?
-                    .static_pad("src")
-                    .context("unable to get src of capsfilter")?
-                    .link(&overlay_sink)
-                    .context("unable to link the capsfilter to the overlay")?;
+                bin.add_many(&[&videoconvertscale, &capsfilter, overlay.element()])
+                    .context(
+                        "unable to add 'videoconvertscale', 'capsfilter' and 'overlay' to source bin",
+                    )?;
 
-                // link source to overlay
-                video
-                    .link(
-                        &bin.by_name("videoconvertscale")
-                            .context("unable to get videoconvertscale from bin")?
-                            .static_pad("sink")
-                            .context("unable to get sink of videoconvertscale")?,
-                    )
-                    .context("could not link video source to overlay")?;
+                Element::link_many(&[&videoconvertscale, &capsfilter, &overlay.element()])
+                    .context("unable to link 'videoconvertscale' and 'capsfilter")?;
 
-                let overlay_src = overlay.src().context("unable to get src for overlay")?;
-                let video = gst::GhostPad::with_target(Some("video"), &overlay_src)
-                    .context("failed to create ghost pad for source video output")?;
-
-                bin.add_pad(&video)
-                    .context("failed to add video output ghost pad to source bin")?;
-
-                Some(video)
-            } else {
-                let fakesink = gst::ElementFactory::make("fakesink").build()?;
-                bin.add(&fakesink)
-                    .context("unable to add `fakesink` to `bin`")?;
-                let fakesink_sink_pad = fakesink
+                let videoconvertscale_sink_pad = videoconvertscale
                     .static_pad("sink")
-                    .context("unable to get static pad `sink` from `fakesink`")?;
+                    .context("unable to get sink pad from videoconvertscale")?;
                 video
-                    .link(&fakesink_sink_pad)
-                    .context("failed to link video selector with target sink")?;
-                fakesink
-                    .sync_state_with_parent()
-                    .context("unable to sync `fakesink` with parent")?;
-
-                None
+                    .link(&videoconvertscale_sink_pad)
+                    .context("unable to link video_src to videoconvertscale")?;
             }
-        } else {
-            None
-        };
+        }
 
-        // add the bin to the pipeline
+        // Add bin to pipeline
         self.pipeline
             .add(&bin)
             .context("failed to add source bin to pipeline")?;
 
-        debug::debug_dot(&bin, "compositor_request_pad");
+        // Link audio in pipeline
+        let audio_ghost_pad = GhostPad::with_target(None, &source.audio())
+            .context("unable to create 'GhostPad' for 'audio'")?;
+        bin.add_pad(&audio_ghost_pad)
+            .context("unable to add audio_ghost_pad to bin")?;
+        let audio = self
+            .audio_mixer
+            .link_src(&audio_ghost_pad)
+            .context("unable to add 'audio' pad to 'audio_mixer'")?;
 
-        if let Some(compositor) = &self.compositor {
-            let compositor_sink = compositor
-                .request_pad_simple("sink_%u")
-                .context("could not get sink at compositor")?;
-            compositor_sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
-            compositor_sink.set_property("alpha", 0.0);
+        // Link video in pipeline
+        let video = if let (Some(video_mixer), Some(_)) = (&self.video_mixer, source.video()) {
+            let overlay_src_pad = overlay
+                .src()
+                .context("unable to get src pad from overlay")?;
+            let overlay_ghost_pad = GhostPad::with_target(None, &overlay_src_pad)
+                .context("unable to create 'GhostPad' for 'videoconvertscale'")?;
 
-            if let Some(video) = video.clone() {
-                video
-                    .link(&compositor_sink)
-                    .context("could not connect video stream to compositor")?;
-            }
-        }
+            bin.add_pad(&overlay_ghost_pad)
+                .context("unable to add overlay_ghost_pad to bin")?;
 
-        // get audio source pad (no audio overlay yet)
-        let audio_src = source
-            .bin()
-            .static_pad("audio")
-            .context("source's video pad is missing")?;
+            let video = video_mixer
+                .link_src(&overlay_ghost_pad)
+                .context("unable to add 'video' pad to 'video_mixer'")?;
 
-        let audio = gst::GhostPad::with_target(Some("audio"), &audio_src)
-            .context("failed to create ghost pad for source audio output")?;
-        bin.add_pad(&audio)
-            .context("failed to add video output ghost pad to source bin")?;
+            Some(video)
+        } else {
+            None
+        };
 
-        // link source's audio to audiomixer sink with the name of the stream ID
-        let audiomixer_sink = self
-            .audiomixer
-            .request_pad_simple("sink_%u")
-            .context("could not get sink at audiomixer")?;
-        audio
-            .link(&audiomixer_sink)
-            .context("could not connect audio stream to audiomixer")?;
+        debug::debug_dot(&self.pipeline, "stream_added");
 
-        // sync state with rest of pipeline
-        bin.sync_state_with_parent()?;
+        bin.sync_state_with_parent()
+            .context("unable to syn state with parent for bin")?;
 
-        trace!(
-            "added stream {id}, {display_name:?}, {source},  {status:?}",
-            source = debug::name(&source.bin()),
-        );
-
-        // remember the new A/V stream
         self.streams.insert(
             id,
             Stream {
@@ -540,20 +386,24 @@ where
             .remove(&id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?;
 
-        trace!("releasing requested pads from mixers");
-        // release video and audio sink pads
-        if let Some(compositor) = &self.compositor {
-            if let Some(compositor_sink) = &stream.compositor_sink() {
-                compositor.release_request_pad(compositor_sink);
-            }
-        }
-        let audiomixer_sink = stream
-            .audiomixer_sink()
-            .context("unable to get sink for audiomixer")?;
-        self.audiomixer.release_request_pad(&audiomixer_sink);
-
         // remove bin from pipeline
         stream.bin.set_state(gst::State::Null)?;
+
+        trace!("releasing requested pads from mixers");
+
+        if let Some(sink) = stream.audiomixer_sink() {
+            self.audio_mixer
+                .release_src(&sink)
+                .context("unable to release src in audio_mixer")?;
+        }
+
+        if let Some(video_mixer) = &self.video_mixer {
+            if let Some(video_src) = &stream.compositor_sink() {
+                video_mixer
+                    .release_src(video_src)
+                    .context("unable to release src in video_mixer")?;
+            }
+        }
 
         self.pipeline
             .remove(&stream.bin)
@@ -762,7 +612,7 @@ where
     /// - Pads cannot be retrieved.
     /// - Invalidate and validate for the bus monitor failed.
     pub fn rerender_layout(&mut self) -> Result<()> {
-        if self.compositor.is_none() {
+        if self.video_mixer.is_none() {
             // Doesn't need to rerender, if there is no compositor.
             return Ok(());
         };
@@ -810,7 +660,7 @@ where
                             gst::Caps::builder("video/x-raw")
                                 .field("width", view.size.width as i32)
                                 .field("height", view.size.height as i32)
-                                .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+                                .field("pixel-aspect-ratio", Fraction::new(1, 1))
                                 .build(),
                         );
                     // Reconfigure the videoconverscale after changing the size
@@ -819,7 +669,7 @@ where
                         .context("unable to get videoconvertsccale for stream")?
                         .static_pad("src")
                         .context("unable to get src from videoconvertscale")?
-                        .send_event(gst::event::Reconfigure::new());
+                        .send_event(Reconfigure::new());
                 } else {
                     compositor_sink.set_property("alpha", 0.0);
                 }
@@ -905,8 +755,12 @@ where
 
         // call sink to prepare for dropping pipeline
         debug!("Stop sink...");
-        if let Err(error) = self.output.on_exit(&self.pipeline) {
-            error!("unable to call on_exit on output, error: {error}");
+        if let Err(error) = self
+            .sinks
+            .iter_mut()
+            .try_for_each(|output_sink| output_sink.on_exit(&self.pipeline))
+        {
+            error!("Unable to call on_exit on every output_sink, error: {error}");
         }
 
         // halt pipeline

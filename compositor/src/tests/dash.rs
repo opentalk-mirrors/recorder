@@ -13,15 +13,17 @@ fn test_dash() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        DashSink::create(
-            "test",
-            DashParameters {
-                output_dir: Some(testing::output_dir().into()),
-                seg_duration: 1.0,
-                ..Default::default()
-            },
-        )
-        .unwrap(),
+        vec![Box::new(
+            DashSink::create(
+                "test",
+                DashParameters {
+                    output_dir: Some(testing::output_dir().into()),
+                    seg_duration: 1.0,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        )],
         testing::MAX_STREAMS,
     )
     .unwrap();
