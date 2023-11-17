@@ -4,8 +4,7 @@
 
 use anyhow::{bail, Context, Result};
 
-use super::matroska_sink::MatroskaSink;
-use crate::{MatroskaParameters, Sink};
+use crate::{MatroskaParameters, MatroskaSink, Sink};
 
 /// Writes out a single MP4 file using `FFmpeg`
 #[derive(Debug)]
