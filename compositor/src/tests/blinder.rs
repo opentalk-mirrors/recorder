@@ -9,9 +9,9 @@ fn test_blinder() {
     // initialize for testing
     testing::init();
 
-    let blinder = TestBlinder::new(&TestBlinderParams {
+    let blinder = TestBlinder::create(&TestBlinderParams {
         name: "Testing Blinder",
-        sink: Box::new(TestSink::new("Testing Sink").unwrap()),
+        sink: Box::new(TestSink::create("Testing Sink").unwrap()),
         resolution: testing::RESOLUTION,
         alt_source_params: TestSourceParameters::default(),
     })

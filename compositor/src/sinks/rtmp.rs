@@ -61,7 +61,7 @@ impl RTMPSink {
     /// - Unable to create `flvmux` for `GStreamer`.
     /// - Unable to create `rtmpsink` for `GStreamer`.
     /// - `GhostPad` cannot be created for the `video_sink_pad` or `audio_sink_pad`.
-    pub fn new(name: &str, parameters: RTMPParameters) -> Result<RTMPSink> {
+    pub fn create(name: &str, parameters: RTMPParameters) -> Result<RTMPSink> {
         trace!("new({name})");
 
         let bin = gst::parse_bin_from_description(

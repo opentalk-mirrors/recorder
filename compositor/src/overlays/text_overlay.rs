@@ -28,7 +28,7 @@ impl TextOverlay {
     /// # Errors
     ///
     /// This can fail if the `textoverlay` cannot be created in `GStreamer`.
-    pub fn new(name: &str, text: &str, style: TextStyle) -> Result<Self> {
+    pub fn create(name: &str, text: &str, style: TextStyle) -> Result<Self> {
         trace!("new( '{text}', {style:?} )");
 
         // create text overlay

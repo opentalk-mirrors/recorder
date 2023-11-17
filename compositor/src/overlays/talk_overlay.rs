@@ -63,9 +63,9 @@ impl TalkOverlay {
     /// - The `TextOverlay` cannot be created.
     /// - The `ClockOverlay` cannot be created.
     /// - Adding the elements to Gstreamer or linking them.
-    pub fn new() -> Result<Self> {
+    pub fn create() -> Result<Self> {
         let bin = gst::Bin::new(Some("Talk Overlay"));
-        let padding_overlay = PaddingOverlay::new(
+        let padding_overlay = PaddingOverlay::create(
             "padding",
             &Padding {
                 top: TOP_PADDING,
@@ -73,7 +73,7 @@ impl TalkOverlay {
             },
         )
         .context("unable to create PaddingOverlay")?;
-        let text_overlay = TextOverlay::new(
+        let text_overlay = TextOverlay::create(
             "Title Overlay",
             "",
             TextStyle {
@@ -88,7 +88,7 @@ impl TalkOverlay {
                 ..Default::default()
             },
         )?;
-        let clock_overlay = ClockOverlay::new(
+        let clock_overlay = ClockOverlay::create(
             "Real Time Clock Overlay",
             "%x %X %Z",
             TextStyle {

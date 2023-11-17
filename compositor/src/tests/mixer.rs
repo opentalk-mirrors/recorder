@@ -21,7 +21,7 @@ fn test_layout(layout: impl Layout, name: &str) {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         layout,
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();
@@ -53,7 +53,7 @@ fn test_remove() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();

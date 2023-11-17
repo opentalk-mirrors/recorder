@@ -208,11 +208,11 @@ where
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
 
-        let mixer = Mixer::<SRC, StreamId<ID>>::new(
+        let mixer = Mixer::<SRC, StreamId<ID>>::create(
             pipeline,
             resolution,
             layout,
-            TalkOverlay::new()
+            TalkOverlay::create()
                 .context("unable to create TalkOverlay")?
                 .into(),
             sink,
@@ -252,7 +252,7 @@ where
         trace!("add_stream( {id}, '{display_name}', {params:?}, {initial} )");
 
         // prepare title text overlay for the stream
-        let overlay = TextOverlay::new(
+        let overlay = TextOverlay::create(
             "Name Overlay",
             display_name,
             TextStyle {

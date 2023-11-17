@@ -74,7 +74,7 @@ impl TestBlinder {
     ///
     /// This can throw an error if the underlaying `GStreamer` is having
     /// trouble.
-    pub fn new(params: &TestBlinderParams) -> Result<Self> {
+    pub fn create(params: &TestBlinderParams) -> Result<Self> {
         let bin = gst::parse_bin_from_description(
             &format!(
                 r#"

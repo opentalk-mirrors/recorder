@@ -35,8 +35,9 @@ impl Mp4Sink {
     /// - `MatroskaSink` couln't initialized
     /// - `ffmpeg` is missing
     /// - `params.file_path` cannot converted to UTF-8
-    pub fn new(name: &str, params: &Mp4Parameters) -> Result<Self> {
-        let matroska_sink = MatroskaSink::new(name, &MatroskaParameters::default()).context("")?;
+    pub fn create(name: &str, params: &Mp4Parameters) -> Result<Self> {
+        let matroska_sink =
+            MatroskaSink::create(name, &MatroskaParameters::default()).context("")?;
         let address = &format!("tcp://{}", matroska_sink.address);
 
         // TODO: use free codecs instead of ffmpeg's mp4 default.

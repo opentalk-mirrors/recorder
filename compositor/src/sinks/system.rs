@@ -22,7 +22,7 @@ impl SystemSink {
     /// This can fail if the `autoaudiosin`, or `autovideosink` cannot be
     /// created for `GStreamer` or if the `GhostPad` cannot be created for the
     /// `video_sink` or `audio_sink`
-    pub fn new(name: &str, has_video: bool) -> Result<Self> {
+    pub fn create(name: &str, has_video: bool) -> Result<Self> {
         trace!("new({name})");
 
         let mut description = format!(

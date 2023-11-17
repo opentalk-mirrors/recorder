@@ -100,7 +100,7 @@ where
     ///
     /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
     #[allow(clippy::too_many_lines)]
-    pub fn new(
+    pub fn create(
         pipeline: Pipeline,
         output_resolution: Size,
         layout: impl Layout,
@@ -313,7 +313,7 @@ where
         }
 
         // create new source bin
-        let source = SRC::new(&id, params).context("unable to create Source")?;
+        let source = SRC::create(&id, params).context("unable to create Source")?;
 
         let bin = if self.compositor.is_some() && source.video().is_some() {
             let description = format!(

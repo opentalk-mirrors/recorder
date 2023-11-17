@@ -13,7 +13,7 @@ fn test_overlay() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();

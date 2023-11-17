@@ -46,7 +46,7 @@ impl MatroskaSink {
     /// - Cannot create `multifdsink` in `GStreamer`.
     /// - The local address in `params.address` cannot be listened.
     /// - `GhostPad` cannot be created for `video_sink` or `audio_sink`.
-    pub fn new(name: &str, params: &MatroskaParameters) -> Result<Self> {
+    pub fn create(name: &str, params: &MatroskaParameters) -> Result<Self> {
         trace!("new({name})");
 
         // create bin including codecs and the Matroska sink

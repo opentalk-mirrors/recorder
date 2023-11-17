@@ -143,7 +143,7 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [`TestSource`] and add it to the given pipeline.
-    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<TestSource>
+    fn create<ID>(id: &ID, params: Self::Parameters) -> Result<TestSource>
     where
         ID: Display,
     {

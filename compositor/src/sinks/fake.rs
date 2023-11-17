@@ -20,7 +20,7 @@ impl FakeSink {
     /// # Errors
     ///
     /// This can fail if the `FakeSink` can't be created in `GStreamer`.
-    pub fn new(name: &str, has_video: bool) -> Result<Self> {
+    pub fn create(name: &str, has_video: bool) -> Result<Self> {
         trace!("new({name})");
 
         let mut description = format!(

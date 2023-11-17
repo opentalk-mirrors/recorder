@@ -64,7 +64,7 @@ async fn exec_events(events: Vec<Event>) {
     let mut talk = Talk::new(
         Size::FHD,
         Speaker::default(),
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         MAX_VISIBLES,
     )
     .unwrap();

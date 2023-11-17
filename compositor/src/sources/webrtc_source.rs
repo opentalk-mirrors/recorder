@@ -61,7 +61,7 @@ impl Source for WebRtcSource {
     type Parameters = WebRtcSourceParams;
 
     /// Create a new `WebRTC` source
-    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
+    fn create<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
     where
         ID: Display,
     {

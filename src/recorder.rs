@@ -165,17 +165,17 @@ impl RecordingSession {
                 };
                 let name = format!("{tag}-Sink-{index}");
                 match sink {
-                    RecorderSink::Display => SystemSink::new(name.as_str(), true)
+                    RecorderSink::Display => SystemSink::create(name.as_str(), true)
                         .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
                         .context("DisplaySink could not created"),
 
                     RecorderSink::Matroska(matroska_parameters) => {
-                        MatroskaSink::new(name.as_str(), &matroska_parameters)
+                        MatroskaSink::create(name.as_str(), &matroska_parameters)
                             .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
                             .context("MatroskaSink could not created")
                     }
 
-                    RecorderSink::Rtmp(rtmp_parameters) => RTMPSink::new(
+                    RecorderSink::Rtmp(rtmp_parameters) => RTMPSink::create(
                         name.as_str(),
                         RTMPParameters {
                             location: rtmp_parameters.location.replace("$room", &command.room),
@@ -187,7 +187,7 @@ impl RecordingSession {
                 }
             })
             .chain(std::iter::once::<Result<Box<dyn Sink>>>(
-                Mp4Sink::new(
+                Mp4Sink::create(
                     "MP4-Sink",
                     &Mp4Parameters {
                         file_path: file_path
@@ -203,7 +203,7 @@ impl RecordingSession {
             .collect::<Result<Vec<_>>>()?;
 
         let multi_sink =
-            MultiSink::new(MultiParameters::new(sinks)).context("unable to create mutlisink")?;
+            MultiSink::create(MultiParameters::new(sinks)).context("unable to create mutlisink")?;
         let talk = Talk::new(
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),

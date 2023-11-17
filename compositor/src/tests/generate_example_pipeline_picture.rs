@@ -24,9 +24,9 @@ fn generate_example_pipeline_picture() {
     };
 
     let blinder = Box::new(
-        TestBlinder::new(&TestBlinderParams {
+        TestBlinder::create(&TestBlinderParams {
             name: "Testing Blinder",
-            sink: Box::new(TestSink::new("Streaming").unwrap()),
+            sink: Box::new(TestSink::create("Streaming").unwrap()),
             resolution: testing::RESOLUTION,
             alt_source_params: TestSourceParameters::default(),
         })
@@ -37,10 +37,10 @@ fn generate_example_pipeline_picture() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        MultiSink::new(MultiParameters {
+        MultiSink::create(MultiParameters {
             sinks: vec![
                 blinder.clone(),
-                Box::new(TestSink::new("Recording").unwrap()),
+                Box::new(TestSink::create("Recording").unwrap()),
             ],
         })
         .unwrap(),

@@ -15,7 +15,7 @@ fn test_speaker_mode_without_prio() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         MAX_VISIBLES,
     )
     .unwrap();
@@ -52,7 +52,7 @@ fn test_speaker_mode_with_prio() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         MAX_VISIBLES,
     )
     .unwrap();
