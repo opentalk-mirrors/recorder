@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{
+    testing, Blinder, Speaker, Talk, TestBlinder, TestBlinderParams, TestSink, TestSource,
+    TestSourceParameters,
+};
 
 #[test]
 fn test_blinder() {

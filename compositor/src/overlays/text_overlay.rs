@@ -4,9 +4,8 @@
 
 //! Overlay which displays a changeable text.
 
-use gst::prelude::*;
-
 use anyhow::{Context, Result};
+use gst::prelude::*;
 
 use crate::{Overlay, TextStyle};
 

@@ -5,19 +5,21 @@
 #![allow(clippy::module_name_repetitions)]
 
 use anyhow::{Context, Error, Result};
-use futures::future::join_all;
-use futures::StreamExt;
+use futures::{future::join_all, StreamExt};
 use gst::glib;
 use http::HttpClient;
 use log::warn;
 use settings::Settings;
-use tokio::select;
-use tokio::signal::ctrl_c;
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::watch;
-use tokio::sync::watch::Receiver;
-use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration};
+use tokio::{
+    select,
+    signal::{
+        ctrl_c,
+        unix::{signal, SignalKind},
+    },
+    sync::watch::{self, Receiver},
+    task::JoinHandle,
+    time::{sleep, Duration},
+};
 
 mod http;
 mod recorder;

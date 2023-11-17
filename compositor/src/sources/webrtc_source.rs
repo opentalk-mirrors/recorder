@@ -6,8 +6,10 @@ use anyhow::{anyhow, bail, Context, Result};
 use glib::WeakRef;
 use gst::prelude::*;
 use gst_webrtc::WebRTCPeerConnectionState;
-use std::fmt::{Debug, Display};
-use std::sync::Arc;
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 use tokio::sync::oneshot;
 
 use crate::{log, Source};

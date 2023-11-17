@@ -2,11 +2,14 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-//! Dynamic A/V mixer.
+use anyhow::{anyhow, Context, Result};
+use gst::{prelude::*, Caps, ElementFactory, Pipeline};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    hash::Hash,
+};
 
-use anyhow::{Context, Result};
-
-// sub-modules
 pub mod debug;
 mod overlay;
 mod sink;
@@ -15,7 +18,6 @@ mod stream;
 mod talk;
 mod text_style;
 
-// forward useful sub-module stuff as public
 pub use super::layout::*;
 pub use overlay::*;
 pub use sink::*;
@@ -23,16 +25,6 @@ pub use source::*;
 pub use stream::*;
 pub use talk::*;
 pub use text_style::*;
-
-// what we need from external libraries
-use gst::{prelude::*, Caps, ElementFactory, Pipeline};
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Display},
-    hash::Hash,
-};
-
-use anyhow::anyhow;
 
 /// Maximum time a desired but missing re-layout is tolerated
 const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(500);

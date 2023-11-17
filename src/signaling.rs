@@ -2,9 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::http::HttpClient;
-use crate::settings::ControllerSettings;
-use crate::signaling::incoming::Error;
 use anyhow::{bail, Context, Result};
 use compositor::StreamId;
 use futures::{SinkExt, StreamExt};
@@ -12,12 +9,17 @@ use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::net::TcpStream;
-use tt::tungstenite::client::IntoClientRequest;
-use tt::tungstenite::Message;
-use tt::{MaybeTlsStream, WebSocketStream};
+use tt::{
+    tungstenite::{client::IntoClientRequest, Message},
+    MaybeTlsStream, WebSocketStream,
+};
 use uuid::Uuid;
 
-use self::incoming::MediaSessionState;
+use crate::{
+    http::HttpClient,
+    settings::ControllerSettings,
+    signaling::incoming::{Error, MediaSessionState},
+};
 
 #[derive(Debug)]
 pub struct Signaling {

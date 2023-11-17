@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{
+    testing, Pattern, Size, Speaker, StreamId, StreamStatus, Talk, TestSink, TestSource,
+    TestSourceParameters,
+};
 
 #[test]
 #[ignore = "failing in ci"]

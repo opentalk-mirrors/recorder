@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
 use compositor::{MultiParameters, MultiSink, Sink, Talk, TestSink};
 use openidconnect::{
     core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl, JsonWebKeySet,
@@ -14,6 +12,7 @@ use opentalk_recorder::{
     settings::{AuthSettings, ControllerSettings, RabbitMqSettings, Settings},
 };
 use opentalk_recorder::{recorder::RecordingSession, signaling::Signaling};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch, RwLock};
 use tt::{connect_async, tungstenite::client::IntoClientRequest};

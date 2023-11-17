@@ -2,30 +2,35 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::http::HttpClient;
-use crate::rmq::StartRecording;
-use crate::settings::{RecorderSettings, RecorderSink, Settings};
-use crate::signaling::incoming::MediaSessionState;
-use crate::signaling::{media_types, Event, Signaling};
-use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
     MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, MultiParameters, MultiSink,
     RTMPParameters, RTMPSink, Sink, StreamId, SystemSink, WebRtcSourceParams,
 };
-use core::pin::Pin;
-use core::task::{ready, Context, Poll};
+use core::{
+    pin::Pin,
+    task::{ready, Context, Poll},
+};
 use futures::Stream;
 use log::error;
-use std::io;
-use std::path::Path;
-use std::sync::Arc;
+use std::{io, path::Path, sync::Arc};
 use tempfile::TempDir;
-use tokio::fs::File;
-use tokio::io::{AsyncRead, ReadBuf};
-use tokio::sync::{mpsc, watch};
-use tokio::task::{spawn_blocking, JoinHandle};
+use tokio::{
+    fs::File,
+    io::{AsyncRead, ReadBuf},
+    sync::{mpsc, watch},
+    task::{spawn_blocking, JoinHandle},
+};
+
+use crate::{
+    http::HttpClient,
+    rmq::StartRecording,
+    settings::{RecorderSettings, RecorderSink, Settings},
+    signaling::{
+        incoming::MediaSessionState, media_types, Event, ParticipantId, Signaling, TrickleCandidate,
+    },
+};
 
 // TODO; make this configurable
 pub const MAX_VISIBLES: usize = 8;

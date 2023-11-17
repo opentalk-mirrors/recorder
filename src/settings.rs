@@ -2,13 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{fmt::Display, str::FromStr};
-
 use compositor::{MatroskaParameters, RTMPParameters};
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct RecorderSettings {

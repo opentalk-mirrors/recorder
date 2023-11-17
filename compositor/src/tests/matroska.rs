@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{testing, MatroskaSink, Speaker, StreamId, StreamStatus, Talk, TestSource};
 
 #[test]
 fn test_matroska() {

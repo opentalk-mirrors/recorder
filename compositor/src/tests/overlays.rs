@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{testing, Speaker, StreamId, Talk, TestSink, TestSource};
 
 #[test]
 fn test_overlay() {
