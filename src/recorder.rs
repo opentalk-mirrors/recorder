@@ -157,7 +157,7 @@ impl RecordingSession {
         let sinks = recorder_sinks
             .into_iter()
             .enumerate()
-            .map::<Box<dyn Sink>, _>(|(index, sink)| {
+            .map(|(index, sink)| {
                 let tag = match sink {
                     RecorderSink::Display => "Display",
                     RecorderSink::Matroska(_) => "Matroska",
@@ -165,33 +165,45 @@ impl RecordingSession {
                 };
                 let name = format!("{tag}-Sink-{index}");
                 match sink {
-                    RecorderSink::Display => Box::new(DisplaySink::new(name.as_str(), true)),
+                    RecorderSink::Display => DisplaySink::new(name.as_str(), true)
+                        .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
+                        .context("DisplaySink could not created"),
+
                     RecorderSink::Matroska(matroska_parameters) => {
-                        Box::new(MatroskaSink::new(name.as_str(), &matroska_parameters))
+                        MatroskaSink::new(name.as_str(), &matroska_parameters)
+                            .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
+                            .context("MatroskaSink could not created")
                     }
-                    RecorderSink::Rtmp(rtmp_parameters) => Box::new(RTMPSink::new(
+
+                    RecorderSink::Rtmp(rtmp_parameters) => RTMPSink::new(
                         name.as_str(),
                         RTMPParameters {
                             location: rtmp_parameters.location.replace("$room", &command.room),
                             ..rtmp_parameters.clone()
                         },
-                    )),
+                    )
+                    .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
+                    .context("RTMPSink could not created"),
                 }
             })
-            .chain(std::iter::once::<Box<dyn Sink>>(Box::new(Mp4Sink::new(
-                "MP4-Sink",
-                &Mp4Parameters {
-                    file_path: file_path
-                        .to_str()
-                        .expect("failed to convert MP4 file path into string")
-                        .into(),
-                    name: "Recording",
-                },
-            ))))
-            .collect::<Vec<_>>();
+            .chain(std::iter::once::<Result<Box<dyn Sink>>>(
+                Mp4Sink::new(
+                    "MP4-Sink",
+                    &Mp4Parameters {
+                        file_path: file_path
+                            .to_str()
+                            .context("failed to convert MP4 file path into string")?
+                            .into(),
+                        name: "Recording",
+                    },
+                )
+                .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
+                .context("MP4-Sink could not created"),
+            ))
+            .collect::<Result<Vec<_>>>()?;
 
         let multi_sink =
-            MultiSink::new(MultiParameters::new(sinks)).expect("unable to create mutlisink");
+            MultiSink::new(MultiParameters::new(sinks)).context("unable to create mutlisink")?;
         let talk = Talk::new(
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),
@@ -257,7 +269,9 @@ impl RecordingSession {
         self.signaling.start_subscribe(stream_id).await?;
 
         if media_state.video {
-            self.talk.show_stream(&stream_id);
+            self.talk
+                .show_stream(&stream_id)
+                .context("unable to show stream for stream_id '{stream_id}'")?;
         }
 
         Ok(())
@@ -300,7 +314,9 @@ impl RecordingSession {
                         .await?;
                 }
 
-                self.talk.set_title(title.as_str());
+                self.talk
+                    .set_title(title.as_str())
+                    .context("unable to set the title for the recorder")?;
             }
 
             Event::ParticipantJoined(id) => {
@@ -409,7 +425,9 @@ impl RecordingSession {
                 log::debug!("Event::FocusUpdate");
                 log::debug!("Set active speaker to {:?}", focus_change);
                 if let Some(speaker) = focus_change {
-                    self.talk.set_speaker(speaker);
+                    self.talk
+                        .set_speaker(speaker)
+                        .context("unable to set speaker for '{speaker}'")?;
                 } else {
                     self.talk.unset_speaker();
                 }

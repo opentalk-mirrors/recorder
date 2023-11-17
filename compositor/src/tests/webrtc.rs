@@ -64,10 +64,7 @@ async fn exec_events(events: Vec<Event>) {
     let mut talk = Talk::new(
         Size::FHD,
         Speaker::default(),
-        // Mp4SinkParams {
-        //     file_path: "out.mp4".into(),
-        // },
-        TestSink::default(),
+        TestSink::new("Testing Sink").unwrap(),
         MAX_VISIBLES,
     )
     .unwrap();
@@ -171,7 +168,7 @@ fn handle_user_event(
             assert!(state.publish.is_none());
 
             create_publish_pipeline(tx, id, state, talk);
-            talk.show_stream(&StreamId::camera(id));
+            talk.show_stream(&StreamId::camera(id)).unwrap();
         }
         Event::Unpublish(id) => {
             log::debug!("Participant with id={id} stops publishing");

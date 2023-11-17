@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use gst_base::prelude::*;
 
-use crate::{FakeSink, Sink, Size, TestSourceParameters};
+use crate::{Sink, Size, TestSourceParameters};
 
 /// Trait to use blinders
 /// @TODO: move out of this file if more blinders exist
@@ -21,17 +21,6 @@ pub struct TestBlinderParams {
     pub resolution: Size,
     pub sink: Box<dyn Sink>,
     pub alt_source_params: TestSourceParameters,
-}
-
-impl Default for TestBlinderParams {
-    fn default() -> Self {
-        Self {
-            name: Default::default(),
-            resolution: Size::default(),
-            sink: Box::new(FakeSink::new("Fake Sink", true)),
-            alt_source_params: TestSourceParameters::default(),
-        }
-    }
 }
 
 /// Blinder which selects between two sources - one original and an alternative.

@@ -25,9 +25,10 @@ fn generate_example_pipeline_picture() {
 
     let blinder = Box::new(
         TestBlinder::new(&TestBlinderParams {
-            sink: Box::new(TestSink::new("Streaming")),
+            name: "Testing Blinder",
+            sink: Box::new(TestSink::new("Streaming").unwrap()),
             resolution: testing::RESOLUTION,
-            ..Default::default()
+            alt_source_params: TestSourceParameters::default(),
         })
         .unwrap(),
     );
@@ -37,7 +38,10 @@ fn generate_example_pipeline_picture() {
         testing::RESOLUTION,
         Speaker::default(),
         MultiSink::new(MultiParameters {
-            sinks: vec![blinder.clone(), Box::new(TestSink::new("Recording"))],
+            sinks: vec![
+                blinder.clone(),
+                Box::new(TestSink::new("Recording").unwrap()),
+            ],
         })
         .unwrap(),
         100,
@@ -45,25 +49,25 @@ fn generate_example_pipeline_picture() {
     .unwrap();
 
     testing::generate_streams(&mut talk, 0, 3, 3);
-    talk.set_speaker(0);
+    talk.set_speaker(0).unwrap();
     blinder.blind(false);
 
-    talk.set_title("not blinded");
+    talk.set_title("not blinded").unwrap();
     talk.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(true);
 
-    talk.set_title("blinded");
+    talk.set_title("blinded").unwrap();
     talk.dot("test_blinder-blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(false);
 
-    talk.set_title("not blinded");
+    talk.set_title("not blinded").unwrap();
     talk.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
-    talk.set_title("shutdown");
+    talk.set_title("shutdown").unwrap();
 
     talk.dot("example_pipeline", dp);
 

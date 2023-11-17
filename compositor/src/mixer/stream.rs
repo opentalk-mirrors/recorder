@@ -95,48 +95,22 @@ where
     SRC::Parameters: Debug,
 {
     /// Find compositor sink by looking where our ghost pad is connected to.
-    ///
-    /// # Panics
-    ///
-    /// This can panic if the stream has no video `Pad`.
     pub fn compositor_sink(&self) -> Option<gst::Pad> {
-        self.video.clone().map(|video| {
-            video
-                .peer()
-                .expect("expecting video source bin to be connected to compositor")
-        })
+        self.video.clone().and_then(|video| video.peer())
     }
 
     /// Get the videoconvertscale `Pad` from the stream.
-    ///
-    /// # Panics
-    ///
-    /// This can panic if the stream has no videoconvertscale `Pad`.
-    pub fn videoconvertscale(&self) -> gst::Element {
-        self.bin
-            .by_name("videoconvertscale")
-            .expect("unable to get the videoconvertscale from the bin")
+    pub fn videoconvertscale(&self) -> Option<gst::Element> {
+        self.bin.by_name("videoconvertscale")
     }
 
     /// Get the capsfilter `Pad` from the stream.
-    ///
-    /// # Panics
-    ///
-    /// This can panic if the stream has no capsfilter `Pad`.
-    pub fn capsfilter(&self) -> gst::Element {
-        self.bin
-            .by_name("capsfilter")
-            .expect("unable to get the capsfilter from the bin")
+    pub fn capsfilter(&self) -> Option<gst::Element> {
+        self.bin.by_name("capsfilter")
     }
 
     /// Find audiomixer sink by looking where our ghost pad is connected to.
-    ///
-    /// # Panics
-    ///
-    /// This can panic if the stream has no audio `Pad`.
-    pub fn audiomixer_sink(&self) -> gst::Pad {
-        self.audio
-            .peer()
-            .expect("expecting audio source bin to be connected to audiomixer")
+    pub fn audiomixer_sink(&self) -> Option<gst::Pad> {
+        self.audio.peer()
     }
 }

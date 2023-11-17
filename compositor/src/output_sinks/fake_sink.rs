@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{Context, Result};
+
 use crate::{add_ghost_pad, Sink};
 
 /// Fake sink to catch the compositor output without any further processing.
@@ -15,11 +17,10 @@ pub struct FakeSink {
 impl FakeSink {
     /// Create and add new fake sink into existing pipeline.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `FakeSink` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new(name: &str, has_video: bool) -> Self {
+    /// This can fail if the `FakeSink` can't be created in `GStreamer`.
+    pub fn new(name: &str, has_video: bool) -> Result<Self> {
         trace!("new({name})");
 
         let mut description = format!(
@@ -41,27 +42,24 @@ impl FakeSink {
 
         // create new GStreamer pipeline
         let bin = gst::parse_bin_from_description(&description, false)
-            .expect("could not parse display link pipeline");
+            .context("could not parse display link pipeline")?;
 
         let video_sink = if has_video {
-            Some(add_ghost_pad(&bin, "video", "sink"))
+            let pad = add_ghost_pad(&bin, "video", "sink")
+                .context("unable to add GhostPad for video sink")?;
+            Some(pad)
         } else {
             None
         };
 
-        let audio_sink = add_ghost_pad(&bin, "audio", "sink");
+        let audio_sink = add_ghost_pad(&bin, "audio", "sink")
+            .context("unable to add GhostPad for audio sink")?;
 
-        FakeSink {
+        Ok(FakeSink {
             bin,
             audio_sink,
             video_sink,
-        }
-    }
-}
-
-impl Default for FakeSink {
-    fn default() -> Self {
-        Self::new("Fake Sink", true)
+        })
     }
 }
 

@@ -128,7 +128,7 @@ fn main() -> Result<()> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .expect("Failed to start tokio async runtime");
+        .context("Failed to start tokio async runtime")?;
 
     runtime.spawn(async move {
         let mut sig_term = signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");

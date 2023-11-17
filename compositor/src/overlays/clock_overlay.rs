@@ -4,6 +4,7 @@
 
 //! Overlay displaying the current time.
 
+use anyhow::{Context, Result};
 use gst::prelude::*;
 
 use crate::{Overlay, TextStyle};
@@ -24,16 +25,15 @@ impl ClockOverlay {
     /// - `format`: Clock format string.
     /// - `style`: Style of the clock display.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `ClockOverlay` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new(name: &str, format: &str, style: TextStyle) -> ClockOverlay {
+    /// This can fail if the `clockoverlay` cannot be created in `GStreamer`.
+    pub fn new(name: &str, format: &str, style: TextStyle) -> Result<Self> {
         trace!("new( {format:?}, {style:?} )");
 
         // create text overlay
         let element = gst::ElementFactory::make_with_name("clockoverlay", Some(name))
-            .expect("failed to create clock overlay");
+            .context("failed to create clock overlay")?;
 
         // set up properties
         element.set_property("time-format", format);
@@ -53,7 +53,7 @@ impl ClockOverlay {
         element.set_property("auto-resize", false);
 
         // return Overlay
-        Self { element }
+        Ok(Self { element })
     }
 }
 

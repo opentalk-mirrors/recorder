@@ -6,6 +6,8 @@
 
 use std::fmt::Debug;
 
+use anyhow::{Context, Result};
+use gst::GhostPad;
 use gst_base::prelude::{ElementExt, GstBinExt};
 
 use crate::debug;
@@ -21,36 +23,50 @@ pub trait Sink: Send + Debug + 'static {
     fn bin(&self) -> gst::Bin;
 
     /// Called by `Mixer::play()`.
-    fn on_play(&mut self) {}
+    ///
+    /// # Errors
+    ///
+    /// This cannot fail, it's doing nothing.
+    fn on_play(&mut self) -> Result<()> {
+        Ok(())
+    }
 
     /// Called by `Mixer::pause()`.
     fn on_pause(&mut self) {}
 
     /// Called by `Mixer::drop()`.
-    fn on_exit(&mut self, _pipeline: &gst::Pipeline) {}
+    ///
+    /// # Errors
+    ///
+    /// This cannot fail, it's doing nothing.
+    fn on_exit(&mut self, _pipeline: &gst::Pipeline) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Adds a `GhostPad` to the given `Bin`.
 ///
-/// # Panics
+/// # Errors
 ///
-/// This can panic if creating and adding the `Ghostpad` is failing.
+/// There are three reasons why this could fail:
+/// - The element name cannot be found in the bin.
+/// - The pad cannot be found in the element.
+/// - The `GhostPad` cannot be added to the bin.
 #[allow(clippy::must_use_candidate)]
-pub fn add_ghost_pad(bin: &gst::Bin, name: &str, pad: &str) -> gst::GhostPad {
+pub fn add_ghost_pad(bin: &gst::Bin, name: &str, pad: &str) -> Result<gst::GhostPad> {
     trace!(
         "add_ghost_pad({bin}, {name}, {pad}) ",
         bin = debug::name(bin)
     );
-    // add ghost pad connected to video sink pad
-    let ghost_pad = gst::GhostPad::with_target(
-        Some(name),
-        &bin.by_name(name)
-            .expect("can not find element to ghost")
-            .static_pad(pad)
-            .expect("failed to get pad of element to ghost"),
-    )
-    .expect("failed to create ghost pad for pad");
+    let pad = bin
+        .by_name(name)
+        .with_context(|| format!("unable to find element '{name}'"))?
+        .static_pad(pad)
+        .with_context(|| format!("unable to find pad '{pad}' for element '{name}'"))?;
+    let ghost_pad =
+        GhostPad::with_target(Some(name), &pad).context("failed to create ghost pad for pad")?;
     bin.add_pad(&ghost_pad)
-        .expect("cannot add ghost pad to bin");
-    ghost_pad
+        .context("unable to add GhostPad to bin")?;
+
+    Ok(ghost_pad)
 }

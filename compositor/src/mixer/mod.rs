@@ -99,10 +99,6 @@ where
     /// # Errors
     ///
     /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
-    ///
-    /// # Panics
-    ///
-    /// This can panic if the `Mixer` can't be created in `GStreamer`.
     #[allow(clippy::too_many_lines)]
     pub fn new(
         output_resolution: Size,
@@ -166,7 +162,7 @@ where
 
         let pipeline = pipeline
             .downcast::<gst::Pipeline>()
-            .expect("not a pipeline");
+            .map_err(|_| anyhow!("not a pipeline"))?;
 
         // get audio elements from bin
         let audio_mixer = pipeline
@@ -198,11 +194,13 @@ where
             pipeline.add(overlay.element())?;
 
             // connect output pads to output sinks
+            let overlay_sink = overlay.sink().context("unable to get sink for overlay")?;
             video_out_src
-                .link(&overlay.sink())
+                .link(&overlay_sink)
                 .context("failed to link video output pad to overlay sink")?;
             overlay
                 .src()
+                .context("unable to get src for overlay")?
                 .link(video_sink)
                 .context("failed to link overlay src pad to video output sink")?;
 
@@ -243,7 +241,10 @@ where
         monitor_layout(valid_receiver);
 
         // inform output sink that pipeline is are playing now
-        mixer.output.on_play();
+        mixer
+            .output
+            .on_play()
+            .context("unable to call on_play output")?;
 
         Ok(mixer)
     }
@@ -263,10 +264,6 @@ where
     /// # Errors
     ///
     /// This can fail if adding the stream to the `GStreamer` pipeline fails.
-    ///
-    /// # Panics
-    ///
-    /// This can panic if creating the `gst::Bin` fails.
     #[allow(clippy::too_many_lines)]
     pub fn add_stream(
         &mut self,
@@ -285,7 +282,7 @@ where
         }
 
         // create new source bin
-        let source = SRC::new(&id, params);
+        let source = SRC::new(&id, params).context("unable to create Source")?;
 
         let bin = if self.compositor.is_some() && source.video().is_some() {
             let description = format!(
@@ -298,43 +295,51 @@ where
                         name=capsfilter
                 "#
             );
-            gst::parse_bin_from_description(&description, false).expect("creation of bin failed")
+            gst::parse_bin_from_description(&description, false)
+                .context("creation of bin failed")?
         } else {
-            gst::ElementFactory::make_with_name("bin", Some(&format!("Overlay: {id}")))?
+            gst::ElementFactory::make_with_name("bin", Some(&format!("Overlay: {id}")))
+                .context(format!("unable to create bin with name 'Overlay: {id}'"))?
                 .dynamic_cast::<gst::Bin>()
-                .expect("creation of bin failed")
+                .map_err(|element| {
+                    anyhow!("unable to dynamic cast Elemenet '{element:?}' to gst::Bin")
+                })
+                .context("creation of bin failed")?
         };
 
         // add source to the bin
-        bin.add(&source.bin()).expect("failed to add source to bin");
+        bin.add(&source.bin())
+            .context("failed to add source to bin")?;
 
         let video = if let Some(video) = source.video() {
             if self.compositor.is_some() {
                 // add overlay to the bin
                 bin.add(overlay.element())?;
 
+                let overlay_sink = overlay.sink().context("unable to get sink for overlay")?;
                 bin.by_name("capsfilter")
-                    .expect("unable to get capfilter from bin")
+                    .context("unable to get capfilter from bin")?
                     .static_pad("src")
-                    .expect("unable to get src of capsfilter")
-                    .link(&overlay.sink())
-                    .expect("unable to link the capsfilter to the overlay");
+                    .context("unable to get src of capsfilter")?
+                    .link(&overlay_sink)
+                    .context("unable to link the capsfilter to the overlay")?;
 
                 // link source to overlay
                 video
                     .link(
                         &bin.by_name("videoconvertscale")
-                            .expect("unable to get videoconvertscale from bin")
+                            .context("unable to get videoconvertscale from bin")?
                             .static_pad("sink")
-                            .expect("unable to get sink of videoconvertscale"),
+                            .context("unable to get sink of videoconvertscale")?,
                     )
-                    .expect("could not link video source to overlay");
+                    .context("could not link video source to overlay")?;
 
-                let video = gst::GhostPad::with_target(Some("video"), &overlay.src())
-                    .expect("failed to create ghost pad for source video output");
+                let overlay_src = overlay.src().context("unable to get src for overlay")?;
+                let video = gst::GhostPad::with_target(Some("video"), &overlay_src)
+                    .context("failed to create ghost pad for source video output")?;
 
                 bin.add_pad(&video)
-                    .expect("failed to add video output ghost pad to source bin");
+                    .context("failed to add video output ghost pad to source bin")?;
 
                 Some(video)
             } else {
@@ -360,42 +365,43 @@ where
         // add the bin to the pipeline
         self.pipeline
             .add(&bin)
-            .expect("failed to add source bin to pipeline");
+            .context("failed to add source bin to pipeline")?;
 
         debug::debug_dot(&bin, "compositor_request_pad");
 
         if let Some(compositor) = &self.compositor {
             let compositor_sink = compositor
                 .request_pad_simple("sink_%u")
-                .expect("could not get sink at compositor");
+                .context("could not get sink at compositor")?;
             compositor_sink.set_property_from_str("sizing-policy", "keep-aspect-ratio");
             compositor_sink.set_property("alpha", 0.0);
 
             if let Some(video) = video.clone() {
                 video
                     .link(&compositor_sink)
-                    .expect("could not connect video stream to compositor");
+                    .context("could not connect video stream to compositor")?;
             }
         }
 
         // get audio source pad (no audio overlay yet)
-        let Some(audio_src) = source.bin().static_pad("audio") else {
-            panic!("source's video pad is missing")
-        };
+        let audio_src = source
+            .bin()
+            .static_pad("audio")
+            .context("source's video pad is missing")?;
 
         let audio = gst::GhostPad::with_target(Some("audio"), &audio_src)
-            .expect("failed to create ghost pad for source audio output");
+            .context("failed to create ghost pad for source audio output")?;
         bin.add_pad(&audio)
-            .expect("failed to add video output ghost pad to source bin");
+            .context("failed to add video output ghost pad to source bin")?;
 
         // link source's audio to audiomixer sink with the name of the stream ID
         let audiomixer_sink = self
             .audiomixer
             .request_pad_simple("sink_%u")
-            .expect("could not get sink at audiomixer");
+            .context("could not get sink at audiomixer")?;
         audio
             .link(&audiomixer_sink)
-            .expect("could not connect audio stream to audiomixer");
+            .context("could not connect audio stream to audiomixer")?;
 
         // sync state with rest of pipeline
         bin.sync_state_with_parent()?;
@@ -499,10 +505,6 @@ where
     /// # Errors
     ///
     /// This can fail if the stream bin can't be set to NULL.
-    ///
-    /// # Panics
-    ///
-    /// This panics if the stream's bin can't be found in the pipeline.
     pub fn remove_stream(&mut self, id: STREAMID) -> Result<()>
     where
         SRC: Source,
@@ -522,20 +524,23 @@ where
                 compositor.release_request_pad(compositor_sink);
             }
         }
-        self.audiomixer
-            .release_request_pad(&stream.audiomixer_sink());
+        let audiomixer_sink = stream
+            .audiomixer_sink()
+            .context("unable to get sink for audiomixer")?;
+        self.audiomixer.release_request_pad(&audiomixer_sink);
 
         // remove bin from pipeline
         stream.bin.set_state(gst::State::Null)?;
 
         self.pipeline
             .remove(&stream.bin)
-            .expect("can not remove stream's bin from pipeline");
+            .context("can not remove stream's bin from pipeline")?;
 
         // remove stream from visibles
         if let Some(index) = self.visibles.iter().position(|i| *i == id) {
             self.visibles.remove(index);
-            self.rerender_layout();
+            self.rerender_layout()
+                .context("unable to rerender layout")?;
         }
 
         debug!("Removed stream {id}");
@@ -548,9 +553,13 @@ where
     ///
     /// `id`: ID of stream
     /// `position_first`: Decides of the id should be pushed an the first or last position
-    pub fn show_stream(&mut self, id: &STREAMID, position_first: bool) {
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `rerender_layout` function is failing.
+    pub fn show_stream(&mut self, id: &STREAMID, position_first: bool) -> Result<()> {
         if self.is_visible(id) {
-            return;
+            return Ok(());
         }
 
         if position_first {
@@ -558,7 +567,7 @@ where
         } else {
             self.visibles.push(*id);
         }
-        self.rerender_layout();
+        self.rerender_layout().context("unable to rerender layout")
     }
 
     /// Set stream to the first position
@@ -566,8 +575,12 @@ where
     /// # Arguments
     ///
     /// `id`: ID of stream
-    pub fn set_stream_to_first_position(&mut self, id: &STREAMID) {
-        self.set_stream_to_position(id, 0);
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `set_stream_to_position` function is failing.
+    pub fn set_stream_to_first_position(&mut self, id: &STREAMID) -> Result<()> {
+        self.set_stream_to_position(id, 0)
     }
 
     /// Set stream to the first position
@@ -575,8 +588,12 @@ where
     /// # Arguments
     ///
     /// `id`: ID of stream
-    pub fn set_stream_to_second_position(&mut self, id: &STREAMID) {
-        self.set_stream_to_position(id, 1);
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `set_stream_to_position` function is failing.
+    pub fn set_stream_to_second_position(&mut self, id: &STREAMID) -> Result<()> {
+        self.set_stream_to_position(id, 1)
     }
 
     /// Set stream to the first position
@@ -584,14 +601,18 @@ where
     /// # Arguments
     ///
     /// `id`: ID of stream
-    pub fn set_stream_to_position(&mut self, id: &STREAMID, position: usize) {
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `rerender_layout` function is failing.
+    pub fn set_stream_to_position(&mut self, id: &STREAMID, position: usize) -> Result<()> {
         if self.visibles.first() == Some(id) {
-            return;
+            return Ok(());
         }
 
         self.visibles.retain(|other_id| other_id != id);
         self.visibles.insert(position, *id);
-        self.rerender_layout();
+        self.rerender_layout().context("unable to rerender layout")
     }
 
     /// Hide stream.
@@ -599,13 +620,17 @@ where
     /// # Arguments
     ///
     /// `id`: ID of stream
-    pub fn hide_stream(&mut self, id: &STREAMID) {
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `rerender_layout` function is failing.
+    pub fn hide_stream(&mut self, id: &STREAMID) -> Result<()> {
         if !self.is_visible(id) {
-            return;
+            return Ok(());
         }
 
         self.visibles.retain(|other_id| other_id != id);
-        self.rerender_layout();
+        self.rerender_layout().context("unable to rerender layout")
     }
 
     /// Return `true`, if stream is currently visible
@@ -643,6 +668,7 @@ where
         let current_stream = self.get_stream_mut(id)?;
         current_stream
             .audiomixer_sink()
+            .context("unable to get sink for audiomixer")?
             .set_property("volume", if new_status.has_audio { 1.0 } else { 0.0 });
         current_stream.status = new_status;
 
@@ -696,20 +722,26 @@ where
     }
 
     /// Replace the current layout with the new one.
-    pub fn change_layout(&mut self, layout: impl Layout) {
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `rerender_layout` function is failing.
+    pub fn change_layout(&mut self, layout: impl Layout) -> Result<()> {
         self.layout = Box::new(layout);
-        self.rerender_layout();
+        self.rerender_layout().context("unable to rerender layout")
     }
 
     /// Re-layout the current compositor scene.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if it's unable to get the src pad from the `videoconvertscale`.
-    pub fn rerender_layout(&mut self) {
+    /// This can fail for the following reasons:
+    /// - Pads cannot be retrieved.
+    /// - Invalidate and validate for the bus monitor failed.
+    pub fn rerender_layout(&mut self) -> Result<()> {
         if self.compositor.is_none() {
             // Doesn't need to rerender, if there is no compositor.
-            return;
+            return Ok(());
         };
 
         trace!(
@@ -726,7 +758,7 @@ where
                 .collect::<Vec<String>>()
                 .join(",")
         );
-        self.invalidate();
+        self.invalidate().context("unable to invalidate layout")?;
 
         self.layout.set_resolution_changed(self.output_resolution);
         self.layout.set_amount_of_visibles(self.visibles.len());
@@ -736,7 +768,7 @@ where
 
         // layout all video streams
         for (n, id) in streams.iter().enumerate() {
-            let stream = self.streams.get(id).expect("stream not found");
+            let stream = self.streams.get(id).context("stream not found")?;
             if let Some(compositor_sink) = stream.compositor_sink() {
                 if let Some(view) = self.layout.calculate_stream_view(n) {
                     compositor_sink.set_properties(&[
@@ -747,19 +779,23 @@ where
                         ("alpha", &(1.0).to_value()),
                     ]);
                     // Scale down the original video so the text overlay can be rendered properly
-                    stream.capsfilter().set_property(
-                        "caps",
-                        gst::Caps::builder("video/x-raw")
-                            .field("width", view.size.width as i32)
-                            .field("height", view.size.height as i32)
-                            .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
-                            .build(),
-                    );
+                    stream
+                        .capsfilter()
+                        .context("unable to get capsfilter for stream")?
+                        .set_property(
+                            "caps",
+                            gst::Caps::builder("video/x-raw")
+                                .field("width", view.size.width as i32)
+                                .field("height", view.size.height as i32)
+                                .field("pixel-aspect-ratio", gst::Fraction::new(1, 1))
+                                .build(),
+                        );
                     // Reconfigure the videoconverscale after changing the size
                     stream
                         .videoconvertscale()
+                        .context("unable to get videoconvertsccale for stream")?
                         .static_pad("src")
-                        .expect("unable to get src from videoconvertscale")
+                        .context("unable to get src from videoconvertscale")?
                         .send_event(gst::event::Reconfigure::new());
                 } else {
                     compositor_sink.set_property("alpha", 0.0);
@@ -767,7 +803,9 @@ where
             }
         }
 
-        self.validate();
+        self.validate().context("unable to validate layout")?;
+
+        Ok(())
     }
 
     /// Signal that layout has to be renewed from here
@@ -778,20 +816,20 @@ where
     /// Could be automatic but renewing the layout on every change leads to
     /// flickering in the output.
     ///
-    fn invalidate(&mut self) {
+    fn invalidate(&mut self) -> Result<()> {
         trace!("invalidate()");
 
         self.valid
             .send(Validation::Invalid)
-            .expect("cannot send layout invalidation");
+            .context("cannot send layout invalidation")
     }
 
-    fn validate(&self) {
+    fn validate(&self) -> Result<()> {
         trace!("validate()");
 
         self.valid
             .send(Validation::Valid)
-            .expect("cannot send layout validation");
+            .context("cannot send layout validation")
     }
 }
 
@@ -814,7 +852,9 @@ fn monitor_layout(receiver: std::sync::mpsc::Receiver<Validation>) {
                     }
                     Validation::Valid => match receiver.recv() {
                         Ok(v) => valid = v,
-                        Err(_) => todo!(),
+                        Err(error) => {
+                            error!("unable to receive valid Validation in monitor_layout, error: {error}");
+                        }
                     },
                     Validation::Stop => break,
                 }
@@ -836,19 +876,21 @@ where
         debug!("Dropping mixer...");
         debug::debug_dot(&self.pipeline, "DROP");
 
-        self.valid
-            .send(Validation::Stop)
-            .expect("could not stop validation monitor");
+        if let Err(error) = self.valid.send(Validation::Stop) {
+            error!("could not stop validation monitor, error: {error}");
+        }
 
         // call sink to prepare for dropping pipeline
         debug!("Stop sink...");
-        self.output.on_exit(&self.pipeline);
+        if let Err(error) = self.output.on_exit(&self.pipeline) {
+            error!("unable to call on_exit on output, error: {error}");
+        }
 
         // halt pipeline
         debug!("Nulling pipeline...");
-        self.pipeline
-            .set_state(gst::State::Null)
-            .expect("Unable to set the pipeline to the `Null` state");
+        if let Err(error) = self.pipeline.set_state(gst::State::Null) {
+            error!("Unable to set the pipeline to the `Null` state, error: {error}");
+        }
 
         debug!("Exited mixer.");
     }

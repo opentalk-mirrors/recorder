@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{Context, Result};
 use gst::prelude::*;
 use serde::Deserialize;
 use std::{
@@ -32,11 +33,20 @@ pub struct MatroskaParameters {
 impl MatroskaSink {
     /// Create and add new Matroska sink into existing pipeline.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This can panic if the `MatroskaSink` can't be created in `GStreamer`.
-    #[must_use]
-    pub fn new(name: &str, params: &MatroskaParameters) -> Self {
+    /// This can fail for the following reasons:
+    /// - Cannot create `videoconvert` in `GStreamer`.
+    /// - Cannot create `videorate` in `GStreamer`.
+    /// - Cannot create `videoscale` in `GStreamer`.
+    /// - Cannot create `mux` in `GStreamer`.
+    /// - Cannot create `audioconvert` in `GStreamer`.
+    /// - Cannot create `matroskamux` in `GStreamer`.
+    /// - Cannot create `queue` in `GStreamer`.
+    /// - Cannot create `multifdsink` in `GStreamer`.
+    /// - The local address in `params.address` cannot be listened.
+    /// - `GhostPad` cannot be created for `video_sink` or `audio_sink`.
+    pub fn new(name: &str, params: &MatroskaParameters) -> Result<Self> {
         trace!("new({name})");
 
         // create bin including codecs and the Matroska sink
@@ -74,46 +84,51 @@ impl MatroskaSink {
             ),
             false,
         )
-        .expect("failed to create matroska sink pipeline");
+        .context("failed to create matroska sink pipeline")?;
 
         // listen on given TCP port
         let (stop_listen, stop_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
         let listener =
-            TcpListener::bind(params.address).expect("failed to bind matroska's TCP listener");
+            TcpListener::bind(params.address).context("failed to bind matroska's TCP listener")?;
         let address = listener
             .local_addr()
-            .expect("failed to get  matroska's local listening address");
+            .context("failed to get  matroska's local listening address")?;
         debug!("Start listening on {address}");
 
         let sink_weak = bin
             .by_name("matroska-sink")
-            .expect("failed to get matroska-sink from pipeline")
+            .context("failed to get matroska-sink from pipeline")?
             .downgrade();
 
         // spawn a thread which waits until the channel
         std::thread::spawn(move || loop {
             let Some(sink) = sink_weak.upgrade() else {
-                return;
+                return Ok::<(), anyhow::Error>(());
             };
             let (socket, _) = listener
                 .accept()
-                .expect("failed to accept incoming TCP connection in matroska");
+                .context("failed to accept incoming TCP connection in matroska")?;
             trace!("Start sending matroska data");
             sink.emit_by_name_with_values("add", &[socket.as_raw_fd().to_value()]);
             stop_receiver
                 .recv()
-                .expect("failed to wait for TCP receiver stop");
+                .context("failed to wait for TCP receiver stop")?;
             trace!("Stopped sending matroska data");
         });
 
+        let video_sink = add_ghost_pad(&bin, "video", "sink")
+            .context("unable to add GhostPad for video sink")?;
+        let audio_sink = add_ghost_pad(&bin, "audio", "sink")
+            .context("unable to add GhostPad for audio sink")?;
+
         // return new Matroska sink
-        Self {
+        Ok(Self {
+            bin,
             stop_listen,
             address,
-            video_sink: add_ghost_pad(&bin, "video", "sink"),
-            audio_sink: add_ghost_pad(&bin, "audio", "sink"),
-            bin,
-        }
+            video_sink,
+            audio_sink,
+        })
     }
 }
 
@@ -144,12 +159,12 @@ impl Sink for MatroskaSink {
         self.bin.clone()
     }
 
-    fn on_exit(&mut self, _pipeline: &gst::Pipeline) {
+    fn on_exit(&mut self, _pipeline: &gst::Pipeline) -> Result<()> {
         trace!("on_exit()");
 
         self.stop_listen
             .send(())
-            .expect("failed to send stop to TCP listener");
+            .context("failed to send stop to TCP listener")
     }
 }
 
@@ -157,8 +172,8 @@ impl Drop for MatroskaSink {
     fn drop(&mut self) {
         trace!("drop()");
 
-        self.stop_listen
-            .send(())
-            .expect("failed to send stop to TCP listener");
+        if let Err(error) = self.stop_listen.send(()) {
+            error!("failed to send stop to TCP listener, error: {error}");
+        }
     }
 }

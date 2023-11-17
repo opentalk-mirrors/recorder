@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use anyhow::{Context, Result};
+
 use crate::{DisplaySink, FakeSink, Sink};
 
 /// Fake sink to catch the compositor output without any further processing.
@@ -13,25 +15,26 @@ pub enum TestSink {
 
 impl TestSink {
     /// Create and add new fake sink into existing pipeline.
-    #[must_use]
-    pub fn new(name: &str) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `DisplaySink` or `FakeSink` cannot be created.
+    pub fn new(name: &str) -> Result<Self> {
         trace!("new({name})");
 
         let use_display = std::env::var("USE_DISPLAY").is_ok();
         let use_video = std::env::var("USE_VIDEO").is_ok();
-        if use_display {
+        let sink = if use_display {
             info!("using display sink because display is available");
-            Self::Display(DisplaySink::new(name, use_video))
+            Self::Display(
+                DisplaySink::new(name, use_video).context("unable to create DisplaySink")?,
+            )
         } else {
             info!("using fake sink");
-            Self::Fake(FakeSink::new(name, use_video))
-        }
-    }
-}
+            Self::Fake(FakeSink::new(name, use_video).context("unable to create FakeSink")?)
+        };
 
-impl Default for TestSink {
-    fn default() -> Self {
-        Self::new("Test Sink")
+        Ok(sink)
     }
 }
 

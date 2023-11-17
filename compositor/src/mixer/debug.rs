@@ -70,10 +70,6 @@ pub fn dot(element: &impl glib::IsA<gst::Element>, filename_without_extension: &
 /// # Arguments
 ///
 /// - `element`: Element in the pipeline which shall be generated a DOT file from.
-///
-/// # Panics
-///
-/// This can fail if the danamic cast from the `gst::Element` to a `gst::object` failed.
 pub fn dot_ext(
     element: &impl glib::IsA<gst::Element>,
     filename_without_extension: &str,
@@ -89,22 +85,31 @@ pub fn dot_ext(
     };
 
     // create output directory if not exist
-    if let Err(e) = std::fs::create_dir_all(path.clone()) {
-        error!("can not create dir from GST_DEBUG_DUMP_DOT_DIR: {:?}", e);
+    if let Err(e) = std::fs::create_dir_all(&path) {
+        error!(
+            "Generation of dot file failed: can not create dir from GST_DEBUG_DUMP_DOT_DIR: {:?}",
+            e
+        );
+        return;
+    };
+
+    let Ok(object) = element.clone().dynamic_cast::<gst::Object>() else {
+        error!(
+            "Generation of dot file failed: unable to dynamic cast the `element` to 'gst::Object'"
+        );
         return;
     };
 
     // recursion to top parent
-    if let Some(parent) = element
-        .clone()
-        .dynamic_cast::<gst::Object>()
-        .expect("unable to dynamic cast the `element` to 'gst::Object'")
-        .parent()
-    {
-        return dot(
-            &parent.dynamic_cast::<gst::Element>().unwrap(),
-            filename_without_extension,
-        );
+    if let Some(parent) = object.parent() {
+        let Ok(element) = parent.dynamic_cast::<gst::Element>() else {
+            error!("Generation of dot file failed: unable to dynamic cast the `object` to 'gst::Element'");
+            return;
+        };
+
+        dot(&element, filename_without_extension);
+
+        return;
     }
 
     // count file name index if configured
@@ -118,11 +123,12 @@ pub fn dot_ext(
 
     // generate DOT file
     info!("GENERATING DOT FILE: '{path}/{name}.dot'");
-    gst::debug_bin_to_dot_file(
-        &Cast::dynamic_cast::<gst::Bin>(element.clone()).unwrap(),
-        params.details,
-        name,
-    );
+
+    let Ok(bin) = Cast::dynamic_cast::<gst::Bin>(element.clone()) else {
+        error!("Generation of dot file failed: unable to cast element to bin");
+        return;
+    };
+    gst::debug_bin_to_dot_file(&bin, params.details, name);
 }
 
 /// Create a name (and parent name as suffix) from given gstreamer object.

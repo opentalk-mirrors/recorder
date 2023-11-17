@@ -13,12 +13,12 @@ fn test_matroska() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        MatroskaSink::new("test", &Default::default()),
+        MatroskaSink::new("test", &Default::default()).unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();
 
-    talk.set_speaker(0);
+    talk.set_speaker(0).unwrap();
     // add a stream
     talk.add_stream(
         StreamId::camera(0),
