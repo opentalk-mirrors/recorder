@@ -8,13 +8,13 @@ use crate::{add_ghost_pad, Sink};
 
 /// Displays compositor output on the screen.
 #[derive(Debug)]
-pub struct DisplaySink {
+pub struct SystemSink {
     bin: gst::Bin,
     audio_sink: gst::GhostPad,
     video_sink: Option<gst::GhostPad>,
 }
 
-impl DisplaySink {
+impl SystemSink {
     /// Create and add new display sink into existing pipeline.
     ///
     /// # Errors
@@ -66,7 +66,7 @@ impl DisplaySink {
     }
 }
 
-impl Sink for DisplaySink {
+impl Sink for SystemSink {
     /// Get video sink pad.
     #[must_use]
     fn video(&self) -> Option<gst::GhostPad> {

@@ -11,8 +11,8 @@ use crate::signaling::{ParticipantId, TrickleCandidate};
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    DisplaySink, MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, MultiParameters,
-    MultiSink, RTMPParameters, RTMPSink, Sink, StreamId, WebRtcSourceParams,
+    MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, MultiParameters, MultiSink,
+    RTMPParameters, RTMPSink, Sink, StreamId, SystemSink, WebRtcSourceParams,
 };
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
@@ -165,7 +165,7 @@ impl RecordingSession {
                 };
                 let name = format!("{tag}-Sink-{index}");
                 match sink {
-                    RecorderSink::Display => DisplaySink::new(name.as_str(), true)
+                    RecorderSink::Display => SystemSink::new(name.as_str(), true)
                         .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
                         .context("DisplaySink could not created"),
 
