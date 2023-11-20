@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{
+    testing, Pattern, Size, Speaker, StreamId, StreamStatus, Talk, TestSink, TestSource,
+    TestSourceParameters,
+};
 
 #[test]
 #[ignore = "failing in ci"]
@@ -15,7 +18,7 @@ fn test_speaker_mode_without_prio() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         MAX_VISIBLES,
     )
     .unwrap();
@@ -52,7 +55,7 @@ fn test_speaker_mode_with_prio() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        TestSink::new("Testing Sink").unwrap(),
+        TestSink::create("Testing Sink").unwrap(),
         MAX_VISIBLES,
     )
     .unwrap();

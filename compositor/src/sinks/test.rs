@@ -4,13 +4,13 @@
 
 use anyhow::{Context, Result};
 
-use crate::{DisplaySink, FakeSink, Sink};
+use crate::{FakeSink, Sink, SystemSink};
 
 /// Fake sink to catch the compositor output without any further processing.
 #[derive(Debug)]
 pub enum TestSink {
     Fake(FakeSink),
-    Display(DisplaySink),
+    Display(SystemSink),
 }
 
 impl TestSink {
@@ -19,7 +19,7 @@ impl TestSink {
     /// # Errors
     ///
     /// This can fail if the `DisplaySink` or `FakeSink` cannot be created.
-    pub fn new(name: &str) -> Result<Self> {
+    pub fn create(name: &str) -> Result<Self> {
         trace!("new({name})");
 
         let use_display = std::env::var("USE_DISPLAY").is_ok();
@@ -27,11 +27,11 @@ impl TestSink {
         let sink = if use_display {
             info!("using display sink because display is available");
             Self::Display(
-                DisplaySink::new(name, use_video).context("unable to create DisplaySink")?,
+                SystemSink::create(name, use_video).context("unable to create DisplaySink")?,
             )
         } else {
             info!("using fake sink");
-            Self::Fake(FakeSink::new(name, use_video).context("unable to create FakeSink")?)
+            Self::Fake(FakeSink::create(name, use_video).context("unable to create FakeSink")?)
         };
 
         Ok(sink)

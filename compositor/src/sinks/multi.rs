@@ -45,7 +45,7 @@ impl MultiSink {
     ///
     /// This can throw an error if the `tee` cannot created for `GStreamer`.
     /// Or if adding the `GhostPad` is failing for the `video` and `audio` sink
-    pub fn new(params: MultiParameters) -> Result<Self> {
+    pub fn create(params: MultiParameters) -> Result<Self> {
         trace!("new()");
 
         // create new GStreamer pipeline

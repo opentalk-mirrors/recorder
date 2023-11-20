@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use anyhow::{Context as ErrorContext, Result};
-use lapin::message::Delivery;
-use lapin::options::{BasicAckOptions, BasicConsumeOptions, QueueDeclareOptions};
-use lapin::types::FieldTable;
-use lapin::Consumer;
+use lapin::{
+    message::Delivery,
+    options::{BasicAckOptions, BasicConsumeOptions, QueueDeclareOptions},
+    types::FieldTable,
+    Consumer,
+};
 use serde::Deserialize;
 
 use crate::settings::RabbitMqSettings;

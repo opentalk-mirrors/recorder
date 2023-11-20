@@ -24,7 +24,7 @@ pub trait Source: Debug {
     /// # Errors
     ///
     /// This can fail if the `Source` cannot be created.
-    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
+    fn create<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
     where
         Self: Sized,
         ID: std::fmt::Display;

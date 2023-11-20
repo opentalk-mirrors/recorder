@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{testing, MultiParameters, MultiSink, Speaker, Talk, TestSink, TestSource};
 
 #[test]
 fn test_multi() {
@@ -12,10 +12,10 @@ fn test_multi() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        MultiSink::new(MultiParameters {
+        MultiSink::create(MultiParameters {
             sinks: vec![
-                Box::new(TestSink::new("Sink 1").unwrap()),
-                Box::new(TestSink::new("Sink 2").unwrap()),
+                Box::new(TestSink::create("Sink 1").unwrap()),
+                Box::new(TestSink::create("Sink 2").unwrap()),
             ],
         })
         .unwrap(),

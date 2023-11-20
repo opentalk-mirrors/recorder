@@ -76,11 +76,11 @@ impl DashSink {
     /// # Errors
     ///
     /// This can fail if the `MatroskaSink` cannot be created.
-    pub fn new(name: &str, params: DashParameters) -> Result<Self> {
+    pub fn create(name: &str, params: DashParameters) -> Result<Self> {
         // watch pipeline bus for getting into `Playing` state
         // return new instance
 
-        let matroska_sink = MatroskaSink::new(
+        let matroska_sink = MatroskaSink::create(
             name,
             &MatroskaParameters {
                 // use fixed localhost but with given port

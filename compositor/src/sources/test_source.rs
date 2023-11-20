@@ -2,9 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::fmt::Display;
-
 use anyhow::{bail, Context, Result};
+use std::fmt::Display;
 
 use crate::{add_ghost_pad, Size, Source};
 
@@ -143,7 +142,7 @@ impl Source for TestSource {
     type Parameters = TestSourceParameters;
 
     /// Create a new [`TestSource`] and add it to the given pipeline.
-    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<TestSource>
+    fn create<ID>(id: &ID, params: Self::Parameters) -> Result<TestSource>
     where
         ID: Display,
     {

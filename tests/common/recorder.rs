@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
 use compositor::{MultiParameters, MultiSink, Sink, Talk, TestSink};
 use openidconnect::{
     core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl, JsonWebKeySet,
@@ -14,6 +12,7 @@ use opentalk_recorder::{
     settings::{AuthSettings, ControllerSettings, RabbitMqSettings, Settings},
 };
 use opentalk_recorder::{recorder::RecordingSession, signaling::Signaling};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch, RwLock};
 use tt::{connect_async, tungstenite::client::IntoClientRequest};
@@ -66,9 +65,9 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let (candidate_sender, candidate_receiver) = mpsc::channel(12);
     let temp_dir = TempDir::new().expect("unable to create temp dir");
 
-    let sinks: Vec<Box<dyn Sink>> = vec![Box::new(TestSink::new("TestSink").unwrap())];
+    let sinks: Vec<Box<dyn Sink>> = vec![Box::new(TestSink::create("TestSink").unwrap())];
     let multi_sink =
-        MultiSink::new(MultiParameters::new(sinks)).expect("unablt to create multisink");
+        MultiSink::create(MultiParameters::new(sinks)).expect("unablt to create multisink");
     let talk = Talk::new(
         compositor::Size::FHD,
         compositor::layout::Speaker::default(),

@@ -4,18 +4,16 @@
 
 //! HTTP calls made by this library (except for websockets)
 
-use crate::settings::{AuthSettings, ControllerSettings};
 use anyhow::{bail, Result};
 use bytes::Bytes;
 use futures::TryStream;
-use openidconnect::reqwest::Error;
-use openidconnect::{AccessToken, OAuth2TokenResponse};
-use openidconnect::{HttpRequest, HttpResponse};
+use openidconnect::{reqwest::Error, AccessToken, HttpRequest, HttpResponse, OAuth2TokenResponse};
 use reqwest::{Body, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::future::Future;
-use std::pin::Pin;
+use std::{future::Future, pin::Pin};
 use tokio::sync::RwLock;
+
+use crate::settings::{AuthSettings, ControllerSettings};
 
 #[derive(Debug)]
 pub struct HttpClient {

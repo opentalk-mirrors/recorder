@@ -29,7 +29,7 @@ impl PaddingOverlay {
     /// # Errors
     ///
     /// This can fail if the `videobox` cannot be created in `GStreamer`.
-    pub fn new(name: &str, padding: &Padding) -> Result<Self> {
+    pub fn create(name: &str, padding: &Padding) -> Result<Self> {
         trace!("new( {padding:?} )");
 
         // create videobox element

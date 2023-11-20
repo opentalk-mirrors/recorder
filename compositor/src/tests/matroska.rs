@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{testing, MatroskaSink, Speaker, StreamId, StreamStatus, Talk, TestSource};
 
 #[test]
 fn test_matroska() {
@@ -13,7 +13,7 @@ fn test_matroska() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        MatroskaSink::new("test", &Default::default()).unwrap(),
+        MatroskaSink::create("test", &Default::default()).unwrap(),
         testing::MAX_STREAMS,
     )
     .unwrap();

@@ -28,7 +28,7 @@ impl ClockOverlay {
     /// # Errors
     ///
     /// This can fail if the `clockoverlay` cannot be created in `GStreamer`.
-    pub fn new(name: &str, format: &str, style: TextStyle) -> Result<Self> {
+    pub fn create(name: &str, format: &str, style: TextStyle) -> Result<Self> {
         trace!("new( {format:?}, {style:?} )");
 
         // create text overlay

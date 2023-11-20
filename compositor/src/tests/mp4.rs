@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::*;
+use crate::{testing, Mp4Parameters, Mp4Sink, Speaker, StreamId, Talk, TestSource};
 
 #[test]
 fn test_mp4() {
@@ -12,7 +12,7 @@ fn test_mp4() {
     let mut mixer = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        Mp4Sink::new(
+        Mp4Sink::create(
             "test",
             &Mp4Parameters {
                 name: "MP4 Sink",

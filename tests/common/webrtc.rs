@@ -3,10 +3,14 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use compositor::{debug, MediaSessionType};
-use gst::prelude::*;
-use gst::traits::{ElementExt, GstBinExt};
-use opentalk_recorder::signaling::incoming::{MediaMessage, Message, Sdp, SdpCandidate, Source};
-use opentalk_recorder::signaling::{ParticipantId, TrickleCandidate};
+use gst::{
+    prelude::*,
+    traits::{ElementExt, GstBinExt},
+};
+use opentalk_recorder::signaling::{
+    incoming::{MediaMessage, Message, Sdp, SdpCandidate, Source},
+    ParticipantId, TrickleCandidate,
+};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

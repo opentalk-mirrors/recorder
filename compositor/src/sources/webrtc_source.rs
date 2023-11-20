@@ -6,8 +6,10 @@ use anyhow::{anyhow, bail, Context, Result};
 use glib::WeakRef;
 use gst::prelude::*;
 use gst_webrtc::WebRTCPeerConnectionState;
-use std::fmt::{Debug, Display};
-use std::sync::Arc;
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 use tokio::sync::oneshot;
 
 use crate::{log, Source};
@@ -61,7 +63,7 @@ impl Source for WebRtcSource {
     type Parameters = WebRtcSourceParams;
 
     /// Create a new `WebRTC` source
-    fn new<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
+    fn create<ID>(id: &ID, params: Self::Parameters) -> Result<Self>
     where
         ID: Display,
     {

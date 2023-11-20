@@ -4,11 +4,10 @@
 
 //! Sink trait.
 
-use std::fmt::Debug;
-
 use anyhow::{Context, Result};
 use gst::GhostPad;
 use gst_base::prelude::{ElementExt, GstBinExt};
+use std::fmt::Debug;
 
 use crate::debug;
 

@@ -103,8 +103,8 @@ extern crate log;
 
 pub mod layout;
 mod mixer;
-mod output_sinks;
 mod overlays;
+mod sinks;
 mod sources;
 
 #[cfg(test)]
@@ -112,8 +112,8 @@ mod tests;
 
 pub use layout::*;
 pub use mixer::*;
-pub use output_sinks::*;
 pub use overlays::*;
+pub use sinks::*;
 pub use sources::*;
 
 #[cfg(test)]
