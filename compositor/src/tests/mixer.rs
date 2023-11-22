@@ -18,17 +18,17 @@ fn test_layout(layout: impl Layout, name: &str) {
     // initialize for testing
     testing::init();
 
-    let mut talk = Talk::<TestSource, u32>::new(
-        testing::RESOLUTION,
-        layout,
-        vec![Box::new(TestSink::create("Testing Sink").unwrap())],
-        testing::MAX_STREAMS,
-    )
-    .unwrap();
+    let mut talk =
+        Talk::<TestSource, u32>::new(testing::RESOLUTION, layout, testing::MAX_STREAMS, true)
+            .unwrap();
+
+    let test_sink = TestSink::create("Testing Sink", true).unwrap();
+
+    talk.link_sink("test_sink", test_sink).unwrap();
 
     testing::wait_millis(100);
 
-    let (_, ids) = testing::generate_streams(&mut talk, 0, 5, 5);
+    let (_, ids) = testing::generate_streams(&mut talk, 0, 5, 5, true);
 
     talk.dot(&format!("test_layout_{}-0", name), testing::DOT_PARAMS);
 
@@ -42,26 +42,31 @@ fn test_layout(layout: impl Layout, name: &str) {
         testing::wait();
     });
 
-    testing::wait();
+    testing::wait_secs(10);
 }
 
-#[test]
-fn test_remove() {
+fn test_remove(use_video: bool) {
     // initialize for testing
     testing::init();
 
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        vec![Box::new(TestSink::create("Testing Sink").unwrap())],
         testing::MAX_STREAMS,
+        use_video,
+    )
+    .unwrap();
+
+    talk.link_sink(
+        "test_sink",
+        TestSink::create("Recording", use_video).unwrap(),
     )
     .unwrap();
 
     talk.set_title("test_remove").unwrap();
 
     for i in 0..50 {
-        let (_, ids) = testing::generate_streams(&mut talk, i * 8, 8, 5);
+        let (_, ids) = testing::generate_streams(&mut talk, i * 8, 8, 5, use_video);
         for id in &ids {
             talk.show_stream(&StreamId::camera(*id)).unwrap();
         }
@@ -123,4 +128,16 @@ fn test_remove() {
 
         testing::wait();
     }
+
+    testing::wait_secs(10);
+}
+
+#[test]
+fn test_remove_video() {
+    test_remove(true);
+}
+
+#[test]
+fn test_remove_audio() {
+    test_remove(false);
 }

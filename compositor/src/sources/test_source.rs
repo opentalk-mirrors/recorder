@@ -210,9 +210,14 @@ impl Source for TestSource {
         let bin = gst::parse_bin_from_description(&description, false)
             .context("failed to create test source bin")?;
 
-        let video_src = Some(
-            add_ghost_pad(&bin, "video", "src").context("unable to add GhostPad for video src")?,
-        );
+        let video_src = if params.has_video {
+            Some(
+                add_ghost_pad(&bin, "video", "src")
+                    .context("unable to add GhostPad for video src")?,
+            )
+        } else {
+            None
+        };
 
         let audio_src =
             add_ghost_pad(&bin, "audio", "src").context("unable to add GhostPad for audio src")?;

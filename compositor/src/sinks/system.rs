@@ -31,7 +31,7 @@ impl SystemSink {
                 
                 autoaudiosink
                     name=audio
-                    sync=true
+                    sync=false
                 "#
         )
         .to_string();

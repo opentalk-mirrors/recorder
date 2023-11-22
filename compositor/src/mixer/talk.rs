@@ -171,15 +171,15 @@ where
     pub fn new(
         resolution: Size,
         layout: impl Layout,
-        sinks: Vec<Box<dyn Sink>>,
         max_visibles: usize,
+        video_support: bool,
     ) -> Result<Self> {
         Self::new_with_pipeline(
             Pipeline::new(Some("Compositor")),
             resolution,
             layout,
-            sinks,
             max_visibles,
+            video_support,
         )
     }
 
@@ -199,8 +199,8 @@ where
         pipeline: Pipeline,
         resolution: Size,
         layout: impl Layout,
-        sinks: Vec<Box<dyn Sink>>,
         max_visibles: usize,
+        video_support: bool,
     ) -> Result<Self> {
         debug!("Starting a new talk...");
         trace!("new( {resolution:?}, {max_visibles:?} )");
@@ -212,7 +212,7 @@ where
             TalkOverlay::create()
                 .context("unable to create TalkOverlay")?
                 .into(),
-            sinks,
+            video_support,
         )
         .context("unable to create mixer")?;
 
@@ -222,6 +222,24 @@ where
             names: HashMap::new(),
             current_speaker: None,
         })
+    }
+
+    /// Link the given sink to the mixer.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the mixer was unable to link the sink to the mixer.
+    pub fn link_sink(&mut self, name: &str, sink: impl Sink) -> Result<()> {
+        self.mixer.link_sink(name, sink)
+    }
+
+    /// Link the given sink to the mixer.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the mixer was unable to link the sink to the mixer.
+    pub fn release_sink(&mut self, name: &String) -> Result<()> {
+        self.mixer.release_sink(name)
     }
 
     /// Add a stream with the given ID and media type

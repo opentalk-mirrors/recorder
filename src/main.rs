@@ -141,14 +141,14 @@ async fn rmq_session(
                             .spawn_session(start_command)
                             .await
                             .map_err(|e| {
-                                log::error!("Recording session failed: {}", e);
+                                log::error!("Recording session failed: {:?}", e);
                                 e
                             })?;
 
                         tasks.push(task);
                     }
                     Err(e) => {
-                        log::error!("RabbitMQ consumer returned error: {}", e);
+                        log::error!("RabbitMQ consumer returned error: {:?}", e);
                         break;
                     }
                 }

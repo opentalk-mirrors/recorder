@@ -3,18 +3,26 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use anyhow::{Context, Result};
-use gst::{prelude::*, Bin, Caps, Element, ElementFactory, GhostPad, Pad};
+use gst::{
+    element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
+    GhostPad, Pad, Sample, StreamError,
+};
+use gst_app::{AppSink, AppSinkCallbacks, AppSrc};
+use tokio::sync::broadcast;
 
+use crate::mixer::VIDEO_FRAMERATE;
 use crate::{Overlay, Size};
 
+const QUEUE_SIZE: usize = VIDEO_FRAMERATE as usize;
 #[derive(Debug)]
 pub(crate) struct VideoMixer {
     bin: Bin,
     compositor: Element,
-    tee: Element,
+    buffer: broadcast::Sender<Sample>,
 }
 
 impl VideoMixer {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn create(output_size: Size, overlay: &impl Overlay) -> Result<Self> {
         let bin = Bin::new(Some("VideoMixer"));
 
@@ -23,9 +31,8 @@ impl VideoMixer {
             .property_from_str("pattern", "black")
             .property("is-live", true)
             .build()
-            .context("unable to build videotestsrc")?;
-        let capssetter = ElementFactory::make("capssetter")
-            .name("Video Background Capssetter")
+            .context("unable to build videotesetsrc_videotestsrc")?;
+        let videotestsrc_capssetter = ElementFactory::make("capssetter")
             .property(
                 "caps",
                 Caps::builder("video/x-raw")
@@ -43,43 +50,81 @@ impl VideoMixer {
             .property("zero-size-is-unscaled", true)
             .build()
             .context("unable to build compositor")?;
-        let tee = ElementFactory::make("tee")
-            .name("tee")
-            .property("allow-not-linked", true)
+
+        let queue = ElementFactory::make("queue")
             .build()
             .context("unable to build queue")?;
+        let appsink: AppSink = AppSink::builder().build();
 
         bin.add_many(&[
             &videotestsrc,
-            &capssetter,
+            &videotestsrc_capssetter,
             &compositor,
             &overlay.element(),
-            &tee,
+            &queue,
+            appsink.upcast_ref(),
         ])
-        .context("unable to add 'videotestsrc', 'capssetter', 'compositor' and 'tee' to 'bin'")?;
+        .context("unable to add 'videotestsrc', 'videotestsrc_capssetter', 'compositor', 'queue'  and 'appsink' to 'bin'")?;
 
         videotestsrc
-            .link(&capssetter)
+            .link(&videotestsrc_capssetter)
             .context("unable to link 'videotestsrc' with 'capssetter'")?;
 
         let compositor_sink_pad = compositor
             .request_pad_simple("sink_%u")
             .context("unable to request sink pad for compositor")?;
-        capssetter
+        videotestsrc_capssetter
             .static_pad("src")
             .context("unable to get static pad src from capssetter")?
             .link(&compositor_sink_pad)
             .context("unable to link compositor_requested_pad with capssetter")?;
 
-        crate::debug::dot(&bin, "beforeoverlay");
+        Element::link_many(&[
+            &compositor,
+            &overlay.element(),
+            &queue,
+            appsink.upcast_ref(),
+        ])
+        .context("unable to link 'compositor', 'overlay', 'queue' and 'appsink'")?;
 
-        Element::link_many(&[&compositor, &overlay.element(), &tee])
-            .context("unable to link 'compositor', 'overlay' and 'tee'")?;
+        let buffer = broadcast::Sender::new(QUEUE_SIZE);
+        let sender = buffer.clone();
+        appsink.set_callbacks(
+            AppSinkCallbacks::builder()
+                .new_sample({
+                    move |app_sink| match app_sink.pull_sample() {
+                        Ok(sample) => {
+                            if let Err(error) = sender.send(sample) {
+                                element_error!(
+                                    app_sink,
+                                    StreamError::Failed,
+                                    ("unable to send sample to channel")
+                                );
+                                error!("unable to send sample to channel, received: {error}");
+                                return Err(FlowError::Error);
+                            }
+
+                            Ok(FlowSuccess::Ok)
+                        }
+                        Err(error) => {
+                            element_error!(
+                                app_sink,
+                                StreamError::Failed,
+                                ("unable to pull sample from app_sink")
+                            );
+                            error!("unable to pull sample from app_sink, received: {error}");
+
+                            Err(FlowError::Error)
+                        }
+                    }
+                })
+                .build(),
+        );
 
         Ok(Self {
             bin,
             compositor,
-            tee,
+            buffer,
         })
     }
 
@@ -125,47 +170,24 @@ impl VideoMixer {
         Ok(())
     }
 
-    pub(crate) fn link_sink(&self, sink: &impl IsA<Pad>) -> Result<GhostPad> {
-        let requested_pad = self
-            .tee
-            .request_pad_simple("src_%u")
-            .context("unable to request 'src' pad for 'tee'")?;
-
-        let queue = ElementFactory::make("queue")
-            .build()
-            .context("unable to build queue")?;
-
-        self.bin.add(&queue).context("unable to add queue to bin")?;
-
-        let queue_sink = queue
-            .static_pad("sink")
-            .context("unable to get sink for queue")?;
-
-        requested_pad
-            .link(&queue_sink)
-            .context("unable to link requested_pad with queue")?;
-
-        let queue_src = queue
-            .static_pad("src")
-            .context("unable to get src for queue")?;
-
-        let ghost_pad = GhostPad::with_target(None, &queue_src)
-            .context("unable to create 'GhostPad' for 'queue src'")?;
-
-        self.bin
-            .add_pad(&ghost_pad)
-            .context("unable to add 'ghost_pad' to 'bin'")?;
-
-        ghost_pad
-            .link(sink)
-            .context("unable to link 'requested_pad' with 'ghost_pad'")?;
-
-        Ok(ghost_pad)
-    }
-
-    // TODO: This function will be used in the future, when the sink is dynamically changed.
-    #[allow(dead_code)]
-    pub(crate) fn release_sink(&self, src: &impl IsA<Pad>) {
-        self.tee.release_request_pad(src);
+    pub(crate) fn link_sink(&self, app_src: &AppSrc) {
+        let mut receiver = self.buffer.subscribe();
+        let app_src = app_src.clone();
+        std::thread::spawn(move || {
+            while let Ok(sample) = receiver.blocking_recv() {
+                if let Err(error) = app_src.push_sample(&sample) {
+                    let src_name = app_src.name();
+                    match error {
+                        FlowError::Flushing => {
+                            debug!("Flush and exit app_src {src_name}");
+                        }
+                        _ => {
+                            error!("Failed pushing sample to app_src {src_name} with error: {error:?}, sample: {sample:?}");
+                        }
+                    }
+                    return;
+                }
+            }
+        });
     }
 }

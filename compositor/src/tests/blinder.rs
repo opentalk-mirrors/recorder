@@ -14,7 +14,7 @@ fn test_blinder() {
 
     let blinder = TestBlinder::create(&TestBlinderParams {
         name: "Testing Blinder",
-        sink: Box::new(TestSink::create("Testing Sink").unwrap()),
+        sink: Box::new(TestSink::create("Testing Sink", true).unwrap()),
         resolution: testing::RESOLUTION,
         alt_source_params: TestSourceParameters::default(),
     })
@@ -22,12 +22,14 @@ fn test_blinder() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        vec![Box::new(blinder.clone())],
         testing::MAX_STREAMS,
+        true,
     )
     .unwrap();
 
-    testing::generate_streams(&mut talk, 0, 8, 5);
+    talk.link_sink("blinder", blinder.clone()).unwrap();
+
+    testing::generate_streams(&mut talk, 0, 8, 5, true);
     talk.set_speaker(0).unwrap();
     blinder.blind(false);
 

@@ -5,7 +5,7 @@
 //! Sink trait.
 
 use anyhow::{Context, Result};
-use gst::GhostPad;
+use gst::{GhostPad, Pipeline};
 use gst_base::prelude::{ElementExt, GstBinExt};
 use std::fmt::Debug;
 
@@ -40,6 +40,31 @@ pub trait Sink: Send + Debug + 'static {
     /// This cannot fail, it's doing nothing.
     fn on_exit(&mut self, _pipeline: &gst::Pipeline) -> Result<()> {
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ActiveSink {
+    pub(crate) pipeline: Pipeline,
+    pub(crate) sink: Box<dyn Sink>,
+}
+
+impl Drop for ActiveSink {
+    fn drop(&mut self) {
+        debug!("Dropping Sink...");
+        debug::debug_dot(&self.pipeline, "SINK-DROP");
+
+        debug!("Stop Sink...");
+        if let Err(error) = self.sink.on_exit(&self.pipeline) {
+            error!("Unable to call on_exit on every output_sink, error: {error}");
+        }
+
+        debug!("Nulling Pipeline...");
+        if let Err(error) = self.pipeline.set_state(gst::State::Null) {
+            error!("Unable to set the pipeline to the `Null` state, error: {error}");
+        }
+
+        debug!("Exited Sink.");
     }
 }
 

@@ -65,13 +65,10 @@ async fn exec_events(events: Vec<Event>) {
 
     const MAX_VISIBLES: usize = 7;
 
-    let mut talk = Talk::new(
-        Size::FHD,
-        Speaker::default(),
-        vec![Box::new(TestSink::create("Testing Sink").unwrap())],
-        MAX_VISIBLES,
-    )
-    .unwrap();
+    let mut talk = Talk::new(Size::FHD, Speaker::default(), MAX_VISIBLES, true).unwrap();
+
+    talk.link_sink("test_sink", TestSink::create("Recording", true).unwrap())
+        .unwrap();
 
     let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -329,6 +326,7 @@ async fn webrtc_scenario1() {
         Event::Sleep(Duration::from_secs(10)),
         Event::Unpublish(0),
         Event::RemoveParticipant(0),
+        Event::Sleep(Duration::from_secs(10)),
     ])
     .await;
 }

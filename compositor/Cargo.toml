@@ -12,6 +12,7 @@ publish = false
 
 [dependencies]
 gst = { package = "gstreamer", version = "0.20", features = ["v1_22"] }
+gst-app = { package = "gstreamer-app", version = "0.20" }
 gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.20", features = [
     "v1_22",

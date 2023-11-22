@@ -2,10 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use gst::{
-    event::Reconfigure, prelude::*, Bin, Element, ElementFactory, Fraction, GhostPad, Pipeline,
+    event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element, ElementFactory, Fraction,
+    GhostPad, Pipeline, SystemClock,
 };
+use gst_app::AppSrc;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -22,7 +24,7 @@ mod talk;
 mod text_style;
 mod video_mixer;
 
-use self::{audio_mixer::AudioMixer, video_mixer::VideoMixer};
+use self::{audio_mixer::AudioMixer, sink::ActiveSink, video_mixer::VideoMixer};
 
 pub use super::layout::*;
 pub use overlay::*;
@@ -34,6 +36,13 @@ pub use text_style::*;
 
 /// Maximum time a desired but missing re-layout is tolerated
 const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(500);
+
+const AUDIO_SAMPLE_RATE: i32 = 48_000;
+const AUDIO_CHANNELS: i32 = 2;
+
+const VIDEO_WIDTH: i32 = 1920;
+const VIDEO_HEIGHT: i32 = 1136;
+const VIDEO_FRAMERATE: i32 = 30;
 
 enum Validation {
     Valid,
@@ -73,11 +82,12 @@ where
     /// Overlay behind compositor
     overlay: AnyOverlay,
     /// Holds the output sink.
-    sinks: Vec<Box<dyn Sink>>,
+    sinks: HashMap<String, ActiveSink>,
     /// over all generated output resolution
     output_resolution: Size,
     valid: std::sync::mpsc::Sender<Validation>,
     layout: Box<dyn Layout>,
+    system_clock: Clock,
 }
 
 impl<SRC, STREAMID> Mixer<SRC, STREAMID>
@@ -102,11 +112,8 @@ where
         output_resolution: Size,
         layout: impl Layout,
         overlay: AnyOverlay,
-        sinks: Vec<Box<dyn Sink>>,
+        video_support: bool,
     ) -> Result<Self> {
-        // TODO: Set as parameter
-        let video_support = true;
-
         let audio_mixer = AudioMixer::create().context("unable to create AudioMixer")?;
         pipeline
             .add(audio_mixer.bin())
@@ -125,24 +132,13 @@ where
             None
         };
 
-        for output_sink in &sinks {
-            pipeline
-                .add(&output_sink.bin())
-                .context("unable to add sink to pipeline")?;
-
-            audio_mixer
-                .link_sink(&output_sink.audio())
-                .context("unable to add 'output_sink' to 'audio_mixer'")?;
-
-            if let (Some(video_mixer), Some(video_sink)) = (&video_mixer, output_sink.video()) {
-                video_mixer
-                    .link_sink(&video_sink)
-                    .context("unable to add 'output_sink' to 'video_mixer'")?;
-            }
-        }
+        let system_clock = SystemClock::obtain();
+        pipeline.use_clock(Some(&system_clock));
+        pipeline.set_base_time(ClockTime::ZERO);
 
         pipeline.set_state(gst::State::Playing)?;
-        pipeline.sync_children_states()?;
+
+        let sinks = HashMap::<String, ActiveSink>::new();
 
         let (valid, valid_receiver) = std::sync::mpsc::channel::<Validation>();
 
@@ -157,20 +153,211 @@ where
             output_resolution,
             valid,
             layout: Box::new(layout),
+            system_clock,
         };
 
         // start reading the pipeline bus
         mixer.read_bus()?;
         monitor_layout(valid_receiver);
 
-        // inform output sink that pipeline is are playing now
-        mixer
-            .sinks
-            .iter_mut()
-            .try_for_each(|output_sink| output_sink.on_play())
-            .context("unable to call on_play on all sinks")?;
-
         Ok(mixer)
+    }
+
+    /// Link the given sink to the mixer.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the audio or video sink could not be linked to the mixer.
+    pub fn link_sink(&mut self, name: &str, mut sink: impl Sink) -> Result<()> {
+        trace!("link sink, name: {name}, sinke: {sink:?}");
+        if self.sinks.contains_key(name) {
+            bail!("a stream with the name '{name}' already exists");
+        }
+
+        let pipeline = Pipeline::new(Some(name));
+
+        pipeline.use_clock(Some(&self.system_clock));
+        pipeline.set_base_time(ClockTime::ZERO);
+        pipeline.set_start_time(None);
+
+        let bin = sink.bin();
+        pipeline
+            .add(&bin)
+            .context("unable to add sink to pipeline")?;
+
+        self.link_audio_sink(&pipeline, &sink)
+            .context("unable to link audio sink")?;
+        self.link_video_sink(&pipeline, &sink)
+            .context("unable to link video sink")?;
+
+        pipeline
+            .set_state(gst::State::Playing)
+            .context("unable to start sink pipeline")?;
+        pipeline
+            .sync_children_states()
+            .context("unable to sync children states for pipeline")?;
+
+        sink.on_play().context("unable to set sink to playing")?;
+
+        debug::dot(&self.pipeline, "link-sink-main-pipeline");
+        debug::dot(
+            &pipeline,
+            format!("link-sink_sink-pipeline_{name}").as_str(),
+        );
+
+        let sink_state = ActiveSink {
+            pipeline,
+            sink: Box::new(sink),
+        };
+
+        self.sinks.insert(name.to_owned(), sink_state);
+
+        Ok(())
+    }
+
+    /// Link the given sink to the `audio_mixer`.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the audio sink could not be linked to the `audio_mixer`.
+    fn link_audio_sink(&self, pipeline: &Pipeline, sink: &impl Sink) -> Result<()> {
+        let app_src = AppSrc::builder()
+            .name("audiosrc")
+            .caps(
+                &gst::Caps::builder("audio/x-raw")
+                    .field("format", "S16LE")
+                    .field("layout", "interleaved")
+                    .field("rate", AUDIO_SAMPLE_RATE)
+                    .field("channels", AUDIO_CHANNELS)
+                    .build(),
+            )
+            .format(gst::Format::Time)
+            .max_bytes(1)
+            .block(true)
+            .build();
+        let queue = ElementFactory::make("queue")
+            .property_from_str("leaky", "downstream")
+            .build()
+            .context("unable to create queue")?;
+        let audioconvert = ElementFactory::make("audioconvert")
+            .build()
+            .context("unable to create audioconvert")?;
+
+        pipeline
+            .add_many(&[app_src.upcast_ref(), &queue, &audioconvert])
+            .context("unable to add appsrc, queue and audioconvert to pipeline")?;
+
+        Element::link_many(&[app_src.upcast_ref(), &queue, &audioconvert])
+            .context("unable to link appsrc, queue and audioconvert ")?;
+
+        audioconvert
+            .static_pad("src")
+            .context("unable to get static pad src from queue")?
+            .link(&sink.audio())
+            .context("unable to link queue with audio sink")?;
+
+        self.audio_mixer.link_sink(&app_src);
+
+        Ok(())
+    }
+
+    /// Link the given sink to the `video_mixer`.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the video sink could not be linked to the `video_mixer`.
+    fn link_video_sink(&self, pipeline: &Pipeline, sink: &impl Sink) -> Result<()> {
+        let Some(video_mixer) = &self.video_mixer else {
+            return Ok(());
+        };
+        let Some(video_sink) = &sink.video() else {
+            return Ok(());
+        };
+
+        let app_src = AppSrc::builder()
+            .name("videosrc")
+            .caps(
+                &gst::Caps::builder("video/x-raw")
+                    .field("format", "RGB")
+                    .field("width", VIDEO_WIDTH)
+                    .field("height", VIDEO_HEIGHT)
+                    .field("framerate", Fraction::new(VIDEO_FRAMERATE, 1))
+                    .build(),
+            )
+            .format(gst::Format::Time)
+            .max_bytes(1)
+            .block(true)
+            .build();
+        let queue = ElementFactory::make("queue")
+            .property_from_str("leaky", "downstream")
+            .build()
+            .context("unable to create queue")?;
+        let videoconvert = ElementFactory::make("videoconvert")
+            .build()
+            .context("unable to create videoconvert")?;
+
+        pipeline
+            .add_many(&[app_src.upcast_ref(), &queue, &videoconvert])
+            .context("unable to add appsrc, queue and videoconvert to pipeline")?;
+
+        Element::link_many(&[app_src.upcast_ref(), &queue, &videoconvert])
+            .context("unable to link appsrc, queue and videoconvert")?;
+
+        videoconvert
+            .static_pad("src")
+            .context("unable to get static pad src from videoconvert")?
+            .link(video_sink)
+            .context("unable to link queue with video sink")?;
+
+        video_mixer.link_sink(&app_src);
+
+        Ok(())
+    }
+
+    /// Release the given sink from the mixer.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the sink could not be released from the mixer.
+    pub fn release_sink(&mut self, name: &String) -> Result<()> {
+        let Some(active_sink) = self.sinks.get_mut(name) else {
+            bail!("there is no stream with the name '{name}'");
+        };
+
+        let audio_src = active_sink
+            .pipeline
+            .by_name("audiosrc")
+            .context("unable to find audiosrc in sink pipeline")?;
+        let audio_src: &AppSrc = audio_src
+            .downcast_ref()
+            .context("unable to downcast appsrc element to AppSrc")?;
+        audio_src
+            .end_of_stream()
+            .context("unable to send EOS to audio_src")?;
+
+        if self.video_mixer.is_some() {
+            let video_src = active_sink
+                .pipeline
+                .by_name("videosrc")
+                .context("unable to find audiosrc in sink pipeline")?;
+            let video_src: &AppSrc = video_src
+                .downcast_ref()
+                .context("unable to downcast videosrc element to AppSrc")?;
+            video_src
+                .end_of_stream()
+                .context("unable to send EOS to audio_src")?;
+        }
+
+        active_sink
+            .sink
+            .on_exit(&self.pipeline)
+            .with_context(|| format!("unable to exit sink '{name}'"))?;
+
+        self.sinks
+            .remove(name)
+            .with_context(|| format!("unable to remove sink '{name}' from sinks"))?;
+
+        Ok(())
     }
 
     /// Add a new stream to the mixer.
@@ -279,7 +466,7 @@ where
         debug::debug_dot(&self.pipeline, "stream_added");
 
         bin.sync_state_with_parent()
-            .context("unable to syn state with parent for bin")?;
+            .context("unable to sync state with parent for bin")?;
 
         self.streams.insert(
             id,
@@ -536,7 +723,13 @@ where
     pub fn set_status(&mut self, id: &STREAMID, new_status: StreamStatus) -> Result<()> {
         info!("set_status( {id}, {new_status} )");
 
-        debug::debug_dot(&self.pipeline, "set_status");
+        debug::debug_dot(&self.pipeline, "set_status_pipeline_main");
+        for sink in &self.sinks {
+            debug::debug_dot(
+                &sink.1.pipeline,
+                format!("set_status_pipeline_{}", sink.0).as_str(),
+            );
+        }
 
         let current_stream = self.get_stream_mut(id)?;
         current_stream
@@ -744,26 +937,13 @@ where
     /// halt pipeline (can not be played again)
     ///
     fn drop(&mut self) {
-        // ensure playing
-
-        debug!("Dropping mixer...");
-        debug::debug_dot(&self.pipeline, "DROP");
+        debug!("Dropping Mixer...");
+        debug::debug_dot(&self.pipeline, "MIXER-DROP");
 
         if let Err(error) = self.valid.send(Validation::Stop) {
             error!("could not stop validation monitor, error: {error}");
         }
 
-        // call sink to prepare for dropping pipeline
-        debug!("Stop sink...");
-        if let Err(error) = self
-            .sinks
-            .iter_mut()
-            .try_for_each(|output_sink| output_sink.on_exit(&self.pipeline))
-        {
-            error!("Unable to call on_exit on every output_sink, error: {error}");
-        }
-
-        // halt pipeline
         debug!("Nulling pipeline...");
         if let Err(error) = self.pipeline.set_state(gst::State::Null) {
             error!("Unable to set the pipeline to the `Null` state, error: {error}");

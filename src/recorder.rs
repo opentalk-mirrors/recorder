@@ -5,8 +5,8 @@
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink, Sink,
-    StreamId, SystemSink, WebRtcSourceParams,
+    MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink, StreamId,
+    SystemSink, WebRtcSourceParams,
 };
 use core::{
     pin::Pin,
@@ -159,60 +159,71 @@ impl RecordingSession {
             .unwrap_or(&RecorderSettings { sinks: vec![] })
             .sinks
             .clone();
-        let sinks = recorder_sinks
-            .into_iter()
-            .enumerate()
-            .map(|(index, sink)| {
-                let tag = match sink {
-                    RecorderSink::Display => "Display",
-                    RecorderSink::Matroska(_) => "Matroska",
-                    RecorderSink::Rtmp(_) => "RTMP",
-                };
-                let name = format!("{tag}-Sink-{index}");
-                match sink {
-                    RecorderSink::Display => SystemSink::create(name.as_str(), true)
-                        .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
-                        .context("DisplaySink could not created"),
 
-                    RecorderSink::Matroska(matroska_parameters) => {
-                        MatroskaSink::create(name.as_str(), &matroska_parameters)
-                            .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
-                            .context("MatroskaSink could not created")
-                    }
-
-                    RecorderSink::Rtmp(rtmp_parameters) => RTMPSink::create(
-                        name.as_str(),
-                        RTMPParameters {
-                            location: rtmp_parameters.location.replace("$room", &command.room),
-                            ..rtmp_parameters.clone()
-                        },
-                    )
-                    .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
-                    .context("RTMPSink could not created"),
-                }
-            })
-            .chain(std::iter::once::<Result<Box<dyn Sink>>>(
-                Mp4Sink::create(
-                    "MP4-Sink",
-                    &Mp4Parameters {
-                        file_path: file_path
-                            .to_str()
-                            .context("failed to convert MP4 file path into string")?
-                            .into(),
-                        name: "Recording",
-                    },
-                )
-                .map::<Box<dyn Sink>, _>(|sink| Box::new(sink))
-                .context("MP4-Sink could not created"),
-            ))
-            .collect::<Result<Vec<_>>>()?;
-
-        let talk = Talk::new(
+        let mut talk = Talk::new(
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),
-            sinks,
             MAX_VISIBLES,
+            true,
         )?;
+
+        for (index, sink) in recorder_sinks.into_iter().enumerate() {
+            let tag = match sink {
+                RecorderSink::Display => "Display",
+                RecorderSink::Matroska(_) => "Matroska",
+                RecorderSink::Rtmp(_) => "RTMP",
+            };
+            let name = format!("{tag}-Sink-{index}");
+            match sink {
+                RecorderSink::Display => {
+                    talk.link_sink(
+                        name.as_str(),
+                        SystemSink::create(name.as_str(), true)
+                            .context("DisplaySink could not created")?,
+                    )
+                    .context("unable to link sink to talk")?;
+                }
+                RecorderSink::Matroska(matroska_parameters) => {
+                    talk.link_sink(
+                        name.as_str(),
+                        MatroskaSink::create(name.as_str(), &matroska_parameters)
+                            .context("MatroskaSink could not created")?,
+                    )
+                    .context("unable to link sink to talk")?;
+                }
+
+                RecorderSink::Rtmp(rtmp_parameters) => {
+                    talk.link_sink(
+                        name.as_str(),
+                        RTMPSink::create(
+                            name.as_str(),
+                            RTMPParameters {
+                                location: rtmp_parameters.location.replace("$room", &command.room),
+                                ..rtmp_parameters.clone()
+                            },
+                        )
+                        .context("RTMPSink could not created")?,
+                    )
+                    .context("unable to link sink to talk")?;
+                }
+            }
+        }
+
+        talk.link_sink(
+            "mp4",
+            Mp4Sink::create(
+                "MP4-Sink",
+                &Mp4Parameters {
+                    file_path: file_path
+                        .to_str()
+                        .context("failed to convert MP4 file path into string")?
+                        .into(),
+                    name: "Recording",
+                },
+            )
+            .context("MP4-Sink could not created")?,
+        )
+        .context("unable to link sink to talk")?;
 
         Ok(Self {
             service_context,
