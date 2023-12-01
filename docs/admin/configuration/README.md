@@ -1,4 +1,4 @@
-# Configuring OpenTalk-Recorder
+# Configuration
 
 When the recorder gets started, it loads the configuration from the
 environment. It reads the settings in this order:

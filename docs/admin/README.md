@@ -1,3 +1,7 @@
+---
+title: Recorder
+---
+
 # Administration guide for the OpenTalk Recorder
 
 ## General information about the service
