@@ -170,7 +170,9 @@ async fn rmq_session(
 async fn main2(mut shutdown_rx: Receiver<bool>) -> Result<()> {
     let settings = Settings::load("config.toml").context("Failed to read config")?;
 
-    let http_client = HttpClient::discover(&settings.auth).await?;
+    let http_client = HttpClient::discover(&settings.auth)
+        .await
+        .context("OIDC discovery failed")?;
     let recorder_context = Recorder::new(settings, http_client, shutdown_rx.clone());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
 
