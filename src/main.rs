@@ -4,7 +4,7 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-use anyhow::{Context, Error, Result};
+use anyhow::{Context, Result};
 use futures::{future::join_all, StreamExt};
 use gst::glib;
 use http::HttpClient;
@@ -43,35 +43,9 @@ fn check_for_ffmpeg() -> Result<()> {
     Ok(())
 }
 
-fn check_for_nice() -> Result<bool> {
-    let pkg_config_run = std::process::Command::new("pkg-config")
-        .args(["--version"])
-        .output()?
-        .status
-        .success();
-
-    if !pkg_config_run {
-        return Err(Error::msg("pkg-config isn't installed on this system."));
-    }
-
-    Ok(std::process::Command::new("pkg-config")
-        .args(["--libs", "nice"])
-        .output()?
-        .status
-        .success())
-}
-
 fn check_plugins() -> Result<()> {
     if check_for_ffmpeg().is_err() {
         warn!("ffmpeg is not present on the system. Some features may not work.");
-    }
-
-    match check_for_nice() {
-        Ok(false) => anyhow::bail!("libnice is missing on the system."),
-        Err(_) => {
-            warn!("pkg-config is absent from the system, cannot check for presence of libnice.");
-        }
-        _ => {}
     }
 
     let registry = gst::Registry::get();
