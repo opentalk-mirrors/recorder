@@ -2,7 +2,7 @@
 
 ## Configuration
 
-The section in the [configuration file](configuration.md) is called `controller`.
+The section in the [configuration file](README.md) is called `controller`.
 
 | Field      | Type     | Required | Default value | Description                                                              |
 | ---------- | -------- | -------- | ------------- | ------------------------------------------------------------------------ |
