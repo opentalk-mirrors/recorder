@@ -171,17 +171,14 @@ where
     pub fn new(
         resolution: Size,
         layout: impl Layout,
-        sink: impl Sink,
+        sinks: Vec<Box<dyn Sink>>,
         max_visibles: usize,
     ) -> Result<Self> {
-        debug!("Starting a new talk...");
-        trace!("new( {resolution:?}, {max_visibles:?} )");
-
         Self::new_with_pipeline(
             Pipeline::new(Some("Compositor")),
             resolution,
             layout,
-            sink,
+            sinks,
             max_visibles,
         )
     }
@@ -202,7 +199,7 @@ where
         pipeline: Pipeline,
         resolution: Size,
         layout: impl Layout,
-        sink: impl Sink,
+        sinks: Vec<Box<dyn Sink>>,
         max_visibles: usize,
     ) -> Result<Self> {
         debug!("Starting a new talk...");
@@ -215,7 +212,7 @@ where
             TalkOverlay::create()
                 .context("unable to create TalkOverlay")?
                 .into(),
-            sink,
+            sinks,
         )
         .context("unable to create mixer")?;
 

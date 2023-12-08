@@ -96,7 +96,7 @@ where
 {
     /// Find compositor sink by looking where our ghost pad is connected to.
     pub fn compositor_sink(&self) -> Option<gst::Pad> {
-        self.video.clone().and_then(|video| video.peer())
+        self.video.clone().and_then(|video| video.target())
     }
 
     /// Get the videoconvertscale `Pad` from the stream.
@@ -111,6 +111,6 @@ where
 
     /// Find audiomixer sink by looking where our ghost pad is connected to.
     pub fn audiomixer_sink(&self) -> Option<gst::Pad> {
-        self.audio.peer()
+        self.audio.target()
     }
 }

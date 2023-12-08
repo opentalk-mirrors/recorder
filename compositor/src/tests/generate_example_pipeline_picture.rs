@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use crate::{
-    debug, testing, Blinder, MultiParameters, MultiSink, Speaker, Talk, TestBlinder,
-    TestBlinderParams, TestSink, TestSource, TestSourceParameters,
+    debug, testing, Blinder, Speaker, Talk, TestBlinder, TestBlinderParams, TestSink, TestSource,
+    TestSourceParameters,
 };
 
 const IMAGE_OUTPUT_PATH: &str = "./images";
@@ -40,13 +40,10 @@ fn generate_example_pipeline_picture() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        MultiSink::create(MultiParameters {
-            sinks: vec![
-                blinder.clone(),
-                Box::new(TestSink::create("Recording").unwrap()),
-            ],
-        })
-        .unwrap(),
+        vec![
+            blinder.clone(),
+            Box::new(TestSink::create("Recording").unwrap()),
+        ],
         100,
     )
     .unwrap();

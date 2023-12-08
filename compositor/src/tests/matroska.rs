@@ -13,7 +13,9 @@ fn test_matroska() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        MatroskaSink::create("test", &Default::default()).unwrap(),
+        vec![Box::new(
+            MatroskaSink::create("test", &Default::default()).unwrap(),
+        )],
         testing::MAX_STREAMS,
     )
     .unwrap();

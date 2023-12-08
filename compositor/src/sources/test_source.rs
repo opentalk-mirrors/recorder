@@ -200,9 +200,7 @@ impl Source for TestSource {
                     name="Audio Test Source"
                     volume=0.01
                     is-live=true
-                ! capssetter
-                    name="Audio Capssetter"
-                    caps=audio/x-raw,format=S16LE,channels=2,layout=interleaved,rate=48000
+                ! audio/x-raw,format=S16LE,channels=2,rate=48000
                 ! queue
                     name=audio
                     max-size-time=2000000000

@@ -5,8 +5,8 @@
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, MultiParameters, MultiSink,
-    RTMPParameters, RTMPSink, Sink, StreamId, SystemSink, WebRtcSourceParams,
+    MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink, Sink,
+    StreamId, SystemSink, WebRtcSourceParams,
 };
 use core::{
     pin::Pin,
@@ -207,12 +207,10 @@ impl RecordingSession {
             ))
             .collect::<Result<Vec<_>>>()?;
 
-        let multi_sink =
-            MultiSink::create(MultiParameters::new(sinks)).context("unable to create mutlisink")?;
         let talk = Talk::new(
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),
-            multi_sink,
+            sinks,
             MAX_VISIBLES,
         )?;
 

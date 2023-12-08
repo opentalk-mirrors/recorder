@@ -12,14 +12,16 @@ fn test_mp4() {
     let mut mixer = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        Mp4Sink::create(
-            "test",
-            &Mp4Parameters {
-                name: "MP4 Sink",
-                file_path: testing::output_file("mp4sink.mp4").into(),
-            },
-        )
-        .unwrap(),
+        vec![Box::new(
+            Mp4Sink::create(
+                "test",
+                &Mp4Parameters {
+                    name: "MP4 Sink",
+                    file_path: testing::output_file("mp4sink.mp4").into(),
+                },
+            )
+            .unwrap(),
+        )],
         testing::MAX_STREAMS,
     )
     .unwrap();

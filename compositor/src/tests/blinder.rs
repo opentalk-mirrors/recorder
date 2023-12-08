@@ -22,7 +22,7 @@ fn test_blinder() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        blinder.clone(),
+        vec![Box::new(blinder.clone())],
         testing::MAX_STREAMS,
     )
     .unwrap();
