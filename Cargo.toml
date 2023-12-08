@@ -39,7 +39,7 @@ tokio = { version = "1", features = [
     "signal",
 ] }
 #lapin = "2.1"
-lapin = { version = "2.1", default-features = false, features = [
+lapin = { version = "2.3", default-features = false, features = [
     "rustls-webpki-roots-certs",
 ] }
 tokio-reactor-trait = "1"
@@ -53,7 +53,7 @@ bytes = "1"
 thiserror = "1"
 openidconnect = "3"
 tempfile = "3"
-pin-project-lite = "0.2.9"
+pin-project-lite = "0.2"
 
 [workspace]
 members = ["compositor"]
