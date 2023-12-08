@@ -6,12 +6,12 @@ title: Recorder
 
 ## General information about the service
 
-- [Configuration](configuration.md)
+- [Configuration](./configuration/README.md)
 
 ## Interaction between OpenTalk Recorder and other services
 
 ### Services required by OpenTalk Recorder
 
-- [Auth](auth.md)
-- [Controller](controller.md)
-- [RabbitMQ](rabbitmq.md)
+- [Auth](./configuration/auth.md)
+- [Controller](./configuration/controller.md)
+- [RabbitMQ](./configuration/rabbitmq.md)

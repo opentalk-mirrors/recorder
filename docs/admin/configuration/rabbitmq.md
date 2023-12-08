@@ -2,7 +2,7 @@
 
 ## Configuration
 
-The section in the [configuration file](configuration.md) is called `rabbitmq`.
+The section in the [configuration file](README.md) is called `rabbitmq`.
 
 | Field   | Type     | Required | Default value | Description                                     |
 | ------- | -------- | -------- | ------------- | ----------------------------------------------- |

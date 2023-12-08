@@ -5,7 +5,7 @@ be a `MP4 file`, `Display`, or `RTMP stream`.
 
 ## Configuration
 
-The section in the [configuration file](configuration.md) is called `recorder`.
+The section in the [configuration file](README.md) is called `recorder`.
 
 | Field                | Type     | Required | Default value | Description                                  |
 | -------------------- | -------- | -------- | ------------- | -------------------------------------------- |

@@ -5,7 +5,7 @@ identity and access management software for single sign-on.
 
 ## Configuration
 
-The section in the [configuration file](configuration.md) is called `auth`.
+The section in the [configuration file](README.md) is called `auth`.
 
 | Field           | Type     | Required | Default value | Description                                         |
 | --------------- | -------- | -------- | ------------- | --------------------------------------------------- |
