@@ -131,6 +131,7 @@ pub mod testing {
         first: u32,
         count: u32,
         visibles: usize,
+        has_video: bool,
     ) -> (Vec<(ID, String)>, Vec<ID>)
     where
         ID: Eq + Ord + Hash + Copy + Debug + Display + From<u32> + Sync + Send,
@@ -154,7 +155,7 @@ pub mod testing {
                 resolution: resolutions[i % images.len()],
                 pattern: Pattern::Location(testing::image_file(images[i % images.len()])),
                 name: Some(name.clone()),
-                has_video: true,
+                has_video,
             };
             talk.add_stream(StreamId::camera(*id), name, params, StreamStatus::default())
                 .unwrap();

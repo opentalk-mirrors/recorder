@@ -13,10 +13,12 @@ fn test_overlay() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        vec![Box::new(TestSink::create("Testing Sink").unwrap())],
         testing::MAX_STREAMS,
+        true,
     )
     .unwrap();
+    talk.link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
+        .unwrap();
 
     talk.set_speaker(0).unwrap();
 
@@ -31,7 +33,7 @@ fn test_overlay() {
     testing::wait();
 
     // add participants
-    let (_, ids) = testing::generate_streams(&mut talk, 0, 3, 3);
+    let (_, ids) = testing::generate_streams(&mut talk, 0, 3, 3, true);
     ids.iter().for_each(|id| {
         talk.show_stream(&StreamId::camera(*id)).unwrap();
     });
@@ -46,4 +48,6 @@ fn test_overlay() {
         talk.dot("test_overlay-4", testing::DOT_PARAMS);
         testing::wait();
     }
+
+    testing::wait_secs(10);
 }

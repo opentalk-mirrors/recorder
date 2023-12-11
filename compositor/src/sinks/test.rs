@@ -19,11 +19,10 @@ impl TestSink {
     /// # Errors
     ///
     /// This can fail if the `DisplaySink` or `FakeSink` cannot be created.
-    pub fn create(name: &str) -> Result<Self> {
+    pub fn create(name: &str, use_video: bool) -> Result<Self> {
         trace!("new({name})");
 
         let use_display = std::env::var("USE_DISPLAY").is_ok();
-        let use_video = std::env::var("USE_VIDEO").is_ok();
         let sink = if use_display {
             info!("using display sink because display is available");
             Self::Display(

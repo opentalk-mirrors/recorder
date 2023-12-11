@@ -12,14 +12,16 @@ fn test_stream_status() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        vec![Box::new(TestSink::create("Testing Sink").unwrap())],
         testing::MAX_STREAMS,
+        true,
     )
     .unwrap();
+    talk.link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
+        .unwrap();
 
     talk.dot("test_stream_status-0", testing::DOT_PARAMS);
 
-    testing::generate_streams(&mut talk, 0, 8, 5);
+    testing::generate_streams(&mut talk, 0, 8, 5, true);
 
     testing::wait_millis(500);
 

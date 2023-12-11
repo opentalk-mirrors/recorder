@@ -90,7 +90,7 @@ impl RTMPSink {
                 name=mux
                 streamable=true
             ! rtmpsink
-                location='{location}'
+                location="{location}"
             "#,
                 location = parameters.location,
                 audio_bitrate = parameters.audio_bitrate.unwrap_or(DEFAULT_AUDIO_BITRATE),

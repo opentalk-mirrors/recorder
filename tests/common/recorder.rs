@@ -5,9 +5,8 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use compositor::{FakeSink, Talk, TestSink};
-use openidconnect::{
-    core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl, JsonWebKeySet,
-};
+use openidconnect::core::CoreJsonWebKeySet;
+use openidconnect::{core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl};
 use opentalk_recorder::{
     http::HttpClient,
     recorder::{Recorder, MAX_VISIBLES},
@@ -43,6 +42,7 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
         recorder: None,
     };
     let client = reqwest::Client::new();
+
     let oidc = CoreClient::new(
         client_id,
         None,
@@ -50,7 +50,7 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
         AuthUrl::new("http://127.0.0.1".to_string()).unwrap(),
         None,
         None,
-        JsonWebKeySet::default(),
+        CoreJsonWebKeySet::default(),
     );
     let access_token = RwLock::new(AccessToken::new("NOT_USED_IN_TESTS".to_string()));
     let http_client = HttpClient::new(client, oidc, access_token);
@@ -66,17 +66,26 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let (candidate_sender, candidate_receiver) = mpsc::channel(12);
     let temp_dir = TempDir::new().expect("unable to create temp dir");
 
-    let talk = Talk::new(
+    let mut talk = Talk::new(
         compositor::Size::FHD,
         compositor::layout::Speaker::default(),
-        vec![
-            Box::new(TestSink::create("TestSink").unwrap()),
-            Box::new(FakeSink::create("FakeSink with video", true).unwrap()),
-            Box::new(FakeSink::create("FakeSink without video", false).unwrap()),
-        ],
         MAX_VISIBLES,
+        true,
     )
     .expect("unable to create talk");
+
+    talk.link_sink("test_sink", TestSink::create("TestSink", true).unwrap())
+        .unwrap();
+    talk.link_sink(
+        "fake_sink_with_video",
+        FakeSink::create("FakeSink with video", true).unwrap(),
+    )
+    .unwrap();
+    talk.link_sink(
+        "fake_sink_without_video",
+        FakeSink::create("FakeSink without video", false).unwrap(),
+    )
+    .unwrap();
 
     let mut recording_session = RecordingSession::new(
         Arc::new(recorder),

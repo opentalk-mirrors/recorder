@@ -13,10 +13,14 @@ fn test_matroska() {
     let mut talk = Talk::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
-        vec![Box::new(
-            MatroskaSink::create("test", &Default::default()).unwrap(),
-        )],
         testing::MAX_STREAMS,
+        true,
+    )
+    .unwrap();
+
+    talk.link_sink(
+        "matroska_sink",
+        MatroskaSink::create("test", &Default::default()).unwrap(),
     )
     .unwrap();
 
