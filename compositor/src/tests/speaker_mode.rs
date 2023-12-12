@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use types::signaling::media::MediaSessionState;
+
 use crate::{
-    testing, Pattern, Size, Speaker, StreamId, StreamStatus, Talk, TestSink, TestSource,
-    TestSourceParameters,
+    testing, Pattern, Size, Speaker, StreamId, Talk, TestSink, TestSource, TestSourceParameters,
 };
 
 #[test]
@@ -72,7 +73,7 @@ fn test_speaker_mode_with_prio() {
             pattern: Pattern::Smpte75,
             has_video: true,
         },
-        StreamStatus::default(),
+        MediaSessionState::audio_and_video(),
     )
     .unwrap();
 

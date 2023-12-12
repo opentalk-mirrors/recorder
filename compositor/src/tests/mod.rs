@@ -16,6 +16,8 @@ mod webrtc;
 
 pub mod testing {
 
+    use types::signaling::media::MediaSessionState;
+
     use crate::*;
     use core::{
         fmt::{Debug, Display},
@@ -157,8 +159,13 @@ pub mod testing {
                 name: Some(name.clone()),
                 has_video,
             };
-            talk.add_stream(StreamId::camera(*id), name, params, StreamStatus::default())
-                .unwrap();
+            talk.add_stream(
+                StreamId::camera(*id),
+                name,
+                params,
+                MediaSessionState::audio_and_video(),
+            )
+            .unwrap();
         }
 
         (streams, ids)

@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::{testing, DashParameters, DashSink, Speaker, StreamId, StreamStatus, Talk, TestSource};
+use types::signaling::media::MediaSessionState;
+
+use crate::{testing, DashParameters, DashSink, Speaker, StreamId, Talk, TestSource};
 
 #[test]
 fn test_dash() {
@@ -38,7 +40,7 @@ fn test_dash() {
         StreamId::camera(0),
         "Participant 0",
         Default::default(),
-        StreamStatus::default(),
+        MediaSessionState::audio_and_video(),
     )
     .unwrap();
 

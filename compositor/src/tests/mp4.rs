@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use types::signaling::media::MediaSessionState;
+
 use crate::{testing, Mp4Parameters, Mp4Sink, Speaker, StreamId, Talk, TestSource};
 
 #[test]
@@ -37,7 +39,7 @@ fn test_mp4() {
             StreamId::camera(0),
             "Participant 0",
             Default::default(),
-            Default::default(),
+            MediaSessionState::audio_and_video(),
         )
         .unwrap();
 

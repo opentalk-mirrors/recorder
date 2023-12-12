@@ -10,12 +10,12 @@ use core::{
     hash::Hash,
 };
 use gst::Pipeline;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use types::signaling::media::{MediaSessionState, MediaSessionType};
 
 use crate::{
-    debug, AnyOverlay, Font, Layout, Mixer, Overlay, Sink, Size, Source, Stream, StreamStatus,
-    TalkOverlay, TextOverlay, TextStyle,
+    debug, AnyOverlay, Font, Layout, Mixer, Overlay, Sink, Size, Source, Stream, TalkOverlay,
+    TextOverlay, TextStyle,
 };
 
 const NAME_FONT_SIZE: u32 = 16;
@@ -25,28 +25,7 @@ const NAME_FONT_SIZE: u32 = 16;
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     // order is priority for set speaker (first available will get focus)
 
-    [MediaSessionType::ScreenCapture, MediaSessionType::Camera].into_iter()
-}
-
-/// sub stream ID for testing purposes.
-#[allow(dead_code)]
-#[derive(Debug, Hash, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MediaSessionType {
-    /// participant's picture (default)
-    #[serde(rename = "video")]
-    Camera,
-    /// participant's screen share
-    #[serde(rename = "screen")]
-    ScreenCapture,
-}
-
-impl Display for MediaSessionType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MediaSessionType::Camera => write!(f, "Camera"),
-            MediaSessionType::ScreenCapture => write!(f, "Screen"),
-        }
-    }
+    [MediaSessionType::Screen, MediaSessionType::Video].into_iter()
 }
 
 /// Stream ID consisting of one stream ID and a stream type.
@@ -79,7 +58,7 @@ where
     pub fn camera(id: ID) -> Self {
         Self {
             id,
-            media_type: MediaSessionType::Camera,
+            media_type: MediaSessionType::Video,
         }
     }
     /// Create an ID of the given participant's screen sharing stream.
@@ -91,7 +70,7 @@ where
     pub fn screen(id: ID) -> Self {
         Self {
             id,
-            media_type: MediaSessionType::ScreenCapture,
+            media_type: MediaSessionType::Screen,
         }
     }
 }
@@ -259,7 +238,7 @@ where
         id: StreamId<ID>,
         display_name: &str,
         params: SRC::Parameters,
-        initial: StreamStatus,
+        initial: MediaSessionState,
     ) -> Result<()>
     where
         SRC: Source,
@@ -286,7 +265,7 @@ where
             display_name.to_string(),
             params,
             overlay.into(),
-            initial.clone(),
+            initial,
         )?;
 
         // remember display name
@@ -384,20 +363,20 @@ where
 
         self.current_speaker = Some(speaker);
 
-        let stream_id = StreamId::new(speaker, MediaSessionType::ScreenCapture);
+        let stream_id = StreamId::new(speaker, MediaSessionType::Screen);
         if let Some(stream) = self.mixer.streams.get(&stream_id) {
             // The speaker has no screen, so it doesn't need to update the position
-            if stream.status.has_video {
+            if stream.status.video {
                 self.mixer
                     .set_stream_to_first_position(&stream_id)
                     .context("unable to set stream with id '{stream_id}' to first position")?;
             }
         }
 
-        let stream_id = StreamId::new(speaker, MediaSessionType::Camera);
+        let stream_id = StreamId::new(speaker, MediaSessionType::Video);
         if let Some(stream) = self.mixer.streams.get(&stream_id) {
             // The speaker has no screen, so it doesn't need to update the position
-            if stream.status.has_video {
+            if stream.status.video {
                 // check if noone is sharing their screen or the new speaker is also screen sharing
                 if self.get_first_screen_capture().is_none() {
                     self.mixer
@@ -435,17 +414,17 @@ where
     /// # Errors
     ///
     /// This can fail if the status of the stream can't be set in the `Mixer`.
-    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &StreamStatus) -> Result<()> {
+    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &MediaSessionState) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
         let Some(current_stream) = self.mixer.streams.get(id) else {
             debug!("current_stream not found for id: {id:?}");
             return Ok(());
         };
-        let old_status = current_stream.status.clone();
+        let old_status = current_stream.status;
 
-        self.mixer.set_status(id, new_status.clone())?;
+        self.mixer.set_status(id, *new_status)?;
 
-        match (old_status.has_video, new_status.has_video) {
+        match (old_status.video, new_status.video) {
             (false, true) => self
                 .show_stream(id)
                 .context("unable to show stream for id '{id}'")?,
@@ -559,7 +538,7 @@ where
         // Check if the maximum amount of streams is reached
         if self.mixer.visibles.len() >= self.max_visibles {
             // If the new stream is just a camera feed, then don't show them
-            if stream_id.media_type == MediaSessionType::Camera {
+            if stream_id.media_type == MediaSessionType::Video {
                 return Ok(());
             }
             // The new camera feed is a screen share, which has a higher
@@ -573,7 +552,7 @@ where
         // Check if the new stream is a screen capture
         // If it's a screen capture and noone else is streaming, push it to the first position
         // If someone is streaming, but the current speaker is the same user, push it to the first position
-        let position_first = stream_id.media_type == MediaSessionType::ScreenCapture
+        let position_first = stream_id.media_type == MediaSessionType::Screen
             && self.get_first_screen_capture().is_none();
 
         self.mixer.show_stream(stream_id, position_first)
@@ -640,7 +619,7 @@ where
             .visibles
             .clone()
             .into_iter()
-            .find(|visible| visible.media_type == MediaSessionType::ScreenCapture)
+            .find(|visible| visible.media_type == MediaSessionType::Screen)
     }
 }
 

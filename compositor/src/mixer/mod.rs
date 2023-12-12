@@ -13,6 +13,7 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
 };
+use types::signaling::media::MediaSessionState;
 
 mod audio_mixer;
 pub mod debug;
@@ -381,7 +382,7 @@ where
         display_name: String,
         params: SRC::Parameters,
         overlay: AnyOverlay,
-        status: StreamStatus,
+        status: MediaSessionState,
     ) -> Result<()> {
         info!("add_stream( {id}, '{display_name}', {params:?} )");
 
@@ -705,7 +706,7 @@ where
     ///
     /// This can fail if there is no stream with the given `id`.
     pub fn has_video(&self, id: &STREAMID) -> Result<bool> {
-        Ok(self.get_stream(id)?.status.has_video)
+        Ok(self.get_stream(id)?.status.video)
     }
 
     /// Set status of a stream.
@@ -720,7 +721,7 @@ where
     /// # Errors
     ///
     /// This can fail if the stream isn't in the `streams` list.
-    pub fn set_status(&mut self, id: &STREAMID, new_status: StreamStatus) -> Result<()> {
+    pub fn set_status(&mut self, id: &STREAMID, new_status: MediaSessionState) -> Result<()> {
         info!("set_status( {id}, {new_status} )");
 
         debug::debug_dot(&self.pipeline, "set_status_pipeline_main");
@@ -735,7 +736,7 @@ where
         current_stream
             .audiomixer_sink()
             .context("unable to get sink for audiomixer")?
-            .set_property("volume", if new_status.has_audio { 1.0 } else { 0.0 });
+            .set_property("volume", if new_status.audio { 1.0 } else { 0.0 });
         current_stream.status = new_status;
 
         Ok(())
