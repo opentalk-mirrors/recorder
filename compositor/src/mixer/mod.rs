@@ -136,6 +136,7 @@ where
         let system_clock = SystemClock::obtain();
         pipeline.use_clock(Some(&system_clock));
         pipeline.set_base_time(ClockTime::ZERO);
+        pipeline.set_start_time(None);
 
         pipeline.set_state(gst::State::Playing)?;
 
@@ -232,9 +233,11 @@ where
                     .field("channels", AUDIO_CHANNELS)
                     .build(),
             )
+            .min_latency(200_000_000i64)
             .format(gst::Format::Time)
             .max_bytes(1)
             .block(true)
+            .is_live(true)
             .build();
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
@@ -285,9 +288,11 @@ where
                     .field("framerate", Fraction::new(VIDEO_FRAMERATE, 1))
                     .build(),
             )
+            .min_latency(200_000_000i64)
             .format(gst::Format::Time)
             .max_bytes(1)
             .block(true)
+            .is_live(true)
             .build();
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
