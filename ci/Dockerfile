@@ -33,8 +33,7 @@ FROM alpine:3.18
 
 RUN apk add --no-cache glib libssl1.1 libcrypto1.1 ffmpeg \
     gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav \
-    terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi \
-    font-noto font-noto-cjk ttf-font-awesome font-noto-extra
+    terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-noto
 
 RUN fc-cache -fv
 
