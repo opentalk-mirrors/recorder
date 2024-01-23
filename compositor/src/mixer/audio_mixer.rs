@@ -10,6 +10,7 @@ use gst::{
     GhostPad, Pad, Sample, StreamError,
 };
 use gst_app::{AppSink, AppSinkCallbacks, AppSrc};
+use gst_base::AggregatorStartTimeSelection;
 use tokio::sync::broadcast;
 
 const QUEUE_SIZE: usize = 128; // expect a buffers of 10ms -> 1s queue size
@@ -45,32 +46,36 @@ impl AudioMixer {
             .property("volume", 0.0)
             .build()
             .context("unable to build audiotestsrc")?;
+        let clocksync = ElementFactory::make("clocksync")
+            .name("Audio Background Clocksync")
+            .build()
+            .context("Failed to build clocksync")?;
         let audiotestsrc_capssetter =
             Self::build_caps().context("unable to build audiotestsrc_capssetter")?;
 
         let audiomixer = ElementFactory::make("audiomixer")
             .name("audio-mixer")
             .property("ignore-inactive-pads", true)
+            .property("start-time-selection", AggregatorStartTimeSelection::First)
             .build()
             .context("unable to build audiomixer")?;
 
-        let audimixer_capssetter =
+        let audiomixer_capssetter =
             Self::build_caps().context("unable to build audiomixer_capssetter")?;
 
         let queue = ElementFactory::make("queue")
             .build()
             .context("unable to build queue")?;
-        let appsink = AppSink::builder().build();
+        let appsink = AppSink::builder().sync(true).build();
 
-        bin.add_many(&[&audiotestsrc, &audiotestsrc_capssetter, &audiomixer, &audimixer_capssetter, &queue,
+        bin.add_many(&[&audiotestsrc, &clocksync, &audiotestsrc_capssetter, &audiomixer, &audiomixer_capssetter, &queue,
              appsink.upcast_ref()])
             .context(
                 "unable to add 'audiotestsrc', 'audiotestsrc_capssetter', 'audiomixer', 'audiomixer_capssetter', 'queue', 'clocksync' and 'appsink' to 'bin'",
             )?;
 
-        audiotestsrc
-            .link(&audiotestsrc_capssetter)
-            .context("unable to link 'audiotestsrc' with 'capssetter'")?;
+        Element::link_many(&[&audiotestsrc, &clocksync, &audiotestsrc_capssetter])
+            .context("Failed to link 'audiotestsrc', 'clocksync' and 'audiotestsrc_capssetter'")?;
 
         let audiomixer_sink_pad = audiomixer
             .request_pad_simple("sink_%u")
@@ -83,12 +88,12 @@ impl AudioMixer {
 
         Element::link_many(&[
             &audiomixer,
-            &audimixer_capssetter,
+            &audiomixer_capssetter,
             &queue,
             appsink.upcast_ref(),
         ])
         .context(
-            "unable to link 'audiomixer', 'audimixer_capssetter', 'queue', 'clocksync' and 'appsink'",
+            "unable to link 'audiomixer', 'audiomixer_capssetter', 'queue', 'clocksync' and 'appsink'",
         )?;
 
         let buffer = broadcast::Sender::new(QUEUE_SIZE);

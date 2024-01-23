@@ -2,16 +2,16 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use crate::mixer::VIDEO_FRAMERATE;
+use crate::{Overlay, Size};
 use anyhow::{Context, Result};
 use gst::{
     element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
     GhostPad, Pad, Sample, StreamError,
 };
 use gst_app::{AppSink, AppSinkCallbacks, AppSrc};
+use gst_base::AggregatorStartTimeSelection;
 use tokio::sync::broadcast;
-
-use crate::mixer::VIDEO_FRAMERATE;
-use crate::{Overlay, Size};
 
 const QUEUE_SIZE: usize = VIDEO_FRAMERATE as usize;
 #[derive(Debug)]
@@ -32,6 +32,10 @@ impl VideoMixer {
             .property("is-live", true)
             .build()
             .context("unable to build videotesetsrc_videotestsrc")?;
+        let clocksync = ElementFactory::make("clocksync")
+            .name("Video Background Clocksync")
+            .build()
+            .context("Failed to build clocksync")?;
         let videotestsrc_capssetter = ElementFactory::make("capssetter")
             .property(
                 "caps",
@@ -48,16 +52,18 @@ impl VideoMixer {
             .name("compositor")
             .property("ignore-inactive-pads", true)
             .property("zero-size-is-unscaled", true)
+            .property("start-time-selection", AggregatorStartTimeSelection::First)
             .build()
             .context("unable to build compositor")?;
 
         let queue = ElementFactory::make("queue")
             .build()
             .context("unable to build queue")?;
-        let appsink: AppSink = AppSink::builder().build();
+        let appsink: AppSink = AppSink::builder().sync(true).build();
 
         bin.add_many(&[
             &videotestsrc,
+            &clocksync,
             &videotestsrc_capssetter,
             &compositor,
             &overlay.element(),
@@ -66,9 +72,8 @@ impl VideoMixer {
         ])
         .context("unable to add 'videotestsrc', 'videotestsrc_capssetter', 'compositor', 'queue'  and 'appsink' to 'bin'")?;
 
-        videotestsrc
-            .link(&videotestsrc_capssetter)
-            .context("unable to link 'videotestsrc' with 'capssetter'")?;
+        Element::link_many(&[&videotestsrc, &clocksync, &videotestsrc_capssetter])
+            .context("Failed to link 'videotestsrc', 'clocksync' and 'videotestsrc_capssetter'")?;
 
         let compositor_sink_pad = compositor
             .request_pad_simple("sink_%u")
