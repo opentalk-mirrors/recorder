@@ -4,63 +4,11 @@
 
 //! Stream status.
 
-use core::fmt::{Debug, Display};
+use core::fmt::Debug;
 use gst_base::prelude::*;
+use types::signaling::media::MediaSessionState;
 
 use crate::{AnyOverlay, Source};
-
-/// Turns on or off video or audio.
-#[derive(Debug, Clone)]
-pub struct StreamStatus {
-    /// stream currently provides audio
-    pub has_audio: bool,
-    /// stream currently provides video
-    pub has_video: bool,
-}
-
-impl StreamStatus {
-    #[must_use]
-    pub fn none() -> Self {
-        Self {
-            has_audio: false,
-            has_video: false,
-        }
-    }
-    #[must_use]
-    pub fn audio() -> Self {
-        Self {
-            has_audio: true,
-            has_video: false,
-        }
-    }
-    #[must_use]
-    pub fn video() -> Self {
-        Self {
-            has_audio: false,
-            has_video: true,
-        }
-    }
-}
-
-impl Default for StreamStatus {
-    fn default() -> Self {
-        Self {
-            has_audio: true,
-            has_video: true,
-        }
-    }
-}
-
-impl Display for StreamStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match (self.has_video, self.has_audio) {
-            (true, false) => write!(f, "video only"),
-            (true, true) => write!(f, "audio/video"),
-            (false, true) => write!(f, "audio only"),
-            (false, false) => write!(f, "no media"),
-        }
-    }
-}
 
 /// Represents a stream.
 ///
@@ -86,7 +34,7 @@ where
     // source's overlay
     pub overlay: AnyOverlay,
     /// current stream status
-    pub status: StreamStatus,
+    pub status: MediaSessionState,
 }
 
 impl<SRC> Stream<SRC>

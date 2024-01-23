@@ -10,10 +10,9 @@ use gst::{
 };
 use std::collections::HashMap;
 use tokio::{sync::mpsc, time::sleep};
+use types::signaling::media::{MediaSessionState, MediaSessionType};
 
-use crate::{
-    log, Size, Speaker, StreamId, StreamStatus, TestSink, WebRtcSource, WebRtcSourceParams,
-};
+use crate::{log, Size, Speaker, StreamId, TestSink, WebRtcSource, WebRtcSourceParams};
 
 type Talk = crate::Talk<WebRtcSource, usize>;
 
@@ -179,7 +178,7 @@ fn handle_user_event(
                 publish.set_state(gst::State::Null).unwrap();
             }
 
-            let id = StreamId::new(id, crate::MediaSessionType::Camera);
+            let id = StreamId::new(id, MediaSessionType::Video);
             talk.remove_stream(id).unwrap();
         }
     }
@@ -305,9 +304,9 @@ fn create_publish_pipeline(
                 webrtcbin.emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);
             }
         }),
-        StreamStatus {
-            has_audio: true,
-            has_video: true,
+        MediaSessionState {
+            audio: true,
+            video: true,
         },
     )
     .unwrap();

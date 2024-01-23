@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::{testing, MatroskaSink, Speaker, StreamId, StreamStatus, Talk, TestSource};
+use types::signaling::media::MediaSessionState;
+
+use crate::{testing, MatroskaSink, Speaker, StreamId, Talk, TestSource};
 
 #[test]
 fn test_matroska() {
@@ -30,7 +32,7 @@ fn test_matroska() {
         StreamId::camera(0),
         "Participant 0",
         Default::default(),
-        StreamStatus::default(),
+        MediaSessionState::audio_and_video(),
     )
     .unwrap();
 

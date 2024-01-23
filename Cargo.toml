@@ -13,6 +13,7 @@ publish = false
 
 [dependencies]
 compositor = { path = "compositor" }
+types = { package = "opentalk-types", version = "0.8.0-rc.1", features = [ "rand", "serde" ] }
 
 gst = { package = "gstreamer", version = "0.20" }
 gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
@@ -60,3 +61,5 @@ members = ["compositor"]
 
 [workspace.package]
 authors = ["OpenTalk Team <mail@opentalk.eu>"]
+version = "0.0.0-dev"
+

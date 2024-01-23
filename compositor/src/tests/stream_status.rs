@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::{testing, Speaker, StreamId, StreamStatus, Talk, TestSink, TestSource};
+use types::signaling::media::MediaSessionState;
+
+use crate::{testing, Speaker, StreamId, Talk, TestSink, TestSource};
 
 #[test]
 fn test_stream_status() {
@@ -31,9 +33,9 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (audio off)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
-            &StreamStatus {
-                has_audio: false,
-                has_video: true,
+            &MediaSessionState {
+                audio: false,
+                video: true,
             },
         )
         .unwrap();
@@ -47,9 +49,9 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (video off)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
-            &StreamStatus {
-                has_audio: true,
-                has_video: false,
+            &MediaSessionState {
+                audio: true,
+                video: false,
             },
         )
         .unwrap();
@@ -63,9 +65,9 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (a/v off)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
-            &StreamStatus {
-                has_audio: false,
-                has_video: false,
+            &MediaSessionState {
+                audio: false,
+                video: false,
             },
         )
         .unwrap();
@@ -79,9 +81,9 @@ fn test_stream_status() {
         talk.set_title(&format!("Speaker {i} (a/v on)")).unwrap();
         talk.set_status(
             &StreamId::camera(i),
-            &StreamStatus {
-                has_audio: true,
-                has_video: true,
+            &MediaSessionState {
+                audio: true,
+                video: true,
             },
         )
         .unwrap();

@@ -70,12 +70,12 @@ impl Source for WebRtcSource {
         debug!("new( {id},_, {params:?} )");
 
         let bin = gst::parse_bin_from_description(
-            r#"
+            r"
             webrtcbin
                 name=webrtc
                 bundle-policy=max-bundle
                 latency=1000
-            "#,
+            ",
             false,
         )
         .context("Failed to parse and load WebRtc pipeline. Is a gst plugin missing?")?;

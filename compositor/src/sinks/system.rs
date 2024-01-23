@@ -37,11 +37,11 @@ impl SystemSink {
         .to_string();
 
         if has_video {
-            description += r#"
+            description += r"
                 autovideosink
                     name=video
                     sync=false
-                "#;
+                ";
         }
 
         // create new GStreamer pipeline

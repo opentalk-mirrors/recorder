@@ -2,32 +2,32 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use compositor::{debug, MediaSessionType};
+use compositor::debug;
 use gst::{
     prelude::*,
     traits::{ElementExt, GstBinExt},
 };
 use opentalk_recorder::signaling::{
     incoming::{MediaMessage, Message, Sdp, SdpCandidate, Source},
-    ParticipantId, TrickleCandidate,
+    TrickleCandidate,
 };
 use tokio::sync::mpsc;
-use uuid::Uuid;
+use types::{core::ParticipantId, signaling::media::MediaSessionType};
 
 pub(crate) fn create_pipeline(
-    uuid: Uuid,
+    uuid: ParticipantId,
     media_session_type: MediaSessionType,
     to_recorder_tx: mpsc::Sender<Message>,
 ) -> gst::Pipeline {
     let pattern = match media_session_type {
-        MediaSessionType::Camera => "ball",
-        MediaSessionType::ScreenCapture => "smpte",
+        MediaSessionType::Video => "ball",
+        MediaSessionType::Screen => "smpte",
     };
     let audiotestsrc = match media_session_type {
-        MediaSessionType::Camera => {
+        MediaSessionType::Video => {
             "audiotestsrc is-live=true volume=0.02 freq=300 ! opusenc ! rtpopuspay pt=100 ! webrtc."
         }
-        MediaSessionType::ScreenCapture => "",
+        MediaSessionType::Screen => "",
     };
     let pipeline = gst::parse_launch(format!(r#"
         webrtcbin name=webrtc bundle-policy=max-bundle
@@ -56,7 +56,7 @@ pub(crate) fn create_pipeline(
                         sdp_m_line_index,
                     },
                     source: Source {
-                        source: ParticipantId(uuid),
+                        source: uuid,
                         media_session_type,
                     },
                 })))
@@ -77,7 +77,7 @@ pub(crate) fn create_pipeline(
             if state == gst_webrtc::WebRTCICEGatheringState::Complete {
                 to_recorder_tx
                     .blocking_send(Message::Media(MediaMessage::SdpEndOfCandidates(Source {
-                        source: ParticipantId(uuid),
+                        source: uuid,
                         media_session_type,
                     })))
                     .unwrap();
@@ -118,7 +118,7 @@ pub(crate) fn create_pipeline(
                         .blocking_send(Message::Media(MediaMessage::SdpOffer(Sdp {
                             sdp: offer.sdp().to_string(),
                             source: Source {
-                                source: ParticipantId(uuid),
+                                source: uuid,
                                 media_session_type,
                             },
                         })))

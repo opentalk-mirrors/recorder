@@ -17,6 +17,7 @@ use tokio::{
     sync::{mpsc, watch, Mutex},
     time::sleep,
 };
+use types::signaling::control::Participant;
 
 use crate::common::{
     controller::MockController, logger::PanicLogger, recorder::start_recorder,
@@ -69,7 +70,7 @@ pub(crate) enum Event {
 }
 
 pub(crate) struct User {
-    participant: incoming::Participant,
+    participant: Participant,
     webrtc_pipeline: Option<gst::Pipeline>,
 }
 

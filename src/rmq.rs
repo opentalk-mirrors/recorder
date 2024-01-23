@@ -16,7 +16,7 @@ use crate::settings::RabbitMqSettings;
 // Commands this recorder receives via RabbitMQ
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct StartRecording {
+pub struct InitializeRecording {
     pub room: String,
     pub breakout: Option<String>,
 }
@@ -51,12 +51,12 @@ pub async fn connect_rabbitmq(settings: &RabbitMqSettings) -> Result<Consumer> {
         .context("Failed to create consumer for RMQ channel")
 }
 
-pub async fn handle_delivery(delivery: &Delivery) -> Result<StartRecording> {
+pub async fn handle_delivery(delivery: &Delivery) -> Result<InitializeRecording> {
     delivery
         .ack(BasicAckOptions::default())
         .await
         .context("failed to ACK")?;
 
-    serde_json::from_slice::<StartRecording>(&delivery.data)
+    serde_json::from_slice::<InitializeRecording>(&delivery.data)
         .with_context(|| format!("Failed to parse RMQ message {:?}", &delivery.data))
 }

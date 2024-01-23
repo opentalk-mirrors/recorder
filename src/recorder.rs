@@ -5,8 +5,8 @@
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    MatroskaSink, MediaSessionType, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink, StreamId,
-    SystemSink, WebRtcSourceParams,
+    MatroskaSink, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink, StreamId, SystemSink,
+    WebRtcSourceParams,
 };
 use core::{
     pin::Pin,
@@ -22,14 +22,16 @@ use tokio::{
     sync::{mpsc, watch},
     task::{spawn_blocking, JoinHandle},
 };
+use types::{
+    core::ParticipantId,
+    signaling::media::{MediaSessionState, MediaSessionType},
+};
 
 use crate::{
     http::HttpClient,
-    rmq::StartRecording,
+    rmq::InitializeRecording,
     settings::{RecorderSettings, RecorderSink, Settings},
-    signaling::{
-        incoming::MediaSessionState, media_types, Event, ParticipantId, Signaling, TrickleCandidate,
-    },
+    signaling::{media_types, Event, Signaling, TrickleCandidate},
 };
 
 // TODO; make this configurable
@@ -58,7 +60,10 @@ impl Recorder {
         }
     }
 
-    pub async fn spawn_session(&self, command: StartRecording) -> Result<JoinHandle<Result<()>>> {
+    pub async fn spawn_session(
+        &self,
+        command: InitializeRecording,
+    ) -> Result<JoinHandle<Result<()>>> {
         let context = Arc::new(self.clone());
         log::debug!("Start Recording session {command:?}");
         let mut session = RecordingSession::create(context, command)
@@ -140,7 +145,7 @@ impl RecordingSession {
 
     pub async fn create(
         service_context: Arc<Recorder>,
-        command: StartRecording,
+        command: InitializeRecording,
     ) -> Result<RecordingSession> {
         let signaling = Signaling::connect(
             service_context.http_client.as_ref(),
@@ -278,7 +283,7 @@ impl RecordingSession {
             stream_id,
             display_name,
             stream_params(stream_id, self.candidate_sender.clone()),
-            media_state.into(),
+            media_state,
         )?;
         self.signaling.start_subscribe(stream_id).await?;
 
@@ -373,7 +378,7 @@ impl RecordingSession {
                             "Update: update status of stream of {id} {media_type} to {media_state}"
                         );
                         self.talk
-                            .set_status(&StreamId::new(id, media_type), &media_state.into())?;
+                            .set_status(&StreamId::new(id, media_type), &media_state)?;
                     } else {
                         log::trace!(
                             "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"

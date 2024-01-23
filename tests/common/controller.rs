@@ -2,17 +2,30 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::Arc,
+};
 
 use gst::{prelude::ObjectExt, traits::GstBinExt, Promise};
 use gst_sdp::SDPMessage;
 use gst_webrtc::{WebRTCSDPType, WebRTCSessionDescription};
-use opentalk_recorder::signaling::{
-    incoming::{self, EventInfo},
-    outgoing, ParticipantId,
-};
+use opentalk_recorder::signaling::{incoming, outgoing};
 use tokio::sync::{mpsc, Mutex};
-use uuid::Uuid;
+use types::{
+    common::event::EventInfo,
+    core::{EventId, ParticipantId, TariffId, Timestamp},
+    signaling::{
+        control::{
+            event::{ControlEvent, JoinSuccess},
+            state::ControlState,
+            AssociatedParticipant, Participant,
+        },
+        media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
+        recording::peer_state::RecordingPeerState,
+        ModuleData, ModulePeerData,
+    },
+};
 
 use super::{webrtc::create_pipeline, User};
 
@@ -62,20 +75,36 @@ impl MockController {
 
     async fn on_join(&self) {
         let users = self.users.lock().await;
-        let participants: Vec<incoming::Participant> = users
+        let participants: Vec<Participant> = users
             .values()
             .map(|user| user.participant.clone())
             .collect::<Vec<_>>();
         self.to_recorder_tx
-            .send(incoming::Message::Control(
-                incoming::ControlMessage::JoinSuccess(incoming::JoinSuccess {
-                    id: ParticipantId(Uuid::new_v4()),
+            .send(incoming::Message::Control(ControlEvent::JoinSuccess(
+                JoinSuccess {
+                    id: ParticipantId::generate(),
                     participants,
-                    event_info: EventInfo {
+                    event_info: Some(EventInfo {
                         title: "Test Recording Title".to_string(),
-                    },
-                }),
-            ))
+                        id: EventId::generate(),
+                        is_adhoc: false,
+                    }),
+                    display_name: "".to_string(),
+                    avatar_url: None,
+                    role: types::signaling::Role::User,
+                    closes_at: None,
+                    tariff: Box::new(types::common::tariff::TariffResource {
+                        id: TariffId::nil(),
+                        name: "".to_owned(),
+                        quotas: HashMap::new(),
+                        enabled_modules: HashSet::new(),
+                        disabled_features: HashSet::new(),
+                        modules: HashMap::new(),
+                    }),
+                    module_data: ModuleData::new(),
+                    is_room_owner: false,
+                },
+            )))
             .await
             .expect("unable to send join success event to recorder");
     }
@@ -85,11 +114,11 @@ impl MockController {
 
         let user = users
             .values_mut()
-            .find(|user| user.participant.id.0 == target.target.0)
+            .find(|user| user.participant.id == target.target)
             .expect("unable to find user for sdp subscribe");
 
         let pipeline = tokio::task::spawn_blocking({
-            let id = user.participant.id.0;
+            let id = user.participant.id;
             let media_session_type = target.media_session_type;
             let to_recorder_tx = self.to_recorder_tx.clone();
 
@@ -162,41 +191,67 @@ impl MockController {
 
     pub(crate) async fn send_join_success(&self) {
         let users = self.users.lock().await;
-        let participants: Vec<incoming::Participant> = users
+        let participants: Vec<Participant> = users
             .values()
             .map(|user| user.participant.clone())
             .collect::<Vec<_>>();
         self.to_recorder_tx
-            .send(incoming::Message::Control(
-                incoming::ControlMessage::JoinSuccess(incoming::JoinSuccess {
-                    id: ParticipantId(Uuid::new_v4()),
+            .send(incoming::Message::Control(ControlEvent::JoinSuccess(
+                JoinSuccess {
+                    id: ParticipantId::generate(),
                     participants,
-                    event_info: EventInfo {
+                    event_info: Some(EventInfo {
                         title: "Test Recording Title".to_string(),
-                    },
-                }),
-            ))
+                        id: EventId::generate(),
+                        is_adhoc: false,
+                    }),
+                    display_name: "".to_string(),
+                    avatar_url: None,
+                    role: types::signaling::Role::User,
+                    closes_at: None,
+                    tariff: Box::new(types::common::tariff::TariffResource {
+                        id: TariffId::nil(),
+                        name: "".to_owned(),
+                        quotas: HashMap::new(),
+                        enabled_modules: HashSet::new(),
+                        disabled_features: HashSet::new(),
+                        modules: HashMap::new(),
+                    }),
+                    module_data: ModuleData::new(),
+                    is_room_owner: false,
+                },
+            )))
             .await
             .expect("unable to send join success event to recorder");
     }
 
-    pub(crate) async fn send_joined(&mut self, index: usize) -> incoming::Participant {
-        let participant = incoming::Participant {
-            id: ParticipantId(Uuid::new_v4()),
-            control: incoming::ControlData {
-                display_name: format!("MockUser {index}"),
-            },
-            media: incoming::MediaData {
-                video: None,
-                screen: None,
-                is_presenter: false,
-            },
-            recording: incoming::RecordingData {
-                consents_recording: false,
-            },
+    pub(crate) async fn send_joined(&mut self, index: usize) -> Participant {
+        let mut participant = Participant {
+            id: ParticipantId::generate(),
+            module_data: ModulePeerData::new(),
         };
+        let _ = participant.module_data.insert(&ControlState {
+            display_name: format!("MockUser {index}"),
+            role: types::signaling::Role::User,
+            avatar_url: None,
+            participation_kind: types::core::ParticipationKind::User,
+            hand_is_up: false,
+            joined_at: Timestamp::now(),
+            left_at: None,
+            hand_updated_at: Timestamp::now(),
+            is_room_owner: true,
+        });
 
-        let join_event = incoming::ControlMessage::Joined(participant.clone());
+        let _ = participant.module_data.insert(&MediaPeerState {
+            state: None,
+            is_presenter: false,
+        });
+
+        let _ = participant.module_data.insert(&RecordingPeerState {
+            consents_recording: false,
+        });
+
+        let join_event = ControlEvent::Joined(participant.clone());
 
         self.to_recorder_tx
             .send(incoming::Message::Control(join_event))
@@ -206,8 +261,8 @@ impl MockController {
         participant
     }
 
-    pub(crate) async fn send_left(&mut self, participant: &incoming::Participant) {
-        let left_event = incoming::ControlMessage::Left { id: participant.id };
+    pub(crate) async fn send_left(&mut self, participant: &Participant) {
+        let left_event = ControlEvent::Left(AssociatedParticipant { id: participant.id });
 
         self.to_recorder_tx
             .send(incoming::Message::Control(left_event))
@@ -217,50 +272,65 @@ impl MockController {
 
     pub(crate) async fn send_update_media(
         &mut self,
-        participant: &mut incoming::Participant,
+        participant: &mut Participant,
         audio: bool,
         video: bool,
         screen: bool,
     ) {
-        participant.media.video = if video || audio {
-            Some(incoming::MediaSessionState { video, audio })
+        let mut media: MediaPeerState = participant
+            .get_module::<MediaPeerState>()
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+
+        media.state = if video || audio {
+            Some(HashMap::from_iter([(
+                MediaSessionType::Video,
+                MediaSessionState { audio, video },
+            )]))
         } else {
             None
         };
 
-        participant.media.screen = if screen {
-            Some(incoming::MediaSessionState {
-                video: true,
-                audio: false,
-            })
-        } else {
-            None
-        };
+        if screen {
+            let _ = media.state.insert(HashMap::from_iter([(
+                MediaSessionType::Screen,
+                MediaSessionState {
+                    audio: false,
+                    video: true,
+                },
+            )]));
+        }
 
         self.to_recorder_tx
-            .send(incoming::Message::Control(
-                incoming::ControlMessage::Update(participant.clone()),
-            ))
+            .send(incoming::Message::Control(ControlEvent::Update(
+                participant.clone(),
+            )))
             .await
             .expect("unable to send update event to recorder");
     }
 
     pub(crate) async fn send_update_consent(
         &mut self,
-        participant: &mut incoming::Participant,
+        participant: &mut Participant,
         consent: bool,
     ) {
-        participant.recording.consents_recording = consent;
+        participant
+            .get_module::<RecordingPeerState>()
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+            .consents_recording = consent;
 
         self.to_recorder_tx
-            .send(incoming::Message::Control(
-                incoming::ControlMessage::Update(participant.clone()),
-            ))
+            .send(incoming::Message::Control(ControlEvent::Update(
+                participant.clone(),
+            )))
             .await
             .expect("unable to send update event to recorder");
     }
 
-    pub(crate) async fn send_update_focus(&mut self, participant: Option<&incoming::Participant>) {
+    pub(crate) async fn send_update_focus(&mut self, participant: Option<&Participant>) {
         self.to_recorder_tx
             .send(incoming::Message::Media(
                 incoming::MediaMessage::FocusUpdate(incoming::FocusUpdate {

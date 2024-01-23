@@ -34,10 +34,10 @@ impl FakeSink {
         .to_string();
 
         if has_video {
-            description += r#"
+            description += r"
                 fakevideosink
                     name=video
-                "#;
+                ";
         }
 
         // create new GStreamer pipeline

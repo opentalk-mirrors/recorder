@@ -13,13 +13,16 @@ use tt::{
     tungstenite::{client::IntoClientRequest, Message},
     MaybeTlsStream, WebSocketStream,
 };
-use uuid::Uuid;
-
-use crate::{
-    http::HttpClient,
-    settings::ControllerSettings,
-    signaling::incoming::{Error, MediaSessionState},
+use types::{
+    core::ParticipantId,
+    signaling::{
+        control::{event::ControlEvent, state::ControlState, AssociatedParticipant, Participant},
+        media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
+        recording::peer_state::RecordingPeerState,
+    },
 };
+
+use crate::{http::HttpClient, settings::ControllerSettings, signaling::incoming::Error};
 
 #[derive(Debug)]
 pub struct Signaling {
@@ -40,22 +43,44 @@ pub struct ParticipantState {
 }
 
 impl ParticipantState {
-    #[must_use]
-    fn from_incoming(p: incoming::Participant) -> Self {
+    fn from_incoming(p: &Participant) -> Result<Self> {
+        let media: MediaPeerState = p
+            .get_module::<MediaPeerState>()
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let recording: RecordingPeerState = p
+            .get_module::<RecordingPeerState>()
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let control: ControlState = p
+            .get_module::<ControlState>()?
+            .context("participant is missing control state")?;
         let mut publishing = HashMap::new();
-        if let Some(camera) = p.media.video {
-            publishing.insert(MediaSessionType::Camera, camera);
+        if let Some(camera) = media
+            .state
+            .as_ref()
+            .unwrap_or(&HashMap::new())
+            .get(&MediaSessionType::Video)
+        {
+            publishing.insert(MediaSessionType::Video, *camera);
         }
 
-        if let Some(screen) = p.media.screen {
-            publishing.insert(MediaSessionType::ScreenCapture, screen);
+        if let Some(screen) = media
+            .state
+            .as_ref()
+            .unwrap_or(&HashMap::new())
+            .get(&MediaSessionType::Screen)
+        {
+            publishing.insert(MediaSessionType::Screen, *screen);
         }
 
-        Self {
-            display_name: p.control.display_name,
-            consents: p.recording.consents_recording,
+        Ok(Self {
+            display_name: control.display_name,
+            consents: recording.consents_recording,
             publishing,
-        }
+        })
     }
 
     #[must_use]
@@ -150,6 +175,7 @@ impl Signaling {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn handle_websocket_message(&mut self, msg: Message) -> Result<Option<Event>> {
         let parse_result = match msg {
             Message::Text(ref s) => serde_json::from_str::<incoming::Message>(s),
@@ -176,38 +202,65 @@ impl Signaling {
 
         match msg {
             incoming::Message::Control(msg) => match msg {
-                incoming::ControlMessage::JoinSuccess(state) => {
-                    self.participants = state
+                ControlEvent::JoinSuccess(state) => {
+                    self.participants = match state
                         .participants
                         .into_iter()
-                        .map(|p| (p.id, ParticipantState::from_incoming(p)))
-                        .collect();
+                        .map(|p| {
+                            let id = p.id;
+                            ParticipantState::from_incoming(&p).map(|ps| (id, ps))
+                        })
+                        .collect::<Result<HashMap<_, _>>>()
+                    {
+                        Ok(p) => p,
+                        Err(e) => {
+                            log::error!("Failed to parse incoming JoinSuccess message: {e}");
+                            return Ok(None);
+                        }
+                    };
 
-                    Ok(Some(Event::JoinSuccess(state.id, state.event_info.title)))
+                    Ok(Some(Event::JoinSuccess(
+                        state.id,
+                        state.event_info.map(|ei| ei.title).unwrap_or_default(),
+                    )))
                 }
-                incoming::ControlMessage::Joined(participant) => {
+                ControlEvent::Joined(participant) => {
                     let id = participant.id;
+                    let participant = match ParticipantState::from_incoming(&participant) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            log::error!("Failed to parse incoming Joined message: {e}");
+                            return Ok(None);
+                        }
+                    };
 
-                    self.participants
-                        .insert(id, ParticipantState::from_incoming(participant));
-
+                    self.participants.insert(id, participant);
                     Ok(Some(Event::ParticipantJoined(id)))
                 }
-                incoming::ControlMessage::Update(participant) => {
+                ControlEvent::Update(participant) => {
                     if let Some(state) = self.participants.get_mut(&participant.id) {
                         let id = participant.id;
-
-                        *state = ParticipantState::from_incoming(participant);
+                        *state = match ParticipantState::from_incoming(&participant) {
+                            Ok(p) => p,
+                            Err(e) => {
+                                log::error!("Failed to parse incoming Update message: {e}");
+                                return Ok(None);
+                            }
+                        };
 
                         Ok(Some(Event::ParticipantUpdated(id)))
                     } else {
-                        log::error!("Got update for unknown participant {}", participant.id.0);
+                        log::error!("Got update for unknown participant {}", participant.id);
                         Ok(None)
                     }
                 }
-                incoming::ControlMessage::Left { id } => {
+                ControlEvent::Left(AssociatedParticipant { id }) => {
                     self.participants.remove(&id);
                     Ok(Some(Event::ParticipantLeft(id)))
+                }
+                other => {
+                    log::error!("Event {other:#?} not implemented for recorder.");
+                    Ok(None)
                 }
             },
             incoming::Message::Media(msg) => match msg {
@@ -315,113 +368,18 @@ struct Payload<'s, T> {
     pub payload: T,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ParticipantId(pub Uuid);
-
-impl std::fmt::Display for ParticipantId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 pub mod incoming {
 
-    use super::{MediaSessionType, ParticipantId, TrickleCandidate};
-    use compositor::{StreamId, StreamStatus};
+    use super::{ParticipantId, TrickleCandidate};
+    use compositor::StreamId;
     use serde::{Deserialize, Serialize};
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct JoinSuccess {
-        pub id: ParticipantId,
-        pub participants: Vec<Participant>,
-        pub event_info: EventInfo,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct EventInfo {
-        pub title: String,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct Participant {
-        pub id: ParticipantId,
-        pub control: ControlData,
-        #[serde(default)]
-        pub media: MediaData,
-        #[serde(default)]
-        pub recording: RecordingData,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct ControlData {
-        pub display_name: String,
-    }
-
-    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-    pub struct MediaData {
-        pub video: Option<MediaSessionState>,
-        pub screen: Option<MediaSessionState>,
-        pub is_presenter: bool,
-    }
-
-    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-    pub struct RecordingData {
-        #[serde(default)]
-        pub consents_recording: bool,
-    }
-
-    #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
-    pub struct MediaSessionState {
-        pub video: bool,
-        pub audio: bool,
-    }
-
-    impl std::fmt::Display for MediaSessionState {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                MediaSessionState {
-                    video: true,
-                    audio: true,
-                } => write!(f, "video+audio"),
-                MediaSessionState {
-                    video: true,
-                    audio: false,
-                } => write!(f, "video only"),
-                MediaSessionState {
-                    video: false,
-                    audio: true,
-                } => write!(f, "audio only"),
-                MediaSessionState {
-                    video: false,
-                    audio: false,
-                } => write!(f, "none"),
-            }
-        }
-    }
-
-    impl From<MediaSessionState> for StreamStatus {
-        fn from(state: MediaSessionState) -> Self {
-            StreamStatus {
-                has_audio: state.audio,
-                has_video: state.video,
-            }
-        }
-    }
+    use types::signaling::{control::event::ControlEvent, media::MediaSessionType};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
     pub enum Message {
-        Control(ControlMessage),
+        Control(ControlEvent),
         Media(MediaMessage),
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    #[serde(rename_all = "snake_case", tag = "message")]
-    pub enum ControlMessage {
-        JoinSuccess(JoinSuccess),
-        Joined(Participant),
-        Update(Participant),
-        Left { id: ParticipantId },
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -504,7 +462,8 @@ pub mod incoming {
 }
 
 pub mod outgoing {
-    use super::{MediaSessionType, ParticipantId, TrickleCandidate};
+    use super::{ParticipantId, TrickleCandidate};
+    use crate::signaling::MediaSessionType;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -572,8 +531,6 @@ pub struct TrickleCandidate {
     #[serde(rename = "sdpMLineIndex")]
     pub sdp_m_line_index: u64,
 }
-
-type MediaSessionType = compositor::MediaSessionType;
 
 #[must_use]
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
