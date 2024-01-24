@@ -28,11 +28,11 @@ COPY compositor/src compositor/src
 RUN touch src/main.rs; \
     RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release
 
-FROM alpine:3.18
+FROM alpine:3.19
 
 RUN apk add --no-cache glib libssl1.1 libcrypto1.1 ffmpeg \
     gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav \
-    terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-notoi; \
+    terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-noto; \
     fc-cache -fv
 
 WORKDIR /recorder
