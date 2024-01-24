@@ -193,6 +193,7 @@ build:container:
         $CI_COMMIT_BRANCH != null
       variables:
         IMAGE_DESTINATION_ARGS: --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   stage: build
   image:
     name: gcr.io/kaniko-project/executor:debug
