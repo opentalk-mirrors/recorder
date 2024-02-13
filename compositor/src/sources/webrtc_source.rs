@@ -74,7 +74,6 @@ impl Source for WebRtcSource {
             webrtcbin
                 name=webrtc
                 bundle-policy=max-bundle
-                latency=1000
             ",
             false,
         )
