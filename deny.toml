@@ -182,6 +182,8 @@ skip = [
     { name = "base64", version = "=0.13.1" },
     { name = "bitflags", version = "=1.3" },
     { name = "event-listener", version = "<=2.8.0" },
+    { name = "event-listener", version = "=4.0.3" },
+    { name = "event-listener-strategy", version = "=0.4.0" },
     { name = "fastrand", version = "=1.9" },
     { name = "flume", version = "=0.10.14" },
     { name = "futures-lite", version = "=1.13.0" },
