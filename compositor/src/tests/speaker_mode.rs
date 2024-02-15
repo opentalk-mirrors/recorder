@@ -2,10 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use types::signaling::media::MediaSessionState;
+use types::core::ParticipantId;
+use types::signaling::media::{MediaSessionState, MediaSessionType};
 
 use crate::{
-    testing, Mixer, Pattern, Size, Speaker, StreamId, TestSink, TestSource, TestSourceParameters,
+    testing, MediaDescriptor, Mixer, Pattern, Size, Speaker, TestSink, TestSource,
+    TestSourceParameters,
 };
 
 #[test]
@@ -17,13 +19,13 @@ fn test_speaker_mode_without_prio() {
     const NUM_PARTICIPANTS: usize = 10;
 
     let mut mixer =
-        Mixer::<TestSource, u32>::new(testing::RESOLUTION, Speaker::default(), MAX_VISIBLES, true)
+        Mixer::<TestSource>::new(testing::RESOLUTION, Speaker::default(), MAX_VISIBLES, true)
             .unwrap();
     mixer
         .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();
 
-    mixer.set_speaker(0).unwrap();
+    mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
 
     mixer.set_title("test_speaker_mode_without_prio").unwrap();
 
@@ -36,7 +38,7 @@ fn test_speaker_mode_without_prio() {
         mixer.set_speaker(stream.0).unwrap();
 
         mixer.dot(
-            &format!("test_speaker_mode_without_prio-{}", stream.0 + 1),
+            &format!("test_speaker_mode_without_prio-{id:?}", id = stream.0),
             testing::DOT_PARAMS,
         );
 
@@ -53,13 +55,13 @@ fn test_speaker_mode_with_prio() {
     const NUM_PARTICIPANTS: usize = 10;
 
     let mut mixer =
-        Mixer::<TestSource, u32>::new(testing::RESOLUTION, Speaker::default(), MAX_VISIBLES, true)
+        Mixer::<TestSource>::new(testing::RESOLUTION, Speaker::default(), MAX_VISIBLES, true)
             .unwrap();
     mixer
         .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();
 
-    mixer.set_speaker(0).unwrap();
+    mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
 
     mixer.set_title("test_speaker_mode_with_prio").unwrap();
 
@@ -68,7 +70,10 @@ fn test_speaker_mode_with_prio() {
 
     mixer
         .add_stream(
-            StreamId::screen(streams[0].0),
+            MediaDescriptor {
+                participant_id: streams[0].0,
+                media_type: MediaSessionType::Screen,
+            },
             format!("{}'s screen", streams[0].1),
             TestSourceParameters {
                 resolution: Size::SD,
@@ -90,7 +95,7 @@ fn test_speaker_mode_with_prio() {
         mixer.set_speaker(stream.0).unwrap();
 
         mixer.dot(
-            &format!("test_speaker_mode_with_prio-{}", stream.0 + 1),
+            &format!("test_speaker_mode_with_prio-{id:?}", id = stream.0),
             testing::DOT_PARAMS,
         );
 

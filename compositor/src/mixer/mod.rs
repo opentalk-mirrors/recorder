@@ -13,6 +13,7 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
 };
+use types::core::ParticipantId;
 use types::signaling::media::{MediaSessionState, MediaSessionType};
 
 mod audio_mixer;
@@ -53,7 +54,6 @@ enum Validation {
 
 const NAME_FONT_SIZE: u32 = 16;
 
-/// return available media types
 #[must_use]
 pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     // order is priority for set speaker (first available will get focus)
@@ -61,83 +61,21 @@ pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
     [MediaSessionType::Screen, MediaSessionType::Video].into_iter()
 }
 
-/// Stream ID consisting of one stream ID and a stream type.
-///
-/// # Types
-///
-/// - `ID`: Type which can identify a stream.
-///
+/// MediaDescriptor identifies a media stream by participant and media type.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
-    /// ID identifying the stream
-    pub id: ID,
-    /// Type of the stream.
+pub struct MediaDescriptor {
+    pub participant_id: ParticipantId,
     pub media_type: MediaSessionType,
 }
 
-impl<ID> StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
-    /// Create an ID of the given participant's camera stream.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream
-    ///
-    pub fn camera(id: ID) -> Self {
-        Self {
-            id,
-            media_type: MediaSessionType::Video,
-        }
-    }
-    /// Create an ID of the given participant's screen sharing stream.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream
-    ///
-    pub fn screen(id: ID) -> Self {
-        Self {
-            id,
-            media_type: MediaSessionType::Screen,
-        }
-    }
-}
-
-impl<ID> Display for StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
+impl Display for MediaDescriptor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "#{id} ({stream})",
-            id = self.id,
+            "#{id:?}/{stream}",
+            id = self.participant_id,
             stream = self.media_type
         )
-    }
-}
-
-impl<ID> StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
-    /// create new stream ID
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream
-    /// - `stream`: type of the stream
-    ///
-    pub fn new(id: ID, stream: MediaSessionType) -> Self {
-        Self {
-            id,
-            media_type: stream,
-        }
     }
 }
 
@@ -155,26 +93,17 @@ where
 /// - `ID`: stream identifier type
 ///
 #[derive(Debug)]
-pub struct Mixer<SRC, ID>
+pub struct Mixer<SRC>
 where
     SRC: Source,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
-    /// Current streams.
-    streams: HashMap<StreamId<ID>, Stream<SRC>>,
-    /// Currently visible streams.
-    visibles: Vec<StreamId<ID>>,
-    /// GStreamer element which composes the output video out of the source videos.
-    // compositor: Option<gst::Element>,
+    streams: HashMap<MediaDescriptor, Stream<SRC>>,
+    visibles: Vec<MediaDescriptor>,
     audio_mixer: AudioMixer,
     video_mixer: Option<VideoMixer>,
-    /// The mixer GStreamer pipeline.
-    pipeline: gst::Pipeline,
-    /// Overlay behind compositor
+    pipeline: Pipeline,
     overlay: AnyOverlay,
-    /// Holds the output sink.
     sinks: HashMap<String, ActiveSink>,
-    /// over all generated output resolution
     output_resolution: Size,
     valid: std::sync::mpsc::Sender<Validation>,
     layout: Box<dyn Layout>,
@@ -182,10 +111,9 @@ where
     max_visibles: usize,
 }
 
-impl<SRC, ID> Mixer<SRC, ID>
+impl<SRC> Mixer<SRC>
 where
     SRC: Source,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// Create new Talk which creates an own Pipeline.
     ///
@@ -336,7 +264,7 @@ where
     /// This can fail if adding the stream to the `GStreamer` pipeline fails.
     pub fn add_stream(
         &mut self,
-        id: StreamId<ID>,
+        id: MediaDescriptor,
         display_name: String,
         params: SRC::Parameters,
         initial: MediaSessionState,
@@ -473,7 +401,7 @@ where
     /// # Errors
     ///
     /// This can fail if the stream bin can't be set to NULL.
-    pub fn remove_stream(&mut self, id: StreamId<ID>) -> Result<()> {
+    pub fn remove_stream(&mut self, id: MediaDescriptor) -> Result<()> {
         trace!("remove_stream( {id} )");
 
         // remove stream from stored streams
@@ -528,13 +456,13 @@ where
     ///
     /// - `id`: Describes which stream to search for.
     ///
-    pub fn contains_stream(&self, id: &StreamId<ID>) -> bool {
+    pub fn contains_stream(&self, id: &MediaDescriptor) -> bool {
         // forward to mixer
         self.streams.contains_key(id)
     }
 
     /// Get mutable access tp the internal stream with the given `id`.
-    pub fn stream_mut(&mut self, id: &StreamId<ID>) -> Option<&mut Stream<SRC>> {
+    pub fn stream_mut(&mut self, id: &MediaDescriptor) -> Option<&mut Stream<SRC>> {
         // forward to mixer
         self.streams.get_mut(id)
     }
@@ -549,10 +477,13 @@ where
     /// # Errors
     ///
     /// This can fail if the speaker cannot be set to the first or second position.
-    pub fn set_speaker(&mut self, speaker: ID) -> Result<()> {
+    pub fn set_speaker(&mut self, speaker: ParticipantId) -> Result<()> {
         info!("set_speaker( {speaker:?} )");
 
-        let stream_id = StreamId::new(speaker, MediaSessionType::Screen);
+        let stream_id = MediaDescriptor {
+            participant_id: speaker,
+            media_type: MediaSessionType::Screen,
+        };
         if let Some(stream) = self.streams.get(&stream_id) {
             // The speaker has no screen, so it doesn't need to update the position
             if stream.status.video {
@@ -561,7 +492,10 @@ where
             }
         }
 
-        let stream_id = StreamId::new(speaker, MediaSessionType::Video);
+        let stream_id = MediaDescriptor {
+            participant_id: speaker,
+            media_type: MediaSessionType::Video,
+        };
         if let Some(stream) = self.streams.get(&stream_id) {
             // The speaker has no screen, so it doesn't need to update the position
             if stream.status.video {
@@ -591,7 +525,11 @@ where
     /// # Errors
     ///
     /// This can fail if the status of the stream can't be set in the `Mixer`.
-    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &MediaSessionState) -> Result<()> {
+    pub fn set_status(
+        &mut self,
+        id: &MediaDescriptor,
+        new_status: &MediaSessionState,
+    ) -> Result<()> {
         info!("set_status({id}, {new_status:?}");
         let Some(current_stream) = self.streams.get(id) else {
             debug!("current_stream not found for id: {id:?}");
@@ -675,7 +613,7 @@ where
     /// # Errors
     ///
     /// This can fail if the `Talk` has no `AnyOverlay::Talk`
-    pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) -> Result<()> {
+    pub fn set_stream_title(&self, id: &MediaDescriptor, title: &str) -> Result<()> {
         if let Some(stream) = self.streams.get(id) {
             if let AnyOverlay::Text(overlay) = &stream.overlay {
                 overlay.set(title);
@@ -711,7 +649,7 @@ where
     /// # Errors
     ///
     /// This can fail if the `Mixer` cannot hide an old stream or show the new stream.
-    pub fn show_stream(&mut self, stream_id: &StreamId<ID>) -> Result<()> {
+    pub fn show_stream(&mut self, stream_id: &MediaDescriptor) -> Result<()> {
         // Check if the maximum amount of streams is reached
         if self.visibles.len() >= self.max_visibles {
             // If the new stream is just a camera feed, then don't show them
@@ -749,11 +687,11 @@ where
     ///
     /// - `id`: Describes which stream shall be returned.
     ///
-    pub fn get_source(&mut self, id: &StreamId<ID>) -> Option<&mut SRC> {
+    pub fn get_source(&mut self, id: &MediaDescriptor) -> Option<&mut SRC> {
         self.streams.get_mut(id).map(|stream| &mut stream.source)
     }
 
-    fn get_first_screen_capture(&self) -> Option<StreamId<ID>> {
+    fn get_first_screen_capture(&self) -> Option<MediaDescriptor> {
         self.visibles
             .clone()
             .into_iter()
@@ -1036,7 +974,7 @@ where
     /// # Errors
     ///
     /// This can fail if the `set_stream_to_position` function is failing.
-    pub fn set_stream_to_first_position(&mut self, id: &StreamId<ID>) -> Result<()> {
+    pub fn set_stream_to_first_position(&mut self, id: &MediaDescriptor) -> Result<()> {
         self.set_stream_to_position(id, 0)
     }
 
@@ -1049,7 +987,7 @@ where
     /// # Errors
     ///
     /// This can fail if the `set_stream_to_position` function is failing.
-    pub fn set_stream_to_second_position(&mut self, id: &StreamId<ID>) -> Result<()> {
+    pub fn set_stream_to_second_position(&mut self, id: &MediaDescriptor) -> Result<()> {
         self.set_stream_to_position(id, 1)
     }
 
@@ -1062,7 +1000,7 @@ where
     /// # Errors
     ///
     /// This can fail if the `rerender_layout` function is failing.
-    pub fn set_stream_to_position(&mut self, id: &StreamId<ID>, position: usize) -> Result<()> {
+    pub fn set_stream_to_position(&mut self, id: &MediaDescriptor, position: usize) -> Result<()> {
         if self.visibles.first() == Some(id) {
             return Ok(());
         }
@@ -1081,7 +1019,7 @@ where
     /// # Errors
     ///
     /// This can fail if the `rerender_layout` function is failing.
-    pub fn hide_stream(&mut self, id: &StreamId<ID>) -> Result<()> {
+    pub fn hide_stream(&mut self, id: &MediaDescriptor) -> Result<()> {
         if !self.is_visible(id) {
             return Ok(());
         }
@@ -1092,7 +1030,7 @@ where
 
     /// Return `true`, if stream is currently visible
     ///
-    pub fn is_visible(&self, id: &StreamId<ID>) -> bool {
+    pub fn is_visible(&self, id: &MediaDescriptor) -> bool {
         self.visibles.contains(id)
     }
 
@@ -1101,7 +1039,7 @@ where
     /// # Errors
     ///
     /// This can fail if there is no stream with the given `id`.
-    pub fn has_video(&self, id: &StreamId<ID>) -> Result<bool> {
+    pub fn has_video(&self, id: &MediaDescriptor) -> Result<bool> {
         self.get_stream(id).map(|stream| stream.status.video)
     }
 
@@ -1119,7 +1057,7 @@ where
     /// This can fail if the stream isn't in the `streams` list.
     pub fn set_stream_status(
         &mut self,
-        id: &StreamId<ID>,
+        id: &MediaDescriptor,
         new_status: MediaSessionState,
     ) -> Result<()> {
         info!("set_status( {id}, {new_status} )");
@@ -1151,7 +1089,7 @@ where
     /// # Errors
     ///
     /// This can fail if the stream isn't in the `streams` list.
-    fn get_stream_mut(&mut self, id: &StreamId<ID>) -> Result<&mut Stream<SRC>> {
+    fn get_stream_mut(&mut self, id: &MediaDescriptor) -> Result<&mut Stream<SRC>> {
         self.streams
             .get_mut(id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
@@ -1163,7 +1101,7 @@ where
     ///
     /// - `id`: ID of the stream.
     ///
-    fn get_stream(&self, id: &StreamId<ID>) -> Result<&Stream<SRC>> {
+    fn get_stream(&self, id: &MediaDescriptor) -> Result<&Stream<SRC>> {
         self.streams
             .get(id)
             .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
@@ -1180,7 +1118,7 @@ where
         debug::dot_ext(&self.pipeline, filename_without_extension, params);
     }
 
-    fn invisibles(&self) -> Vec<StreamId<ID>> {
+    fn invisibles(&self) -> Vec<MediaDescriptor> {
         self.streams
             .keys()
             .copied()
@@ -1330,10 +1268,9 @@ fn monitor_layout(receiver: std::sync::mpsc::Receiver<Validation>) {
     });
 }
 
-impl<SRC, ID> Drop for Mixer<SRC, ID>
+impl<SRC> Drop for Mixer<SRC>
 where
     SRC: Source,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// halt pipeline (can not be played again)
     ///
@@ -1342,7 +1279,7 @@ where
         debug::debug_dot(&self.pipeline, "MIXER-DROP");
 
         trace!("remove_all_stream()");
-        let ids: Vec<StreamId<ID>> = self.streams.keys().copied().collect();
+        let ids: Vec<MediaDescriptor> = self.streams.keys().copied().collect();
         for id in ids {
             if let Err(error) = self.remove_stream(id) {
                 error!("could not remove stream, error: {error}");

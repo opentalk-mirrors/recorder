@@ -10,9 +10,12 @@ use gst::{
 };
 use std::collections::HashMap;
 use tokio::{sync::mpsc, time::sleep};
+use types::core::ParticipantId;
 use types::signaling::media::{MediaSessionState, MediaSessionType};
 
-use crate::{log, Mixer, Size, Speaker, StreamId, TestSink, WebRtcSource, WebRtcSourceParams};
+use crate::{
+    log, MediaDescriptor, Mixer, Size, Speaker, TestSink, WebRtcSource, WebRtcSourceParams,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum Event {
@@ -20,16 +23,16 @@ enum Event {
     Sleep(Duration),
 
     /// Simulate a participant joining
-    AddParticipant(usize),
+    AddParticipant(ParticipantId),
 
     /// Simulate a participant leaving
-    RemoveParticipant(usize),
+    RemoveParticipant(ParticipantId),
 
     /// Simulate a participant publishing it's camera/webcam
-    Publish(usize),
+    Publish(ParticipantId),
 
     /// Simulate a participant unpublishing it's camera/webcam
-    Unpublish(usize),
+    Unpublish(ParticipantId),
 }
 
 #[derive(Default)]
@@ -40,9 +43,9 @@ struct MockParticipantState {
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names)]
 enum WebRtcBinToMainLoopEvent {
-    SdpOffer(usize, String),
-    SdpCandidate(usize, u32, String),
-    SdpEndOfCandidates(usize),
+    SdpOffer(ParticipantId, String),
+    SdpCandidate(ParticipantId, u32, String),
+    SdpEndOfCandidates(ParticipantId),
 }
 
 async fn exec_events(events: Vec<Event>) {
@@ -63,8 +66,7 @@ async fn exec_events(events: Vec<Event>) {
     const MAX_VISIBLES: usize = 7;
 
     let mut mixer =
-        Mixer::<WebRtcSource, usize>::new(Size::FHD, Speaker::default(), MAX_VISIBLES, true)
-            .unwrap();
+        Mixer::<WebRtcSource>::new(Size::FHD, Speaker::default(), MAX_VISIBLES, true).unwrap();
 
     mixer
         .link_sink("test_sink", TestSink::create("Recording", true).unwrap())
@@ -72,7 +74,7 @@ async fn exec_events(events: Vec<Event>) {
 
     let (tx, mut rx) = mpsc::unbounded_channel();
 
-    let mut participants = HashMap::<usize, MockParticipantState>::new();
+    let mut participants = HashMap::<ParticipantId, MockParticipantState>::new();
 
     let mut sleep_future = Box::pin(sleep(Duration::from_secs(0)));
 
@@ -104,8 +106,8 @@ async fn exec_events(events: Vec<Event>) {
 }
 
 async fn handle_webrtc_event(
-    mixer: &mut Mixer<WebRtcSource, usize>,
-    participants: &mut HashMap<usize, MockParticipantState>,
+    mixer: &mut Mixer<WebRtcSource>,
+    participants: &mut HashMap<ParticipantId, MockParticipantState>,
     event: WebRtcBinToMainLoopEvent,
 ) {
     match event {
@@ -115,7 +117,13 @@ async fn handle_webrtc_event(
                 .and_then(|p| p.publish.as_mut())
                 .unwrap();
 
-            let source = &mixer.stream_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &mixer
+                .stream_mut(&MediaDescriptor {
+                    participant_id: id,
+                    media_type: MediaSessionType::Video,
+                })
+                .unwrap()
+                .source;
             let webrtcbin = publish.by_name("webrtc").unwrap();
             let response = source.receive_offer(offer).await.unwrap();
             let response = gst_webrtc::WebRTCSessionDescription::new(
@@ -129,11 +137,23 @@ async fn handle_webrtc_event(
             );
         }
         WebRtcBinToMainLoopEvent::SdpCandidate(id, mline, candidate) => {
-            let source = &mixer.stream_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &mixer
+                .stream_mut(&MediaDescriptor {
+                    participant_id: id,
+                    media_type: MediaSessionType::Video,
+                })
+                .unwrap()
+                .source;
             source.receive_candidate(mline, &candidate);
         }
         WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id) => {
-            let source = &mixer.stream_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &mixer
+                .stream_mut(&MediaDescriptor {
+                    participant_id: id,
+                    media_type: MediaSessionType::Video,
+                })
+                .unwrap()
+                .source;
             source.receive_end_of_candidates(0);
         }
     }
@@ -141,9 +161,9 @@ async fn handle_webrtc_event(
 
 fn handle_user_event(
     event: Event,
-    participants: &mut HashMap<usize, MockParticipantState>,
+    participants: &mut HashMap<ParticipantId, MockParticipantState>,
     tx: &mpsc::UnboundedSender<WebRtcBinToMainLoopEvent>,
-    mixer: &mut Mixer<WebRtcSource, usize>,
+    mixer: &mut Mixer<WebRtcSource>,
 ) {
     match event {
         Event::Sleep(_) => unreachable!(),
@@ -169,7 +189,12 @@ fn handle_user_event(
             assert!(state.publish.is_none());
 
             create_publish_pipeline(tx, id, state, mixer);
-            mixer.show_stream(&StreamId::camera(id)).unwrap();
+            mixer
+                .show_stream(&MediaDescriptor {
+                    participant_id: id,
+                    media_type: MediaSessionType::Video,
+                })
+                .unwrap();
         }
         Event::Unpublish(id) => {
             log::debug!("Participant with id={id} stops publishing");
@@ -179,17 +204,20 @@ fn handle_user_event(
                 publish.set_state(gst::State::Null).unwrap();
             }
 
-            let id = StreamId::new(id, MediaSessionType::Video);
-            mixer.remove_stream(id).unwrap();
+            let media_id = MediaDescriptor {
+                participant_id: id,
+                media_type: MediaSessionType::Video,
+            };
+            mixer.remove_stream(media_id).unwrap();
         }
     }
 }
 
 fn create_publish_pipeline(
     tx: &mpsc::UnboundedSender<WebRtcBinToMainLoopEvent>,
-    id: usize,
+    id: ParticipantId,
     state: &mut MockParticipantState,
-    mixer: &mut Mixer<WebRtcSource, usize>,
+    mixer: &mut Mixer<WebRtcSource>,
 ) {
     let pipeline = gst::parse_launch(
         r#"
@@ -299,7 +327,10 @@ fn create_publish_pipeline(
     let webrtcbin_weak = webrtcbin.downgrade();
     mixer
         .add_stream(
-            StreamId::camera(id),
+            MediaDescriptor {
+                participant_id: id,
+                media_type: MediaSessionType::Video,
+            },
             format!("Mock {id}"),
             WebRtcSourceParams::new(true).on_ice_candidate(move |mline, candidate| {
                 if let Some(webrtcbin) = webrtcbin_weak.upgrade() {
@@ -322,11 +353,11 @@ async fn webrtc_scenario1() {
     let _ = env_logger::try_init();
 
     exec_events(vec![
-        Event::AddParticipant(0),
-        Event::Publish(0),
+        Event::AddParticipant(ParticipantId::from_u128(0)),
+        Event::Publish(ParticipantId::from_u128(0)),
         Event::Sleep(Duration::from_secs(10)),
-        Event::Unpublish(0),
-        Event::RemoveParticipant(0),
+        Event::Unpublish(ParticipantId::from_u128(0)),
+        Event::RemoveParticipant(ParticipantId::from_u128(0)),
         Event::Sleep(Duration::from_secs(10)),
     ])
     .await;

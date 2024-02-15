@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::{testing, Mixer, Speaker, StreamId, TestSink, TestSource};
+use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
+use types::core::ParticipantId;
+use types::signaling::media::MediaSessionType;
 
 #[test]
 fn test_overlay() {
@@ -10,7 +12,7 @@ fn test_overlay() {
     testing::init();
 
     // get output resolution from arguments
-    let mut mixer = Mixer::<TestSource, u32>::new(
+    let mut mixer = Mixer::<TestSource>::new(
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -21,7 +23,7 @@ fn test_overlay() {
         .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();
 
-    mixer.set_speaker(0).unwrap();
+    mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
 
     mixer.set_title("test_overlay").unwrap();
 
@@ -36,7 +38,12 @@ fn test_overlay() {
     // add participants
     let (_, ids) = testing::generate_streams(&mut mixer, 0, 3, 3, true);
     ids.iter().for_each(|id| {
-        mixer.show_stream(&StreamId::camera(*id)).unwrap();
+        mixer
+            .show_stream(&MediaDescriptor {
+                participant_id: *id,
+                media_type: MediaSessionType::Video,
+            })
+            .unwrap();
     });
     mixer.dot("test_overlay-3", testing::DOT_PARAMS);
 
@@ -45,7 +52,13 @@ fn test_overlay() {
     for id in ids {
         // add text overlay to source
         mixer
-            .set_stream_title(&StreamId::camera(id), "new text")
+            .set_stream_title(
+                &MediaDescriptor {
+                    participant_id: id,
+                    media_type: MediaSessionType::Video,
+                },
+                "new text",
+            )
             .unwrap();
         mixer.dot("test_overlay-4", testing::DOT_PARAMS);
         testing::wait();

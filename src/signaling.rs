@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use anyhow::{bail, Context, Result};
-use compositor::StreamId;
+use compositor::MediaDescriptor;
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
@@ -100,9 +100,9 @@ pub enum Event {
     ParticipantUpdated(ParticipantId),
     ParticipantLeft(ParticipantId),
 
-    SdpOffer(StreamId<ParticipantId>, String),
-    SdpCandidate(StreamId<ParticipantId>, TrickleCandidate),
-    SdpEndOfCandidates(StreamId<ParticipantId>),
+    SdpOffer(MediaDescriptor, String),
+    SdpCandidate(MediaDescriptor, TrickleCandidate),
+    SdpEndOfCandidates(MediaDescriptor),
 
     FocusUpdate(Option<ParticipantId>),
     MediaConnectionError(Error),
@@ -250,7 +250,7 @@ impl Signaling {
 
                         Ok(Some(Event::ParticipantUpdated(id)))
                     } else {
-                        log::error!("Got update for unknown participant {}", participant.id);
+                        log::error!("Got update for unknown participant {:?}", participant.id);
                         Ok(None)
                     }
                 }
@@ -303,18 +303,14 @@ impl Signaling {
         Ok(participant_state)
     }
 
-    pub async fn start_subscribe(&mut self, stream_id: StreamId<ParticipantId>) -> Result<()> {
+    pub async fn start_subscribe(&mut self, stream_id: MediaDescriptor) -> Result<()> {
         self.send(outgoing::Message::Media(outgoing::MediaMessage::Subscribe(
             stream_id.into(),
         )))
         .await
     }
 
-    pub async fn send_answer(
-        &mut self,
-        stream_id: StreamId<ParticipantId>,
-        sdp: String,
-    ) -> Result<()> {
+    pub async fn send_answer(&mut self, stream_id: MediaDescriptor, sdp: String) -> Result<()> {
         self.send(outgoing::Message::Media(outgoing::MediaMessage::SdpAnswer(
             outgoing::Sdp {
                 sdp,
@@ -326,7 +322,7 @@ impl Signaling {
 
     pub async fn send_candidate(
         &mut self,
-        stream_id: StreamId<ParticipantId>,
+        stream_id: MediaDescriptor,
         candidate: TrickleCandidate,
     ) -> Result<()> {
         self.send(outgoing::Message::Media(
@@ -338,13 +334,10 @@ impl Signaling {
         .await
     }
 
-    pub async fn send_end_of_candidates(
-        &mut self,
-        stream_id: StreamId<ParticipantId>,
-    ) -> Result<()> {
+    pub async fn send_end_of_candidates(&mut self, stream_id: MediaDescriptor) -> Result<()> {
         self.send(outgoing::Message::Media(
             outgoing::MediaMessage::SdpEndOfCandidates(outgoing::Target {
-                target: stream_id.id,
+                target: stream_id.participant_id,
                 media_session_type: stream_id.media_type,
             }),
         ))
@@ -371,7 +364,7 @@ struct Payload<'s, T> {
 pub mod incoming {
 
     use super::{ParticipantId, TrickleCandidate};
-    use compositor::StreamId;
+    use compositor::MediaDescriptor;
     use serde::{Deserialize, Serialize};
     use types::signaling::{control::event::ControlEvent, media::MediaSessionType};
 
@@ -422,9 +415,12 @@ pub mod incoming {
         pub media_session_type: MediaSessionType,
     }
 
-    impl From<Source> for StreamId<ParticipantId> {
+    impl From<Source> for MediaDescriptor {
         fn from(value: Source) -> Self {
-            StreamId::new(value.source, value.media_session_type)
+            MediaDescriptor {
+                participant_id: value.source,
+                media_type: value.media_session_type,
+            }
         }
     }
 
@@ -516,10 +512,10 @@ pub mod outgoing {
     }
 }
 
-impl From<StreamId<ParticipantId>> for outgoing::Target {
-    fn from(value: StreamId<ParticipantId>) -> Self {
+impl From<MediaDescriptor> for outgoing::Target {
+    fn from(value: MediaDescriptor) -> Self {
         outgoing::Target {
-            target: value.id,
+            target: value.participant_id,
             media_session_type: value.media_type,
         }
     }
