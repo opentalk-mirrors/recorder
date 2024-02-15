@@ -12,9 +12,7 @@ use std::collections::HashMap;
 use tokio::{sync::mpsc, time::sleep};
 use types::signaling::media::{MediaSessionState, MediaSessionType};
 
-use crate::{log, Size, Speaker, StreamId, TestSink, WebRtcSource, WebRtcSourceParams};
-
-type Talk = crate::Talk<WebRtcSource, usize>;
+use crate::{log, Mixer, Size, Speaker, StreamId, TestSink, WebRtcSource, WebRtcSourceParams};
 
 #[derive(Debug, Clone, Copy)]
 enum Event {
@@ -64,9 +62,12 @@ async fn exec_events(events: Vec<Event>) {
 
     const MAX_VISIBLES: usize = 7;
 
-    let mut talk = Talk::new(Size::FHD, Speaker::default(), MAX_VISIBLES, true).unwrap();
+    let mut mixer =
+        Mixer::<WebRtcSource, usize>::new(Size::FHD, Speaker::default(), MAX_VISIBLES, true)
+            .unwrap();
 
-    talk.link_sink("test_sink", TestSink::create("Recording", true).unwrap())
+    mixer
+        .link_sink("test_sink", TestSink::create("Recording", true).unwrap())
         .unwrap();
 
     let (tx, mut rx) = mpsc::unbounded_channel();
@@ -82,7 +83,7 @@ async fn exec_events(events: Vec<Event>) {
                     if let Event::Sleep(dur) = event {
                         sleep_future = Box::pin(sleep(dur));
                     } else {
-                        handle_user_event(event, &mut participants, &tx, &mut talk);
+                        handle_user_event(event, &mut participants, &tx, &mut mixer);
                     }
                 } else {
                     main_loop.quit();
@@ -90,7 +91,7 @@ async fn exec_events(events: Vec<Event>) {
                 }
             }
             Some(event) = rx.recv() => {
-                handle_webrtc_event(&mut talk, &mut participants, event).await
+                handle_webrtc_event(&mut mixer, &mut participants, event).await
             }
         }
     }
@@ -103,7 +104,7 @@ async fn exec_events(events: Vec<Event>) {
 }
 
 async fn handle_webrtc_event(
-    talk: &mut Talk,
+    mixer: &mut Mixer<WebRtcSource, usize>,
     participants: &mut HashMap<usize, MockParticipantState>,
     event: WebRtcBinToMainLoopEvent,
 ) {
@@ -114,7 +115,7 @@ async fn handle_webrtc_event(
                 .and_then(|p| p.publish.as_mut())
                 .unwrap();
 
-            let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &mixer.stream_mut(&StreamId::camera(id)).unwrap().source;
             let webrtcbin = publish.by_name("webrtc").unwrap();
             let response = source.receive_offer(offer).await.unwrap();
             let response = gst_webrtc::WebRTCSessionDescription::new(
@@ -128,11 +129,11 @@ async fn handle_webrtc_event(
             );
         }
         WebRtcBinToMainLoopEvent::SdpCandidate(id, mline, candidate) => {
-            let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &mixer.stream_mut(&StreamId::camera(id)).unwrap().source;
             source.receive_candidate(mline, &candidate);
         }
         WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id) => {
-            let source = &talk.stream_mut(&StreamId::camera(id)).unwrap().source;
+            let source = &mixer.stream_mut(&StreamId::camera(id)).unwrap().source;
             source.receive_end_of_candidates(0);
         }
     }
@@ -142,7 +143,7 @@ fn handle_user_event(
     event: Event,
     participants: &mut HashMap<usize, MockParticipantState>,
     tx: &mpsc::UnboundedSender<WebRtcBinToMainLoopEvent>,
-    talk: &mut Talk,
+    mixer: &mut Mixer<WebRtcSource, usize>,
 ) {
     match event {
         Event::Sleep(_) => unreachable!(),
@@ -167,8 +168,8 @@ fn handle_user_event(
             let state = participants.get_mut(&id).unwrap();
             assert!(state.publish.is_none());
 
-            create_publish_pipeline(tx, id, state, talk);
-            talk.show_stream(&StreamId::camera(id)).unwrap();
+            create_publish_pipeline(tx, id, state, mixer);
+            mixer.show_stream(&StreamId::camera(id)).unwrap();
         }
         Event::Unpublish(id) => {
             log::debug!("Participant with id={id} stops publishing");
@@ -179,7 +180,7 @@ fn handle_user_event(
             }
 
             let id = StreamId::new(id, MediaSessionType::Video);
-            talk.remove_stream(id).unwrap();
+            mixer.remove_stream(id).unwrap();
         }
     }
 }
@@ -188,7 +189,7 @@ fn create_publish_pipeline(
     tx: &mpsc::UnboundedSender<WebRtcBinToMainLoopEvent>,
     id: usize,
     state: &mut MockParticipantState,
-    talk: &mut Talk,
+    mixer: &mut Mixer<WebRtcSource, usize>,
 ) {
     let pipeline = gst::parse_launch(
         r#"
@@ -296,20 +297,21 @@ fn create_publish_pipeline(
     state.publish = Some(pipeline);
 
     let webrtcbin_weak = webrtcbin.downgrade();
-    talk.add_stream(
-        StreamId::camera(id),
-        &format!("Mock {id}"),
-        WebRtcSourceParams::new(true).on_ice_candidate(move |mline, candidate| {
-            if let Some(webrtcbin) = webrtcbin_weak.upgrade() {
-                webrtcbin.emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);
-            }
-        }),
-        MediaSessionState {
-            audio: true,
-            video: true,
-        },
-    )
-    .unwrap();
+    mixer
+        .add_stream(
+            StreamId::camera(id),
+            format!("Mock {id}"),
+            WebRtcSourceParams::new(true).on_ice_candidate(move |mline, candidate| {
+                if let Some(webrtcbin) = webrtcbin_weak.upgrade() {
+                    webrtcbin.emit_by_name::<()>("add-ice-candidate", &[&mline, &candidate]);
+                }
+            }),
+            MediaSessionState {
+                audio: true,
+                video: true,
+            },
+        )
+        .unwrap();
 }
 
 // --- scenarios

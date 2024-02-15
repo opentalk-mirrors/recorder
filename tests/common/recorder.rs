@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use compositor::{FakeSink, Talk, TestSink};
+use compositor::{FakeSink, Mixer, TestSink};
 use openidconnect::core::CoreJsonWebKeySet;
 use openidconnect::{core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl};
 use opentalk_recorder::{
@@ -66,7 +66,7 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let (candidate_sender, candidate_receiver) = mpsc::channel(12);
     let temp_dir = TempDir::new().expect("unable to create temp dir");
 
-    let mut talk = Talk::new(
+    let mut mixer = Mixer::new(
         compositor::Size::FHD,
         compositor::layout::Speaker::default(),
         MAX_VISIBLES,
@@ -74,25 +74,28 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     )
     .expect("unable to create talk");
 
-    talk.link_sink("test_sink", TestSink::create("TestSink", true).unwrap())
+    mixer
+        .link_sink("test_sink", TestSink::create("TestSink", true).unwrap())
         .unwrap();
-    talk.link_sink(
-        "fake_sink_with_video",
-        FakeSink::create("FakeSink with video", true).unwrap(),
-    )
-    .unwrap();
-    talk.link_sink(
-        "fake_sink_without_video",
-        FakeSink::create("FakeSink without video", false).unwrap(),
-    )
-    .unwrap();
+    mixer
+        .link_sink(
+            "fake_sink_with_video",
+            FakeSink::create("FakeSink with video", true).unwrap(),
+        )
+        .unwrap();
+    mixer
+        .link_sink(
+            "fake_sink_without_video",
+            FakeSink::create("FakeSink without video", false).unwrap(),
+        )
+        .unwrap();
 
     let mut recording_session = RecordingSession::new(
         Arc::new(recorder),
         signaling,
         "TESTROOM".to_string(),
         temp_dir,
-        talk,
+        mixer,
         candidate_receiver,
         candidate_sender,
         false,
