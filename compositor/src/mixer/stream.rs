@@ -21,7 +21,7 @@ pub struct Stream<SRC>
 where
     SRC: Source + Debug,
 {
-    /// Name to be displayed within the sub title text.
+    /// Name to be displayed within the subtitle text.
     pub display_name: String,
     /// Wrapped AV source of this stream.
     pub source: SRC,

@@ -34,20 +34,12 @@ pub use stream::*;
 pub use text_style::*;
 
 /// Maximum time a desired but missing re-layout is tolerated
-const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(500);
-
 const AUDIO_SAMPLE_RATE: i32 = 48_000;
 const AUDIO_CHANNELS: i32 = 2;
 
 const VIDEO_WIDTH: i32 = 1920;
 const VIDEO_HEIGHT: i32 = 1136;
 const VIDEO_FRAMERATE: i32 = 30;
-
-enum Validation {
-    Valid,
-    Invalid,
-    Stop,
-}
 
 const NAME_FONT_SIZE: u32 = 16;
 
@@ -95,7 +87,6 @@ where
     overlay: TalkOverlay,
     sinks: HashMap<String, ActiveSink>,
     output_resolution: Size,
-    valid: std::sync::mpsc::Sender<Validation>,
     layout: Box<dyn Layout>,
     system_clock: Clock,
     max_visibles: usize,
@@ -157,8 +148,6 @@ where
 
         let sinks = HashMap::<String, ActiveSink>::new();
 
-        let (valid, valid_receiver) = std::sync::mpsc::channel::<Validation>();
-
         let mut mixer = Mixer {
             audio_mixer,
             video_mixer,
@@ -168,7 +157,6 @@ where
             overlay,
             sinks,
             output_resolution,
-            valid,
             layout: Box::new(layout),
             system_clock,
             max_visibles,
@@ -176,8 +164,6 @@ where
 
         // start reading the pipeline bus
         mixer.read_bus()?;
-        monitor_layout(valid_receiver);
-
         Ok(mixer)
     }
 
@@ -1005,7 +991,6 @@ where
                 .collect::<Vec<String>>()
                 .join(",")
         );
-        self.invalidate().context("unable to invalidate layout")?;
 
         self.layout.set_resolution_changed(self.output_resolution);
         self.layout.set_amount_of_visibles(self.visibles.len());
@@ -1058,66 +1043,9 @@ where
             }
         }
 
-        self.validate().context("unable to validate layout")?;
-
         Ok(())
     }
-
-    /// Signal that layout has to be renewed from here
-    ///
-    /// Also checks if layout will be done within `MAX_LAYOUT_UPDATE_LATENCY`
-    /// time and logs error if timeout was exceeded.
-    /// This is to prevent any missed `layout()` after changing streams.
-    /// Could be automatic but renewing the layout on every change leads to
-    /// flickering in the output.
-    ///
-    fn invalidate(&mut self) -> Result<()> {
-        trace!("invalidate()");
-
-        self.valid
-            .send(Validation::Invalid)
-            .context("cannot send layout invalidation")
-    }
-
-    fn validate(&self) -> Result<()> {
-        trace!("validate()");
-
-        self.valid
-            .send(Validation::Valid)
-            .context("cannot send layout validation")
-    }
 }
-
-fn monitor_layout(receiver: std::sync::mpsc::Receiver<Validation>) {
-    // monitor in a thread if `valid` will be set within latency timeout
-    std::thread::spawn({
-        move || {
-            let mut valid = Validation::Valid;
-            loop {
-                match valid {
-                    Validation::Invalid => {
-                        if let Ok(v) = receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
-                            valid = v;
-                        } else {
-                            error!(
-                                "missing desired layout update since {duration}ms",
-                                duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
-                            );
-                        }
-                    }
-                    Validation::Valid => match receiver.recv() {
-                        Ok(v) => valid = v,
-                        Err(error) => {
-                            error!("unable to receive valid Validation in monitor_layout, error: {error}");
-                        }
-                    },
-                    Validation::Stop => break,
-                }
-            }
-        }
-    });
-}
-
 impl<SRC> Drop for Mixer<SRC>
 where
     SRC: Source,
@@ -1134,10 +1062,6 @@ where
             if let Err(error) = self.remove_stream(descriptor) {
                 error!("could not remove stream, error: {error}");
             }
-        }
-
-        if let Err(error) = self.valid.send(Validation::Stop) {
-            error!("could not stop validation monitor, error: {error}");
         }
 
         debug!("Nulling pipeline...");
