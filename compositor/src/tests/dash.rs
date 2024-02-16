@@ -13,7 +13,8 @@ fn test_dash() {
     testing::init();
 
     // create grid mixer with test sources for streams and a MatroskaSink
-    let mut mixer = Mixer::<TestSource>::new(
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,

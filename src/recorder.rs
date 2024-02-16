@@ -31,7 +31,7 @@ use crate::{
     http::HttpClient,
     rmq::InitializeRecording,
     settings::{RecorderSettings, RecorderSink, Settings},
-    signaling::{media_types, Event, Signaling, TrickleCandidate},
+    signaling::{Event, Signaling, TrickleCandidate},
 };
 
 // TODO; make this configurable
@@ -165,7 +165,8 @@ impl RecordingSession {
             .sinks
             .clone();
 
-        let mut mixer = Mixer::new(
+        let mut mixer = Mixer::create(
+            None,
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),
             MAX_VISIBLES,
@@ -342,9 +343,7 @@ impl RecordingSession {
                         .await?;
                 }
 
-                self.mixer
-                    .set_title(title.as_str())
-                    .context("unable to set the title for the recorder")?;
+                self.mixer.set_title(title.as_str());
             }
 
             Event::ParticipantJoined(id) => {
@@ -572,4 +571,9 @@ impl Stream for FileReadStream {
 
         Poll::Ready(Some(Ok(Bytes::copy_from_slice(buffer))))
     }
+}
+
+#[must_use]
+fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
+    [MediaSessionType::Screen, MediaSessionType::Video].into_iter()
 }

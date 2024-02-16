@@ -12,7 +12,8 @@ fn test_stream_status() {
     // initialize for testing
     testing::init();
 
-    let mut mixer = Mixer::<TestSource>::new(
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -37,9 +38,7 @@ fn test_stream_status() {
             participant_id,
             media_type: MediaSessionType::Video,
         };
-        mixer
-            .set_title(&format!("Speaker {i} (audio off)"))
-            .unwrap();
+        mixer.set_title(&format!("Speaker {i} (audio off)"));
         mixer
             .set_status(
                 &media_id,
@@ -56,9 +55,7 @@ fn test_stream_status() {
 
         testing::wait();
 
-        mixer
-            .set_title(&format!("Speaker {i} (video off)"))
-            .unwrap();
+        mixer.set_title(&format!("Speaker {i} (video off)"));
         mixer
             .set_status(
                 &media_id,
@@ -75,7 +72,7 @@ fn test_stream_status() {
 
         testing::wait();
 
-        mixer.set_title(&format!("Speaker {i} (a/v off)")).unwrap();
+        mixer.set_title(&format!("Speaker {i} (a/v off)"));
         mixer
             .set_status(
                 &media_id,
@@ -92,7 +89,7 @@ fn test_stream_status() {
 
         testing::wait();
 
-        mixer.set_title(&format!("Speaker {i} (a/v on)")).unwrap();
+        mixer.set_title(&format!("Speaker {i} (a/v on)"));
         mixer
             .set_status(
                 &media_id,

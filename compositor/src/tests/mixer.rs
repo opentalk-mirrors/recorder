@@ -19,8 +19,14 @@ fn test_layout(layout: impl Layout, name: &str) {
     // initialize for testing
     testing::init();
 
-    let mut mixer =
-        Mixer::<TestSource>::new(testing::RESOLUTION, layout, testing::MAX_STREAMS, true).unwrap();
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
+        testing::RESOLUTION,
+        layout,
+        testing::MAX_STREAMS,
+        true,
+    )
+    .unwrap();
 
     let test_sink = TestSink::create("Testing Sink", true).unwrap();
 
@@ -34,17 +40,18 @@ fn test_layout(layout: impl Layout, name: &str) {
 
     testing::wait();
 
-    (0..ids.len()).for_each(|i| {
-        mixer
-            .set_title(&format!("Showing {i} Participant(s)", i = i + 1))
-            .unwrap();
+    ids.iter().enumerate().for_each(|(index, id)| {
+        mixer.set_title(&format!(
+            "Showing {amount} Participant(s)",
+            amount = index + 1
+        ));
         mixer
             .show_stream(&MediaDescriptor {
-                participant_id: ids[i],
+                participant_id: *id,
                 media_type: MediaSessionType::Video,
             })
             .unwrap();
-        mixer.dot(&format!("test_layout_{}-{i}", name), testing::DOT_PARAMS);
+        mixer.dot(&format!("test_layout_{name}-{index}"), testing::DOT_PARAMS);
         testing::wait();
     });
 
@@ -55,7 +62,8 @@ fn test_remove(use_video: bool) {
     // initialize for testing
     testing::init();
 
-    let mut mixer = Mixer::<TestSource>::new(
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -70,7 +78,7 @@ fn test_remove(use_video: bool) {
         )
         .unwrap();
 
-    mixer.set_title("test_remove").unwrap();
+    mixer.set_title("test_remove");
 
     for i in 0..50 {
         let (_, ids) = testing::generate_streams(&mut mixer, i * 8, 8, 5, use_video);
@@ -88,14 +96,12 @@ fn test_remove(use_video: bool) {
 
         testing::wait();
 
-        mixer
-            .set_title(&format!(
-                "remove {id0:?} (left {id1:?}-{id7:?})",
-                id0 = ids[0],
-                id1 = ids[1],
-                id7 = ids[7]
-            ))
-            .unwrap();
+        mixer.set_title(&format!(
+            "remove {id0:?} (left {id1:?}-{id7:?})",
+            id0 = ids[0],
+            id1 = ids[1],
+            id7 = ids[7]
+        ));
         mixer
             .remove_stream(MediaDescriptor {
                 participant_id: ids[0],
@@ -107,15 +113,13 @@ fn test_remove(use_video: bool) {
 
         testing::wait();
 
-        mixer
-            .set_title(&format!(
-                "remove {id1:?}-{id2:?} (left {id3:?}-{id7:?})",
-                id1 = ids[1],
-                id2 = ids[2],
-                id3 = ids[3],
-                id7 = ids[7],
-            ))
-            .unwrap();
+        mixer.set_title(&format!(
+            "remove {id1:?}-{id2:?} (left {id3:?}-{id7:?})",
+            id1 = ids[1],
+            id2 = ids[2],
+            id3 = ids[3],
+            id7 = ids[7],
+        ));
         mixer
             .remove_stream(MediaDescriptor {
                 participant_id: ids[1],
@@ -133,14 +137,12 @@ fn test_remove(use_video: bool) {
 
         testing::wait();
 
-        mixer
-            .set_title(&format!(
-                "remove {id3:?}-{id6:?} (left {id7:?})",
-                id3 = ids[3],
-                id6 = ids[6],
-                id7 = ids[7],
-            ))
-            .unwrap();
+        mixer.set_title(&format!(
+            "remove {id3:?}-{id6:?} (left {id7:?})",
+            id3 = ids[3],
+            id6 = ids[6],
+            id7 = ids[7],
+        ));
         mixer
             .remove_stream(MediaDescriptor {
                 participant_id: ids[3],
@@ -170,9 +172,7 @@ fn test_remove(use_video: bool) {
 
         testing::wait();
 
-        mixer
-            .set_title(&format!("remove {id7:?} (none left)", id7 = ids[7]))
-            .unwrap();
+        mixer.set_title(&format!("remove {id7:?} (none left)", id7 = ids[7]));
         mixer
             .remove_stream(MediaDescriptor {
                 participant_id: ids[7],

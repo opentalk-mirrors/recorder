@@ -527,8 +527,3 @@ pub struct TrickleCandidate {
     #[serde(rename = "sdpMLineIndex")]
     pub sdp_m_line_index: u64,
 }
-
-#[must_use]
-pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
-    compositor::media_types()
-}

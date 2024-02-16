@@ -12,7 +12,8 @@ fn test_overlay() {
     testing::init();
 
     // get output resolution from arguments
-    let mut mixer = Mixer::<TestSource>::new(
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -25,7 +26,7 @@ fn test_overlay() {
 
     mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
 
-    mixer.set_title("test_overlay").unwrap();
+    mixer.set_title("test_overlay");
 
     mixer.dot("test_overlay-0", testing::DOT_PARAMS);
 

@@ -8,7 +8,7 @@ use core::fmt::Debug;
 use gst_base::prelude::*;
 use types::signaling::media::MediaSessionState;
 
-use crate::{AnyOverlay, Source};
+use crate::{Source, TextOverlay};
 
 /// Represents a stream.
 ///
@@ -32,7 +32,7 @@ where
     // the audio src ghost pad
     pub audio: gst::GhostPad,
     // source's overlay
-    pub overlay: AnyOverlay,
+    pub overlay: TextOverlay,
     /// current stream status
     pub status: MediaSessionState,
 }

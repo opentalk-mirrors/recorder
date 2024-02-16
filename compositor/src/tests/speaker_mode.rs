@@ -18,22 +18,27 @@ fn test_speaker_mode_without_prio() {
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
-    let mut mixer =
-        Mixer::<TestSource>::new(testing::RESOLUTION, Speaker::default(), MAX_VISIBLES, true)
-            .unwrap();
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
+        testing::RESOLUTION,
+        Speaker::default(),
+        MAX_VISIBLES,
+        true,
+    )
+    .unwrap();
     mixer
         .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();
 
     mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
 
-    mixer.set_title("test_speaker_mode_without_prio").unwrap();
+    mixer.set_title("test_speaker_mode_without_prio");
 
     let (streams, _) =
         testing::generate_streams(&mut mixer, 0, NUM_PARTICIPANTS as u32, MAX_VISIBLES, true);
 
     for stream in &streams[0..NUM_PARTICIPANTS] {
-        mixer.set_title(&format!("Speaker: {}", stream.1)).unwrap();
+        mixer.set_title(&format!("Speaker: {}", stream.1));
 
         mixer.set_speaker(stream.0).unwrap();
 
@@ -54,16 +59,21 @@ fn test_speaker_mode_with_prio() {
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
-    let mut mixer =
-        Mixer::<TestSource>::new(testing::RESOLUTION, Speaker::default(), MAX_VISIBLES, true)
-            .unwrap();
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
+        testing::RESOLUTION,
+        Speaker::default(),
+        MAX_VISIBLES,
+        true,
+    )
+    .unwrap();
     mixer
         .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();
 
     mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
 
-    mixer.set_title("test_speaker_mode_with_prio").unwrap();
+    mixer.set_title("test_speaker_mode_with_prio");
 
     let (streams, _) =
         testing::generate_streams(&mut mixer, 0, NUM_PARTICIPANTS as u32, MAX_VISIBLES, true);
@@ -90,7 +100,7 @@ fn test_speaker_mode_with_prio() {
     testing::wait();
 
     for stream in &streams[0..NUM_PARTICIPANTS] {
-        mixer.set_title(&format!("Speaker: {}", stream.1)).unwrap();
+        mixer.set_title(&format!("Speaker: {}", stream.1));
 
         mixer.set_speaker(stream.0).unwrap();
 
