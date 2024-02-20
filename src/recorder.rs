@@ -260,10 +260,10 @@ impl RecordingSession {
                     self.handle_signaling_event(signaling_msg).await?;
                 }
                 maybe_candidate = self.candidate_receiver.recv() => {
-                    let Some((stream_id, mline, candidate)) = maybe_candidate else {
+                    let Some((descriptor, mline, candidate)) = maybe_candidate else {
                         bail!("no candidate pair found");
                     };
-                    self.handle_candidate(stream_id, mline, candidate).await?;
+                    self.handle_candidate(descriptor, mline, candidate).await?;
                 }
                 result = shutdown_rx.changed() => {
                     if result.is_err() {
@@ -282,22 +282,22 @@ impl RecordingSession {
 
     async fn subscribe(
         &mut self,
-        stream_id: MediaDescriptor,
+        descriptor: MediaDescriptor,
         display_name: &str,
         media_state: MediaSessionState,
     ) -> Result<()> {
         self.mixer.add_stream(
-            stream_id,
+            descriptor,
             display_name.to_owned(),
-            stream_params(stream_id, self.candidate_sender.clone()),
+            stream_params(descriptor, self.candidate_sender.clone()),
             media_state,
         )?;
-        self.signaling.start_subscribe(stream_id).await?;
+        self.signaling.start_subscribe(descriptor).await?;
 
         if media_state.video {
             self.mixer
-                .show_stream(&stream_id)
-                .context("unable to show stream for stream_id '{stream_id}'")?;
+                .show_stream(&descriptor)
+                .context("unable to show stream for descriptor '{descriptor}'")?;
         }
 
         Ok(())
@@ -335,11 +335,11 @@ impl RecordingSession {
 
                 for (id, display_name, media_type, media_state) in available_media_streams {
                     log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
-                    let stream_id = MediaDescriptor {
+                    let descriptor = MediaDescriptor {
                         participant_id: id,
                         media_type,
                     };
-                    self.subscribe(stream_id, &display_name, media_state)
+                    self.subscribe(descriptor, &display_name, media_state)
                         .await?;
                 }
 
@@ -358,11 +358,11 @@ impl RecordingSession {
 
                 for (media_type, media_state) in available_media_streams {
                     log::debug!("Join: subscribe stream of {id} {media_type}");
-                    let stream_id = MediaDescriptor {
+                    let descriptor = MediaDescriptor {
                         participant_id: id,
                         media_type,
                     };
-                    self.subscribe(stream_id, &participant_state.display_name, media_state)
+                    self.subscribe(descriptor, &participant_state.display_name, media_state)
                         .await?;
                 }
             }
@@ -380,12 +380,16 @@ impl RecordingSession {
                     if !is_subscribed {
                         if let Some(media_state) = media_state {
                             log::debug!("Update: subscribe stream of {id} {media_type}");
-                            let stream_id = MediaDescriptor {
+                            let descriptor = MediaDescriptor {
                                 participant_id: id,
                                 media_type,
                             };
-                            self.subscribe(stream_id, &participant_state.display_name, media_state)
-                                .await?;
+                            self.subscribe(
+                                descriptor,
+                                &participant_state.display_name,
+                                media_state,
+                            )
+                            .await?;
                         }
                     } else if media_state.is_none() {
                         log::debug!("Update: unsubscribe stream of {id} {media_type}");
@@ -438,34 +442,34 @@ impl RecordingSession {
                     );
                 }
             }
-            Event::SdpOffer(stream_id, offer) => {
+            Event::SdpOffer(descriptor, offer) => {
                 log::debug!("Event::SdpOffer");
-                if let Some(source) = self.mixer.get_source(&stream_id) {
+                if let Some(source) = self.mixer.get_source(&descriptor) {
                     let answer = source.receive_offer(offer).await?;
-                    self.signaling.send_answer(stream_id, answer).await?;
+                    self.signaling.send_answer(descriptor, answer).await?;
                 }
             }
-            Event::SdpCandidate(stream_id, candidate) => {
+            Event::SdpCandidate(descriptor, candidate) => {
                 log::debug!("Event::SdpCandidate");
-                if let Some(source) = self.mixer.get_source(&stream_id) {
+                if let Some(source) = self.mixer.get_source(&descriptor) {
                     source
                         .receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
                 }
             }
-            Event::SdpEndOfCandidates(stream_id) => {
+            Event::SdpEndOfCandidates(descriptor) => {
                 log::debug!("Event::SdpEndOfCandidates");
-                let participant_state = self.signaling.participant(&stream_id.participant_id)?;
+                let participant_state = self.signaling.participant(&descriptor.participant_id)?;
 
-                if participant_state.publishes(stream_id.media_type).is_none() {
+                if participant_state.publishes(descriptor.media_type).is_none() {
                     bail!(
                         "EndOfCandidates message for {:?} with no media stream",
-                        stream_id
+                        descriptor
                     );
                 }
-                let Some(source) = self.mixer.get_source(&stream_id) else {
+                let Some(source) = self.mixer.get_source(&descriptor) else {
                     bail!(
                         "EndOfCandidates message for {:?} with no connection setup",
-                        stream_id
+                        descriptor
                     );
                 };
 
@@ -493,14 +497,14 @@ impl RecordingSession {
     /// Handle SDP candidates generated by us
     async fn handle_candidate(
         &mut self,
-        stream_id: MediaDescriptor,
+        descriptor: MediaDescriptor,
         mline: u32,
         candidate: Option<String>,
     ) -> Result<()> {
         if let Some(candidate) = candidate {
             self.signaling
                 .send_candidate(
-                    stream_id,
+                    descriptor,
                     TrickleCandidate {
                         candidate: candidate.clone(),
                         sdp_m_line_index: u64::from(mline),
@@ -508,7 +512,7 @@ impl RecordingSession {
                 )
                 .await
         } else {
-            self.signaling.send_end_of_candidates(stream_id).await
+            self.signaling.send_end_of_candidates(descriptor).await
         }
     }
 

@@ -303,18 +303,18 @@ impl Signaling {
         Ok(participant_state)
     }
 
-    pub async fn start_subscribe(&mut self, stream_id: MediaDescriptor) -> Result<()> {
+    pub async fn start_subscribe(&mut self, descriptor: MediaDescriptor) -> Result<()> {
         self.send(outgoing::Message::Media(outgoing::MediaMessage::Subscribe(
-            stream_id.into(),
+            descriptor.into(),
         )))
         .await
     }
 
-    pub async fn send_answer(&mut self, stream_id: MediaDescriptor, sdp: String) -> Result<()> {
+    pub async fn send_answer(&mut self, descriptor: MediaDescriptor, sdp: String) -> Result<()> {
         self.send(outgoing::Message::Media(outgoing::MediaMessage::SdpAnswer(
             outgoing::Sdp {
                 sdp,
-                target: stream_id.into(),
+                target: descriptor.into(),
             },
         )))
         .await
@@ -322,23 +322,23 @@ impl Signaling {
 
     pub async fn send_candidate(
         &mut self,
-        stream_id: MediaDescriptor,
+        descriptor: MediaDescriptor,
         candidate: TrickleCandidate,
     ) -> Result<()> {
         self.send(outgoing::Message::Media(
             outgoing::MediaMessage::SdpCandidate(outgoing::SdpCandidate {
                 candidate,
-                target: stream_id.into(),
+                target: descriptor.into(),
             }),
         ))
         .await
     }
 
-    pub async fn send_end_of_candidates(&mut self, stream_id: MediaDescriptor) -> Result<()> {
+    pub async fn send_end_of_candidates(&mut self, descriptor: MediaDescriptor) -> Result<()> {
         self.send(outgoing::Message::Media(
             outgoing::MediaMessage::SdpEndOfCandidates(outgoing::Target {
-                target: stream_id.participant_id,
-                media_session_type: stream_id.media_type,
+                target: descriptor.participant_id,
+                media_session_type: descriptor.media_type,
             }),
         ))
         .await
