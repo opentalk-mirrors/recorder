@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use types::signaling::media::MediaSessionState;
+use types::core::ParticipantId;
+use types::signaling::media::{MediaSessionState, MediaSessionType};
 
-use crate::{testing, DashParameters, DashSink, Mixer, Speaker, StreamId, TestSource};
+use crate::{testing, DashParameters, DashSink, MediaDescriptor, Mixer, Speaker, TestSource};
 
 #[test]
 fn test_dash() {
@@ -12,7 +13,8 @@ fn test_dash() {
     testing::init();
 
     // create grid mixer with test sources for streams and a MatroskaSink
-    let mut mixer = Mixer::<TestSource, u32>::new(
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -35,11 +37,14 @@ fn test_dash() {
         )
         .unwrap();
 
-    mixer.set_speaker(0).unwrap();
+    mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
     // add a stream
     mixer
         .add_stream(
-            StreamId::camera(0),
+            MediaDescriptor {
+                participant_id: ParticipantId::from_u128(0),
+                media_type: MediaSessionType::Video,
+            },
             "Participant 0".to_owned(),
             Default::default(),
             MediaSessionState::audio_and_video(),

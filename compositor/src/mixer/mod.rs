@@ -13,31 +13,27 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
 };
+use types::core::ParticipantId;
 use types::signaling::media::{MediaSessionState, MediaSessionType};
 
 mod audio_mixer;
 pub mod debug;
-mod overlay;
 mod sink;
 mod source;
 mod stream;
 mod text_style;
 mod video_mixer;
 
-use crate::{TalkOverlay, TextOverlay};
-
 use self::{audio_mixer::AudioMixer, sink::ActiveSink, video_mixer::VideoMixer};
 
 pub use super::layout::*;
-pub use overlay::*;
+pub use super::overlays::*;
 pub use sink::*;
 pub use source::*;
 pub use stream::*;
 pub use text_style::*;
 
 /// Maximum time a desired but missing re-layout is tolerated
-const MAX_LAYOUT_UPDATE_LATENCY: std::time::Duration = std::time::Duration::from_millis(500);
-
 const AUDIO_SAMPLE_RATE: i32 = 48_000;
 const AUDIO_CHANNELS: i32 = 2;
 
@@ -45,99 +41,23 @@ const VIDEO_WIDTH: i32 = 1920;
 const VIDEO_HEIGHT: i32 = 1136;
 const VIDEO_FRAMERATE: i32 = 30;
 
-enum Validation {
-    Valid,
-    Invalid,
-    Stop,
-}
-
 const NAME_FONT_SIZE: u32 = 16;
 
-/// return available media types
-#[must_use]
-pub fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
-    // order is priority for set speaker (first available will get focus)
-
-    [MediaSessionType::Screen, MediaSessionType::Video].into_iter()
-}
-
-/// Stream ID consisting of one stream ID and a stream type.
-///
-/// # Types
-///
-/// - `ID`: Type which can identify a stream.
-///
+/// `MediaDescriptor` identifies a media stream by participant and media type.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
-    /// ID identifying the stream
-    pub id: ID,
-    /// Type of the stream.
+pub struct MediaDescriptor {
+    pub participant_id: ParticipantId,
     pub media_type: MediaSessionType,
 }
 
-impl<ID> StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
-    /// Create an ID of the given participant's camera stream.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream
-    ///
-    pub fn camera(id: ID) -> Self {
-        Self {
-            id,
-            media_type: MediaSessionType::Video,
-        }
-    }
-    /// Create an ID of the given participant's screen sharing stream.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream
-    ///
-    pub fn screen(id: ID) -> Self {
-        Self {
-            id,
-            media_type: MediaSessionType::Screen,
-        }
-    }
-}
-
-impl<ID> Display for StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
+impl Display for MediaDescriptor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "#{id} ({stream})",
-            id = self.id,
+            "#{participant_id:?}/{stream}",
+            participant_id = self.participant_id,
             stream = self.media_type
         )
-    }
-}
-
-impl<ID> StreamId<ID>
-where
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
-{
-    /// create new stream ID
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream
-    /// - `stream`: type of the stream
-    ///
-    pub fn new(id: ID, stream: MediaSessionType) -> Self {
-        Self {
-            id,
-            media_type: stream,
-        }
     }
 }
 
@@ -155,119 +75,52 @@ where
 /// - `ID`: stream identifier type
 ///
 #[derive(Debug)]
-pub struct Mixer<SRC, ID>
+pub struct Mixer<SRC>
 where
     SRC: Source,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
-    /// Current streams.
-    streams: HashMap<StreamId<ID>, Stream<SRC>>,
-    /// Currently visible streams.
-    visibles: Vec<StreamId<ID>>,
-    /// GStreamer element which composes the output video out of the source videos.
-    // compositor: Option<gst::Element>,
+    streams: HashMap<MediaDescriptor, Stream<SRC>>,
+    visibles: Vec<MediaDescriptor>,
     audio_mixer: AudioMixer,
     video_mixer: Option<VideoMixer>,
-    /// The mixer GStreamer pipeline.
-    pipeline: gst::Pipeline,
-    /// Overlay behind compositor
-    overlay: AnyOverlay,
-    /// Holds the output sink.
+    pipeline: Pipeline,
+    overlay: TalkOverlay,
     sinks: HashMap<String, ActiveSink>,
-    /// over all generated output resolution
     output_resolution: Size,
-    valid: std::sync::mpsc::Sender<Validation>,
     layout: Box<dyn Layout>,
     system_clock: Clock,
     max_visibles: usize,
 }
 
-impl<SRC, ID> Mixer<SRC, ID>
+impl<SRC> Mixer<SRC>
 where
     SRC: Source,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
-    /// Create new Talk which creates an own Pipeline.
-    ///
-    /// # Arguments
-    ///
-    /// - `resolution`: Output video resolution.
-    /// - `sink_params`: Parameters to create the output sink.
-    /// - `max_visibles`: Maximum number of currently visible streams.
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the `Mixer` can't be initialized.
-    pub fn new(
-        resolution: Size,
-        layout: impl Layout,
-        max_visibles: usize,
-        video_support: bool,
-    ) -> Result<Self> {
-        Self::new_with_pipeline(
-            Pipeline::new(Some("Compositor")),
-            resolution,
-            layout,
-            max_visibles,
-            video_support,
-        )
-    }
-
-    /// Create new Talk for the given Pipeline.
-    ///
-    /// # Arguments
-    ///
-    /// - `pipeline`: The base pipeline which should be used to add the mixer.
-    /// - `resolution`: Output video resolution.
-    /// - `sink_params`: Parameters to create the output sink.
-    /// - `max_visibles`: Maximum number of currently visible streams.
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the `Mixer` can't be initialized.
-    pub fn new_with_pipeline(
-        pipeline: Pipeline,
-        resolution: Size,
-        layout: impl Layout,
-        max_visibles: usize,
-        video_support: bool,
-    ) -> Result<Self> {
-        debug!("Starting a new talk...");
-        trace!("new( {resolution:?}, {max_visibles:?} )");
-
-        Self::create(
-            pipeline,
-            resolution,
-            layout,
-            TalkOverlay::create()
-                .context("unable to create TalkOverlay")?
-                .into(),
-            max_visibles,
-            video_support,
-        )
-        .context("unable to create mixer")
-    }
-
     /// Create a new mixer and setup the initial `GStreamer` pipeline with the given type of sink.
+    /// If the pipeline is `None` we create a new one.
     ///
     /// # Arguments
-    ///
+    /// - `existing_pipeline`: Provided pipeline to use and extend.
     /// - `output_resolution`: Output video resolution.
     /// - `layout`: The layout which will be used.
-    /// - `overlay`: List of overlays to attach behind the compositor
-    /// - `sink_params`: Output sink parameters.
+    /// - `max_visibles`: Maximum number of visible streams
+    /// - `video_support`: flag to confiure video support.
     ///
     /// # Errors
     ///
     /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
     pub fn create(
-        pipeline: Pipeline,
+        existing_pipeline: Option<Pipeline>,
         output_resolution: Size,
         layout: impl Layout,
-        overlay: AnyOverlay,
         max_visibles: usize,
         video_support: bool,
     ) -> Result<Self> {
+        let pipeline = existing_pipeline.unwrap_or(Pipeline::new(Some("Compositor")));
+
+        debug!("create compositor ( {output_resolution:?}, {max_visibles:?} )");
+
+        let overlay = TalkOverlay::create().context("unable to create TalkOverlay")?;
         let audio_mixer = AudioMixer::create().context("unable to create AudioMixer")?;
         pipeline
             .add(audio_mixer.bin())
@@ -295,8 +148,6 @@ where
 
         let sinks = HashMap::<String, ActiveSink>::new();
 
-        let (valid, valid_receiver) = std::sync::mpsc::channel::<Validation>();
-
         let mut mixer = Mixer {
             audio_mixer,
             video_mixer,
@@ -306,7 +157,6 @@ where
             overlay,
             sinks,
             output_resolution,
-            valid,
             layout: Box::new(layout),
             system_clock,
             max_visibles,
@@ -314,8 +164,6 @@ where
 
         // start reading the pipeline bus
         mixer.read_bus()?;
-        monitor_layout(valid_receiver);
-
         Ok(mixer)
     }
 
@@ -336,7 +184,7 @@ where
     /// This can fail if adding the stream to the `GStreamer` pipeline fails.
     pub fn add_stream(
         &mut self,
-        id: StreamId<ID>,
+        descriptor: MediaDescriptor,
         display_name: String,
         params: SRC::Parameters,
         initial: MediaSessionState,
@@ -344,7 +192,7 @@ where
     where
         SRC: Source,
     {
-        trace!("add_stream( {id}, '{display_name}', {params:?}, {initial} )");
+        trace!("add_stream( {descriptor}, '{display_name}', {params:?}, {initial} )");
 
         // prepare title text overlay for the stream
         let overlay = TextOverlay::create(
@@ -361,14 +209,14 @@ where
         .context("unable to create TextOverlay")?;
 
         // check if stream ID is already known
-        if self.streams.contains_key(&id) {
-            warn!("Cannot add stream with ID {id} twice.");
-            return Err(anyhow!("Cannot add stream with ID {id} twice."));
+        if self.streams.contains_key(&descriptor) {
+            warn!("Cannot add stream with ID {descriptor} twice.");
+            return Err(anyhow!("Cannot add stream with ID {descriptor} twice."));
         }
 
         // create new source bin
-        let source = SRC::create(&id, params).context("unable to create Source")?;
-        let bin = Bin::new(Some(format!("Overlay: {id}").as_str()));
+        let source = SRC::create(&descriptor, params).context("unable to create Source")?;
+        let bin = Bin::new(Some(format!("Overlay: {descriptor}").as_str()));
 
         // Add source bin to bin
         bin.add(&source.bin())
@@ -444,43 +292,43 @@ where
             .context("unable to sync state with parent for bin")?;
 
         self.streams.insert(
-            id,
+            descriptor,
             Stream {
                 display_name,
                 source,
                 bin,
                 video,
                 audio,
-                overlay: AnyOverlay::Text(overlay),
+                overlay,
                 status: initial,
             },
         );
 
-        debug!("Added stream {id}");
+        debug!("Added stream {descriptor}");
 
         // if available turn on audio but leave video off until `set_visibles()` is used
-        self.set_stream_status(&id, initial)?;
+        self.set_stream_status(&descriptor, initial)?;
 
         Ok(())
     }
 
-    /// remove an once added stream from the mixer.
+    /// remove a stream from the mixer.
     ///
     /// # Arguments
     ///
-    /// - `id`: Unique identifier of the stream.
+    /// - `descriptor`: Identifier of the stream.
     ///
     /// # Errors
     ///
     /// This can fail if the stream bin can't be set to NULL.
-    pub fn remove_stream(&mut self, id: StreamId<ID>) -> Result<()> {
-        trace!("remove_stream( {id} )");
+    pub fn remove_stream(&mut self, descriptor: MediaDescriptor) -> Result<()> {
+        trace!("remove_stream( {descriptor} )");
 
         // remove stream from stored streams
         let stream = self
             .streams
-            .remove(&id)
-            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))?;
+            .remove(&descriptor)
+            .ok_or_else(|| anyhow!("given stream id ({descriptor}) cannot be found"))?;
 
         // remove bin from pipeline
         stream.bin.set_state(gst::State::Null)?;
@@ -506,7 +354,7 @@ where
             .context("can not remove stream's bin from pipeline")?;
 
         // remove stream from visibles
-        if let Some(index) = self.visibles.iter().position(|i| *i == id) {
+        if let Some(index) = self.visibles.iter().position(|i| *i == descriptor) {
             self.visibles.remove(index);
             self.rerender_layout()
                 .context("unable to rerender layout")?;
@@ -514,9 +362,9 @@ where
 
         // After removing push the next screen share in the list to the first
         // position
-        if let Some(stream_id) = self.get_first_screen_capture() {
-            self.set_stream_to_first_position(&stream_id)
-                .context("unable to set stream with id '{stream_id}' to first position")?;
+        if let Some(descriptor) = self.get_first_screen_capture() {
+            self.set_stream_to_first_position(&descriptor)
+                .context("unable to set stream with id '{descriptor}' to first position")?;
         }
 
         Ok(())
@@ -526,17 +374,19 @@ where
     ///
     /// # Arguments
     ///
-    /// - `id`: Describes which stream to search for.
+    /// - `descriptor`: Stream identifier.
     ///
-    pub fn contains_stream(&self, id: &StreamId<ID>) -> bool {
+    #[must_use]
+    pub fn contains_stream(&self, descriptor: &MediaDescriptor) -> bool {
         // forward to mixer
-        self.streams.contains_key(id)
+        self.streams.contains_key(descriptor)
     }
 
     /// Get mutable access tp the internal stream with the given `id`.
-    pub fn stream_mut(&mut self, id: &StreamId<ID>) -> Option<&mut Stream<SRC>> {
+    #[must_use]
+    pub fn stream_mut(&mut self, descriptor: &MediaDescriptor) -> Option<&mut Stream<SRC>> {
         // forward to mixer
-        self.streams.get_mut(id)
+        self.streams.get_mut(descriptor)
     }
 
     /// Set which stream will be visualized as speaker.
@@ -549,29 +399,36 @@ where
     /// # Errors
     ///
     /// This can fail if the speaker cannot be set to the first or second position.
-    pub fn set_speaker(&mut self, speaker: ID) -> Result<()> {
+    pub fn set_speaker(&mut self, speaker: ParticipantId) -> Result<()> {
         info!("set_speaker( {speaker:?} )");
 
-        let stream_id = StreamId::new(speaker, MediaSessionType::Screen);
-        if let Some(stream) = self.streams.get(&stream_id) {
+        let descriptor = MediaDescriptor {
+            participant_id: speaker,
+            media_type: MediaSessionType::Screen,
+        };
+        if let Some(stream) = self.streams.get(&descriptor) {
             // The speaker has no screen, so it doesn't need to update the position
             if stream.status.video {
-                self.set_stream_to_first_position(&stream_id)
-                    .context("unable to set stream with id '{stream_id}' to first position")?;
+                self.set_stream_to_first_position(&descriptor)
+                    .context("unable to set stream with id '{descriptor}' to first position")?;
             }
         }
 
-        let stream_id = StreamId::new(speaker, MediaSessionType::Video);
-        if let Some(stream) = self.streams.get(&stream_id) {
+        let descriptor = MediaDescriptor {
+            participant_id: speaker,
+            media_type: MediaSessionType::Video,
+        };
+        if let Some(stream) = self.streams.get(&descriptor) {
             // The speaker has no screen, so it doesn't need to update the position
             if stream.status.video {
                 // check if noone is sharing their screen or the new speaker is also screen sharing
                 if self.get_first_screen_capture().is_none() {
-                    self.set_stream_to_first_position(&stream_id)
-                        .context("unable to set stream with id '{stream_id}' to first position")?;
+                    self.set_stream_to_first_position(&descriptor)
+                        .context("unable to set stream with id '{descriptor}' to first position")?;
                 } else {
-                    self.set_stream_to_second_position(&stream_id)
-                        .context("unable to set stream with id '{stream_id}' to second position")?;
+                    self.set_stream_to_position(&descriptor, 1).context(
+                        "unable to set stream with id '{descriptor}' to second position",
+                    )?;
                 }
             }
         }
@@ -591,23 +448,27 @@ where
     /// # Errors
     ///
     /// This can fail if the status of the stream can't be set in the `Mixer`.
-    pub fn set_status(&mut self, id: &StreamId<ID>, new_status: &MediaSessionState) -> Result<()> {
-        info!("set_status({id}, {new_status:?}");
-        let Some(current_stream) = self.streams.get(id) else {
-            debug!("current_stream not found for id: {id:?}");
+    pub fn set_status(
+        &mut self,
+        descriptor: &MediaDescriptor,
+        new_status: &MediaSessionState,
+    ) -> Result<()> {
+        info!("set_status({descriptor}, {new_status:?}");
+        let Some(current_stream) = self.streams.get(descriptor) else {
+            debug!("current_stream not found for descriptor: {descriptor:?}");
             return Ok(());
         };
         let old_status = current_stream.status;
 
-        self.set_stream_status(id, *new_status)?;
+        self.set_stream_status(descriptor, *new_status)?;
 
         match (old_status.video, new_status.video) {
             (false, true) => self
-                .show_stream(id)
-                .context("unable to show stream for id '{id}'")?,
+                .show_stream(descriptor)
+                .context("unable to show stream for descriptor '{descriptor}'")?,
             (true, false) => self
-                .hide_stream(id)
-                .context("unable to hide stream for id '{id}'")?,
+                .hide_stream(descriptor)
+                .context("unable to hide stream for descriptor '{descriptor}'")?,
             _ => {}
         }
 
@@ -619,77 +480,34 @@ where
     /// # Arguments
     ///
     /// - `title`: title text
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
-    pub fn set_title(&self, title: &str) -> Result<()> {
-        if let AnyOverlay::Talk(overlay) = &self.overlay {
-            overlay.set_title(title);
-            return Ok(());
-        }
-        bail!("talk has no title overlay!")
+    pub fn set_title(&self, title: &str) {
+        self.overlay.set_title(title);
     }
 
-    /// Show title of the talk
+    /// Set title overlay for a stream
     ///
     /// # Arguments
     ///
-    /// - `show`: Visible if `true`
+    /// - `descriptor`: Stream identifier
+    /// - `title`: title text, e.g. participant name
     ///
     /// # Errors
     ///
-    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
-    pub fn show_title(&self, show: bool) -> Result<()> {
-        if let AnyOverlay::Talk(overlay) = &self.overlay {
-            overlay.show_title(show);
-            return Ok(());
-        }
-        bail!("talk has no title overlay!")
+    /// Fails if the requested stream is missing
+    pub fn set_stream_title(&self, descriptor: &MediaDescriptor, title: &str) -> Result<()> {
+        let stream = self
+            .streams
+            .get(descriptor)
+            .with_context(|| format!("set_title failed. Stream {descriptor} not found"))?;
+        stream.overlay.set(title);
+        Ok(())
     }
 
-    /// Show clock in the talk
+    /// Set title overlay visibility for all streams
     ///
     /// # Arguments
     ///
-    /// - `show`: Visible if `true`
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
-    pub fn show_clock(&self, show: bool) -> Result<()> {
-        if let AnyOverlay::Talk(overlay) = &self.overlay {
-            overlay.show_clock(show);
-            return Ok(());
-        }
-        bail!("talk has no clock overlay!")
-    }
-
-    /// Set title in a stream
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream
-    /// - `title`: title text
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the `Talk` has no `AnyOverlay::Talk`
-    pub fn set_stream_title(&self, id: &StreamId<ID>, title: &str) -> Result<()> {
-        if let Some(stream) = self.streams.get(id) {
-            if let AnyOverlay::Text(overlay) = &stream.overlay {
-                overlay.set(title);
-                return Ok(());
-            }
-        }
-        bail!("source {id} title overlay missing")
-    }
-
-    /// Show titles in streams
-    ///
-    /// # Arguments
-    ///
-    /// - `show`: Visible if `true`
+    /// - `show`: overlay visibility flag
     ///
     pub fn show_streams_titles(&self, show: bool) {
         for stream in self.streams.values() {
@@ -711,34 +529,34 @@ where
     /// # Errors
     ///
     /// This can fail if the `Mixer` cannot hide an old stream or show the new stream.
-    pub fn show_stream(&mut self, stream_id: &StreamId<ID>) -> Result<()> {
+    pub fn show_stream(&mut self, descriptor: &MediaDescriptor) -> Result<()> {
         // Check if the maximum amount of streams is reached
         if self.visibles.len() >= self.max_visibles {
             // If the new stream is just a camera feed, then don't show them
-            if stream_id.media_type == MediaSessionType::Video {
+            if descriptor.media_type == MediaSessionType::Video {
                 return Ok(());
             }
             // The new camera feed is a screen share, which has a higher
             // priority, so the latest stream will be removed
-            if let Some(id) = self.visibles.last().copied() {
-                self.hide_stream(&id)
+            if let Some(descriptor) = self.visibles.last().copied() {
+                self.hide_stream(&descriptor)
                     .context("unable hide stream for id '{id}'")?;
             }
         }
         // Check if the new stream is a screen capture
         // If it's a screen capture and noone else is streaming, push it to the first position
         // If someone is streaming, but the current speaker is the same user, push it to the first position
-        let position_first = stream_id.media_type == MediaSessionType::Screen
+        let position_first = descriptor.media_type == MediaSessionType::Screen
             && self.get_first_screen_capture().is_none();
 
-        if self.is_visible(stream_id) {
+        if self.is_visible(descriptor) {
             return Ok(());
         }
 
         if position_first {
-            self.visibles.insert(0, *stream_id);
+            self.visibles.insert(0, *descriptor);
         } else {
-            self.visibles.push(*stream_id);
+            self.visibles.push(*descriptor);
         }
         self.rerender_layout().context("unable to rerender layout")
     }
@@ -747,13 +565,15 @@ where
     ///
     /// # Arguments
     ///
-    /// - `id`: Describes which stream shall be returned.
+    /// - `descriptor`: Stream identifier
     ///
-    pub fn get_source(&mut self, id: &StreamId<ID>) -> Option<&mut SRC> {
-        self.streams.get_mut(id).map(|stream| &mut stream.source)
+    pub fn get_source(&mut self, descriptor: &MediaDescriptor) -> Option<&mut SRC> {
+        self.streams
+            .get_mut(descriptor)
+            .map(|stream| &mut stream.source)
     }
 
-    fn get_first_screen_capture(&self) -> Option<StreamId<ID>> {
+    fn get_first_screen_capture(&self) -> Option<MediaDescriptor> {
         self.visibles
             .clone()
             .into_iter()
@@ -1021,54 +841,40 @@ where
         Ok(())
     }
 
-    /// Return current pipeline state.
-    #[must_use]
-    pub fn state(&self) -> gst::State {
-        self.pipeline.current_state()
-    }
-
     /// Set stream to the first position
     ///
     /// # Arguments
     ///
-    /// `id`: ID of stream
+    /// `descriptor`: Stream identifier
     ///
     /// # Errors
     ///
     /// This can fail if the `set_stream_to_position` function is failing.
-    pub fn set_stream_to_first_position(&mut self, id: &StreamId<ID>) -> Result<()> {
-        self.set_stream_to_position(id, 0)
+    fn set_stream_to_first_position(&mut self, descriptor: &MediaDescriptor) -> Result<()> {
+        self.set_stream_to_position(descriptor, 0)
     }
 
     /// Set stream to the first position
     ///
     /// # Arguments
     ///
-    /// `id`: ID of stream
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the `set_stream_to_position` function is failing.
-    pub fn set_stream_to_second_position(&mut self, id: &StreamId<ID>) -> Result<()> {
-        self.set_stream_to_position(id, 1)
-    }
-
-    /// Set stream to the first position
-    ///
-    /// # Arguments
-    ///
-    /// `id`: ID of stream
+    /// `descriptor`: Stream identifier
     ///
     /// # Errors
     ///
     /// This can fail if the `rerender_layout` function is failing.
-    pub fn set_stream_to_position(&mut self, id: &StreamId<ID>, position: usize) -> Result<()> {
-        if self.visibles.first() == Some(id) {
+    fn set_stream_to_position(
+        &mut self,
+        descriptor: &MediaDescriptor,
+        position: usize,
+    ) -> Result<()> {
+        if self.visibles.first() == Some(descriptor) {
             return Ok(());
         }
 
-        self.visibles.retain(|other_id| other_id != id);
-        self.visibles.insert(position, *id);
+        self.visibles
+            .retain(|other_descriptor| other_descriptor != descriptor);
+        self.visibles.insert(position, *descriptor);
         self.rerender_layout().context("unable to rerender layout")
     }
 
@@ -1076,33 +882,24 @@ where
     ///
     /// # Arguments
     ///
-    /// `id`: ID of stream
+    /// `descriptor`: Stream identifier
     ///
     /// # Errors
     ///
     /// This can fail if the `rerender_layout` function is failing.
-    pub fn hide_stream(&mut self, id: &StreamId<ID>) -> Result<()> {
-        if !self.is_visible(id) {
+    fn hide_stream(&mut self, descriptor: &MediaDescriptor) -> Result<()> {
+        if !self.is_visible(descriptor) {
             return Ok(());
         }
 
-        self.visibles.retain(|other_id| other_id != id);
+        self.visibles
+            .retain(|other_descriptor| other_descriptor != descriptor);
         self.rerender_layout().context("unable to rerender layout")
     }
 
     /// Return `true`, if stream is currently visible
-    ///
-    pub fn is_visible(&self, id: &StreamId<ID>) -> bool {
-        self.visibles.contains(id)
-    }
-
-    /// Return `true`, if stream currently provides video
-    ///
-    /// # Errors
-    ///
-    /// This can fail if there is no stream with the given `id`.
-    pub fn has_video(&self, id: &StreamId<ID>) -> Result<bool> {
-        self.get_stream(id).map(|stream| stream.status.video)
+    fn is_visible(&self, descriptor: &MediaDescriptor) -> bool {
+        self.visibles.contains(descriptor)
     }
 
     /// Set status of a stream.
@@ -1111,18 +908,18 @@ where
     ///
     /// # Arguments
     ///
-    /// - `id`: Describes which stream shall be updated.
+    /// - `descriptor`: Identifier of the stream that shall be updated.
     /// - `new_status`: New status to override.
     ///
     /// # Errors
     ///
     /// This can fail if the stream isn't in the `streams` list.
-    pub fn set_stream_status(
+    fn set_stream_status(
         &mut self,
-        id: &StreamId<ID>,
+        descriptor: &MediaDescriptor,
         new_status: MediaSessionState,
     ) -> Result<()> {
-        info!("set_status( {id}, {new_status} )");
+        info!("set_status( {descriptor}, {new_status} )");
 
         debug::debug_dot(&self.pipeline, "set_status_pipeline_main");
         for sink in &self.sinks {
@@ -1132,7 +929,11 @@ where
             );
         }
 
-        let current_stream = self.get_stream_mut(id)?;
+        let current_stream = self
+            .streams
+            .get_mut(descriptor)
+            .context("failed to set state. Media stream with '{descriptors}' is missing")?;
+
         current_stream
             .audiomixer_sink()
             .context("unable to get sink for audiomixer")?
@@ -1140,33 +941,6 @@ where
         current_stream.status = new_status;
 
         Ok(())
-    }
-
-    /// Access the mixer's mutable streams.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream.
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the stream isn't in the `streams` list.
-    fn get_stream_mut(&mut self, id: &StreamId<ID>) -> Result<&mut Stream<SRC>> {
-        self.streams
-            .get_mut(id)
-            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
-    }
-
-    /// Access the mixer's streams.
-    ///
-    /// # Arguments
-    ///
-    /// - `id`: ID of the stream.
-    ///
-    fn get_stream(&self, id: &StreamId<ID>) -> Result<&Stream<SRC>> {
-        self.streams
-            .get(id)
-            .ok_or_else(|| anyhow!("given stream id ({id}) cannot be found"))
     }
 
     /// generate DOT file of the current pipeline
@@ -1178,14 +952,6 @@ where
     ///
     pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
         debug::dot_ext(&self.pipeline, filename_without_extension, params);
-    }
-
-    fn invisibles(&self) -> Vec<StreamId<ID>> {
-        self.streams
-            .keys()
-            .copied()
-            .filter(|id| !self.visibles.contains(id))
-            .collect()
     }
 
     /// Replace the current layout with the new one.
@@ -1225,17 +991,24 @@ where
                 .collect::<Vec<String>>()
                 .join(",")
         );
-        self.invalidate().context("unable to invalidate layout")?;
 
         self.layout.set_resolution_changed(self.output_resolution);
         self.layout.set_amount_of_visibles(self.visibles.len());
 
         let mut streams = self.visibles.clone();
-        streams.append(&mut self.invisibles());
+
+        let mut invisibles = self
+            .streams
+            .keys()
+            .copied()
+            .filter(|descriptor| !self.visibles.contains(descriptor))
+            .collect();
+
+        streams.append(&mut invisibles);
 
         // layout all video streams
-        for (n, id) in streams.iter().enumerate() {
-            let stream = self.streams.get(id).context("stream not found")?;
+        for (n, descriptor) in streams.iter().enumerate() {
+            let stream = self.streams.get(descriptor).context("stream not found")?;
             if let Some(compositor_sink) = stream.compositor_sink() {
                 if let Some(view) = self.layout.calculate_stream_view(n) {
                     compositor_sink.set_properties(&[
@@ -1270,70 +1043,12 @@ where
             }
         }
 
-        self.validate().context("unable to validate layout")?;
-
         Ok(())
     }
-
-    /// Signal that layout has to be renewed from here
-    ///
-    /// Also checks if layout will be done within `MAX_LAYOUT_UPDATE_LATENCY`
-    /// time and logs error if timeout was exceeded.
-    /// This is to prevent any missed `layout()` after changing streams.
-    /// Could be automatic but renewing the layout on every change leads to
-    /// flickering in the output.
-    ///
-    fn invalidate(&mut self) -> Result<()> {
-        trace!("invalidate()");
-
-        self.valid
-            .send(Validation::Invalid)
-            .context("cannot send layout invalidation")
-    }
-
-    fn validate(&self) -> Result<()> {
-        trace!("validate()");
-
-        self.valid
-            .send(Validation::Valid)
-            .context("cannot send layout validation")
-    }
 }
-
-fn monitor_layout(receiver: std::sync::mpsc::Receiver<Validation>) {
-    // monitor in a thread if `valid` will be set within latency timeout
-    std::thread::spawn({
-        move || {
-            let mut valid = Validation::Valid;
-            loop {
-                match valid {
-                    Validation::Invalid => {
-                        if let Ok(v) = receiver.recv_timeout(MAX_LAYOUT_UPDATE_LATENCY) {
-                            valid = v;
-                        } else {
-                            error!(
-                                "missing desired layout update since {duration}ms",
-                                duration = MAX_LAYOUT_UPDATE_LATENCY.as_millis()
-                            );
-                        }
-                    }
-                    Validation::Valid => match receiver.recv() {
-                        Ok(v) => valid = v,
-                        Err(error) => {
-                            error!("unable to receive valid Validation in monitor_layout, error: {error}");
-                        }
-                    },
-                    Validation::Stop => break,
-                }
-            }
-        }
-    });
-}
-
-impl<SRC, ID> Drop for Mixer<SRC, ID>
+impl<SRC> Drop for Mixer<SRC>
 where
     SRC: Source,
-    ID: Eq + Ord + Hash + Copy + Debug + Display,
 {
     /// halt pipeline (can not be played again)
     ///
@@ -1342,15 +1057,11 @@ where
         debug::debug_dot(&self.pipeline, "MIXER-DROP");
 
         trace!("remove_all_stream()");
-        let ids: Vec<StreamId<ID>> = self.streams.keys().copied().collect();
-        for id in ids {
-            if let Err(error) = self.remove_stream(id) {
+        let descriptors: Vec<MediaDescriptor> = self.streams.keys().copied().collect();
+        for descriptor in descriptors {
+            if let Err(error) = self.remove_stream(descriptor) {
                 error!("could not remove stream, error: {error}");
             }
-        }
-
-        if let Err(error) = self.valid.send(Validation::Stop) {
-            error!("could not stop validation monitor, error: {error}");
         }
 
         debug!("Nulling pipeline...");

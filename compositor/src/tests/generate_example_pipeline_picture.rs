@@ -6,6 +6,7 @@ use crate::{
     debug, testing, Blinder, Mixer, Speaker, TestBlinder, TestBlinderParams, TestSink, TestSource,
     TestSourceParameters,
 };
+use types::core::ParticipantId;
 
 const IMAGE_OUTPUT_PATH: &str = "./images";
 const DOT_PATH: &str = "pipelines";
@@ -38,32 +39,33 @@ fn generate_example_pipeline_picture() {
 
     // setup mixer
     let mut mixer =
-        Mixer::<TestSource, u32>::new(testing::RESOLUTION, Speaker::default(), 100, true).unwrap();
+        Mixer::<TestSource>::create(None, testing::RESOLUTION, Speaker::default(), 100, true)
+            .unwrap();
 
     mixer
         .link_sink("test_sink", TestSink::create("Recording", true).unwrap())
         .unwrap();
 
     testing::generate_streams(&mut mixer, 0, 3, 3, true);
-    mixer.set_speaker(0).unwrap();
+    mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
     blinder.blind(false);
 
-    mixer.set_title("not blinded").unwrap();
+    mixer.set_title("not blinded");
     mixer.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(true);
 
-    mixer.set_title("blinded").unwrap();
+    mixer.set_title("blinded");
     mixer.dot("test_blinder-blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(false);
 
-    mixer.set_title("not blinded").unwrap();
+    mixer.set_title("not blinded");
     mixer.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
-    mixer.set_title("shutdown").unwrap();
+    mixer.set_title("shutdown");
 
     mixer.dot("example_pipeline", dp);
 

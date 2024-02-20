@@ -39,10 +39,6 @@ impl Overlay for TalkOverlay {
     fn element(&self) -> &gst::Element {
         self.bin.as_ref()
     }
-    fn show(&self, show: bool) {
-        self.text_overlay.show(show);
-        self.clock_overlay.show(show);
-    }
     #[must_use]
     fn sink(&self) -> Option<gst::Pad> {
         self.text_overlay.sink()
@@ -50,6 +46,10 @@ impl Overlay for TalkOverlay {
     #[must_use]
     fn src(&self) -> Option<gst::Pad> {
         self.clock_overlay.src()
+    }
+    fn show(&self, show: bool) {
+        self.text_overlay.show(show);
+        self.clock_overlay.show(show);
     }
 }
 

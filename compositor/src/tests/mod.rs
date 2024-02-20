@@ -16,15 +16,12 @@ mod webrtc;
 
 pub mod testing {
 
-    use types::signaling::media::MediaSessionState;
+    use types::signaling::media::{MediaSessionState, MediaSessionType};
 
     use crate::*;
-    use core::{
-        fmt::{Debug, Display},
-        hash::Hash,
-        time::Duration,
-    };
+    use core::time::Duration;
     use std::sync::Once;
+    use types::core::ParticipantId;
 
     /// output resolution to use when creating Mixer for testing
     pub const RESOLUTION: Size = Size::HD;
@@ -109,39 +106,37 @@ pub mod testing {
         format!("{}/images", base_dir())
     }
 
-    /// get output directory depending if we are within the compositor module or above
+    /// get output directory depending on if we are within the compositor module or above
     pub fn image_file(filename: &str) -> String {
         format!("{}/{filename}", image_dir())
     }
 
     /// generate IDs for given amount of participants
-    fn generate_ids<ID>(first: u32, count: u32) -> Vec<(ID, String)>
-    where
-        ID: Eq + Ord + Hash + Copy + Debug + From<u32>,
-    {
+    fn generate_ids(first: u32, count: u32) -> Vec<(ParticipantId, String)> {
         trace!("generate_ids( {count} )");
 
-        // generate stream IDs and names
         (first..(first + count))
-            .map(|n| (n.into(), format!("Participant {n:?}")))
+            .map(|n| {
+                (
+                    ParticipantId::from_u128(n.into()),
+                    format!("Participant {n:?}"),
+                )
+            })
             .collect()
     }
 
     /// generate given number of participant streams
-    pub fn generate_streams<ID>(
-        mixer: &mut Mixer<TestSource, ID>,
+    pub fn generate_streams(
+        mixer: &mut Mixer<TestSource>,
         first: u32,
         count: u32,
         visibles: usize,
         has_video: bool,
-    ) -> (Vec<(ID, String)>, Vec<ID>)
-    where
-        ID: Eq + Ord + Hash + Copy + Debug + Display + From<u32> + Sync + Send,
-    {
+    ) -> (Vec<(ParticipantId, String)>, Vec<ParticipantId>) {
         trace!("generate_streams( {count}, {visibles} )");
 
         let streams = generate_ids(first, count);
-        let ids: Vec<ID> = streams.iter().map(|p| p.0).collect();
+        let ids: Vec<ParticipantId> = streams.iter().map(|p| p.0).collect();
 
         let resolutions = [Size::SD, Size::HD, Size::FHD, Size::QHD, Size::UHD];
         let images = [
@@ -155,13 +150,16 @@ pub mod testing {
         for (i, (id, name)) in streams.iter().enumerate() {
             let params = TestSourceParameters {
                 resolution: resolutions[i % images.len()],
-                pattern: Pattern::Location(testing::image_file(images[i % images.len()])),
+                pattern: Pattern::Location(image_file(images[i % images.len()])),
                 name: Some(name.clone()),
                 has_video,
             };
             mixer
                 .add_stream(
-                    StreamId::camera(*id),
+                    MediaDescriptor {
+                        participant_id: *id,
+                        media_type: MediaSessionType::Video,
+                    },
                     name.to_owned(),
                     params,
                     MediaSessionState::audio_and_video(),

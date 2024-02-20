@@ -6,6 +6,7 @@ use crate::{
     testing, Blinder, Mixer, Speaker, TestBlinder, TestBlinderParams, TestSink, TestSource,
     TestSourceParameters,
 };
+use types::core::ParticipantId;
 
 #[test]
 fn test_blinder() {
@@ -19,7 +20,8 @@ fn test_blinder() {
         alt_source_params: TestSourceParameters::default(),
     })
     .unwrap();
-    let mut mixer = Mixer::<TestSource, u32>::new(
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -30,23 +32,23 @@ fn test_blinder() {
     mixer.link_sink("blinder", blinder.clone()).unwrap();
 
     testing::generate_streams(&mut mixer, 0, 8, 5, true);
-    mixer.set_speaker(0).unwrap();
+    mixer.set_speaker(ParticipantId::from_u128(0)).unwrap();
     blinder.blind(false);
 
-    mixer.set_title("not blinded").unwrap();
+    mixer.set_title("not blinded");
     mixer.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(true);
 
-    mixer.set_title("blinded").unwrap();
+    mixer.set_title("blinded");
     mixer.dot("test_blinder-blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(false);
 
-    mixer.set_title("not blinded").unwrap();
+    mixer.set_title("not blinded");
     mixer.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
-    mixer.set_title("shutdown").unwrap();
+    mixer.set_title("shutdown");
 }

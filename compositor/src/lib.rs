@@ -112,7 +112,6 @@ mod tests;
 
 pub use layout::*;
 pub use mixer::*;
-pub use overlays::*;
 pub use sinks::*;
 pub use sources::*;
 

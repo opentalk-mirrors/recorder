@@ -2,16 +2,18 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use types::signaling::media::MediaSessionState;
+use types::core::ParticipantId;
+use types::signaling::media::{MediaSessionState, MediaSessionType};
 
-use crate::{testing, Mixer, Speaker, StreamId, TestSink, TestSource};
+use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
 
 #[test]
 fn test_stream_status() {
     // initialize for testing
     testing::init();
 
-    let mut mixer = Mixer::<TestSource, u32>::new(
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -31,12 +33,15 @@ fn test_stream_status() {
     for i in 0..5 {
         debug!("Testing stream {i}");
 
-        mixer
-            .set_title(&format!("Speaker {i} (audio off)"))
-            .unwrap();
+        let participant_id = ParticipantId::from_u128(i);
+        let media_id = MediaDescriptor {
+            participant_id,
+            media_type: MediaSessionType::Video,
+        };
+        mixer.set_title(&format!("Speaker {i} (audio off)"));
         mixer
             .set_status(
-                &StreamId::camera(i),
+                &media_id,
                 &MediaSessionState {
                     audio: false,
                     video: true,
@@ -50,12 +55,10 @@ fn test_stream_status() {
 
         testing::wait();
 
-        mixer
-            .set_title(&format!("Speaker {i} (video off)"))
-            .unwrap();
+        mixer.set_title(&format!("Speaker {i} (video off)"));
         mixer
             .set_status(
-                &StreamId::camera(i),
+                &media_id,
                 &MediaSessionState {
                     audio: true,
                     video: false,
@@ -69,10 +72,10 @@ fn test_stream_status() {
 
         testing::wait();
 
-        mixer.set_title(&format!("Speaker {i} (a/v off)")).unwrap();
+        mixer.set_title(&format!("Speaker {i} (a/v off)"));
         mixer
             .set_status(
-                &StreamId::camera(i),
+                &media_id,
                 &MediaSessionState {
                     audio: false,
                     video: false,
@@ -86,10 +89,10 @@ fn test_stream_status() {
 
         testing::wait();
 
-        mixer.set_title(&format!("Speaker {i} (a/v on)")).unwrap();
+        mixer.set_title(&format!("Speaker {i} (a/v on)"));
         mixer
             .set_status(
-                &StreamId::camera(i),
+                &media_id,
                 &MediaSessionState {
                     audio: true,
                     video: true,
