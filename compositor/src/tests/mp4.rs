@@ -4,14 +4,14 @@
 
 use types::signaling::media::MediaSessionState;
 
-use crate::{testing, Mp4Parameters, Mp4Sink, Speaker, StreamId, Talk, TestSource};
+use crate::{testing, Mixer, Mp4Parameters, Mp4Sink, Speaker, StreamId, TestSource};
 
 #[test]
 fn test_mp4() {
     // initialize for testing
     testing::init();
     // create grid mixer with test sources for streams and a MatroskaSink
-    let mut mixer = Talk::<TestSource, u32>::new(
+    let mut mixer = Mixer::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -37,7 +37,7 @@ fn test_mp4() {
     mixer
         .add_stream(
             StreamId::camera(0),
-            "Participant 0",
+            "Participant 0".to_owned(),
             Default::default(),
             MediaSessionState::audio_and_video(),
         )

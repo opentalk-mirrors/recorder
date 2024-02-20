@@ -4,90 +4,99 @@
 
 use types::signaling::media::MediaSessionState;
 
-use crate::{testing, Speaker, StreamId, Talk, TestSink, TestSource};
+use crate::{testing, Mixer, Speaker, StreamId, TestSink, TestSource};
 
 #[test]
 fn test_stream_status() {
     // initialize for testing
     testing::init();
 
-    let mut talk = Talk::<TestSource, u32>::new(
+    let mut mixer = Mixer::<TestSource, u32>::new(
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
         true,
     )
     .unwrap();
-    talk.link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
+    mixer
+        .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();
 
-    talk.dot("test_stream_status-0", testing::DOT_PARAMS);
+    mixer.dot("test_stream_status-0", testing::DOT_PARAMS);
 
-    testing::generate_streams(&mut talk, 0, 8, 5, true);
+    testing::generate_streams(&mut mixer, 0, 8, 5, true);
 
     testing::wait_millis(500);
 
     for i in 0..5 {
         debug!("Testing stream {i}");
 
-        talk.set_title(&format!("Speaker {i} (audio off)")).unwrap();
-        talk.set_status(
-            &StreamId::camera(i),
-            &MediaSessionState {
-                audio: false,
-                video: true,
-            },
-        )
-        .unwrap();
-        talk.dot(
+        mixer
+            .set_title(&format!("Speaker {i} (audio off)"))
+            .unwrap();
+        mixer
+            .set_status(
+                &StreamId::camera(i),
+                &MediaSessionState {
+                    audio: false,
+                    video: true,
+                },
+            )
+            .unwrap();
+        mixer.dot(
             &format!("test_stream_status-{}-audio-off", i + 1),
             testing::DOT_PARAMS,
         );
 
         testing::wait();
 
-        talk.set_title(&format!("Speaker {i} (video off)")).unwrap();
-        talk.set_status(
-            &StreamId::camera(i),
-            &MediaSessionState {
-                audio: true,
-                video: false,
-            },
-        )
-        .unwrap();
-        talk.dot(
+        mixer
+            .set_title(&format!("Speaker {i} (video off)"))
+            .unwrap();
+        mixer
+            .set_status(
+                &StreamId::camera(i),
+                &MediaSessionState {
+                    audio: true,
+                    video: false,
+                },
+            )
+            .unwrap();
+        mixer.dot(
             &format!("test_stream_status-{}-video-off", i + 1),
             testing::DOT_PARAMS,
         );
 
         testing::wait();
 
-        talk.set_title(&format!("Speaker {i} (a/v off)")).unwrap();
-        talk.set_status(
-            &StreamId::camera(i),
-            &MediaSessionState {
-                audio: false,
-                video: false,
-            },
-        )
-        .unwrap();
-        talk.dot(
+        mixer.set_title(&format!("Speaker {i} (a/v off)")).unwrap();
+        mixer
+            .set_status(
+                &StreamId::camera(i),
+                &MediaSessionState {
+                    audio: false,
+                    video: false,
+                },
+            )
+            .unwrap();
+        mixer.dot(
             &format!("test_stream_status-{}-av-off", i + 1),
             testing::DOT_PARAMS,
         );
 
         testing::wait();
 
-        talk.set_title(&format!("Speaker {i} (a/v on)")).unwrap();
-        talk.set_status(
-            &StreamId::camera(i),
-            &MediaSessionState {
-                audio: true,
-                video: true,
-            },
-        )
-        .unwrap();
-        talk.dot(
+        mixer.set_title(&format!("Speaker {i} (a/v on)")).unwrap();
+        mixer
+            .set_status(
+                &StreamId::camera(i),
+                &MediaSessionState {
+                    audio: true,
+                    video: true,
+                },
+            )
+            .unwrap();
+        mixer.dot(
             &format!("test_stream_status-{}-av-on", i + 1),
             testing::DOT_PARAMS,
         );

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use crate::{
-    debug, testing, Blinder, Speaker, Talk, TestBlinder, TestBlinderParams, TestSink, TestSource,
+    debug, testing, Blinder, Mixer, Speaker, TestBlinder, TestBlinderParams, TestSink, TestSource,
     TestSourceParameters,
 };
 
@@ -37,34 +37,35 @@ fn generate_example_pipeline_picture() {
     );
 
     // setup mixer
-    let mut talk =
-        Talk::<TestSource, u32>::new(testing::RESOLUTION, Speaker::default(), 100, true).unwrap();
+    let mut mixer =
+        Mixer::<TestSource, u32>::new(testing::RESOLUTION, Speaker::default(), 100, true).unwrap();
 
-    talk.link_sink("test_sink", TestSink::create("Recording", true).unwrap())
+    mixer
+        .link_sink("test_sink", TestSink::create("Recording", true).unwrap())
         .unwrap();
 
-    testing::generate_streams(&mut talk, 0, 3, 3, true);
-    talk.set_speaker(0).unwrap();
+    testing::generate_streams(&mut mixer, 0, 3, 3, true);
+    mixer.set_speaker(0).unwrap();
     blinder.blind(false);
 
-    talk.set_title("not blinded").unwrap();
-    talk.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
+    mixer.set_title("not blinded").unwrap();
+    mixer.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(true);
 
-    talk.set_title("blinded").unwrap();
-    talk.dot("test_blinder-blinded", testing::DOT_PARAMS);
+    mixer.set_title("blinded").unwrap();
+    mixer.dot("test_blinder-blinded", testing::DOT_PARAMS);
     testing::wait();
 
     blinder.blind(false);
 
-    talk.set_title("not blinded").unwrap();
-    talk.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
+    mixer.set_title("not blinded").unwrap();
+    mixer.dot("test_blinder-not_blinded", testing::DOT_PARAMS);
     testing::wait();
-    talk.set_title("shutdown").unwrap();
+    mixer.set_title("shutdown").unwrap();
 
-    talk.dot("example_pipeline", dp);
+    mixer.dot("example_pipeline", dp);
 
     info!("converting dot files into png...");
     convert("example_pipeline");

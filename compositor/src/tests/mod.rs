@@ -129,7 +129,7 @@ pub mod testing {
 
     /// generate given number of participant streams
     pub fn generate_streams<ID>(
-        talk: &mut Talk<TestSource, ID>,
+        mixer: &mut Mixer<TestSource, ID>,
         first: u32,
         count: u32,
         visibles: usize,
@@ -159,13 +159,14 @@ pub mod testing {
                 name: Some(name.clone()),
                 has_video,
             };
-            talk.add_stream(
-                StreamId::camera(*id),
-                name,
-                params,
-                MediaSessionState::audio_and_video(),
-            )
-            .unwrap();
+            mixer
+                .add_stream(
+                    StreamId::camera(*id),
+                    name.to_owned(),
+                    params,
+                    MediaSessionState::audio_and_video(),
+                )
+                .unwrap();
         }
 
         (streams, ids)

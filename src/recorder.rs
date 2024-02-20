@@ -6,7 +6,7 @@ use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
     MatroskaSink, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink, StreamId, SystemSink,
-    WebRtcSourceParams,
+    WebRtcSource, WebRtcSourceParams,
 };
 use core::{
     pin::Pin,
@@ -37,7 +37,7 @@ use crate::{
 // TODO; make this configurable
 pub const MAX_VISIBLES: usize = 8;
 
-type Talk = compositor::Talk<compositor::WebRtcSource, ParticipantId>;
+type Mixer = compositor::Mixer<WebRtcSource, ParticipantId>;
 
 #[derive(Clone, Debug)]
 pub struct Recorder {
@@ -109,7 +109,7 @@ pub struct RecordingSession {
     room_id: String,
     temp_dir: TempDir,
 
-    talk: Talk,
+    mixer: Mixer,
 
     candidate_receiver: mpsc::Receiver<(StreamId<ParticipantId>, u32, Option<String>)>,
     candidate_sender: mpsc::Sender<(StreamId<ParticipantId>, u32, Option<String>)>,
@@ -126,7 +126,7 @@ impl RecordingSession {
         signaling: Signaling,
         room_id: String,
         temp_dir: TempDir,
-        talk: Talk,
+        mixer: Mixer,
         candidate_receiver: mpsc::Receiver<(StreamId<ParticipantId>, u32, Option<String>)>,
         candidate_sender: mpsc::Sender<(StreamId<ParticipantId>, u32, Option<String>)>,
         done: bool,
@@ -136,7 +136,7 @@ impl RecordingSession {
             signaling,
             room_id,
             temp_dir,
-            talk,
+            mixer,
             candidate_receiver,
             candidate_sender,
             done,
@@ -165,7 +165,7 @@ impl RecordingSession {
             .sinks
             .clone();
 
-        let mut talk = Talk::new(
+        let mut mixer = Mixer::new(
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),
             MAX_VISIBLES,
@@ -181,61 +181,67 @@ impl RecordingSession {
             let name = format!("{tag}-Sink-{index}");
             match sink {
                 RecorderSink::Display => {
-                    talk.link_sink(
-                        name.as_str(),
-                        SystemSink::create(name.as_str(), true)
-                            .context("DisplaySink could not created")?,
-                    )
-                    .context("unable to link sink to talk")?;
+                    mixer
+                        .link_sink(
+                            name.as_str(),
+                            SystemSink::create(name.as_str(), true)
+                                .context("DisplaySink could not created")?,
+                        )
+                        .context("unable to link sink to mixer")?;
                 }
                 RecorderSink::Matroska(matroska_parameters) => {
-                    talk.link_sink(
-                        name.as_str(),
-                        MatroskaSink::create(name.as_str(), &matroska_parameters)
-                            .context("MatroskaSink could not created")?,
-                    )
-                    .context("unable to link sink to talk")?;
+                    mixer
+                        .link_sink(
+                            name.as_str(),
+                            MatroskaSink::create(name.as_str(), &matroska_parameters)
+                                .context("MatroskaSink could not created")?,
+                        )
+                        .context("unable to link sink to mixer")?;
                 }
 
                 RecorderSink::Rtmp(rtmp_parameters) => {
-                    talk.link_sink(
-                        name.as_str(),
-                        RTMPSink::create(
+                    mixer
+                        .link_sink(
                             name.as_str(),
-                            RTMPParameters {
-                                location: rtmp_parameters.location.replace("$room", &command.room),
-                                ..rtmp_parameters.clone()
-                            },
+                            RTMPSink::create(
+                                name.as_str(),
+                                RTMPParameters {
+                                    location: rtmp_parameters
+                                        .location
+                                        .replace("$room", &command.room),
+                                    ..rtmp_parameters.clone()
+                                },
+                            )
+                            .context("RTMPSink could not created")?,
                         )
-                        .context("RTMPSink could not created")?,
-                    )
-                    .context("unable to link sink to talk")?;
+                        .context("unable to link sink to mixer")?;
                 }
             }
         }
 
-        talk.link_sink(
-            "mp4",
-            Mp4Sink::create(
-                "MP4-Sink",
-                &Mp4Parameters {
-                    file_path: file_path
-                        .to_str()
-                        .context("failed to convert MP4 file path into string")?
-                        .into(),
-                    name: "Recording",
-                },
+        mixer
+            .link_sink(
+                "mp4",
+                Mp4Sink::create(
+                    "MP4-Sink",
+                    &Mp4Parameters {
+                        file_path: file_path
+                            .to_str()
+                            .context("failed to convert MP4 file path into string")?
+                            .into(),
+                        name: "Recording",
+                    },
+                )
+                .context("MP4-Sink could not created")?,
             )
-            .context("MP4-Sink could not created")?,
-        )
-        .context("unable to link sink to talk")?;
+            .context("unable to link sink to mixer")?;
 
         Ok(Self {
             service_context,
             signaling,
             room_id: command.room,
             temp_dir,
-            talk,
+            mixer,
             candidate_receiver,
             candidate_sender,
             done: false,
@@ -279,16 +285,16 @@ impl RecordingSession {
         display_name: &str,
         media_state: MediaSessionState,
     ) -> Result<()> {
-        self.talk.add_stream(
+        self.mixer.add_stream(
             stream_id,
-            display_name,
+            display_name.to_owned(),
             stream_params(stream_id, self.candidate_sender.clone()),
             media_state,
         )?;
         self.signaling.start_subscribe(stream_id).await?;
 
         if media_state.video {
-            self.talk
+            self.mixer
                 .show_stream(&stream_id)
                 .context("unable to show stream for stream_id '{stream_id}'")?;
         }
@@ -333,7 +339,7 @@ impl RecordingSession {
                         .await?;
                 }
 
-                self.talk
+                self.mixer
                     .set_title(title.as_str())
                     .context("unable to set the title for the recorder")?;
             }
@@ -360,7 +366,7 @@ impl RecordingSession {
                 let participant_state = self.signaling.participant(&id)?.clone();
 
                 for media_type in media_types() {
-                    let is_subscribed = self.talk.contains_stream(&StreamId::new(id, media_type));
+                    let is_subscribed = self.mixer.contains_stream(&StreamId::new(id, media_type));
                     let media_state = participant_state.publishes(media_type);
 
                     if !is_subscribed {
@@ -372,12 +378,12 @@ impl RecordingSession {
                         }
                     } else if media_state.is_none() {
                         log::debug!("Update: unsubscribe stream of {id} {media_type}");
-                        self.talk.remove_stream(StreamId::new(id, media_type))?;
+                        self.mixer.remove_stream(StreamId::new(id, media_type))?;
                     } else if let Some(media_state) = media_state {
                         log::debug!(
                             "Update: update status of stream of {id} {media_type} to {media_state}"
                         );
-                        self.talk
+                        self.mixer
                             .set_status(&StreamId::new(id, media_type), &media_state)?;
                     } else {
                         log::trace!(
@@ -392,8 +398,8 @@ impl RecordingSession {
             Event::ParticipantLeft(id) => {
                 log::debug!("Event::ParticipantLeft");
                 for media_type in media_types() {
-                    if self.talk.contains_stream(&StreamId::new(id, media_type)) {
-                        self.talk.remove_stream(StreamId::new(id, media_type))?;
+                    if self.mixer.contains_stream(&StreamId::new(id, media_type)) {
+                        self.mixer.remove_stream(StreamId::new(id, media_type))?;
                     }
                 }
                 if self.signaling.participants().is_empty() {
@@ -409,14 +415,14 @@ impl RecordingSession {
             }
             Event::SdpOffer(stream_id, offer) => {
                 log::debug!("Event::SdpOffer");
-                if let Some(source) = self.talk.get_source(&stream_id) {
+                if let Some(source) = self.mixer.get_source(&stream_id) {
                     let answer = source.receive_offer(offer).await?;
                     self.signaling.send_answer(stream_id, answer).await?;
                 }
             }
             Event::SdpCandidate(stream_id, candidate) => {
                 log::debug!("Event::SdpCandidate");
-                if let Some(source) = self.talk.get_source(&stream_id) {
+                if let Some(source) = self.mixer.get_source(&stream_id) {
                     source
                         .receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
                 }
@@ -431,7 +437,7 @@ impl RecordingSession {
                         stream_id
                     );
                 }
-                let Some(source) = self.talk.get_source(&stream_id) else {
+                let Some(source) = self.mixer.get_source(&stream_id) else {
                     bail!(
                         "EndOfCandidates message for {:?} with no connection setup",
                         stream_id
@@ -444,11 +450,9 @@ impl RecordingSession {
                 log::debug!("Event::FocusUpdate");
                 log::debug!("Set active speaker to {:?}", focus_change);
                 if let Some(speaker) = focus_change {
-                    self.talk
+                    self.mixer
                         .set_speaker(speaker)
                         .context("unable to set speaker for '{speaker}'")?;
-                } else {
-                    self.talk.unset_speaker();
                 }
             }
             Event::MediaConnectionError(error) => {
@@ -484,8 +488,8 @@ impl RecordingSession {
     }
 
     async fn upload(self) -> Result<()> {
-        let talk = self.talk;
-        spawn_blocking(move || drop(talk)).await?;
+        let mixer = self.mixer;
+        spawn_blocking(move || drop(mixer)).await?;
 
         let recording_path = self.temp_dir.path().join("out.mp4");
 
