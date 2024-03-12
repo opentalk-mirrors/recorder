@@ -296,7 +296,7 @@ impl RecordingSession {
 
         if media_state.video {
             self.mixer
-                .show_stream(&descriptor)
+                .show_stream(descriptor)
                 .context("unable to show stream for descriptor '{descriptor}'")?;
         }
 
@@ -371,7 +371,7 @@ impl RecordingSession {
                 let participant_state = self.signaling.participant(&id)?.clone();
 
                 for media_type in media_types() {
-                    let is_subscribed = self.mixer.contains_stream(&MediaDescriptor {
+                    let is_subscribed = self.mixer.contains_stream(MediaDescriptor {
                         participant_id: id,
                         media_type,
                     });
@@ -402,11 +402,11 @@ impl RecordingSession {
                             "Update: update status of stream of {id} {media_type} to {media_state}"
                         );
                         self.mixer.set_status(
-                            &MediaDescriptor {
+                            MediaDescriptor {
                                 participant_id: id,
                                 media_type,
                             },
-                            &media_state,
+                            media_state,
                         )?;
                     } else {
                         log::trace!(
@@ -421,7 +421,7 @@ impl RecordingSession {
             Event::ParticipantLeft(id) => {
                 log::debug!("Event::ParticipantLeft");
                 for media_type in media_types() {
-                    if self.mixer.contains_stream(&MediaDescriptor {
+                    if self.mixer.contains_stream(MediaDescriptor {
                         participant_id: id,
                         media_type,
                     }) {
@@ -444,14 +444,14 @@ impl RecordingSession {
             }
             Event::SdpOffer(descriptor, offer) => {
                 log::debug!("Event::SdpOffer");
-                if let Some(source) = self.mixer.get_source(&descriptor) {
+                if let Some(source) = self.mixer.get_source(descriptor) {
                     let answer = source.receive_offer(offer).await?;
                     self.signaling.send_answer(descriptor, answer).await?;
                 }
             }
             Event::SdpCandidate(descriptor, candidate) => {
                 log::debug!("Event::SdpCandidate");
-                if let Some(source) = self.mixer.get_source(&descriptor) {
+                if let Some(source) = self.mixer.get_source(descriptor) {
                     source
                         .receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
                 }
@@ -466,7 +466,7 @@ impl RecordingSession {
                         descriptor
                     );
                 }
-                let Some(source) = self.mixer.get_source(&descriptor) else {
+                let Some(source) = self.mixer.get_source(descriptor) else {
                     bail!(
                         "EndOfCandidates message for {:?} with no connection setup",
                         descriptor

@@ -41,8 +41,8 @@ fn test_stream_status() {
         mixer.set_title(&format!("Speaker {i} (audio off)"));
         mixer
             .set_status(
-                &media_id,
-                &MediaSessionState {
+                media_id,
+                MediaSessionState {
                     audio: false,
                     video: true,
                 },
@@ -58,8 +58,8 @@ fn test_stream_status() {
         mixer.set_title(&format!("Speaker {i} (video off)"));
         mixer
             .set_status(
-                &media_id,
-                &MediaSessionState {
+                media_id,
+                MediaSessionState {
                     audio: true,
                     video: false,
                 },
@@ -75,8 +75,8 @@ fn test_stream_status() {
         mixer.set_title(&format!("Speaker {i} (a/v off)"));
         mixer
             .set_status(
-                &media_id,
-                &MediaSessionState {
+                media_id,
+                MediaSessionState {
                     audio: false,
                     video: false,
                 },
@@ -92,8 +92,8 @@ fn test_stream_status() {
         mixer.set_title(&format!("Speaker {i} (a/v on)"));
         mixer
             .set_status(
-                &media_id,
-                &MediaSessionState {
+                media_id,
+                MediaSessionState {
                     audio: true,
                     video: true,
                 },
