@@ -40,7 +40,7 @@ fn test_overlay() {
     let (_, ids) = testing::generate_streams(&mut mixer, 0, 3, 3, true);
     ids.iter().for_each(|id| {
         mixer
-            .show_stream(&MediaDescriptor {
+            .show_stream(MediaDescriptor {
                 participant_id: *id,
                 media_type: MediaSessionType::Video,
             })
@@ -54,7 +54,7 @@ fn test_overlay() {
         // add text overlay to source
         mixer
             .set_stream_title(
-                &MediaDescriptor {
+                MediaDescriptor {
                     participant_id: id,
                     media_type: MediaSessionType::Video,
                 },

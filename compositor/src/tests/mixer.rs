@@ -46,7 +46,7 @@ fn test_layout(layout: impl Layout, name: &str) {
             amount = index + 1
         ));
         mixer
-            .show_stream(&MediaDescriptor {
+            .show_stream(MediaDescriptor {
                 participant_id: *id,
                 media_type: MediaSessionType::Video,
             })
@@ -84,7 +84,7 @@ fn test_remove(use_video: bool) {
         let (_, ids) = testing::generate_streams(&mut mixer, i * 8, 8, 5, use_video);
         for id in &ids {
             mixer
-                .show_stream(&MediaDescriptor {
+                .show_stream(MediaDescriptor {
                     participant_id: *id,
                     media_type: MediaSessionType::Video,
                 })

@@ -119,7 +119,7 @@ async fn handle_webrtc_event(
                 .unwrap();
 
             let source = &mixer
-                .stream_mut(&MediaDescriptor {
+                .stream_mut(MediaDescriptor {
                     participant_id: id,
                     media_type: MediaSessionType::Video,
                 })
@@ -139,7 +139,7 @@ async fn handle_webrtc_event(
         }
         WebRtcBinToMainLoopEvent::SdpCandidate(id, mline, candidate) => {
             let source = &mixer
-                .stream_mut(&MediaDescriptor {
+                .stream_mut(MediaDescriptor {
                     participant_id: id,
                     media_type: MediaSessionType::Video,
                 })
@@ -149,7 +149,7 @@ async fn handle_webrtc_event(
         }
         WebRtcBinToMainLoopEvent::SdpEndOfCandidates(id) => {
             let source = &mixer
-                .stream_mut(&MediaDescriptor {
+                .stream_mut(MediaDescriptor {
                     participant_id: id,
                     media_type: MediaSessionType::Video,
                 })
@@ -191,7 +191,7 @@ fn handle_user_event(
 
             create_publish_pipeline(tx, id, state, mixer);
             mixer
-                .show_stream(&MediaDescriptor {
+                .show_stream(MediaDescriptor {
                     participant_id: id,
                     media_type: MediaSessionType::Video,
                 })
