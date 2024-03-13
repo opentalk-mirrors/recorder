@@ -14,11 +14,13 @@ use gst_base::AggregatorStartTimeSelection;
 use tokio::sync::broadcast;
 
 const QUEUE_SIZE: usize = 128; // expect a buffers of 10ms -> 1s queue size
+
 #[derive(Debug)]
 pub(crate) struct AudioMixer {
     bin: Bin,
     audiomixer: Element,
     buffer: broadcast::Sender<Sample>,
+    appsink: AppSink,
 }
 
 impl AudioMixer {
@@ -103,15 +105,7 @@ impl AudioMixer {
                 .new_sample({
                     move |app_sink| match app_sink.pull_sample() {
                         Ok(sample) => {
-                            if let Err(error) = sender.send(sample) {
-                                element_error!(
-                                    app_sink,
-                                    StreamError::Failed,
-                                    ("unable to send sample to channel")
-                                );
-                                error!("unable to send sample to channel, received: {error}");
-                                return Err(FlowError::Error);
-                            }
+                            sender.send(sample).ok();
                             Ok(FlowSuccess::Ok)
                         }
                         Err(error) => {
@@ -133,6 +127,7 @@ impl AudioMixer {
             bin,
             audiomixer,
             buffer,
+            appsink,
         })
     }
 
@@ -179,6 +174,7 @@ impl AudioMixer {
     pub(crate) fn link_sink(&self, app_src: &AppSrc) {
         let mut receiver = self.buffer.subscribe();
         let app_src = app_src.clone();
+
         std::thread::spawn(move || {
             while let Ok(sample) = receiver.blocking_recv() {
                 if let Err(error) = app_src.push_sample(&sample) {
@@ -186,6 +182,9 @@ impl AudioMixer {
                     match error {
                         FlowError::Flushing => {
                             debug!("Flush and exit app_src {src_name}");
+                        }
+                        FlowError::Eos => {
+                            debug!("Eos and exit app_src {src_name}");
                         }
                         _ => {
                             error!("Failed pushing sample to app_src {src_name} with error: {error:?}, sample: {sample:?}");
@@ -195,5 +194,15 @@ impl AudioMixer {
                 }
             }
         });
+    }
+}
+
+impl Drop for AudioMixer {
+    fn drop(&mut self) {
+        self.appsink.set_callbacks(
+            AppSinkCallbacks::builder()
+                .new_sample(|_| Ok(FlowSuccess::Ok))
+                .build(),
+        );
     }
 }

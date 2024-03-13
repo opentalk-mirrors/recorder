@@ -1,7 +1,7 @@
 # Recorder
 
 The OpenTalk Recorder is capable of streaming into different sinks. A sink can
-be a `MP4 file`, `Display`, or `RTMP stream`.
+be a `MKV file`, `Display`, or `RTMP stream`.
 
 ## Configuration
 
@@ -9,7 +9,7 @@ The section in the [configuration file](README.md) is called `recorder`.
 
 | Field                | Type     | Required | Default value | Description                                  |
 | -------------------- | -------- | -------- | ------------- | -------------------------------------------- |
-| `sink`               | `string` | no       | "mp4"         | The sink where the recorder should stream to |
+| `sink`               | `string` | no       | "mkv"         | The sink where the recorder should stream to |
 | `rtmp_uri`           | `int`    | yes*     | -             | The location for the rtmp sink               |
 | `rtmp_audio_bitrate` | `int`    | no       | 96000         | The audio bitrate for the rtmp sink          |
 | `rtmp_audio_rate`    | `int`    | no       | 48000         | The audio rate for the rtmp sink             |
@@ -20,13 +20,13 @@ The section in the [configuration file](README.md) is called `recorder`.
 
 ### Examples
 
-#### Example with mp4 sink (default behaviour)
+#### Example with mkv sink (default behaviour)
 
-The Display sink can be used to stream from the recorder to a mp4 file.
+The Display sink can be used to stream from the recorder to a mkv file.
 
 ```toml
 [recorder]
-sink = "mp4"
+sink = "mkv"
 ```
 
 #### Example with display sink

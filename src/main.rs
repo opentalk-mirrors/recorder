@@ -29,9 +29,6 @@ mod signaling;
 
 use crate::recorder::Recorder;
 
-//#[cfg(test)]
-//mod tests;
-
 const RECONNECT_INTERVAL: Duration = Duration::from_millis(3_000); //ms
 const DOT_OUTPUT_PATH: &str = "./pipelines";
 
@@ -56,6 +53,7 @@ fn check_plugins() -> Result<()> {
         "autodetect",
         "compositor",
         "debug",
+        "dtls",
         "rtp",
         "pango",
         "udp",

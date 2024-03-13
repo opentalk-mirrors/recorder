@@ -35,7 +35,6 @@ pub use source::*;
 pub use stream::*;
 pub use text_style::*;
 
-/// Maximum time a desired but missing re-layout is tolerated
 const AUDIO_SAMPLE_RATE: i32 = 48_000;
 const AUDIO_CHANNELS: i32 = 2;
 
@@ -644,7 +643,8 @@ where
 
         let sink_state = ActiveSink {
             pipeline,
-            sink: Box::new(sink),
+            // Keep the base sink, otherwise it would be dropped immediately
+            _inner: Box::new(sink),
         };
 
         self.sinks.insert(name.to_owned(), sink_state);
@@ -717,7 +717,7 @@ where
             .name("videosrc")
             .caps(
                 &gst::Caps::builder("video/x-raw")
-                    .field("format", "RGB")
+                    .field("format", "I420")
                     .field("width", VIDEO_WIDTH)
                     .field("height", VIDEO_HEIGHT)
                     .field("framerate", Fraction::new(VIDEO_FRAMERATE, 1))
@@ -760,45 +760,8 @@ where
     /// # Errors
     ///
     /// This can fail if the sink could not be released from the mixer.
-    pub fn release_sink(&mut self, name: &String) -> Result<()> {
-        let Some(active_sink) = self.sinks.get_mut(name) else {
-            bail!("there is no stream with the name '{name}'");
-        };
-
-        let audio_src = active_sink
-            .pipeline
-            .by_name("audiosrc")
-            .context("unable to find audiosrc in sink pipeline")?;
-        let audio_src: &AppSrc = audio_src
-            .downcast_ref()
-            .context("unable to downcast appsrc element to AppSrc")?;
-        audio_src
-            .end_of_stream()
-            .context("unable to send EOS to audio_src")?;
-
-        if self.video_mixer.is_some() {
-            let video_src = active_sink
-                .pipeline
-                .by_name("videosrc")
-                .context("unable to find audiosrc in sink pipeline")?;
-            let video_src: &AppSrc = video_src
-                .downcast_ref()
-                .context("unable to downcast videosrc element to AppSrc")?;
-            video_src
-                .end_of_stream()
-                .context("unable to send EOS to audio_src")?;
-        }
-
-        active_sink
-            .sink
-            .on_exit(&self.pipeline)
-            .with_context(|| format!("unable to exit sink '{name}'"))?;
-
-        self.sinks
-            .remove(name)
-            .with_context(|| format!("unable to remove sink '{name}' from sinks"))?;
-
-        Ok(())
+    pub fn release_sink(&mut self, name: &String) {
+        self.sinks.remove(name);
     }
 
     /// Continuously read the bus for errors and EOS.
@@ -1070,8 +1033,6 @@ impl<SRC> Drop for Mixer<SRC>
 where
     SRC: Source,
 {
-    /// halt pipeline (can not be played again)
-    ///
     fn drop(&mut self) {
         debug!("Dropping Mixer...");
         debug::debug_dot(&self.pipeline, "MIXER-DROP");
@@ -1083,6 +1044,9 @@ where
                 error!("could not remove stream, error: {error}");
             }
         }
+
+        // Remove all sinks, before the main pipeline is getting shutdowned
+        self.sinks.drain();
 
         debug!("Nulling pipeline...");
         if let Err(error) = self.pipeline.set_state(gst::State::Null) {

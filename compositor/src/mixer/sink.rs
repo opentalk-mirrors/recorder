@@ -5,7 +5,7 @@
 //! Sink trait.
 
 use anyhow::{Context, Result};
-use gst::{GhostPad, Pipeline};
+use gst::{prelude::ElementExtManual, ClockTime, GhostPad, MessageType, Pipeline};
 use gst_base::prelude::{ElementExt, GstBinExt};
 use std::fmt::Debug;
 
@@ -32,31 +32,33 @@ pub trait Sink: Send + Debug + 'static {
 
     /// Called by `Mixer::pause()`.
     fn on_pause(&mut self) {}
-
-    /// Called by `Mixer::drop()`.
-    ///
-    /// # Errors
-    ///
-    /// This cannot fail, it's doing nothing.
-    fn on_exit(&mut self, _pipeline: &gst::Pipeline) -> Result<()> {
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
 pub(crate) struct ActiveSink {
     pub(crate) pipeline: Pipeline,
-    pub(crate) sink: Box<dyn Sink>,
+    // The sink needs to be hold until it's dropped at the end
+    pub(crate) _inner: Box<dyn Sink>,
 }
 
 impl Drop for ActiveSink {
     fn drop(&mut self) {
-        debug!("Dropping Sink...");
+        debug!("Dropping ActiveSink...");
         debug::debug_dot(&self.pipeline, "SINK-DROP");
 
-        debug!("Stop Sink...");
-        if let Err(error) = self.sink.on_exit(&self.pipeline) {
-            error!("Unable to call on_exit on every output_sink, error: {error}");
+        debug!("Send EOS to pipeline");
+        self.pipeline.send_event(gst::event::Eos::new());
+
+        debug!("Wait for EOS to be done");
+        if let Some(bus) = self.pipeline.bus() {
+            if bus
+                .timed_pop_filtered(ClockTime::NONE, &[MessageType::Eos])
+                .is_none()
+            {
+                error!("unable to send the EOS");
+            }
+        } else {
+            error!("Unable to send EOS, there is no bus in the pipeline");
         }
 
         debug!("Nulling Pipeline...");
@@ -64,7 +66,7 @@ impl Drop for ActiveSink {
             error!("Unable to set the pipeline to the `Null` state, error: {error}");
         }
 
-        debug!("Exited Sink.");
+        debug!("Nulling Pipeline completed, remove sink");
     }
 }
 

@@ -5,7 +5,9 @@
 use types::core::ParticipantId;
 use types::signaling::media::{MediaSessionState, MediaSessionType};
 
-use crate::{testing, MatroskaSink, MediaDescriptor, Mixer, Speaker, TestSource};
+use crate::{
+    testing, MatroskaParameters, MatroskaSink, MediaDescriptor, Mixer, Speaker, TestSource,
+};
 
 #[test]
 fn test_matroska() {
@@ -25,7 +27,13 @@ fn test_matroska() {
     mixer
         .link_sink(
             "matroska_sink",
-            MatroskaSink::create("test", &Default::default()).unwrap(),
+            MatroskaSink::create(
+                "test",
+                &MatroskaParameters {
+                    path: "/tmp/test.mkv".to_owned(),
+                },
+            )
+            .unwrap(),
         )
         .unwrap();
 

@@ -14,11 +14,13 @@ use gst_base::AggregatorStartTimeSelection;
 use tokio::sync::broadcast;
 
 const QUEUE_SIZE: usize = VIDEO_FRAMERATE as usize;
+
 #[derive(Debug)]
 pub(crate) struct VideoMixer {
     bin: Bin,
     compositor: Element,
     buffer: broadcast::Sender<Sample>,
+    appsink: AppSink,
 }
 
 impl VideoMixer {
@@ -40,7 +42,7 @@ impl VideoMixer {
             .property(
                 "caps",
                 Caps::builder("video/x-raw")
-                    .field("format", "RGB")
+                    .field("format", "I420")
                     .field("width", output_size.width as i32)
                     .field("height", output_size.height as i32)
                     .build(),
@@ -99,16 +101,7 @@ impl VideoMixer {
                 .new_sample({
                     move |app_sink| match app_sink.pull_sample() {
                         Ok(sample) => {
-                            if let Err(error) = sender.send(sample) {
-                                element_error!(
-                                    app_sink,
-                                    StreamError::Failed,
-                                    ("unable to send sample to channel")
-                                );
-                                error!("unable to send sample to channel, received: {error}");
-                                return Err(FlowError::Error);
-                            }
-
+                            sender.send(sample).ok();
                             Ok(FlowSuccess::Ok)
                         }
                         Err(error) => {
@@ -130,6 +123,7 @@ impl VideoMixer {
             bin,
             compositor,
             buffer,
+            appsink,
         })
     }
 
@@ -178,6 +172,7 @@ impl VideoMixer {
     pub(crate) fn link_sink(&self, app_src: &AppSrc) {
         let mut receiver = self.buffer.subscribe();
         let app_src = app_src.clone();
+
         std::thread::spawn(move || {
             while let Ok(sample) = receiver.blocking_recv() {
                 if let Err(error) = app_src.push_sample(&sample) {
@@ -185,6 +180,9 @@ impl VideoMixer {
                     match error {
                         FlowError::Flushing => {
                             debug!("Flush and exit app_src {src_name}");
+                        }
+                        FlowError::Eos => {
+                            debug!("Eos and exit app_src {src_name}");
                         }
                         _ => {
                             error!("Failed pushing sample to app_src {src_name} with error: {error:?}, sample: {sample:?}");
@@ -194,5 +192,15 @@ impl VideoMixer {
                 }
             }
         });
+    }
+}
+
+impl Drop for VideoMixer {
+    fn drop(&mut self) {
+        self.appsink.set_callbacks(
+            AppSinkCallbacks::builder()
+                .new_sample(|_| Ok(FlowSuccess::Ok))
+                .build(),
+        );
     }
 }

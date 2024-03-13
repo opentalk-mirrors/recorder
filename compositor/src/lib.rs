@@ -30,7 +30,7 @@
       is an universal sink that can be one of the following.
     - `[DashSink`]
       writes the output into a Dash instance consisting of an MPD file and several audio/video files.
-    - `[Mp4Sink`]
+    - `[MatroskaSink`]
       writes the output into a MPEG4 file.
     - `[MatroskaSink`]
       listens on a TCP port to write the raw output to, after someone connects.
