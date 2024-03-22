@@ -3,11 +3,9 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 mod blinder;
-mod dash;
 mod generate_example_pipeline_picture;
 mod matroska;
 mod mixer;
-mod mp4;
 mod multi;
 mod overlays;
 mod speaker_mode;

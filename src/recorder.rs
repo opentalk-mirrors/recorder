@@ -5,7 +5,7 @@
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    MatroskaSink, MediaDescriptor, Mp4Parameters, Mp4Sink, RTMPParameters, RTMPSink, SystemSink,
+    MatroskaParameters, MatroskaSink, MediaDescriptor, RTMPParameters, RTMPSink, SystemSink,
     WebRtcSource, WebRtcSourceParams,
 };
 use core::{
@@ -66,7 +66,8 @@ impl Recorder {
     ) -> Result<JoinHandle<Result<()>>> {
         let context = Arc::new(self.clone());
         log::debug!("Start Recording session {command:?}");
-        let mut session = RecordingSession::create(context, command)
+        let file_name = "recording.mkv";
+        let mut session = RecordingSession::create(context, command, file_name)
             .await
             .context("recording session failed to start")?;
 
@@ -77,7 +78,10 @@ impl Recorder {
                     recording_err
                 );
             };
-            session.upload().await.context("recording upload failed")?;
+            session
+                .upload(file_name)
+                .await
+                .context("recording upload failed")?;
 
             Ok(())
         });
@@ -88,14 +92,19 @@ impl Recorder {
     pub async fn upload(&self, room_id: &str, recording_path: &Path) -> Result<()> {
         let file = File::open(recording_path).await?;
 
-        log::debug!(
-            "upload mp4 file '{:?}' for room: {}",
-            recording_path,
-            room_id
-        );
+        let file_name = recording_path
+            .file_name()
+            .context("recording path is broken (empty)")?;
+
+        log::debug!("upload file '{:?}' for room: {}", recording_path, room_id);
 
         self.http_client
-            .upload_render(&self.settings.controller, room_id, FileReadStream { file })
+            .upload_render(
+                &self.settings.controller,
+                room_id,
+                file_name.to_string_lossy().as_ref(),
+                FileReadStream { file },
+            )
             .await
     }
 }
@@ -146,6 +155,7 @@ impl RecordingSession {
     pub async fn create(
         service_context: Arc<Recorder>,
         command: InitializeRecording,
+        file_name: &str,
     ) -> Result<RecordingSession> {
         let signaling = Signaling::connect(
             service_context.http_client.as_ref(),
@@ -155,7 +165,7 @@ impl RecordingSession {
         .await?;
 
         let temp_dir = TempDir::new()?;
-        let file_path = temp_dir.path().join("out.mp4");
+        let file_path = temp_dir.path().join(file_name);
 
         let (candidate_sender, candidate_receiver) = mpsc::channel(12);
 
@@ -222,18 +232,17 @@ impl RecordingSession {
 
         mixer
             .link_sink(
-                "mp4",
-                Mp4Sink::create(
-                    "MP4-Sink",
-                    &Mp4Parameters {
-                        file_path: file_path
+                "recording",
+                MatroskaSink::create(
+                    "Recording",
+                    &MatroskaParameters {
+                        path: file_path
                             .to_str()
-                            .context("failed to convert MP4 file path into string")?
+                            .context("failed to convert file path into string")?
                             .into(),
-                        name: "Recording",
                     },
                 )
-                .context("MP4-Sink could not created")?,
+                .context("Matroska-Sink could not created")?,
             )
             .context("unable to link sink to mixer")?;
 
@@ -516,11 +525,11 @@ impl RecordingSession {
         }
     }
 
-    async fn upload(self) -> Result<()> {
+    async fn upload(self, file_name: &str) -> Result<()> {
         let mixer = self.mixer;
         spawn_blocking(move || drop(mixer)).await?;
 
-        let recording_path = self.temp_dir.path().join("out.mp4");
+        let recording_path = self.temp_dir.path().join(file_name);
 
         let Err(upload_err) = self
             .service_context
@@ -531,12 +540,11 @@ impl RecordingSession {
             return Ok(());
         };
 
-        let dump_name = "DUMP.mp4";
         error!(
-            "upload of file {:?} failed. Saving output in {dump_name}.",
+            "upload of file {:?} failed. Saving output in {file_name}.",
             recording_path
         );
-        tokio::fs::copy(recording_path, dump_name).await?;
+        tokio::fs::copy(recording_path, file_name).await?;
 
         Err(upload_err)
     }

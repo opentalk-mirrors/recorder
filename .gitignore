@@ -6,7 +6,7 @@
 .vscode
 /*.dot
 /*.dot.png
-/DUMP.mp4
+/*.mkv
 /target
 config.toml
 .DS_Store

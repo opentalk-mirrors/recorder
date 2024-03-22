@@ -131,6 +131,7 @@ impl HttpClient {
         &self,
         settings: &ControllerSettings,
         room_id: &str,
+        file_name: &str,
         stream: S,
     ) -> Result<()>
     where
@@ -138,9 +139,8 @@ impl HttpClient {
         S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
         Bytes: From<S::Ok>,
     {
-        // TODO: do not hardcode the filename
         let uri = format!(
-            "{}/services/recording/upload_render?room_id={room_id}&filename=recording.mp4",
+            "{}/services/recording/upload_render?room_id={room_id}&filename={file_name}",
             settings.v1_api_base_url()
         );
 

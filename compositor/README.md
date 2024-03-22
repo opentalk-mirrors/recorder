@@ -55,11 +55,6 @@ If the cargo build lasts longer then 1s try to precompile or increase the sleep 
 
 ![Audio/Video Pipeline](images/example_pipeline.png)
 
-## Known Problems
-
-- *Dash* seems to need h264 or h265 encoding when writing files
-- the *gstreamer* `dashsink` element is quite new and `mp4` muxer is still not working but `ts` does
-
 ## Further Documentation
 
 There is a lot of rust inline documentation which you might compile using this line:
