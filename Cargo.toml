@@ -11,9 +11,12 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace.dependencies]
+types = { package = "opentalk-types", version = "0.9.0" }
+
 [dependencies]
 compositor = { path = "compositor" }
-types = { package = "opentalk-types", version = "0.8.0-rc.1", features = [ "rand", "serde" ] }
+types = { workspace = true, features = [ "rand", "serde" ] }
 
 gst = { package = "gstreamer", version = "0.20" }
 gst-sdp = { package = "gstreamer-sdp", version = "0.20" }

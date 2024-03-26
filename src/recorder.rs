@@ -498,6 +498,15 @@ impl RecordingSession {
                 log::warn!("Skipping media connection error: {:?}", error);
             }
             Event::Close => self.done = true,
+            Event::SpeakerUpdated(speaking_state) => {
+                log::debug!("Event::SpeakerUpdated");
+                let participant = speaking_state.participant;
+                if speaking_state.speaker.is_speaking {
+                    self.mixer
+                        .set_speaker(participant)
+                        .context("unable to set speaker for '{participant}'")?;
+                }
+            }
         }
 
         Ok(())
