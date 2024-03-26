@@ -62,16 +62,13 @@ fn check_plugins() -> Result<()> {
         "webrtc",
     ];
 
-    let missing: Vec<_> = required
+    let failed_plugins: Vec<_> = required
         .into_iter()
         .filter(|plug| registry.find_plugin(plug).is_none())
         .collect();
 
-    if !missing.is_empty() {
-        anyhow::bail!(
-            "The following plugins could not be loaded: {}",
-            missing.join(", ")
-        );
+    if !failed_plugins.is_empty() {
+        anyhow::bail!("Failed to load GStreamer plugins [{}], try to start the application with 'GST_DEBUG=1' if the plugins are installed correctly.", failed_plugins.join(", "));
     }
 
     Ok(())
