@@ -17,7 +17,10 @@ use types::{
     core::ParticipantId,
     signaling::{
         control::{event::ControlEvent, state::ControlState, AssociatedParticipant, Participant},
-        media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
+        media::{
+            peer_state::MediaPeerState, MediaSessionState, MediaSessionType,
+            ParticipantSpeakingState,
+        },
         recording::peer_state::RecordingPeerState,
     },
 };
@@ -104,6 +107,7 @@ pub enum Event {
     SdpCandidate(MediaDescriptor, TrickleCandidate),
     SdpEndOfCandidates(MediaDescriptor),
 
+    SpeakerUpdated(ParticipantSpeakingState),
     FocusUpdate(Option<ParticipantId>),
     MediaConnectionError(Error),
     Close,
@@ -287,6 +291,9 @@ impl Signaling {
                 incoming::MediaMessage::Error(error) => {
                     Ok(Some(Event::MediaConnectionError(error)))
                 }
+                incoming::MediaMessage::SpeakerUpdated(speak_state) => {
+                    Ok(Some(Event::SpeakerUpdated(speak_state)))
+                }
             },
         }
     }
@@ -366,7 +373,10 @@ pub mod incoming {
     use super::{ParticipantId, TrickleCandidate};
     use compositor::MediaDescriptor;
     use serde::{Deserialize, Serialize};
-    use types::signaling::{control::event::ControlEvent, media::MediaSessionType};
+    use types::signaling::{
+        control::event::ControlEvent,
+        media::{MediaSessionType, ParticipantSpeakingState},
+    };
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
@@ -391,6 +401,10 @@ pub mod incoming {
 
         #[serde(rename = "focus_update")]
         FocusUpdate(FocusUpdate),
+
+        #[serde(rename = "speaker_updated")]
+        SpeakerUpdated(ParticipantSpeakingState),
+
         #[serde(rename = "error")]
         Error(Error),
     }

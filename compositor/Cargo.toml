@@ -11,7 +11,7 @@ license = "EUPL-1.2"
 publish = false
 
 [dependencies]
-types = { workspace = true }
+types.workspace = true
 
 gst = { package = "gstreamer", version = "0.20", features = ["v1_22"] }
 gst-app = { package = "gstreamer-app", version = "0.20" }
