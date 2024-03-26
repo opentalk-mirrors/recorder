@@ -63,6 +63,7 @@ impl MatroskaSink {
                 matroskamux
                     name=mux
                     writing-app=OpenTalk
+                    offset-to-zero=true
                 ! queue
                     name=matroska-queue
                     max-size-time=1000000000
