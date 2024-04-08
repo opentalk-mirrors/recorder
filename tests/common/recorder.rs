@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use std::collections::BTreeMap;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use compositor::{FakeSink, Mixer, TestSink};
@@ -97,6 +98,7 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
         "TESTROOM".to_string(),
         temp_dir,
         mixer,
+        BTreeMap::new(),
         candidate_receiver,
         candidate_sender,
         false,
