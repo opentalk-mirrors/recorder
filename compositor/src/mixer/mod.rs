@@ -7,7 +7,6 @@ use gst::{
     event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element, ElementFactory, Fraction,
     GhostPad, Pipeline, SystemClock,
 };
-use gst_app::AppSrc;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -40,14 +39,14 @@ pub use source::*;
 pub use stream::*;
 pub use text_style::*;
 
-const AUDIO_SAMPLE_RATE: i32 = 48_000;
-const AUDIO_CHANNELS: i32 = 2;
+pub(crate) const AUDIO_SAMPLE_RATE: i32 = 48_000;
+pub(crate) const AUDIO_CHANNELS: i32 = 2;
 
-const VIDEO_WIDTH: i32 = 1920;
-const VIDEO_HEIGHT: i32 = 1136;
-const VIDEO_FRAMERATE: i32 = 30;
+pub(crate) const VIDEO_WIDTH: i32 = 1920;
+pub(crate) const VIDEO_HEIGHT: i32 = 1136;
+pub(crate) const VIDEO_FRAMERATE: i32 = 30;
 
-const NAME_FONT_SIZE: u32 = 16;
+pub(crate) const NAME_FONT_SIZE: u32 = 16;
 
 /// `MediaDescriptor` identifies a media stream by participant and media type.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -187,6 +186,41 @@ where
         Ok(mixer)
     }
 
+    /// Enable video support for the current compositor.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the `VideoMixer` couldn't be created or the `ActiveSink`
+    /// failed to link to the `VideoMixer`.
+    pub fn enable_video(&mut self) -> Result<()> {
+        if self.video_mixer.is_some() {
+            return Ok(());
+        }
+
+        let video_mixer = VideoMixer::create(self.output_resolution, &self.overlay)
+            .context("unable to create VideoMixer")?;
+
+        self.pipeline.add_with_context(video_mixer.bin())?;
+
+        video_mixer
+            .bin()
+            .set_state_with_context(gst::State::Playing)?;
+
+        for key in self.streams.keys().copied().collect::<Vec<_>>() {
+            self.enable_video_support_if_possible(&key)?;
+        }
+
+        for sink in self.sinks.values() {
+            sink.link_video_mixer(&video_mixer)
+                .context("unable to link VideoMixer to sink")?;
+            sink.pipeline.set_state_with_context(gst::State::Playing)?;
+        }
+
+        self.video_mixer = Some(video_mixer);
+
+        Ok(())
+    }
+
     /// Add a new stream to the mixer.
     ///
     /// New video streams will NOT get visible but audio streams will
@@ -241,30 +275,6 @@ where
         // Add source bin to bin
         bin.add_with_context(&source.bin())?;
 
-        // Setup video in pipeline
-        if self.video_mixer.is_some() {
-            if let Some(video) = source.video() {
-                let videoconvertscale = ElementFactory::make("videoconvertscale")
-                    .name("videoconvertscale")
-                    .build_with_context()?;
-                let capsfilter = ElementFactory::make("capsfilter")
-                    .name("capsfilter")
-                    .build_with_context()?;
-
-                bin.add_many_with_context(&[&videoconvertscale, &capsfilter, overlay.element()])?;
-
-                Element::link_many_with_context(&[
-                    &videoconvertscale,
-                    &capsfilter,
-                    &overlay.element(),
-                ])?;
-
-                let videoconvertscale_sink_pad =
-                    videoconvertscale.static_pad_with_context("sink")?;
-                video.link_with_context(&videoconvertscale_sink_pad)?;
-            }
-        }
-
         // Add bin to pipeline
         self.pipeline.add_with_context(&bin)?;
 
@@ -277,7 +287,7 @@ where
             .context("unable to add 'audio' pad to 'audio_mixer'")?;
 
         // Link video in pipeline
-        let video = if let (Some(video_mixer), Some(_)) = (&self.video_mixer, source.video()) {
+        let video = if let (Some(video_mixer), Some(video)) = (&self.video_mixer, source.video()) {
             let overlay_src_pad = overlay
                 .src()
                 .context("unable to get src pad from overlay")?;
@@ -285,7 +295,7 @@ where
 
             bin.add_pad_with_context(&overlay_ghost_pad)?;
 
-            let video = video_mixer
+            video_mixer
                 .link_src(&overlay_ghost_pad)
                 .context("unable to add 'video' pad to 'video_mixer'")?;
 
@@ -311,10 +321,70 @@ where
             },
         );
 
+        // Setup video in pipeline
+        self.enable_video_support_if_possible(&descriptor)?;
+
         debug!("Added stream {descriptor}");
 
         // if available turn on audio but leave video off until `set_visibles()` is used
         self.set_stream_status(descriptor, initial)?;
+
+        Ok(())
+    }
+
+    pub(crate) fn enable_video_support_if_possible(
+        &mut self,
+        media_descriptor: &MediaDescriptor,
+    ) -> Result<()> {
+        let Some(video_mixer) = &self.video_mixer else {
+            return Ok(());
+        };
+        let Some(source) = self.streams.get_mut(media_descriptor) else {
+            return Ok(());
+        };
+        let Some(video) = &source.video else {
+            return Ok(());
+        };
+
+        let videoconvertscale = ElementFactory::make("videoconvertscale")
+            .name("videoconvertscale")
+            .build_with_context()?;
+        let capsfilter = ElementFactory::make("capsfilter")
+            .name("capsfilter")
+            .build_with_context()?;
+
+        source.bin.add_many_with_context(&[
+            &videoconvertscale,
+            &capsfilter,
+            source.overlay.element(),
+        ])?;
+
+        Element::link_many_with_context(&[
+            &videoconvertscale,
+            &capsfilter,
+            &source.overlay.element(),
+        ])?;
+
+        let videoconvertscale_sink_pad = videoconvertscale.static_pad_with_context("sink")?;
+        video.link_with_context(&videoconvertscale_sink_pad)?;
+
+        let overlay_src_pad = source
+            .overlay
+            .src()
+            .context("unable to get src pad from overlay")?;
+        let overlay_ghost_pad = GhostPad::with_target_with_context(None, &overlay_src_pad)?;
+
+        source.bin.add_pad_with_context(&overlay_ghost_pad)?;
+
+        let video = video_mixer
+            .link_src(&overlay_ghost_pad)
+            .context("unable to add 'video' pad to 'video_mixer'")?;
+
+        source.video = Some(video);
+
+        videoconvertscale.set_state(gst::State::Playing)?;
+        capsfilter.set_state(gst::State::Playing)?;
+        source.overlay.element().set_state(gst::State::Playing)?;
 
         Ok(())
     }
@@ -592,7 +662,7 @@ where
     /// # Errors
     ///
     /// This can fail if the audio or video sink could not be linked to the mixer.
-    pub fn link_sink(&mut self, name: &str, mut sink: impl Sink) -> Result<()> {
+    pub fn link_sink(&mut self, name: &str, sink: impl Sink) -> Result<()> {
         trace!("link sink, name: {name}, sinke: {sink:?}");
         if self.sinks.contains_key(name) {
             bail!("a stream with the name '{name}' already exists");
@@ -607,118 +677,41 @@ where
         let bin = sink.bin();
         pipeline.add_with_context(&bin)?;
 
-        self.link_audio_sink(&pipeline, &sink)
-            .context("unable to link audio sink")?;
-        self.link_video_sink(&pipeline, &sink)
-            .context("unable to link video sink")?;
+        let mut active_sink = ActiveSink {
+            pipeline,
+            inner: Box::new(sink),
+        };
 
-        pipeline.set_state_with_context(gst::State::Playing)?;
-        pipeline
+        active_sink
+            .link_audio_mixer(&self.audio_mixer)
+            .context("unable to link AudioMixer to sink")?;
+
+        if let Some(video_mixer) = &self.video_mixer {
+            active_sink
+                .link_video_mixer(video_mixer)
+                .context("unable to link VideoMixer to sink")?;
+        }
+
+        active_sink
+            .pipeline
+            .set_state_with_context(gst::State::Playing)?;
+        active_sink
+            .pipeline
             .sync_children_states()
             .context("unable to sync children states for pipeline")?;
 
-        sink.on_play().context("unable to set sink to playing")?;
+        active_sink
+            .inner
+            .on_play()
+            .context("unable to set sink to playing")?;
 
         debug::dot(&self.pipeline, "link-sink-main-pipeline");
         debug::dot(
-            &pipeline,
+            &active_sink.pipeline,
             format!("link-sink_sink-pipeline_{name}").as_str(),
         );
 
-        let sink_state = ActiveSink {
-            pipeline,
-            // Keep the base sink, otherwise it would be dropped immediately
-            _inner: Box::new(sink),
-        };
-
-        self.sinks.insert(name.to_owned(), sink_state);
-
-        Ok(())
-    }
-
-    /// Link the given sink to the `audio_mixer`.
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the audio sink could not be linked to the `audio_mixer`.
-    fn link_audio_sink(&self, pipeline: &Pipeline, sink: &impl Sink) -> Result<()> {
-        let app_src = AppSrc::builder()
-            .name("audiosrc")
-            .caps(
-                &gst::Caps::builder("audio/x-raw")
-                    .field("format", "S16LE")
-                    .field("layout", "interleaved")
-                    .field("rate", AUDIO_SAMPLE_RATE)
-                    .field("channels", AUDIO_CHANNELS)
-                    .build(),
-            )
-            .min_latency(200_000_000i64)
-            .format(gst::Format::Time)
-            .max_bytes(1)
-            .block(true)
-            .is_live(true)
-            .build();
-        let queue = ElementFactory::make("queue")
-            .property_from_str("leaky", "downstream")
-            .build_with_context()?;
-        let audioconvert = ElementFactory::make("audioconvert").build_with_context()?;
-
-        pipeline.add_many_with_context(&[app_src.upcast_ref(), &queue, &audioconvert])?;
-
-        Element::link_many_with_context(&[app_src.upcast_ref(), &queue, &audioconvert])?;
-
-        audioconvert
-            .static_pad_with_context("src")?
-            .link_with_context(&sink.audio())?;
-
-        self.audio_mixer.link_sink(&app_src);
-
-        Ok(())
-    }
-
-    /// Link the given sink to the `video_mixer`.
-    ///
-    /// # Errors
-    ///
-    /// This can fail if the video sink could not be linked to the `video_mixer`.
-    fn link_video_sink(&self, pipeline: &Pipeline, sink: &impl Sink) -> Result<()> {
-        let Some(video_mixer) = &self.video_mixer else {
-            return Ok(());
-        };
-        let Some(video_sink) = &sink.video() else {
-            return Ok(());
-        };
-
-        let app_src = AppSrc::builder()
-            .name("videosrc")
-            .caps(
-                &gst::Caps::builder("video/x-raw")
-                    .field("format", "I420")
-                    .field("width", VIDEO_WIDTH)
-                    .field("height", VIDEO_HEIGHT)
-                    .field("framerate", Fraction::new(VIDEO_FRAMERATE, 1))
-                    .build(),
-            )
-            .min_latency(200_000_000i64)
-            .format(gst::Format::Time)
-            .max_bytes(1)
-            .block(true)
-            .is_live(true)
-            .build();
-        let queue = ElementFactory::make("queue")
-            .property_from_str("leaky", "downstream")
-            .build_with_context()?;
-        let videoconvert = ElementFactory::make("videoconvert").build_with_context()?;
-
-        pipeline.add_many_with_context(&[app_src.upcast_ref(), &queue, &videoconvert])?;
-
-        Element::link_many_with_context(&[app_src.upcast_ref(), &queue, &videoconvert])?;
-
-        videoconvert
-            .static_pad_with_context("src")?
-            .link_with_context(video_sink)?;
-
-        video_mixer.link_sink(&app_src);
+        self.sinks.insert(name.to_owned(), active_sink);
 
         Ok(())
     }
