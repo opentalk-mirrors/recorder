@@ -14,7 +14,8 @@ use types::core::ParticipantId;
 use types::signaling::media::{MediaSessionState, MediaSessionType};
 
 use crate::{
-    log, MediaDescriptor, Mixer, Size, Speaker, TestSink, WebRtcSource, WebRtcSourceParams,
+    log, GstBinErrorExt, GstElementErrorExt, MediaDescriptor, Mixer, Size, Speaker, TestSink,
+    WebRtcSource, WebRtcSourceParams,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -101,7 +102,7 @@ async fn exec_events(events: Vec<Event>) {
 
     for (_, participant) in participants {
         if let Some(pipeline) = participant.publish {
-            pipeline.set_state(gst::State::Null).unwrap();
+            pipeline.set_state_with_context(gst::State::Null).unwrap();
         }
     }
 }
@@ -125,7 +126,7 @@ async fn handle_webrtc_event(
                 })
                 .unwrap()
                 .source;
-            let webrtcbin = publish.by_name("webrtc").unwrap();
+            let webrtcbin = publish.by_name_with_context("webrtc").unwrap();
             let response = source.receive_offer(offer).await.unwrap();
             let response = gst_webrtc::WebRTCSessionDescription::new(
                 gst_webrtc::WebRTCSDPType::Answer,
@@ -180,7 +181,7 @@ fn handle_user_event(
 
             let mut state = participants.remove(&id).unwrap();
             if let Some(screen) = state.publish.take() {
-                screen.set_state(gst::State::Null).unwrap();
+                screen.set_state_with_context(gst::State::Null).unwrap();
             }
         }
         Event::Publish(id) => {
@@ -202,7 +203,7 @@ fn handle_user_event(
             let state = participants.get_mut(&id).unwrap();
 
             if let Some(publish) = state.publish.take() {
-                publish.set_state(gst::State::Null).unwrap();
+                publish.set_state_with_context(gst::State::Null).unwrap();
             }
 
             let media_id = MediaDescriptor {
@@ -231,7 +232,7 @@ fn create_publish_pipeline(
     .downcast::<gst::Pipeline>()
     .unwrap();
 
-    let webrtcbin = pipeline.by_name("webrtc").unwrap();
+    let webrtcbin = pipeline.by_name_with_context("webrtc").unwrap();
     webrtcbin.add_property_notify_watch(Some("ice-gathering-state"), true);
 
     // ON ICE CANDIDATE
@@ -322,7 +323,9 @@ fn create_publish_pipeline(
         }
     });
 
-    pipeline.set_state(gst::State::Playing).unwrap();
+    pipeline
+        .set_state_with_context(gst::State::Playing)
+        .unwrap();
     state.publish = Some(pipeline);
 
     let webrtcbin_weak = webrtcbin.downgrade();

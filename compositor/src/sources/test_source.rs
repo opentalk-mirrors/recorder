@@ -5,7 +5,7 @@
 use anyhow::{bail, Context, Result};
 use std::fmt::Display;
 
-use crate::{add_ghost_pad, Size, Source};
+use crate::{add_ghost_pad, parse_bin_from_description_with_context, Size, Source};
 
 /// Video test patterns.
 #[derive(Clone, Debug)]
@@ -207,8 +207,7 @@ impl Source for TestSource {
             "#;
 
         // create bin including codecs and the dash sink
-        let bin = gst::parse_bin_from_description(&description, false)
-            .context("failed to create test source bin")?;
+        let bin = parse_bin_from_description_with_context(&description, false)?;
 
         let video_src = if params.has_video {
             Some(

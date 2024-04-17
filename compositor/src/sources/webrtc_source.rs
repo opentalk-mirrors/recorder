@@ -12,7 +12,10 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-use crate::{log, Source};
+use crate::{
+    log, parse_bin_from_description_with_context, GstBinErrorExt, GstElementBuilderErrorExt,
+    GstElementErrorExt, GstPadErrorExt, Source,
+};
 
 /// Source that connects to an `WebRTC` source and provides the incoming streams as participant's input.
 #[derive(Debug)]
@@ -69,32 +72,27 @@ impl Source for WebRtcSource {
     {
         debug!("new( {id},_, {params:?} )");
 
-        let bin = gst::parse_bin_from_description(
+        let bin = parse_bin_from_description_with_context(
             r"
             webrtcbin
                 name=webrtc
                 bundle-policy=max-bundle
             ",
             false,
-        )
-        .context("Failed to parse and load WebRtc pipeline. Is a gst plugin missing?")?;
+        )?;
 
-        let webrtcbin = bin
-            .by_name("webrtc")
-            .context("failed to find webrtc in pipeline")?;
+        let webrtcbin = bin.by_name_with_context("webrtc")?;
 
         let video_src = if params.has_video {
             let video_src = gst::GhostPad::new(Some("video"), gst::PadDirection::Src);
-            bin.add_pad(&video_src)
-                .context("failed to add video output ghost pad to webrtc bin")?;
+            bin.add_pad_with_context(&video_src)?;
             Some(video_src)
         } else {
             None
         };
 
         let audio_src = gst::GhostPad::new(Some("audio"), gst::PadDirection::Src);
-        bin.add_pad(&audio_src)
-            .context("failed to add audio output ghost pad to webrtc bin")?;
+        bin.add_pad_with_context(&audio_src)?;
 
         webrtcbin.connect_pad_added(webrtcbin_on_pad_added(
             bin.downgrade(),
@@ -289,36 +287,28 @@ fn try_webrtcbin_on_pad_added(
         ("audio", _) => audio_ghost_pad,
         ("video", Some(video_ghost_pad)) => video_ghost_pad,
         _ => {
-            let fakesink = gst::ElementFactory::make("fakesink").build()?;
-            bin.add(&fakesink)
-                .context("unable to add `fakesink` to `bin`")?;
-            let fakesink_sink_pad = fakesink
-                .static_pad("sink")
-                .context("unable to get static pad `sink` from `fakesink`")?;
-            pad.link(&fakesink_sink_pad)
-                .context("unable to link `pad` to `fakesink_sink_pad`")?;
-            fakesink
-                .sync_state_with_parent()
-                .context("unable to sync `fakesink` with parent")?;
+            let fakesink = gst::ElementFactory::make("fakesink").build_with_context()?;
+            bin.add_with_context(&fakesink)?;
+            let fakesink_sink_pad = fakesink.static_pad_with_context("sink")?;
+            pad.link_with_context(&fakesink_sink_pad)?;
+            fakesink.sync_state_with_parent_with_context()?;
             return Ok(());
         }
     };
 
     // Create a decodebin which will decode the rtp to raw media (audio/video)
-    let decodebin = gst::ElementFactory::make("decodebin").build()?;
+    let decodebin = gst::ElementFactory::make("decodebin").build_with_context()?;
 
     // Handle new source pads created by decodebin
     decodebin.connect_pad_added(decodebin_on_pad_added(ghost_pad));
 
     // Add the decodebin to the subscriber bin and sync its current running state
-    bin.add(&decodebin)?;
-    decodebin.sync_state_with_parent()?;
+    bin.add_with_context(&decodebin)?;
+    decodebin.sync_state_with_parent_with_context()?;
 
     // link the new pad with the decodebin
-    let decode_sink_pad = decodebin
-        .static_pad("sink")
-        .context("decodebin has a static_pad named `sink`")?;
-    pad.link(&decode_sink_pad)?;
+    let decode_sink_pad = decodebin.static_pad_with_context("sink")?;
+    pad.link_with_context(&decode_sink_pad)?;
 
     Ok(())
 }

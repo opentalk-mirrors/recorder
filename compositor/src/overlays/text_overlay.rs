@@ -4,10 +4,10 @@
 
 //! Overlay which displays a changeable text.
 
-use anyhow::{Context, Result};
-use gst::prelude::*;
+use anyhow::Result;
+use gst::{prelude::*, ElementFactory};
 
-use crate::{Overlay, TextStyle};
+use crate::{GstElementFactoryErrorExt, Overlay, TextStyle};
 
 /// Text overlay.
 #[derive(Debug, Clone)]
@@ -31,8 +31,7 @@ impl TextOverlay {
         trace!("new( '{text}', {style:?} )");
 
         // create text overlay
-        let element = gst::ElementFactory::make_with_name("textoverlay", Some(name))
-            .context("failed to create text overlay")?;
+        let element = ElementFactory::make_with_name_with_context("textoverlay", Some(name))?;
 
         // set up properties
         element.set_property("text", text);

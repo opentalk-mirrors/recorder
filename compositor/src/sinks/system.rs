@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 
-use crate::{add_ghost_pad, Sink};
+use crate::{add_ghost_pad, parse_bin_from_description_with_context, Sink};
 
 /// Displays compositor output on the screen.
 #[derive(Debug)]
@@ -46,8 +46,7 @@ impl SystemSink {
 
         // create new GStreamer pipeline
         // HINT: Enabling the sync for video and audio for the same time is blocking in multisink
-        let bin = gst::parse_bin_from_description(&description, false)
-            .context("could not parse display link pipeline")?;
+        let bin = parse_bin_from_description_with_context(&description, false)?;
 
         let video_sink = if has_video {
             let pad = add_ghost_pad(&bin, "video", "sink").context("unable to add GhostPad")?;

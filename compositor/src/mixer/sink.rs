@@ -4,12 +4,12 @@
 
 //! Sink trait.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use gst::{prelude::ElementExtManual, ClockTime, GhostPad, MessageType, Pipeline};
-use gst_base::prelude::{ElementExt, GstBinExt};
+use gst_base::prelude::ElementExt;
 use std::fmt::Debug;
 
-use crate::debug;
+use crate::{debug, GstBinErrorExt, GstElementErrorExt, GstGhostPadErrorExt};
 
 /// Trait of an output sink.
 pub trait Sink: Send + Debug + 'static {
@@ -62,7 +62,7 @@ impl Drop for ActiveSink {
         }
 
         debug!("Nulling Pipeline...");
-        if let Err(error) = self.pipeline.set_state(gst::State::Null) {
+        if let Err(error) = self.pipeline.set_state_with_context(gst::State::Null) {
             error!("Unable to set the pipeline to the `Null` state, error: {error}");
         }
 
@@ -85,14 +85,10 @@ pub fn add_ghost_pad(bin: &gst::Bin, name: &str, pad: &str) -> Result<gst::Ghost
         bin = debug::name(bin)
     );
     let pad = bin
-        .by_name(name)
-        .with_context(|| format!("unable to find element '{name}'"))?
-        .static_pad(pad)
-        .with_context(|| format!("unable to find pad '{pad}' for element '{name}'"))?;
-    let ghost_pad =
-        GhostPad::with_target(Some(name), &pad).context("failed to create ghost pad for pad")?;
-    bin.add_pad(&ghost_pad)
-        .context("unable to add GhostPad to bin")?;
+        .by_name_with_context(name)?
+        .static_pad_with_context(pad)?;
+    let ghost_pad = GhostPad::with_target_with_context(Some(name), &pad)?;
+    bin.add_pad_with_context(&ghost_pad)?;
 
     Ok(ghost_pad)
 }

@@ -7,7 +7,8 @@ use std::{
     sync::Arc,
 };
 
-use gst::{prelude::ObjectExt, traits::GstBinExt, Promise};
+use compositor::GstBinErrorExt;
+use gst::{prelude::ObjectExt, Promise};
 use gst_sdp::SDPMessage;
 use gst_webrtc::{WebRTCSDPType, WebRTCSessionDescription};
 use opentalk_recorder::signaling::{incoming, outgoing};
@@ -153,9 +154,7 @@ impl MockController {
             .expect("unable to find user for sdp answer");
 
         if let Some(ref webrtc_pipeline) = user.webrtc_pipeline {
-            let webrtc = webrtc_pipeline
-                .by_name("webrtc")
-                .expect("unable to find webrtc pipeline for sdp answer");
+            let webrtc = webrtc_pipeline.by_name_with_context("webrtc").unwrap();
             let answer =
                 SDPMessage::parse_buffer(sdp.sdp.as_bytes()).expect("unable to parse sdp message");
             let answer = WebRTCSessionDescription::new(WebRTCSDPType::Answer, answer);
@@ -173,9 +172,7 @@ impl MockController {
             .expect("unable to find user for sdp candidate");
 
         if let Some(ref webrtc_pipeline) = user.webrtc_pipeline {
-            let webrtc = webrtc_pipeline
-                .by_name("webrtc")
-                .expect("unable to find webrtc pipeline for sdp candidate");
+            let webrtc = webrtc_pipeline.by_name_with_context("webrtc").unwrap();
 
             webrtc.emit_by_name::<()>(
                 "add-ice-candidate",
@@ -196,11 +193,10 @@ impl MockController {
             .expect("unable to find user for sdp end of candidated");
 
         if let Some(ref webrtc_pipeline) = user.webrtc_pipeline {
-            let webrtc = webrtc_pipeline
-                .by_name("webrtc")
-                .expect("unable to find webrtc pipeline for sdp end of candidates");
-
-            webrtc.emit_by_name::<()>("add-ice-candidate", &[&0u32, &None::<String>]);
+            webrtc_pipeline
+                .by_name_with_context("webrtc")
+                .unwrap()
+                .emit_by_name::<()>("add-ice-candidate", &[&0u32, &None::<String>]);
         }
     }
 

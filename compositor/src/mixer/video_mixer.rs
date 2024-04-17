@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use crate::mixer::VIDEO_FRAMERATE;
-use crate::{Overlay, Size};
+use crate::{
+    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
+    GstPadErrorExt, Overlay, Size,
+};
 use anyhow::{Context, Result};
 use gst::{
     element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
@@ -32,12 +35,10 @@ impl VideoMixer {
             .name("Video Background Source")
             .property_from_str("pattern", "black")
             .property("is-live", true)
-            .build()
-            .context("unable to build videotesetsrc_videotestsrc")?;
+            .build_with_context()?;
         let clocksync = ElementFactory::make("clocksync")
             .name("Video Background Clocksync")
-            .build()
-            .context("Failed to build clocksync")?;
+            .build_with_context()?;
         let videotestsrc_capssetter = ElementFactory::make("capssetter")
             .property(
                 "caps",
@@ -47,23 +48,19 @@ impl VideoMixer {
                     .field("height", output_size.height as i32)
                     .build(),
             )
-            .build()
-            .context("unable to build capssetter")?;
+            .build_with_context()?;
 
         let compositor = ElementFactory::make("compositor")
             .name("compositor")
             .property("ignore-inactive-pads", true)
             .property("zero-size-is-unscaled", true)
             .property("start-time-selection", AggregatorStartTimeSelection::First)
-            .build()
-            .context("unable to build compositor")?;
+            .build_with_context()?;
 
-        let queue = ElementFactory::make("queue")
-            .build()
-            .context("unable to build queue")?;
+        let queue = ElementFactory::make("queue").build_with_context()?;
         let appsink: AppSink = AppSink::builder().sync(true).build();
 
-        bin.add_many(&[
+        bin.add_many_with_context(&[
             &videotestsrc,
             &clocksync,
             &videotestsrc_capssetter,
@@ -71,28 +68,21 @@ impl VideoMixer {
             &overlay.element(),
             &queue,
             appsink.upcast_ref(),
-        ])
-        .context("unable to add 'videotestsrc', 'videotestsrc_capssetter', 'compositor', 'queue'  and 'appsink' to 'bin'")?;
+        ])?;
 
-        Element::link_many(&[&videotestsrc, &clocksync, &videotestsrc_capssetter])
-            .context("Failed to link 'videotestsrc', 'clocksync' and 'videotestsrc_capssetter'")?;
+        Element::link_many_with_context(&[&videotestsrc, &clocksync, &videotestsrc_capssetter])?;
 
-        let compositor_sink_pad = compositor
-            .request_pad_simple("sink_%u")
-            .context("unable to request sink pad for compositor")?;
+        let compositor_sink_pad = compositor.request_pad_simple_with_context("sink_%u")?;
         videotestsrc_capssetter
-            .static_pad("src")
-            .context("unable to get static pad src from capssetter")?
-            .link(&compositor_sink_pad)
-            .context("unable to link compositor_requested_pad with capssetter")?;
+            .static_pad_with_context("src")?
+            .link_with_context(&compositor_sink_pad)?;
 
-        Element::link_many(&[
+        Element::link_many_with_context(&[
             &compositor,
             &overlay.element(),
             &queue,
             appsink.upcast_ref(),
-        ])
-        .context("unable to link 'compositor', 'overlay', 'queue' and 'appsink'")?;
+        ])?;
 
         let buffer = broadcast::Sender::new(QUEUE_SIZE);
         let sender = buffer.clone();
@@ -133,22 +123,15 @@ impl VideoMixer {
     }
 
     pub(crate) fn link_src(&self, src: &impl IsA<Pad>) -> Result<GhostPad> {
-        let requested_pad = self
-            .compositor
-            .request_pad_simple("sink_%u")
-            .context("unable to request 'sink' pad for 'compositor'")?;
+        let requested_pad = self.compositor.request_pad_simple_with_context("sink_%u")?;
         requested_pad.set_property_from_str("sizing-policy", "keep-aspect-ratio");
         requested_pad.set_property("alpha", 0.0);
 
-        let ghost_pad = GhostPad::with_target(None, &requested_pad)
-            .context("unable to create 'GhostPad' for 'src'")?;
+        let ghost_pad = GhostPad::with_target_with_context(None, &requested_pad)?;
 
-        self.bin
-            .add_pad(&ghost_pad)
-            .context("unable to add 'ghost_pad' to 'bin'")?;
+        self.bin.add_pad_with_context(&ghost_pad)?;
 
-        src.link(&ghost_pad)
-            .context("unable to link 'ghost_pad' with 'requested_pad'")?;
+        src.link_with_context(&ghost_pad)?;
 
         Ok(ghost_pad)
     }
@@ -158,9 +141,7 @@ impl VideoMixer {
             for ghost_pad in proxy_pad.iterate_internal_links() {
                 let ghost_pad =
                     ghost_pad.context("unable to get ghost_pad from proxy_pad iterator")?;
-                self.bin
-                    .remove_pad(&ghost_pad)
-                    .context("unable to remove ghost_pad form bin")?;
+                self.bin.remove_pad_with_context(&ghost_pad)?;
             }
         }
 

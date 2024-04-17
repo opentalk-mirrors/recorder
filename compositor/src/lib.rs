@@ -101,6 +101,7 @@
 #[macro_use]
 extern crate log;
 
+mod gst_with_context;
 pub mod layout;
 mod mixer;
 mod overlays;
@@ -110,6 +111,7 @@ mod sources;
 #[cfg(test)]
 mod tests;
 
+pub use gst_with_context::*;
 pub use layout::*;
 pub use mixer::*;
 pub use sinks::*;
