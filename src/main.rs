@@ -74,17 +74,7 @@ fn check_plugins() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
-    env_logger::init();
-
-    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
-        warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
-        std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
-    };
-
-    gst::init()?;
-    check_plugins()?;
-
+fn main_loop() {
     // Run a MainLoop on a separate thread so gstreamer bus watches work
     let main_loop = glib::MainLoop::new(None, false);
     std::thread::spawn({
@@ -99,7 +89,7 @@ fn main() -> Result<()> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .context("Failed to start tokio async runtime")?;
+        .expect("Failed to start tokio async runtime");
 
     runtime.spawn(async move {
         let mut sig_term = signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
@@ -118,6 +108,37 @@ fn main() -> Result<()> {
     }
 
     main_loop.quit();
+}
+
+fn main() -> Result<()> {
+    env_logger::init();
+
+    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
+        warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
+        std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
+    };
+
+    gst::init()?;
+    check_plugins()?;
+
+    #[cfg(not(target_os = "macos"))]
+    main_loop();
+
+    #[cfg(target_os = "macos")]
+    {
+        #[link(name = "foundation", kind = "framework")]
+        extern "C" {
+            fn CFRunLoopRun();
+        }
+
+        std::thread::spawn(|| {
+            main_loop();
+        });
+
+        unsafe {
+            CFRunLoopRun();
+        }
+    }
 
     Ok(())
 }
