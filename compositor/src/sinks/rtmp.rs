@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-use crate::{add_ghost_pad, Sink};
+use crate::{add_ghost_pad, parse_bin_from_description_with_context, Sink};
 
 const DEFAULT_AUDIO_RATE: usize = 48000;
 const DEFAULT_AUDIO_BITRATE: usize = 96000;
@@ -64,7 +64,7 @@ impl RTMPSink {
     pub fn create(name: &str, parameters: RTMPParameters) -> Result<RTMPSink> {
         trace!("new({name})");
 
-        let bin = gst::parse_bin_from_description(
+        let bin = parse_bin_from_description_with_context(
             format!(
                 r#"
             name="{name}"
@@ -100,8 +100,7 @@ impl RTMPSink {
             )
             .as_str(),
             false,
-        )
-        .context("failed to create rtmp sink pipeline")?;
+        )?;
 
         let video_sink_pad = add_ghost_pad(&bin, "video", "sink")
             .context("unable to add GhostPad for video sink")?;

@@ -2,10 +2,14 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+use gst::GhostPad;
 use gst_base::prelude::*;
 
-use crate::{Sink, Size, TestSourceParameters};
+use crate::{
+    parse_bin_from_description_with_context, GstBinErrorExt, GstElementBuilderErrorExt,
+    GstElementErrorExt, GstGhostPadErrorExt, GstPadErrorExt, Sink, Size, TestSourceParameters,
+};
 
 /// Trait to use blinders
 /// @TODO: move out of this file if more blinders exist
@@ -75,7 +79,7 @@ impl TestBlinder {
     /// This can throw an error if the underlaying `GStreamer` is having
     /// trouble.
     pub fn create(params: &TestBlinderParams) -> Result<Self> {
-        let bin = gst::parse_bin_from_description(
+        let bin = parse_bin_from_description_with_context(
             &format!(
                 r#"
             name="Test Blinder"
@@ -95,67 +99,38 @@ impl TestBlinder {
                 height = params.resolution.height
             ),
             false,
-        )
-        .context("could not create blinder bin")?;
+        )?;
 
-        bin.add(&params.sink.bin())
-            .context("could not add target sink to bin")?;
+        bin.add_with_context(&params.sink.bin())?;
 
-        let video_selector = bin
-            .by_name("video-selector")
-            .context("can not file video input selector")?;
-        let video_blind_sink = video_selector
-            .static_pad("sink_0")
-            .context("could not get video selector blind sink")?;
-        let video_signal_sink = video_selector
-            .request_pad_simple("sink_%u")
-            .context("could not get sink at video input selector")?;
-        let video = gst::GhostPad::with_target(Some("video"), &video_signal_sink)
-            .context("failed to create video ghost pad for participant overlay sink")?;
-        bin.add_pad(&video)
-            .context("failed to add video ghost pad to participant overlay bin")?;
+        let video_selector = bin.by_name_with_context("video-selector")?;
+        let video_blind_sink = video_selector.static_pad_with_context("sink_0")?;
+        let video_signal_sink = video_selector.request_pad_simple_with_context("sink_%u")?;
+        let video = GhostPad::with_target_with_context(Some("video"), &video_signal_sink)?;
+        bin.add_pad_with_context(&video)?;
 
         if let Some(video_sink) = &params.sink.video() {
             video_selector
-                .static_pad("src")
-                .context("could not get src pad from video input selector")?
-                .link(video_sink)
-                .context("failed to link video selector with target sink")?;
+                .static_pad_with_context("src")?
+                .link_with_context(video_sink)?;
         } else {
-            let fakesink = gst::ElementFactory::make("fakesink").build()?;
-            bin.add(&fakesink)
-                .context("unable to add `fakesink` to `bin`")?;
-            let fakesink_sink_pad = fakesink
-                .static_pad("sink")
-                .context("unable to get static pad `sink` from `fakesink`")?;
+            let fakesink = gst::ElementFactory::make("fakesink").build_with_context()?;
+            bin.add_with_context(&fakesink)?;
+            let fakesink_sink_pad = fakesink.static_pad_with_context("sink")?;
             video_selector
-                .static_pad("src")
-                .context("could not get src pad from video input selector")?
-                .link(&fakesink_sink_pad)
-                .context("failed to link video selector with target sink")?;
-            fakesink
-                .sync_state_with_parent()
-                .context("unable to sync `fakesink` with parent")?;
+                .static_pad_with_context("src")?
+                .link_with_context(&fakesink_sink_pad)?;
+            fakesink.sync_state_with_parent_with_context()?;
         }
 
-        let audio_selector = bin
-            .by_name("audio-selector")
-            .context("can not file audio input selector")?;
-        let audio_blind_sink = audio_selector
-            .static_pad("sink_0")
-            .context("could not get audio selector blind sink")?;
-        let audio_signal_sink = audio_selector
-            .request_pad_simple("sink_%u")
-            .context("could not get sink at audio input selector")?;
-        let audio = gst::GhostPad::with_target(Some("audio-sink"), &audio_signal_sink)
-            .context("failed to create audio ghost pad for blinder overlay sink")?;
-        bin.add_pad(&audio)
-            .context("failed to add audio ghost pad to blinder overlay bin")?;
+        let audio_selector = bin.by_name_with_context("audio-selector")?;
+        let audio_blind_sink = audio_selector.static_pad_with_context("sink_0")?;
+        let audio_signal_sink = audio_selector.request_pad_simple_with_context("sink_%u")?;
+        let audio = GhostPad::with_target_with_context(Some("audio-sink"), &audio_signal_sink)?;
+        bin.add_pad_with_context(&audio)?;
         audio_selector
-            .static_pad("src")
-            .context("could not get src pad from audio input selector")?
-            .link(&params.sink.audio())
-            .context("failed to link audio selector with target sink")?;
+            .static_pad_with_context("src")?
+            .link_with_context(&params.sink.audio())?;
 
         Ok(Self {
             video,

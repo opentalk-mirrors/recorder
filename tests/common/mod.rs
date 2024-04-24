@@ -11,7 +11,8 @@ use std::{
     time::Duration,
 };
 
-use gst::{glib, traits::ElementExt};
+use compositor::GstElementErrorExt;
+use gst::glib;
 use opentalk_recorder::signaling::{incoming, outgoing};
 use tokio::{
     sync::{mpsc, watch, Mutex},
@@ -224,8 +225,8 @@ impl EventRunner {
             self.mock_controller.send_left(&user.participant).await;
             if let Some(webrtc_pipeline) = user.webrtc_pipeline {
                 webrtc_pipeline
-                    .set_state(gst::State::Null)
-                    .expect("unable to set state of webrtc_pipeline to null");
+                    .set_state_with_context(gst::State::Null)
+                    .unwrap();
             }
         }
     }

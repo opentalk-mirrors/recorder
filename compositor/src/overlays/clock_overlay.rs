@@ -4,10 +4,10 @@
 
 //! Overlay displaying the current time.
 
-use anyhow::{Context, Result};
-use gst::prelude::*;
+use anyhow::Result;
+use gst::{prelude::*, ElementFactory};
 
-use crate::{Overlay, TextStyle};
+use crate::{GstElementFactoryErrorExt, Overlay, TextStyle};
 
 /// Overlay displaying current time.
 #[derive(Debug, Clone)]
@@ -32,8 +32,7 @@ impl ClockOverlay {
         trace!("new( {format:?}, {style:?} )");
 
         // create text overlay
-        let element = gst::ElementFactory::make_with_name("clockoverlay", Some(name))
-            .context("failed to create clock overlay")?;
+        let element = ElementFactory::make_with_name_with_context("clockoverlay", Some(name))?;
 
         // set up properties
         element.set_property("time-format", format);

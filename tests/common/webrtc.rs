@@ -2,11 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use compositor::debug;
-use gst::{
-    prelude::*,
-    traits::{ElementExt, GstBinExt},
-};
+use compositor::{debug, GstBinErrorExt, GstElementErrorExt};
+use gst::prelude::*;
 use opentalk_recorder::signaling::{
     incoming::{MediaMessage, Message, Sdp, SdpCandidate, Source},
     TrickleCandidate,
@@ -38,8 +35,7 @@ pub(crate) fn create_pipeline(
     .downcast::<gst::Pipeline>()
     .unwrap();
 
-    let webrtcbin = pipeline.by_name("webrtc").unwrap();
-    //webrtcbin.add_property_notify_watch(Some("ice-gathering-state"), true);
+    let webrtcbin = pipeline.by_name_with_context("webrtc").unwrap();
 
     // ON ICE CANDIDATE
     webrtcbin.connect("on-ice-candidate", true, {
@@ -133,7 +129,9 @@ pub(crate) fn create_pipeline(
         }
     });
 
-    pipeline.set_state(gst::State::Playing).unwrap();
+    pipeline
+        .set_state_with_context(gst::State::Playing)
+        .unwrap();
 
     debug::debug_dot(&pipeline, "webrtcbin");
 

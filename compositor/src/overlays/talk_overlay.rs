@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use anyhow::{Context, Result};
-use gst_base::prelude::*;
+use gst::{Element, GhostPad};
 
 use crate::{
-    Align, ClockOverlay, Font, HAlign, Overlay, Padding, PaddingOverlay, TextOverlay, TextPadding,
-    TextStyle, VAlign,
+    Align, ClockOverlay, Font, GstBinErrorExt, GstElementErrorExt, GstGhostPadErrorExt, HAlign,
+    Overlay, Padding, PaddingOverlay, TextOverlay, TextPadding, TextStyle, VAlign,
 };
 
 const TOP_PADDING: i32 = 56;
@@ -104,34 +104,29 @@ impl TalkOverlay {
             },
         )?;
 
-        bin.add_many(&[
+        bin.add_many_with_context(&[
             padding_overlay.element(),
             text_overlay.element(),
             clock_overlay.element(),
-        ])
-        .context("unable to add padding_overlay, text_overlay and clock_overlay to the bin")?;
+        ])?;
 
-        gst::Element::link_many(&[
+        Element::link_many_with_context(&[
             padding_overlay.element(),
             text_overlay.element(),
             clock_overlay.element(),
-        ])
-        .context("unable to link padding_overlay, text_overlay and clock_overlay together")?;
+        ])?;
 
         let padding_overlay_sink = padding_overlay
             .sink()
             .context("unable to get sink for padding_overlay")?;
-        let video_sink = gst::GhostPad::with_target(Some("video_sink"), &padding_overlay_sink)
-            .context("failed to create video ghost pad for participant overlay sink")?;
-        bin.add_pad(&video_sink)
-            .context("failed to add video ghost pad to participant overlay sink bin")?;
+        let video_sink =
+            GhostPad::with_target_with_context(Some("video_sink"), &padding_overlay_sink)?;
+        bin.add_pad_with_context(&video_sink)?;
         let clock_overlay_src = &clock_overlay
             .src()
             .context("unable to get src for clock_overlay")?;
-        let video_src = gst::GhostPad::with_target(Some("src"), clock_overlay_src)
-            .context("failed to create video ghost pad for participant overlay sink")?;
-        bin.add_pad(&video_src)
-            .context("failed to add video ghost pad to participant overlay sink bin")?;
+        let video_src = GhostPad::with_target_with_context(Some("src"), clock_overlay_src)?;
+        bin.add_pad_with_context(&video_src)?;
 
         Ok(Self {
             _padding_overlay: padding_overlay,

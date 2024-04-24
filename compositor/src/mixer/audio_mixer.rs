@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::mixer::{AUDIO_CHANNELS, AUDIO_SAMPLE_RATE};
+use crate::{
+    mixer::{AUDIO_CHANNELS, AUDIO_SAMPLE_RATE},
+    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
+    GstPadErrorExt,
+};
 use anyhow::{Context, Result};
-use glib::BoolError;
 use gst::{
     element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
     GhostPad, Pad, Sample, StreamError,
@@ -24,7 +27,8 @@ pub(crate) struct AudioMixer {
 }
 
 impl AudioMixer {
-    fn build_caps() -> Result<Element, BoolError> {
+    #[track_caller]
+    fn build_caps() -> Result<Element> {
         ElementFactory::make("capssetter")
             .property(
                 "caps",
@@ -35,7 +39,7 @@ impl AudioMixer {
                     .field("rate", AUDIO_SAMPLE_RATE)
                     .build(),
             )
-            .build()
+            .build_with_context()
     }
 
     #[allow(clippy::too_many_lines)]
@@ -46,12 +50,10 @@ impl AudioMixer {
             .name("Audio Background Source")
             .property("is-live", true)
             .property("volume", 0.0)
-            .build()
-            .context("unable to build audiotestsrc")?;
+            .build_with_context()?;
         let clocksync = ElementFactory::make("clocksync")
             .name("Audio Background Clocksync")
-            .build()
-            .context("Failed to build clocksync")?;
+            .build_with_context()?;
         let audiotestsrc_capssetter =
             Self::build_caps().context("unable to build audiotestsrc_capssetter")?;
 
@@ -59,44 +61,36 @@ impl AudioMixer {
             .name("audio-mixer")
             .property("ignore-inactive-pads", true)
             .property("start-time-selection", AggregatorStartTimeSelection::First)
-            .build()
-            .context("unable to build audiomixer")?;
+            .build_with_context()?;
 
-        let audiomixer_capssetter =
-            Self::build_caps().context("unable to build audiomixer_capssetter")?;
+        let audiomixer_capssetter = Self::build_caps()?;
 
-        let queue = ElementFactory::make("queue")
-            .build()
-            .context("unable to build queue")?;
+        let queue = ElementFactory::make("queue").build_with_context()?;
         let appsink = AppSink::builder().sync(true).build();
 
-        bin.add_many(&[&audiotestsrc, &clocksync, &audiotestsrc_capssetter, &audiomixer, &audiomixer_capssetter, &queue,
-             appsink.upcast_ref()])
-            .context(
-                "unable to add 'audiotestsrc', 'audiotestsrc_capssetter', 'audiomixer', 'audiomixer_capssetter', 'queue', 'clocksync' and 'appsink' to 'bin'",
-            )?;
-
-        Element::link_many(&[&audiotestsrc, &clocksync, &audiotestsrc_capssetter])
-            .context("Failed to link 'audiotestsrc', 'clocksync' and 'audiotestsrc_capssetter'")?;
-
-        let audiomixer_sink_pad = audiomixer
-            .request_pad_simple("sink_%u")
-            .context("unable to request sink pad for audiomixer")?;
-        audiotestsrc_capssetter
-            .static_pad("src")
-            .context("unable to get static pad src from capssetter")?
-            .link(&audiomixer_sink_pad)
-            .context("unable to link audio_requested_pad with capssetter")?;
-
-        Element::link_many(&[
+        bin.add_many_with_context(&[
+            &audiotestsrc,
+            &clocksync,
+            &audiotestsrc_capssetter,
             &audiomixer,
             &audiomixer_capssetter,
             &queue,
             appsink.upcast_ref(),
-        ])
-        .context(
-            "unable to link 'audiomixer', 'audiomixer_capssetter', 'queue', 'clocksync' and 'appsink'",
-        )?;
+        ])?;
+
+        Element::link_many_with_context(&[&audiotestsrc, &clocksync, &audiotestsrc_capssetter])?;
+
+        let audiomixer_sink_pad = audiomixer.request_pad_simple_with_context("sink_%u")?;
+        audiotestsrc_capssetter
+            .static_pad_with_context("src")?
+            .link_with_context(&audiomixer_sink_pad)?;
+
+        Element::link_many_with_context(&[
+            &audiomixer,
+            &audiomixer_capssetter,
+            &queue,
+            appsink.upcast_ref(),
+        ])?;
 
         let buffer = broadcast::Sender::new(QUEUE_SIZE);
         let sender = buffer.clone();
@@ -137,20 +131,13 @@ impl AudioMixer {
     }
 
     pub(crate) fn link_src(&self, src: &impl IsA<Pad>) -> Result<GhostPad> {
-        let requested_pad = self
-            .audiomixer
-            .request_pad_simple("sink_%u")
-            .context("unable to request 'sink' pad for 'audiomixer'")?;
+        let requested_pad = self.audiomixer.request_pad_simple_with_context("sink_%u")?;
 
-        let ghost_pad = GhostPad::with_target(None, &requested_pad)
-            .context("unable to create 'GhostPad' for 'src'")?;
+        let ghost_pad = GhostPad::with_target_with_context(None, &requested_pad)?;
 
-        self.bin
-            .add_pad(&ghost_pad)
-            .context("unable to add 'ghost_pad' to 'bin'")?;
+        self.bin.add_pad_with_context(&ghost_pad)?;
 
-        src.link(&ghost_pad)
-            .context("unable to link 'ghost_pad' with 'requested_pad'")?;
+        src.link_with_context(&ghost_pad)?;
 
         Ok(ghost_pad)
     }
@@ -160,9 +147,7 @@ impl AudioMixer {
             for ghost_pad in proxy_pad.iterate_internal_links() {
                 let ghost_pad =
                     ghost_pad.context("unable to get ghost_pad from proxy_pad iterator")?;
-                self.bin
-                    .remove_pad(&ghost_pad)
-                    .context("unable to remove ghost_pad form bin")?;
+                self.bin.remove_pad_with_context(&ghost_pad)?;
             }
         }
 

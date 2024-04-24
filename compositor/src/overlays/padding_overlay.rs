@@ -4,10 +4,10 @@
 
 //! Overlay which adds extra padding to the picture
 
-use anyhow::{Context, Result};
-use gst::prelude::*;
+use anyhow::Result;
+use gst::{prelude::*, ElementFactory};
 
-use crate::Overlay;
+use crate::{GstElementFactoryErrorExt, Overlay};
 
 /// Text overlay.
 #[derive(Debug, Clone)]
@@ -33,8 +33,7 @@ impl PaddingOverlay {
         trace!("new( {padding:?} )");
 
         // create videobox element
-        let element = gst::ElementFactory::make_with_name("videobox", Some(name))
-            .context("failed to create videobox element")?;
+        let element = ElementFactory::make_with_name_with_context("videobox", Some(name))?;
 
         // set up properties
         element.set_property("left", -padding.left);

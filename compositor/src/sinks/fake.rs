@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 
-use crate::{add_ghost_pad, Sink};
+use crate::{add_ghost_pad, parse_bin_from_description_with_context, Sink};
 
 /// Fake sink to catch the compositor output without any further processing.
 #[derive(Debug)]
@@ -41,8 +41,7 @@ impl FakeSink {
         }
 
         // create new GStreamer pipeline
-        let bin = gst::parse_bin_from_description(&description, false)
-            .context("could not parse display link pipeline")?;
+        let bin = parse_bin_from_description_with_context(&description, false)?;
 
         let video_sink = if has_video {
             let pad = add_ghost_pad(&bin, "video", "sink")

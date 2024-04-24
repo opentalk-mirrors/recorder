@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-use crate::{add_ghost_pad, Sink};
+use crate::{add_ghost_pad, parse_bin_from_description_with_context, Sink};
 
 /// Writes out *Matroska* mux-ed raw A/V on a TCP port
 #[derive(Debug)]
@@ -40,7 +40,7 @@ impl MatroskaSink {
         trace!("new({name}, {params:?})");
 
         // create bin including codecs and the Matroska sink
-        let bin = gst::parse_bin_from_description(
+        let bin = parse_bin_from_description_with_context(
             &format!(
                 r#"
                 name="{name}"
@@ -75,8 +75,7 @@ impl MatroskaSink {
                 filename = params.path
             ),
             false,
-        )
-        .context("failed to create matroska sink pipeline")?;
+        )?;
 
         let video_sink = add_ghost_pad(&bin, "video", "sink")
             .context("unable to add GhostPad for video sink")?;

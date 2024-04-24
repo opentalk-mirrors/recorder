@@ -26,6 +26,11 @@ mod stream;
 mod text_style;
 mod video_mixer;
 
+use crate::{
+    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
+    GstPadErrorExt,
+};
+
 use self::{audio_mixer::AudioMixer, sink::ActiveSink, video_mixer::VideoMixer};
 
 pub use super::layout::*;
@@ -141,17 +146,13 @@ where
 
         let overlay = TalkOverlay::create().context("unable to create TalkOverlay")?;
         let audio_mixer = AudioMixer::create().context("unable to create AudioMixer")?;
-        pipeline
-            .add(audio_mixer.bin())
-            .context("unable to add 'audio_mixer' to 'pipeline'")?;
+        pipeline.add_with_context(audio_mixer.bin())?;
 
         let video_mixer = if video_support {
             let video_mixer = VideoMixer::create(output_resolution, &overlay)
                 .context("unable to create VideoMixer")?;
 
-            pipeline
-                .add(video_mixer.bin())
-                .context("unable to add 'video_mixer' to 'pipeline'")?;
+            pipeline.add_with_context(video_mixer.bin())?;
 
             Some(video_mixer)
         } else {
@@ -163,7 +164,7 @@ where
         pipeline.set_base_time(ClockTime::ZERO);
         pipeline.set_start_time(None);
 
-        pipeline.set_state(gst::State::Playing)?;
+        pipeline.set_state_with_context(gst::State::Playing)?;
 
         let sinks = HashMap::<String, ActiveSink>::new();
 
@@ -238,48 +239,38 @@ where
         let bin = Bin::new(Some(format!("Overlay: {descriptor}").as_str()));
 
         // Add source bin to bin
-        bin.add(&source.bin())
-            .context("unable to add source bin to bin")?;
+        bin.add_with_context(&source.bin())?;
 
         // Setup video in pipeline
         if self.video_mixer.is_some() {
             if let Some(video) = source.video() {
                 let videoconvertscale = ElementFactory::make("videoconvertscale")
                     .name("videoconvertscale")
-                    .build()
-                    .context("unable to build videoconvertscale")?;
+                    .build_with_context()?;
                 let capsfilter = ElementFactory::make("capsfilter")
                     .name("capsfilter")
-                    .build()
-                    .context("unable to build capsfilter")?;
+                    .build_with_context()?;
 
-                bin.add_many(&[&videoconvertscale, &capsfilter, overlay.element()])
-                    .context(
-                        "unable to add 'videoconvertscale', 'capsfilter' and 'overlay' to source bin",
-                    )?;
+                bin.add_many_with_context(&[&videoconvertscale, &capsfilter, overlay.element()])?;
 
-                Element::link_many(&[&videoconvertscale, &capsfilter, &overlay.element()])
-                    .context("unable to link 'videoconvertscale' and 'capsfilter")?;
+                Element::link_many_with_context(&[
+                    &videoconvertscale,
+                    &capsfilter,
+                    &overlay.element(),
+                ])?;
 
-                let videoconvertscale_sink_pad = videoconvertscale
-                    .static_pad("sink")
-                    .context("unable to get sink pad from videoconvertscale")?;
-                video
-                    .link(&videoconvertscale_sink_pad)
-                    .context("unable to link video_src to videoconvertscale")?;
+                let videoconvertscale_sink_pad =
+                    videoconvertscale.static_pad_with_context("sink")?;
+                video.link_with_context(&videoconvertscale_sink_pad)?;
             }
         }
 
         // Add bin to pipeline
-        self.pipeline
-            .add(&bin)
-            .context("failed to add source bin to pipeline")?;
+        self.pipeline.add_with_context(&bin)?;
 
         // Link audio in pipeline
-        let audio_ghost_pad = GhostPad::with_target(None, &source.audio())
-            .context("unable to create 'GhostPad' for 'audio'")?;
-        bin.add_pad(&audio_ghost_pad)
-            .context("unable to add audio_ghost_pad to bin")?;
+        let audio_ghost_pad = GhostPad::with_target_with_context(None, &source.audio())?;
+        bin.add_pad_with_context(&audio_ghost_pad)?;
         let audio = self
             .audio_mixer
             .link_src(&audio_ghost_pad)
@@ -290,11 +281,9 @@ where
             let overlay_src_pad = overlay
                 .src()
                 .context("unable to get src pad from overlay")?;
-            let overlay_ghost_pad = GhostPad::with_target(None, &overlay_src_pad)
-                .context("unable to create 'GhostPad' for 'videoconvertscale'")?;
+            let overlay_ghost_pad = GhostPad::with_target_with_context(None, &overlay_src_pad)?;
 
-            bin.add_pad(&overlay_ghost_pad)
-                .context("unable to add overlay_ghost_pad to bin")?;
+            bin.add_pad_with_context(&overlay_ghost_pad)?;
 
             let video = video_mixer
                 .link_src(&overlay_ghost_pad)
@@ -307,8 +296,7 @@ where
 
         debug::debug_dot(&self.pipeline, "stream_added");
 
-        bin.sync_state_with_parent()
-            .context("unable to sync state with parent for bin")?;
+        bin.sync_state_with_parent_with_context()?;
 
         self.streams.insert(
             descriptor,
@@ -350,7 +338,7 @@ where
             .ok_or_else(|| anyhow!("given stream id ({descriptor}) cannot be found"))?;
 
         // remove bin from pipeline
-        stream.bin.set_state(gst::State::Null)?;
+        stream.bin.set_state_with_context(gst::State::Null)?;
 
         trace!("releasing requested pads from mixers");
 
@@ -617,18 +605,14 @@ where
         pipeline.set_start_time(None);
 
         let bin = sink.bin();
-        pipeline
-            .add(&bin)
-            .context("unable to add sink to pipeline")?;
+        pipeline.add_with_context(&bin)?;
 
         self.link_audio_sink(&pipeline, &sink)
             .context("unable to link audio sink")?;
         self.link_video_sink(&pipeline, &sink)
             .context("unable to link video sink")?;
 
-        pipeline
-            .set_state(gst::State::Playing)
-            .context("unable to start sink pipeline")?;
+        pipeline.set_state_with_context(gst::State::Playing)?;
         pipeline
             .sync_children_states()
             .context("unable to sync children states for pipeline")?;
@@ -676,24 +660,16 @@ where
             .build();
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
-            .build()
-            .context("unable to create queue")?;
-        let audioconvert = ElementFactory::make("audioconvert")
-            .build()
-            .context("unable to create audioconvert")?;
+            .build_with_context()?;
+        let audioconvert = ElementFactory::make("audioconvert").build_with_context()?;
 
-        pipeline
-            .add_many(&[app_src.upcast_ref(), &queue, &audioconvert])
-            .context("unable to add appsrc, queue and audioconvert to pipeline")?;
+        pipeline.add_many_with_context(&[app_src.upcast_ref(), &queue, &audioconvert])?;
 
-        Element::link_many(&[app_src.upcast_ref(), &queue, &audioconvert])
-            .context("unable to link appsrc, queue and audioconvert ")?;
+        Element::link_many_with_context(&[app_src.upcast_ref(), &queue, &audioconvert])?;
 
         audioconvert
-            .static_pad("src")
-            .context("unable to get static pad src from queue")?
-            .link(&sink.audio())
-            .context("unable to link queue with audio sink")?;
+            .static_pad_with_context("src")?
+            .link_with_context(&sink.audio())?;
 
         self.audio_mixer.link_sink(&app_src);
 
@@ -731,24 +707,16 @@ where
             .build();
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
-            .build()
-            .context("unable to create queue")?;
-        let videoconvert = ElementFactory::make("videoconvert")
-            .build()
-            .context("unable to create videoconvert")?;
+            .build_with_context()?;
+        let videoconvert = ElementFactory::make("videoconvert").build_with_context()?;
 
-        pipeline
-            .add_many(&[app_src.upcast_ref(), &queue, &videoconvert])
-            .context("unable to add appsrc, queue and videoconvert to pipeline")?;
+        pipeline.add_many_with_context(&[app_src.upcast_ref(), &queue, &videoconvert])?;
 
-        Element::link_many(&[app_src.upcast_ref(), &queue, &videoconvert])
-            .context("unable to link appsrc, queue and videoconvert")?;
+        Element::link_many_with_context(&[app_src.upcast_ref(), &queue, &videoconvert])?;
 
         videoconvert
-            .static_pad("src")
-            .context("unable to get static pad src from videoconvert")?
-            .link(video_sink)
-            .context("unable to link queue with video sink")?;
+            .static_pad_with_context("src")?
+            .link_with_context(video_sink)?;
 
         video_mixer.link_sink(&app_src);
 
@@ -1017,8 +985,7 @@ where
                     stream
                         .videoconvertscale()
                         .context("unable to get videoconvertsccale for stream")?
-                        .static_pad("src")
-                        .context("unable to get src from videoconvertscale")?
+                        .static_pad_with_context("src")?
                         .send_event(Reconfigure::new());
                 } else {
                     compositor_sink.set_property("alpha", 0.0);
@@ -1049,7 +1016,7 @@ where
         self.sinks.drain();
 
         debug!("Nulling pipeline...");
-        if let Err(error) = self.pipeline.set_state(gst::State::Null) {
+        if let Err(error) = self.pipeline.set_state_with_context(gst::State::Null) {
             error!("Unable to set the pipeline to the `Null` state, error: {error}");
         }
 
