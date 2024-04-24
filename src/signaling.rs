@@ -7,21 +7,27 @@ use compositor::MediaDescriptor;
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use tokio::net::TcpStream;
 use tt::{
     tungstenite::{client::IntoClientRequest, Message},
     MaybeTlsStream, WebSocketStream,
 };
 use types::{
-    core::ParticipantId,
+    core::{ParticipantId, StreamingTargetId},
     signaling::{
         control::{event::ControlEvent, state::ControlState, AssociatedParticipant, Participant},
         media::{
             peer_state::MediaPeerState, MediaSessionState, MediaSessionType,
             ParticipantSpeakingState,
         },
-        recording::peer_state::RecordingPeerState,
+        recording::{
+            peer_state::RecordingPeerState, state::RecorderStreamInfo, StreamStatus, StreamUpdated,
+        },
+        recording_service::{
+            command::RecordingServiceCommand, event::RecordingServiceEvent,
+            state::RecordingServiceState,
+        },
     },
 };
 
@@ -61,22 +67,12 @@ impl ParticipantState {
             .get_module::<ControlState>()?
             .context("participant is missing control state")?;
         let mut publishing = HashMap::new();
-        if let Some(camera) = media
-            .state
-            .as_ref()
-            .unwrap_or(&HashMap::new())
-            .get(&MediaSessionType::Video)
-        {
-            publishing.insert(MediaSessionType::Video, *camera);
+        if let Some(camera) = media.state.video {
+            publishing.insert(MediaSessionType::Video, camera);
         }
 
-        if let Some(screen) = media
-            .state
-            .as_ref()
-            .unwrap_or(&HashMap::new())
-            .get(&MediaSessionType::Screen)
-        {
-            publishing.insert(MediaSessionType::Screen, *screen);
+        if let Some(screen) = media.state.screen {
+            publishing.insert(MediaSessionType::Screen, screen);
         }
 
         Ok(Self {
@@ -98,7 +94,11 @@ impl ParticipantState {
 /// Event emitted by [`Signaling::run`]
 #[derive(Debug)]
 pub enum Event {
-    JoinSuccess(ParticipantId, String),
+    JoinSuccess {
+        participant_id: ParticipantId,
+        event_title: String,
+        streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
+    },
     ParticipantJoined(ParticipantId),
     ParticipantUpdated(ParticipantId),
     ParticipantLeft(ParticipantId),
@@ -111,6 +111,10 @@ pub enum Event {
     FocusUpdate(Option<ParticipantId>),
     MediaConnectionError(Error),
     Close,
+
+    Start(BTreeSet<StreamingTargetId>),
+    Pause(BTreeSet<StreamingTargetId>),
+    Stop(BTreeSet<StreamingTargetId>),
 }
 
 impl Signaling {
@@ -181,6 +185,7 @@ impl Signaling {
 
     #[allow(clippy::too_many_lines)]
     async fn handle_websocket_message(&mut self, msg: Message) -> Result<Option<Event>> {
+        log::trace!("handle_websocket_message: {msg:#?}");
         let parse_result = match msg {
             Message::Text(ref s) => serde_json::from_str::<incoming::Message>(s),
             Message::Binary(ref b) => serde_json::from_slice::<incoming::Message>(b),
@@ -199,72 +204,34 @@ impl Signaling {
         let msg = match parse_result {
             Ok(msg) => msg,
             Err(e) => {
-                log::error!("Failed to parse incoming message {msg:?}, {e}");
+                log::debug!("Unknown incoming message {msg:?}, {e}");
                 return Ok(None);
             }
         };
 
         match msg {
             incoming::Message::Control(msg) => match msg {
-                ControlEvent::JoinSuccess(state) => {
-                    self.participants = match state
-                        .participants
-                        .into_iter()
-                        .map(|p| {
-                            let id = p.id;
-                            ParticipantState::from_incoming(&p).map(|ps| (id, ps))
-                        })
-                        .collect::<Result<HashMap<_, _>>>()
-                    {
-                        Ok(p) => p,
-                        Err(e) => {
-                            log::error!("Failed to parse incoming JoinSuccess message: {e}");
-                            return Ok(None);
-                        }
-                    };
-
-                    Ok(Some(Event::JoinSuccess(
-                        state.id,
-                        state.event_info.map(|ei| ei.title).unwrap_or_default(),
-                    )))
-                }
-                ControlEvent::Joined(participant) => {
-                    let id = participant.id;
-                    let participant = match ParticipantState::from_incoming(&participant) {
-                        Ok(p) => p,
-                        Err(e) => {
-                            log::error!("Failed to parse incoming Joined message: {e}");
-                            return Ok(None);
-                        }
-                    };
-
-                    self.participants.insert(id, participant);
-                    Ok(Some(Event::ParticipantJoined(id)))
-                }
-                ControlEvent::Update(participant) => {
-                    if let Some(state) = self.participants.get_mut(&participant.id) {
-                        let id = participant.id;
-                        *state = match ParticipantState::from_incoming(&participant) {
-                            Ok(p) => p,
-                            Err(e) => {
-                                log::error!("Failed to parse incoming Update message: {e}");
-                                return Ok(None);
-                            }
-                        };
-
-                        Ok(Some(Event::ParticipantUpdated(id)))
-                    } else {
-                        log::error!("Got update for unknown participant {:?}", participant.id);
-                        Ok(None)
-                    }
-                }
+                ControlEvent::JoinSuccess(state) => self.handle_join_success(state),
+                ControlEvent::Joined(participant) => Ok(self.handle_joined(&participant)),
+                ControlEvent::Update(participant) => Ok(self.handle_update(&participant)),
                 ControlEvent::Left(AssociatedParticipant { id }) => {
                     self.participants.remove(&id);
                     Ok(Some(Event::ParticipantLeft(id)))
                 }
-                other => {
+                ref other => {
                     log::error!("Event {other:#?} not implemented for recorder.");
                     Ok(None)
+                }
+            },
+            incoming::Message::RecordingService(msg) => match msg {
+                RecordingServiceCommand::StartStreams { target_ids } => {
+                    Ok(Some(Event::Start(target_ids)))
+                }
+                RecordingServiceCommand::PauseStreams { target_ids } => {
+                    Ok(Some(Event::Pause(target_ids)))
+                }
+                RecordingServiceCommand::StopStreams { target_ids } => {
+                    Ok(Some(Event::Stop(target_ids)))
                 }
             },
             incoming::Message::Media(msg) => match msg {
@@ -296,6 +263,69 @@ impl Signaling {
                 }
             },
         }
+    }
+
+    fn handle_update(&mut self, participant: &Participant) -> Option<Event> {
+        let Some(state) = self.participants.get_mut(&participant.id) else {
+            log::error!("Got update for unknown participant {:?}", participant.id);
+            return None;
+        };
+
+        let id = participant.id;
+        *state = match ParticipantState::from_incoming(participant) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to parse incoming Update message: {e}");
+                return None;
+            }
+        };
+
+        Some(Event::ParticipantUpdated(id))
+    }
+
+    fn handle_joined(&mut self, participant: &Participant) -> Option<Event> {
+        let id = participant.id;
+        let participant = match ParticipantState::from_incoming(participant) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to parse incoming Joined message: {e}");
+                return None;
+            }
+        };
+        self.participants.insert(id, participant);
+        Some(Event::ParticipantJoined(id))
+    }
+
+    fn handle_join_success(
+        &mut self,
+        state: types::signaling::control::event::JoinSuccess,
+    ) -> std::prelude::v1::Result<Option<Event>, anyhow::Error> {
+        let streaming_targets = state
+            .get_module::<RecordingServiceState>()?
+            .context("No Service State has been found")?
+            .streams;
+
+        self.participants = match state
+            .participants
+            .into_iter()
+            .map(|p| {
+                let id = p.id;
+                ParticipantState::from_incoming(&p).map(|ps| (id, ps))
+            })
+            .collect::<Result<HashMap<_, _>>>()
+        {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to parse incoming JoinSuccess message: {e}");
+                return Ok(None);
+            }
+        };
+
+        Ok(Some(Event::JoinSuccess {
+            participant_id: state.id,
+            event_title: state.event_info.map(|ei| ei.title).unwrap_or_default(),
+            streaming_targets,
+        }))
     }
 
     pub fn participants(&self) -> &HashMap<ParticipantId, ParticipantState> {
@@ -351,6 +381,17 @@ impl Signaling {
         .await
     }
 
+    pub async fn send_stream_update(
+        &mut self,
+        target_id: StreamingTargetId,
+        status: StreamStatus,
+    ) -> Result<()> {
+        self.send(outgoing::Message::RecordingService(
+            RecordingServiceEvent::StreamUpdated(StreamUpdated { target_id, status }),
+        ))
+        .await
+    }
+
     async fn send(&mut self, msg: outgoing::Message) -> Result<()> {
         log::trace!("send signaling message {:?}", msg);
         self.connection
@@ -376,6 +417,7 @@ pub mod incoming {
     use types::signaling::{
         control::event::ControlEvent,
         media::{MediaSessionType, ParticipantSpeakingState},
+        recording_service::command::RecordingServiceCommand,
     };
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -383,6 +425,7 @@ pub mod incoming {
     pub enum Message {
         Control(ControlEvent),
         Media(MediaMessage),
+        RecordingService(RecordingServiceCommand),
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -475,6 +518,7 @@ pub mod outgoing {
     use super::{ParticipantId, TrickleCandidate};
     use crate::signaling::MediaSessionType;
     use serde::{Deserialize, Serialize};
+    use types::signaling::recording_service::event::RecordingServiceEvent;
 
     #[derive(Debug, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
@@ -482,6 +526,7 @@ pub mod outgoing {
         #[allow(unused)]
         Control(ControlMessage),
         Media(MediaMessage),
+        RecordingService(RecordingServiceEvent),
     }
 
     #[derive(Debug, Serialize, Deserialize)]

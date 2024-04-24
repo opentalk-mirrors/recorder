@@ -180,6 +180,7 @@ impl EventRunner {
     async fn start_recorder(&mut self) {
         log::info!("StartRecorder event received");
         self.mock_controller.send_join_success().await;
+        self.mock_controller.send_start_stream().await;
     }
 
     async fn join_user(&mut self, index: usize) {

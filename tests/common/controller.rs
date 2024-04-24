@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -14,15 +14,20 @@ use opentalk_recorder::signaling::{incoming, outgoing};
 use tokio::sync::{mpsc, Mutex};
 use types::{
     common::event::EventInfo,
-    core::{EventId, ParticipantId, TariffId, Timestamp},
+    core::{EventId, ParticipantId, StreamingTargetId, TariffId, Timestamp},
     signaling::{
         control::{
             event::{ControlEvent, JoinSuccess},
             state::ControlState,
             AssociatedParticipant, Participant,
         },
-        media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
-        recording::peer_state::RecordingPeerState,
+        media::{peer_state::MediaPeerState, MediaSessionState, ParticipantMediaState},
+        recording::{
+            peer_state::RecordingPeerState,
+            state::{RecorderStreamInfo, RecordingTarget, StreamStartOption},
+            StreamStatus,
+        },
+        recording_service::{command::RecordingServiceCommand, state::RecordingServiceState},
         ModuleData, ModulePeerData,
     },
 };
@@ -66,6 +71,10 @@ impl MockController {
                         outgoing::Message::Media(outgoing::MediaMessage::SdpEndOfCandidates(
                             target,
                         )) => mock_controller.on_sdp_end_of_candidates(target).await,
+                        // I can't think of any meaningful test, considering
+                        // that the Recorder <-> Controller communication for streaming
+                        // is mostly triggered by the frontend, and not a *true* event <-> action.
+                        outgoing::Message::RecordingService(_) => {}
                     }
                 }
             }
@@ -79,32 +88,38 @@ impl MockController {
             .values()
             .map(|user| user.participant.clone())
             .collect::<Vec<_>>();
+
+        let mut module_data = ModuleData::new();
+        let _ = module_data.insert(&RecordingServiceState {
+            streams: BTreeMap::new(),
+        });
+
+        let join_success = incoming::Message::Control(ControlEvent::JoinSuccess(JoinSuccess {
+            id: ParticipantId::generate(),
+            participants,
+            event_info: Some(EventInfo {
+                title: "Test Recording Title".to_string(),
+                id: EventId::generate(),
+                is_adhoc: false,
+            }),
+            display_name: "".to_string(),
+            avatar_url: None,
+            role: types::signaling::Role::User,
+            closes_at: None,
+            tariff: Box::new(types::common::tariff::TariffResource {
+                id: TariffId::nil(),
+                name: "".to_owned(),
+                quotas: HashMap::new(),
+                enabled_modules: HashSet::new(),
+                disabled_features: HashSet::new(),
+                modules: HashMap::new(),
+            }),
+            module_data,
+            is_room_owner: false,
+        }));
+
         self.to_recorder_tx
-            .send(incoming::Message::Control(ControlEvent::JoinSuccess(
-                JoinSuccess {
-                    id: ParticipantId::generate(),
-                    participants,
-                    event_info: Some(EventInfo {
-                        title: "Test Recording Title".to_string(),
-                        id: EventId::generate(),
-                        is_adhoc: false,
-                    }),
-                    display_name: "".to_string(),
-                    avatar_url: None,
-                    role: types::signaling::Role::User,
-                    closes_at: None,
-                    tariff: Box::new(types::common::tariff::TariffResource {
-                        id: TariffId::nil(),
-                        name: "".to_owned(),
-                        quotas: HashMap::new(),
-                        enabled_modules: HashSet::new(),
-                        disabled_features: HashSet::new(),
-                        modules: HashMap::new(),
-                    }),
-                    module_data: ModuleData::new(),
-                    is_room_owner: false,
-                },
-            )))
+            .send(join_success)
             .await
             .expect("unable to send join success event to recorder");
     }
@@ -195,6 +210,22 @@ impl MockController {
             .values()
             .map(|user| user.participant.clone())
             .collect::<Vec<_>>();
+
+        let mut module_data = ModuleData::new();
+        module_data
+            .insert(&RecordingServiceState {
+                streams: BTreeMap::from([(
+                    StreamingTargetId::from_u128(0),
+                    RecorderStreamInfo::Recording(RecordingTarget {
+                        stream_start_options: StreamStartOption {
+                            auto_connect: true,
+                            status: StreamStatus::Inactive,
+                            start_paused: false,
+                        },
+                    }),
+                )]),
+            })
+            .unwrap();
         self.to_recorder_tx
             .send(incoming::Message::Control(ControlEvent::JoinSuccess(
                 JoinSuccess {
@@ -217,12 +248,23 @@ impl MockController {
                         disabled_features: HashSet::new(),
                         modules: HashMap::new(),
                     }),
-                    module_data: ModuleData::new(),
+                    module_data,
                     is_room_owner: false,
                 },
             )))
             .await
             .expect("unable to send join success event to recorder");
+    }
+
+    pub(crate) async fn send_start_stream(&self) {
+        self.to_recorder_tx
+            .send(incoming::Message::RecordingService(
+                RecordingServiceCommand::StartStreams {
+                    target_ids: BTreeSet::from([StreamingTargetId::from_u128(0)]),
+                },
+            ))
+            .await
+            .expect("unable to send start recording event to recorder");
     }
 
     pub(crate) async fn send_joined(&mut self, index: usize) -> Participant {
@@ -243,7 +285,10 @@ impl MockController {
         });
 
         let _ = participant.module_data.insert(&MediaPeerState {
-            state: None,
+            state: ParticipantMediaState {
+                video: None,
+                screen: None,
+            },
             is_presenter: false,
         });
 
@@ -277,30 +322,22 @@ impl MockController {
         video: bool,
         screen: bool,
     ) {
-        let mut media: MediaPeerState = participant
-            .get_module::<MediaPeerState>()
+        participant
+            .update_module::<MediaPeerState, _>(|update| {
+                if video || audio {
+                    update.state.video = Some(MediaSessionState { video, audio })
+                };
+
+                if screen {
+                    update.state.screen = Some(MediaSessionState {
+                        video: true,
+                        audio: false,
+                    })
+                }
+            })
             .ok()
             .flatten()
-            .unwrap_or_default();
-
-        media.state = if video || audio {
-            Some(HashMap::from_iter([(
-                MediaSessionType::Video,
-                MediaSessionState { audio, video },
-            )]))
-        } else {
-            None
-        };
-
-        if screen {
-            let _ = media.state.insert(HashMap::from_iter([(
-                MediaSessionType::Screen,
-                MediaSessionState {
-                    audio: false,
-                    video: true,
-                },
-            )]));
-        }
+            .unwrap();
 
         self.to_recorder_tx
             .send(incoming::Message::Control(ControlEvent::Update(
@@ -316,11 +353,10 @@ impl MockController {
         consent: bool,
     ) {
         participant
-            .get_module::<RecordingPeerState>()
+            .update_module::<RecordingPeerState, _>(|update| update.consents_recording = consent)
             .ok()
             .flatten()
-            .unwrap_or_default()
-            .consents_recording = consent;
+            .unwrap();
 
         self.to_recorder_tx
             .send(incoming::Message::Control(ControlEvent::Update(

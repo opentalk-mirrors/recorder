@@ -14,17 +14,30 @@ use core::{
 };
 use futures::Stream;
 use log::error;
-use std::{io, path::Path, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
+    io,
+    path::Path,
+    sync::Arc,
+};
 use tempfile::TempDir;
+use thiserror::Error;
 use tokio::{
     fs::File,
     io::{AsyncRead, ReadBuf},
     sync::{mpsc, watch},
-    task::{spawn_blocking, JoinHandle},
+    task::JoinHandle,
 };
 use types::{
-    core::ParticipantId,
-    signaling::media::{MediaSessionState, MediaSessionType},
+    core::{ParticipantId, StreamingTargetId},
+    signaling::{
+        media::{MediaSessionState, MediaSessionType},
+        recording::{
+            state::{RecorderStreamInfo, RecordingTarget, StreamingTarget},
+            StreamErrorReason, StreamStatus,
+        },
+    },
 };
 
 use crate::{
@@ -37,7 +50,35 @@ use crate::{
 // TODO; make this configurable
 pub const MAX_VISIBLES: usize = 8;
 
+const TEMP_RECORDING_NAME: &str = "recording.mkv";
+
 type Mixer = compositor::Mixer<WebRtcSource>;
+
+#[derive(Clone, Debug)]
+pub enum RecorderStreamKind {
+    Recording {
+        file_name: String,
+        target: RecordingTarget,
+    },
+    Streaming {
+        target: StreamingTarget,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub struct RecorderStreamStatus {
+    pub state: StreamStatus,
+    pub kind: RecorderStreamKind,
+}
+
+impl RecorderStreamStatus {
+    #[must_use]
+    pub fn stream_running(&self) -> bool {
+        self.state == StreamStatus::Active
+            || self.state == StreamStatus::Paused
+            || self.state == StreamStatus::Starting
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Recorder {
@@ -66,8 +107,7 @@ impl Recorder {
     ) -> Result<JoinHandle<Result<()>>> {
         let context = Arc::new(self.clone());
         log::debug!("Start Recording session {command:?}");
-        let file_name = "recording.mkv";
-        let mut session = RecordingSession::create(context, command, file_name)
+        let mut session = RecordingSession::create(context, command)
             .await
             .context("recording session failed to start")?;
 
@@ -78,10 +118,6 @@ impl Recorder {
                     recording_err
                 );
             };
-            session
-                .upload(file_name)
-                .await
-                .context("recording upload failed")?;
 
             Ok(())
         });
@@ -120,10 +156,59 @@ pub struct RecordingSession {
 
     mixer: Mixer,
 
+    streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
+
     candidate_receiver: mpsc::Receiver<(MediaDescriptor, u32, Option<String>)>,
     candidate_sender: mpsc::Sender<(MediaDescriptor, u32, Option<String>)>,
 
     done: bool,
+}
+
+#[derive(Debug, Error)]
+pub enum RecordingSessionError {
+    #[error("Stream '{0}' is already running")]
+    AlreadyRunning(StreamingTargetId),
+    #[error("Stream '{0}' not found")]
+    NotFound(StreamingTargetId),
+    #[error("Stream '{0}' has no location")]
+    NoLocation(StreamingTargetId),
+    #[error("Stream '{0}' is not running")]
+    NotRunning(StreamingTargetId),
+
+    #[error("Start livestream failed, reason: {0}")]
+    StartLivestream(anyhow::Error),
+    #[error("Stop livestream failed, reason: {0}")]
+    StopLivestream(anyhow::Error),
+
+    #[error("Start recording failed, reason: {0}")]
+    StartRecording(anyhow::Error),
+    #[error("Stop recording failed, reason: {0}")]
+    StopRecording(anyhow::Error),
+    #[error("Upload recording failed, reason: {0}")]
+    UploadRecording(anyhow::Error),
+}
+
+impl From<RecordingSessionError> for StreamErrorReason {
+    fn from(value: RecordingSessionError) -> Self {
+        let code = match value {
+            RecordingSessionError::AlreadyRunning(_) => "already_running".to_owned(),
+            RecordingSessionError::NotFound(_) => "not_found".to_owned(),
+            RecordingSessionError::NotRunning(_) => "not_running".to_owned(),
+            RecordingSessionError::NoLocation(_) => "no_location".to_owned(),
+
+            RecordingSessionError::StartLivestream(_) => "start_livestream".to_owned(),
+            RecordingSessionError::StopLivestream(_) => "stop_livestream".to_owned(),
+
+            RecordingSessionError::StartRecording(_) => "start_recording".to_owned(),
+            RecordingSessionError::StopRecording(_) => "stop_recording".to_owned(),
+            RecordingSessionError::UploadRecording(_) => "upload_recording".to_owned(),
+        };
+
+        Self {
+            code,
+            message: value.to_string(),
+        }
+    }
 }
 
 impl RecordingSession {
@@ -136,6 +221,7 @@ impl RecordingSession {
         room_id: String,
         temp_dir: TempDir,
         mixer: Mixer,
+        streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
         candidate_receiver: mpsc::Receiver<(MediaDescriptor, u32, Option<String>)>,
         candidate_sender: mpsc::Sender<(MediaDescriptor, u32, Option<String>)>,
         done: bool,
@@ -146,6 +232,7 @@ impl RecordingSession {
             room_id,
             temp_dir,
             mixer,
+            streaming_targets,
             candidate_receiver,
             candidate_sender,
             done,
@@ -155,7 +242,6 @@ impl RecordingSession {
     pub async fn create(
         service_context: Arc<Recorder>,
         command: InitializeRecording,
-        file_name: &str,
     ) -> Result<RecordingSession> {
         let signaling = Signaling::connect(
             service_context.http_client.as_ref(),
@@ -165,7 +251,6 @@ impl RecordingSession {
         .await?;
 
         let temp_dir = TempDir::new()?;
-        let file_path = temp_dir.path().join(file_name);
 
         let (candidate_sender, candidate_receiver) = mpsc::channel(12);
 
@@ -230,28 +315,13 @@ impl RecordingSession {
             }
         }
 
-        mixer
-            .link_sink(
-                "recording",
-                MatroskaSink::create(
-                    "Recording",
-                    &MatroskaParameters {
-                        path: file_path
-                            .to_str()
-                            .context("failed to convert file path into string")?
-                            .into(),
-                    },
-                )
-                .context("Matroska-Sink could not created")?,
-            )
-            .context("unable to link sink to mixer")?;
-
         Ok(Self {
             service_context,
             signaling,
             room_id: command.room,
             temp_dir,
             mixer,
+            streaming_targets: BTreeMap::new(),
             candidate_receiver,
             candidate_sender,
             done: false,
@@ -289,6 +359,132 @@ impl RecordingSession {
         Ok(())
     }
 
+    pub fn start_recording(mixer: &mut Mixer, temp_dir: &TempDir, file_name: &str) -> Result<()> {
+        let file_path = temp_dir.path().join(file_name);
+        mixer
+            .link_sink(
+                "recording",
+                MatroskaSink::create(
+                    "Matroska-Sink",
+                    &MatroskaParameters {
+                        path: file_path
+                            .to_str()
+                            .context("failed to convert Matroska file path into string")?
+                            .into(),
+                    },
+                )
+                .context("Matroska-Sink could not created")?,
+            )
+            .context("unable to link sink to talk")?;
+
+        Ok(())
+    }
+
+    fn start_stream(
+        &mut self,
+        id: StreamingTargetId,
+    ) -> Result<StreamStatus, RecordingSessionError> {
+        log::trace!("start_stream, id: {id:?}");
+        let Some(stream) = self.streaming_targets.get_mut(&id) else {
+            return Err(RecordingSessionError::NotFound(id));
+        };
+        if stream.state == StreamStatus::Active {
+            return Err(RecordingSessionError::AlreadyRunning(id));
+        }
+        let new_state = match &stream.kind {
+            RecorderStreamKind::Streaming { target } => {
+                let Some(ref location) = target.location else {
+                    return Err(RecordingSessionError::NoLocation(id));
+                };
+
+                Self::start_livestream(
+                    &mut self.mixer,
+                    location.to_string(),
+                    &format!("Livestream-{id}"),
+                )
+                .map_err(RecordingSessionError::StartLivestream)
+            }
+            RecorderStreamKind::Recording {
+                file_name,
+                target: _,
+            } => Self::start_recording(&mut self.mixer, &self.temp_dir, file_name.as_str())
+                .map_err(RecordingSessionError::StartRecording),
+        };
+
+        stream.state = match new_state {
+            Ok(()) => StreamStatus::Active,
+            Err(error) => StreamStatus::Error {
+                reason: error.into(),
+            },
+        };
+
+        Ok(stream.state.clone())
+    }
+
+    async fn stop_stream(
+        &mut self,
+        id: StreamingTargetId,
+    ) -> Result<StreamStatus, RecordingSessionError> {
+        log::trace!("stop_stream, id: {id:?}");
+        let Some(stream) = self.streaming_targets.get_mut(&id) else {
+            return Err(RecordingSessionError::NotFound(id));
+        };
+        if stream.state != StreamStatus::Active && stream.state != StreamStatus::Paused {
+            return Err(RecordingSessionError::NotRunning(id));
+        }
+        let new_state = match stream.kind {
+            RecorderStreamKind::Recording {
+                file_name: _,
+                target: _,
+            } => {
+                self.mixer.release_sink(&"recording".to_owned());
+
+                self.service_context
+                    .upload(
+                        &self.room_id,
+                        self.temp_dir.path().join(TEMP_RECORDING_NAME).as_path(),
+                    )
+                    .await
+                    .map_err(RecordingSessionError::UploadRecording)
+            }
+            RecorderStreamKind::Streaming { target: _ } => {
+                self.mixer.release_sink(&format!("Livestream-{id}"));
+
+                Ok(())
+            }
+        };
+
+        stream.state = match new_state {
+            Ok(()) => StreamStatus::Inactive,
+            Err(error) => StreamStatus::Error {
+                reason: error.into(),
+            },
+        };
+
+        Ok(stream.state.clone())
+    }
+
+    pub fn start_livestream(mixer: &mut Mixer, location: String, name: &str) -> Result<()> {
+        mixer
+            .link_sink(
+                name,
+                RTMPSink::create(
+                    name,
+                    RTMPParameters {
+                        location,
+                        audio_bitrate: None,
+                        audio_rate: None,
+                        video_bitrate: None,
+                        video_speed_preset: None,
+                    },
+                )
+                .context("RTMPSink could not created")?,
+            )
+            .context("unable to link sink to talk")?;
+
+        Ok(())
+    }
+
     async fn subscribe(
         &mut self,
         descriptor: MediaDescriptor,
@@ -316,140 +512,26 @@ impl RecordingSession {
     #[allow(clippy::too_many_lines)]
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
         match event {
-            Event::JoinSuccess(_id, title) => {
-                // find all active media streams
-
-                let available_media_streams: Vec<(
-                    ParticipantId,
-                    String,
-                    MediaSessionType,
-                    MediaSessionState,
-                )> = self
-                    .signaling
-                    .participants()
-                    .iter()
-                    .flat_map(|(id, participant_state)| {
-                        media_types().filter_map(|media_type| {
-                            participant_state.publishes(media_type).map(|media_state| {
-                                (
-                                    *id,
-                                    participant_state.display_name.clone(),
-                                    media_type,
-                                    media_state,
-                                )
-                            })
-                        })
-                    })
-                    .collect();
-
-                for (id, display_name, media_type, media_state) in available_media_streams {
-                    log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
-                    let descriptor = MediaDescriptor {
-                        participant_id: id,
-                        media_type,
-                    };
-                    self.subscribe(descriptor, &display_name, media_state)
-                        .await?;
-                }
-
-                self.mixer.set_title(title.as_str());
+            Event::JoinSuccess {
+                participant_id: _,
+                event_title,
+                streaming_targets,
+            } => {
+                self.handle_join_success(streaming_targets, event_title)
+                    .await?;
             }
 
             Event::ParticipantJoined(id) => {
                 log::debug!("Event::ParticipantJoined");
-
-                let participant_state = self.signaling.participant(&id)?.clone();
-                let available_media_streams = media_types().filter_map(|media_type| {
-                    participant_state
-                        .publishes(media_type)
-                        .map(|media_state| (media_type, media_state))
-                });
-
-                for (media_type, media_state) in available_media_streams {
-                    log::debug!("Join: subscribe stream of {id} {media_type}");
-                    let descriptor = MediaDescriptor {
-                        participant_id: id,
-                        media_type,
-                    };
-                    self.subscribe(descriptor, &participant_state.display_name, media_state)
-                        .await?;
-                }
+                self.handle_participant_joined(id).await?;
             }
             Event::ParticipantUpdated(id) => {
                 log::debug!("Event::ParticipantUpdated");
-                let participant_state = self.signaling.participant(&id)?.clone();
-
-                for media_type in media_types() {
-                    let is_subscribed = self.mixer.contains_stream(MediaDescriptor {
-                        participant_id: id,
-                        media_type,
-                    });
-                    let media_state = participant_state.publishes(media_type);
-
-                    if !is_subscribed {
-                        if let Some(media_state) = media_state {
-                            log::debug!("Update: subscribe stream of {id} {media_type}");
-                            let descriptor = MediaDescriptor {
-                                participant_id: id,
-                                media_type,
-                            };
-                            self.subscribe(
-                                descriptor,
-                                &participant_state.display_name,
-                                media_state,
-                            )
-                            .await?;
-                        }
-                    } else if media_state.is_none() {
-                        log::debug!("Update: unsubscribe stream of {id} {media_type}");
-                        self.mixer.remove_stream(MediaDescriptor {
-                            participant_id: id,
-                            media_type,
-                        })?;
-                    } else if let Some(media_state) = media_state {
-                        log::debug!(
-                            "Update: update status of stream of {id} {media_type} to {media_state}"
-                        );
-                        self.mixer.set_status(
-                            MediaDescriptor {
-                                participant_id: id,
-                                media_type,
-                            },
-                            media_state,
-                        )?;
-                    } else {
-                        log::trace!(
-                            "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"
-                        );
-                        return Ok(());
-                    }
-                }
-
-                return Ok(());
+                self.handle_participant_updated(id).await?;
             }
             Event::ParticipantLeft(id) => {
                 log::debug!("Event::ParticipantLeft");
-                for media_type in media_types() {
-                    if self.mixer.contains_stream(MediaDescriptor {
-                        participant_id: id,
-                        media_type,
-                    }) {
-                        self.mixer.remove_stream(MediaDescriptor {
-                            participant_id: id,
-                            media_type,
-                        })?;
-                    }
-                }
-                if self.signaling.participants().is_empty() {
-                    self.done = true;
-                    log::debug!("Last participant left the session. Stop recording.");
-                } else {
-                    log::trace!(
-                        "{} remaining participants : {:?}",
-                        self.signaling.participants().len(),
-                        self.signaling.participants().keys()
-                    );
-                }
+                self.handle_participant_left(id)?;
             }
             Event::SdpOffer(descriptor, offer) => {
                 log::debug!("Event::SdpOffer");
@@ -467,22 +549,7 @@ impl RecordingSession {
             }
             Event::SdpEndOfCandidates(descriptor) => {
                 log::debug!("Event::SdpEndOfCandidates");
-                let participant_state = self.signaling.participant(&descriptor.participant_id)?;
-
-                if participant_state.publishes(descriptor.media_type).is_none() {
-                    bail!(
-                        "EndOfCandidates message for {:?} with no media stream",
-                        descriptor
-                    );
-                }
-                let Some(source) = self.mixer.get_source(descriptor) else {
-                    bail!(
-                        "EndOfCandidates message for {:?} with no connection setup",
-                        descriptor
-                    );
-                };
-
-                source.receive_end_of_candidates(0);
+                self.handle_end_of_candidates(descriptor)?;
             }
             Event::FocusUpdate(focus_change) => {
                 log::debug!("Event::FocusUpdate");
@@ -507,6 +574,262 @@ impl RecordingSession {
                         .context("unable to set speaker for '{participant}'")?;
                 }
             }
+            Event::Start(target_ids) => {
+                log::debug!("[Start]: {target_ids:#?}");
+                self.handle_start_event(target_ids).await?;
+            }
+            Event::Pause(target_ids) => {
+                log::debug!("[Pause]: {target_ids:#?}");
+            }
+            Event::Stop(target_ids) => {
+                log::debug!("[Stop]: {target_ids:#?}");
+                self.handle_stop_event(target_ids).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_join_success(
+        &mut self,
+        streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
+        event_title: String,
+    ) -> Result<(), anyhow::Error> {
+        self.streaming_targets = streaming_targets
+            .iter()
+            .map(|(id, target)| {
+                (
+                    *id,
+                    match target {
+                        RecorderStreamInfo::Recording(target) => RecorderStreamStatus {
+                            state: target.stream_start_options.status.clone(),
+                            kind: RecorderStreamKind::Recording {
+                                file_name: TEMP_RECORDING_NAME.to_owned(),
+                                target: target.clone(),
+                            },
+                        },
+                        RecorderStreamInfo::Streaming(target) => RecorderStreamStatus {
+                            state: target.stream_start_options.status.clone(),
+                            kind: RecorderStreamKind::Streaming {
+                                target: target.clone(),
+                            },
+                        },
+                    },
+                )
+            })
+            .collect();
+        let available_media_streams: Vec<(
+            ParticipantId,
+            String,
+            MediaSessionType,
+            MediaSessionState,
+        )> = self
+            .signaling
+            .participants()
+            .iter()
+            .flat_map(|(id, participant_state)| {
+                media_types().filter_map(|media_type| {
+                    participant_state.publishes(media_type).map(|media_state| {
+                        (
+                            *id,
+                            participant_state.display_name.clone(),
+                            media_type,
+                            media_state,
+                        )
+                    })
+                })
+            })
+            .collect();
+        for (id, _status) in streaming_targets
+            .iter()
+            .filter(|(_id, state)| state.is_start_requested())
+        {
+            let status = match self.start_stream(*id) {
+                Ok(status) => status,
+                Err(reason) => StreamStatus::Error {
+                    reason: reason.into(),
+                },
+            };
+
+            self.signaling
+                .send_stream_update(*id, status)
+                .await
+                .context("unable to send stream update")?;
+        }
+        for (id, display_name, media_type, media_state) in available_media_streams {
+            log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
+            let descriptor = MediaDescriptor {
+                participant_id: id,
+                media_type,
+            };
+            self.subscribe(descriptor, &display_name, media_state)
+                .await?;
+        }
+        self.mixer.set_title(&event_title);
+        Ok(())
+    }
+
+    async fn handle_participant_joined(&mut self, id: ParticipantId) -> Result<(), anyhow::Error> {
+        let participant_state = self.signaling.participant(&id)?.clone();
+        let available_media_streams = media_types().filter_map(|media_type| {
+            participant_state
+                .publishes(media_type)
+                .map(|media_state| (media_type, media_state))
+        });
+        for (media_type, media_state) in available_media_streams {
+            log::debug!("Join: subscribe stream of {id} {media_type}");
+            let descriptor = MediaDescriptor {
+                participant_id: id,
+                media_type,
+            };
+            self.subscribe(descriptor, &participant_state.display_name, media_state)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_participant_updated(&mut self, id: ParticipantId) -> Result<(), anyhow::Error> {
+        let participant_state = self.signaling.participant(&id)?.clone();
+        for media_type in media_types() {
+            let is_subscribed = self.mixer.contains_stream(MediaDescriptor {
+                participant_id: id,
+                media_type,
+            });
+            let media_state = participant_state.publishes(media_type);
+
+            if !is_subscribed {
+                if let Some(media_state) = media_state {
+                    log::debug!("Update: subscribe stream of {id} {media_type}");
+                    let descriptor = MediaDescriptor {
+                        participant_id: id,
+                        media_type,
+                    };
+                    self.subscribe(descriptor, &participant_state.display_name, media_state)
+                        .await?;
+                }
+            } else if media_state.is_none() {
+                log::debug!("Update: unsubscribe stream of {id} {media_type}");
+                self.mixer.remove_stream(MediaDescriptor {
+                    participant_id: id,
+                    media_type,
+                })?;
+            } else if let Some(media_state) = media_state {
+                log::debug!(
+                    "Update: update status of stream of {id} {media_type} to {media_state}"
+                );
+                self.mixer.set_status(
+                    MediaDescriptor {
+                        participant_id: id,
+                        media_type,
+                    },
+                    media_state,
+                )?;
+            } else {
+                log::trace!(
+                    "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"
+                );
+                return Ok(());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_participant_left(&mut self, id: ParticipantId) -> Result<(), anyhow::Error> {
+        for media_type in media_types() {
+            if self.mixer.contains_stream(MediaDescriptor {
+                participant_id: id,
+                media_type,
+            }) {
+                self.mixer.remove_stream(MediaDescriptor {
+                    participant_id: id,
+                    media_type,
+                })?;
+            }
+        }
+        if self.signaling.participants().is_empty() {
+            self.done = true;
+            log::debug!("Last participant left the session. Stop recording.");
+            return Ok(());
+        }
+
+        log::trace!(
+            "{} remaining participants : {:?}",
+            self.signaling.participants().len(),
+            self.signaling.participants().keys()
+        );
+
+        Ok(())
+    }
+
+    fn handle_end_of_candidates(
+        &mut self,
+        descriptor: MediaDescriptor,
+    ) -> Result<(), anyhow::Error> {
+        let participant_state = self.signaling.participant(&descriptor.participant_id)?;
+        if participant_state.publishes(descriptor.media_type).is_none() {
+            bail!(
+                "EndOfCandidates message for {:?} with no media stream",
+                descriptor
+            );
+        }
+        let Some(source) = self.mixer.get_source(descriptor) else {
+            bail!(
+                "EndOfCandidates message for {:?} with no connection setup",
+                descriptor
+            );
+        };
+        source.receive_end_of_candidates(0);
+        Ok(())
+    }
+
+    async fn handle_start_event(
+        &mut self,
+        target_ids: BTreeSet<StreamingTargetId>,
+    ) -> Result<(), anyhow::Error> {
+        for id in target_ids {
+            let status = match self.start_stream(id) {
+                Ok(status) => status,
+                Err(reason) => StreamStatus::Error {
+                    reason: reason.into(),
+                },
+            };
+
+            self.signaling
+                .send_stream_update(id, status)
+                .await
+                .context("unable to send stream update")?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_stop_event(
+        &mut self,
+        target_ids: BTreeSet<StreamingTargetId>,
+    ) -> Result<(), anyhow::Error> {
+        for id in target_ids {
+            let status = match self.stop_stream(id).await {
+                Ok(status) => status,
+                Err(reason) => StreamStatus::Error {
+                    reason: reason.into(),
+                },
+            };
+
+            self.signaling
+                .send_stream_update(id, status)
+                .await
+                .context("unable to send stream update")?;
+        }
+
+        if !self
+            .streaming_targets
+            .iter()
+            .any(|(_id, status)| status.stream_running())
+        {
+            // last stream has been stopped, the media pipeline can be shut down.
+            self.done = true;
         }
 
         Ok(())
@@ -532,30 +855,6 @@ impl RecordingSession {
         } else {
             self.signaling.send_end_of_candidates(descriptor).await
         }
-    }
-
-    async fn upload(self, file_name: &str) -> Result<()> {
-        let mixer = self.mixer;
-        spawn_blocking(move || drop(mixer)).await?;
-
-        let recording_path = self.temp_dir.path().join(file_name);
-
-        let Err(upload_err) = self
-            .service_context
-            .upload(&self.room_id, recording_path.as_ref())
-            .await
-        else {
-            log::debug!("Finished uploading recording for room '{}'", &self.room_id);
-            return Ok(());
-        };
-
-        error!(
-            "upload of file {:?} failed. Saving output in {file_name}.",
-            recording_path
-        );
-        tokio::fs::copy(recording_path, file_name).await?;
-
-        Err(upload_err)
     }
 }
 
