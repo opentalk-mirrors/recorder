@@ -53,6 +53,7 @@ pub trait GstBinErrorExt: IsA<Bin> {
 impl<B: IsA<Bin>> GstBinErrorExt for B {}
 
 pub trait GstElementBuilderErrorExt {
+    #[track_caller]
     fn build_with_context(self) -> Result<Element>;
 }
 
@@ -148,6 +149,7 @@ pub trait GstElementErrorExt: IsA<Element> {
 impl<E: IsA<Element>> GstElementErrorExt for E {}
 
 pub trait GstElementFactoryErrorExt: Sized {
+    #[track_caller]
     fn make_with_name_with_context(factoryname: &str, name: Option<&str>) -> Result<Element>;
 }
 
@@ -164,6 +166,7 @@ impl GstElementFactoryErrorExt for ElementFactory {
 }
 
 pub trait GstGhostPadErrorExt: Sized {
+    #[track_caller]
     fn with_target_with_context<P: IsA<Pad>>(name: Option<&str>, target: &P) -> Result<Self>;
 }
 
@@ -197,6 +200,7 @@ pub trait GstPadErrorExt: IsA<Pad> {
 
 impl<P: IsA<Pad>> GstPadErrorExt for P {}
 
+#[track_caller]
 pub fn parse_bin_from_description_with_context(
     bin_description: &str,
     ghost_unlinked_pads: bool,
