@@ -2,11 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::mixer::VIDEO_FRAMERATE;
-use crate::{
-    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
-    GstPadErrorExt, Overlay, Size,
-};
 use anyhow::{Context, Result};
 use gst::{
     element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
@@ -15,6 +10,11 @@ use gst::{
 use gst_app::{AppSink, AppSinkCallbacks, AppSrc};
 use gst_base::AggregatorStartTimeSelection;
 use tokio::sync::broadcast;
+
+use crate::{
+    mixer::VIDEO_FRAMERATE, GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt,
+    GstGhostPadErrorExt, GstPadErrorExt, Overlay, Size,
+};
 
 const QUEUE_SIZE: usize = VIDEO_FRAMERATE as usize;
 

@@ -4,8 +4,9 @@
 
 //! Source trait.
 
-use anyhow::Result;
 use std::fmt::Debug;
+
+use anyhow::Result;
 
 /// Trait of a participant's audio/video source.
 pub trait Source: Debug {

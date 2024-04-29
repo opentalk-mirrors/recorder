@@ -2,18 +2,23 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::collections::BTreeMap;
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::SocketAddr,
+    sync::Arc,
+};
 
 use compositor::{FakeSink, Mixer, TestSink};
-use openidconnect::core::CoreJsonWebKeySet;
-use openidconnect::{core::CoreClient, AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl};
+use openidconnect::{
+    core::{CoreClient, CoreJsonWebKeySet},
+    AccessToken, AuthUrl, ClientId, ClientSecret, IssuerUrl,
+};
 use opentalk_recorder::{
     http::HttpClient,
-    recorder::{Recorder, MAX_VISIBLES},
+    recorder::{Recorder, RecordingSession, MAX_VISIBLES},
     settings::{AuthSettings, ControllerSettings, RabbitMqSettings, Settings},
+    signaling::Signaling,
 };
-use opentalk_recorder::{recorder::RecordingSession, signaling::Signaling};
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch, RwLock};
 use tt::{connect_async, tungstenite::client::IntoClientRequest};

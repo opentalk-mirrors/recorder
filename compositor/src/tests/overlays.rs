@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use types::{core::ParticipantId, signaling::media::MediaSessionType};
+
 use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
-use types::core::ParticipantId;
-use types::signaling::media::MediaSessionType;
 
 #[test]
 fn test_overlay() {

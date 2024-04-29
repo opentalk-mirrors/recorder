@@ -14,12 +14,15 @@ mod webrtc;
 
 pub mod testing {
 
-    use types::signaling::media::{MediaSessionState, MediaSessionType};
-
-    use crate::*;
     use core::time::Duration;
     use std::sync::Once;
-    use types::core::ParticipantId;
+
+    use types::{
+        core::ParticipantId,
+        signaling::media::{MediaSessionState, MediaSessionType},
+    };
+
+    use crate::*;
 
     /// output resolution to use when creating Mixer for testing
     pub const RESOLUTION: Size = Size::HD;

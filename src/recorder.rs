@@ -2,18 +2,10 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use anyhow::{bail, Context as ErrorContext, Result};
-use bytes::Bytes;
-use compositor::{
-    MatroskaParameters, MatroskaSink, MediaDescriptor, RTMPParameters, RTMPSink, SystemSink,
-    WebRtcSource, WebRtcSourceParams,
-};
 use core::{
     pin::Pin,
     task::{ready, Context, Poll},
 };
-use futures::Stream;
-use log::error;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
@@ -21,6 +13,15 @@ use std::{
     path::Path,
     sync::Arc,
 };
+
+use anyhow::{bail, Context as ErrorContext, Result};
+use bytes::Bytes;
+use compositor::{
+    MatroskaParameters, MatroskaSink, MediaDescriptor, RTMPParameters, RTMPSink, SystemSink,
+    WebRtcSource, WebRtcSourceParams,
+};
+use futures::Stream;
+use log::error;
 use tempfile::TempDir;
 use thiserror::Error;
 use tokio::{

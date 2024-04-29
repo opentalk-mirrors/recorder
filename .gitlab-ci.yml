@@ -26,8 +26,10 @@ lint:fmt:
     # Run on feature branches
     - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
   stage: lint
+  before_script:
+    - rustup component add rustfmt --toolchain nightly
   script:
-    - cargo fmt -- --check
+    - cargo +nightly fmt -- --check
 
 lint:clippy:
   rules:

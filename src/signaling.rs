@@ -2,12 +2,13 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+
 use anyhow::{bail, Context, Result};
 use compositor::MediaDescriptor;
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
 use tokio::net::TcpStream;
 use tt::{
     tungstenite::{client::IntoClientRequest, Message},
@@ -411,7 +412,6 @@ struct Payload<'s, T> {
 
 pub mod incoming {
 
-    use super::{ParticipantId, TrickleCandidate};
     use compositor::MediaDescriptor;
     use serde::{Deserialize, Serialize};
     use types::signaling::{
@@ -419,6 +419,8 @@ pub mod incoming {
         media::{MediaSessionType, ParticipantSpeakingState},
         recording_service::command::RecordingServiceCommand,
     };
+
+    use super::{ParticipantId, TrickleCandidate};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
@@ -515,10 +517,11 @@ pub mod incoming {
 }
 
 pub mod outgoing {
-    use super::{ParticipantId, TrickleCandidate};
-    use crate::signaling::MediaSessionType;
     use serde::{Deserialize, Serialize};
     use types::signaling::recording_service::event::RecordingServiceEvent;
+
+    use super::{ParticipantId, TrickleCandidate};
+    use crate::signaling::MediaSessionType;
 
     #[derive(Debug, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]

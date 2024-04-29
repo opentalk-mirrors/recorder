@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use types::core::ParticipantId;
+
 use crate::{
     debug, testing, Blinder, Mixer, Speaker, TestBlinder, TestBlinderParams, TestSink, TestSource,
     TestSourceParameters,
 };
-use types::core::ParticipantId;
 
 const IMAGE_OUTPUT_PATH: &str = "./images";
 const DOT_PATH: &str = "pipelines";

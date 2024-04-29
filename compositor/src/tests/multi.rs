@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::{testing, Mixer, Speaker, TestSink, TestSource};
 use types::core::ParticipantId;
+
+use crate::{testing, Mixer, Speaker, TestSink, TestSource};
 
 fn test_multi(use_video: bool) {
     // initialize for testing

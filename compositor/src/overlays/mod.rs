@@ -8,12 +8,15 @@ mod padding_overlay;
 mod talk_overlay;
 mod text_overlay;
 
-pub use clock_overlay::*;
-pub use padding_overlay::*;
-pub use talk_overlay::*;
-pub use text_overlay::*;
-
 use gst_base::prelude::ElementExt;
+
+#[rustfmt::skip]
+pub use {
+    clock_overlay::*,
+    padding_overlay::*,
+    talk_overlay::*,
+    text_overlay::*
+};
 
 /// Trait of overlays as the mixer sees it.
 pub trait Overlay: std::fmt::Debug {

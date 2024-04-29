@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::{testing, Grid, Layout, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
 use types::signaling::media::MediaSessionType;
+
+use crate::{testing, Grid, Layout, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
 
 #[test]
 fn test_layout_speaker() {
