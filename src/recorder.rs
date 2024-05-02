@@ -619,6 +619,17 @@ impl RecordingSession {
                 )
             })
             .collect();
+
+        if self
+            .streaming_targets
+            .iter()
+            .all(|(_, rec_info)| rec_info.state == StreamStatus::Inactive)
+        {
+            log::debug!("No streams to start requested, recorder is done.");
+            self.done = true;
+            return Ok(());
+        }
+
         let available_media_streams: Vec<(
             ParticipantId,
             String,
