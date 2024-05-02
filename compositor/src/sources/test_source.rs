@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use anyhow::{bail, Context, Result};
 use std::fmt::Display;
+
+use anyhow::{bail, Context, Result};
 
 use crate::{add_ghost_pad, parse_bin_from_description_with_context, Size, Source};
 

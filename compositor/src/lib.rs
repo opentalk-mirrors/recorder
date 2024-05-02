@@ -116,6 +116,5 @@ pub use layout::*;
 pub use mixer::*;
 pub use sinks::*;
 pub use sources::*;
-
 #[cfg(test)]
 pub use tests::testing;

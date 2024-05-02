@@ -2,14 +2,15 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use anyhow::{anyhow, bail, Context, Result};
-use glib::WeakRef;
-use gst::prelude::*;
-use gst_webrtc::WebRTCPeerConnectionState;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
 };
+
+use anyhow::{anyhow, bail, Context, Result};
+use glib::WeakRef;
+use gst::prelude::*;
+use gst_webrtc::WebRTCPeerConnectionState;
 use tokio::sync::oneshot;
 
 use crate::{

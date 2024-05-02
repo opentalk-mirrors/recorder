@@ -4,13 +4,14 @@
 
 //! HTTP calls made by this library (except for websockets)
 
+use std::{future::Future, pin::Pin};
+
 use anyhow::{bail, Result};
 use bytes::Bytes;
 use futures::TryStream;
 use openidconnect::{reqwest::Error, AccessToken, HttpRequest, HttpResponse, OAuth2TokenResponse};
 use reqwest::{Body, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::{future::Future, pin::Pin};
 use tokio::sync::RwLock;
 
 use crate::settings::{AuthSettings, ControllerSettings};

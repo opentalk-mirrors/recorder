@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use types::core::ParticipantId;
+
 use crate::{
     testing, Blinder, Mixer, Speaker, TestBlinder, TestBlinderParams, TestSink, TestSource,
     TestSourceParameters,
 };
-use types::core::ParticipantId;
 
 #[test]
 fn test_blinder() {

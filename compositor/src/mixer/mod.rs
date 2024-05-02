@@ -2,15 +2,16 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use anyhow::{anyhow, bail, Context, Result};
-use gst::{
-    event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element, ElementFactory, Fraction,
-    GhostPad, Pipeline, SystemClock,
-};
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
     hash::Hash,
+};
+
+use anyhow::{anyhow, bail, Context, Result};
+use gst::{
+    event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element, ElementFactory, Fraction,
+    GhostPad, Pipeline, SystemClock,
 };
 use types::{
     core::ParticipantId,
@@ -25,19 +26,21 @@ mod stream;
 mod text_style;
 mod video_mixer;
 
+use self::{audio_mixer::AudioMixer, sink::ActiveSink, video_mixer::VideoMixer};
 use crate::{
     GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
     GstPadErrorExt,
 };
 
-use self::{audio_mixer::AudioMixer, sink::ActiveSink, video_mixer::VideoMixer};
-
-pub use super::layout::*;
-pub use super::overlays::*;
-pub use sink::*;
-pub use source::*;
-pub use stream::*;
-pub use text_style::*;
+#[rustfmt::skip]
+pub use {
+    sink::*,
+    source::*,
+    stream::*,
+    text_style::*,
+    
+    super::{layout::*, overlays::*}
+};
 
 pub(crate) const AUDIO_SAMPLE_RATE: i32 = 48_000;
 pub(crate) const AUDIO_CHANNELS: i32 = 2;

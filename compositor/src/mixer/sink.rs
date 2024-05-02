@@ -4,6 +4,8 @@
 
 //! Sink trait.
 
+use std::fmt::Debug;
+
 use anyhow::Result;
 use glib::Cast;
 use gst::{
@@ -11,14 +13,12 @@ use gst::{
 };
 use gst_app::AppSrc;
 use gst_base::prelude::ElementExt;
-use std::fmt::Debug;
 
+use super::{audio_mixer::AudioMixer, video_mixer::VideoMixer};
 use crate::{
     debug, GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
     GstPadErrorExt, AUDIO_CHANNELS, AUDIO_SAMPLE_RATE, VIDEO_FRAMERATE, VIDEO_HEIGHT, VIDEO_WIDTH,
 };
-
-use super::{audio_mixer::AudioMixer, video_mixer::VideoMixer};
 
 /// Trait of an output sink.
 pub trait Sink: Send + Debug + 'static {

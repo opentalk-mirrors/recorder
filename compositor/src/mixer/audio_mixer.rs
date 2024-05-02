@@ -2,11 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use crate::{
-    mixer::{AUDIO_CHANNELS, AUDIO_SAMPLE_RATE},
-    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
-    GstPadErrorExt,
-};
 use anyhow::{Context, Result};
 use gst::{
     element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
@@ -15,6 +10,12 @@ use gst::{
 use gst_app::{AppSink, AppSinkCallbacks, AppSrc};
 use gst_base::AggregatorStartTimeSelection;
 use tokio::sync::broadcast;
+
+use crate::{
+    mixer::{AUDIO_CHANNELS, AUDIO_SAMPLE_RATE},
+    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
+    GstPadErrorExt,
+};
 
 const QUEUE_SIZE: usize = 128; // expect a buffers of 10ms -> 1s queue size
 

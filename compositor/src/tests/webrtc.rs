@@ -3,15 +3,18 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use core::time::Duration;
+use std::collections::HashMap;
+
 use glib::{Cast, Continue, ObjectExt};
 use gst::{
     prelude::*,
     traits::{ElementExt, GstBinExt},
 };
-use std::collections::HashMap;
 use tokio::{sync::mpsc, time::sleep};
-use types::core::ParticipantId;
-use types::signaling::media::{MediaSessionState, MediaSessionType};
+use types::{
+    core::ParticipantId,
+    signaling::media::{MediaSessionState, MediaSessionType},
+};
 
 use crate::{
     log, GstBinErrorExt, GstElementErrorExt, MediaDescriptor, Mixer, Size, Speaker, TestSink,
