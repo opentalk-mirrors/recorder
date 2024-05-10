@@ -365,7 +365,7 @@ where
         Element::link_many_with_context(&[
             &videoconvertscale,
             &capsfilter,
-            &source.overlay.element(),
+            source.overlay.element(),
         ])?;
 
         let videoconvertscale_sink_pad = videoconvertscale.static_pad_with_context("sink")?;
@@ -801,11 +801,12 @@ where
         self.set_stream_to_position(descriptor, 0)
     }
 
-    /// Set stream to the first position
+    /// Set a stream to a new position
     ///
     /// # Arguments
     ///
     /// `descriptor`: Stream identifier
+    /// `position`: The position to set the stream to. Values greater than the currently visible streams will be clamped.
     ///
     /// # Errors
     ///
@@ -815,7 +816,10 @@ where
         descriptor: MediaDescriptor,
         position: usize,
     ) -> Result<()> {
-        if self.visibles.first() == Some(&descriptor) {
+        // Clamp the position to avoid out-of-bounds in Vec::insert
+        let position = position.min(self.visibles.len());
+
+        if self.visibles.get(position) == Some(&descriptor) {
             return Ok(());
         }
 
