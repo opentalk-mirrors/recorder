@@ -52,6 +52,7 @@ lint:clippy:
       --allow clippy::cast-possible-wrap
       --allow clippy::cast-precision-loss
       --allow clippy::cast-sign-loss
+      --allow clippy::doc-markdown
     # Use clippy::all for tests
     - >
       cargo clippy --all-features --tests

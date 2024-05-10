@@ -365,7 +365,7 @@ where
         Element::link_many_with_context(&[
             &videoconvertscale,
             &capsfilter,
-            &source.overlay.element(),
+            source.overlay.element(),
         ])?;
 
         let videoconvertscale_sink_pad = videoconvertscale.static_pad_with_context("sink")?;

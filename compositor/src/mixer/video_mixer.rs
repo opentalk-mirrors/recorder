@@ -65,7 +65,7 @@ impl VideoMixer {
             &clocksync,
             &videotestsrc_capssetter,
             &compositor,
-            &overlay.element(),
+            overlay.element(),
             &queue,
             appsink.upcast_ref(),
         ])?;
@@ -79,7 +79,7 @@ impl VideoMixer {
 
         Element::link_many_with_context(&[
             &compositor,
-            &overlay.element(),
+            overlay.element(),
             &queue,
             appsink.upcast_ref(),
         ])?;
