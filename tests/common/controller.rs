@@ -215,7 +215,7 @@ impl MockController {
                     RecorderStreamInfo::Recording(RecordingTarget {
                         stream_start_options: StreamStartOption {
                             auto_connect: true,
-                            status: StreamStatus::Inactive,
+                            status: StreamStatus::Starting,
                             start_paused: false,
                         },
                     }),
