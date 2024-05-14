@@ -16,7 +16,7 @@ types = { package = "opentalk-types", version = "0.13.0-alpha" }
 
 [dependencies]
 compositor = { path = "compositor" }
-types = { workspace = true, features = [ "rand", "serde" ] }
+types = { workspace = true, features = ["rand", "serde"] }
 
 gst = { package = "gstreamer", version = "0.20" }
 gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
@@ -59,10 +59,13 @@ openidconnect = "3"
 tempfile = "3"
 pin-project-lite = "0.2"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.25"
+objc = "0.2.7"
+
 [workspace]
 members = ["compositor"]
 
 [workspace.package]
 authors = ["OpenTalk Team <mail@opentalk.eu>"]
 version = "0.0.0-dev"
-

@@ -74,7 +74,17 @@ fn check_plugins() -> Result<()> {
     Ok(())
 }
 
-fn main_loop() {
+fn main_loop() -> Result<()> {
+    env_logger::init();
+
+    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
+        warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
+        std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
+    };
+
+    gst::init()?;
+    check_plugins()?;
+
     // Run a MainLoop on a separate thread so gstreamer bus watches work
     let main_loop = glib::MainLoop::new(None, false);
     std::thread::spawn({
@@ -89,7 +99,7 @@ fn main_loop() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .expect("Failed to start tokio async runtime");
+        .context("failed to start tokio async runtime")?;
 
     runtime.spawn(async move {
         let mut sig_term = signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
@@ -108,39 +118,88 @@ fn main_loop() {
     }
 
     main_loop.quit();
-}
-
-fn main() -> Result<()> {
-    env_logger::init();
-
-    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
-        warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
-        std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
-    };
-
-    gst::init()?;
-    check_plugins()?;
-
-    #[cfg(not(target_os = "macos"))]
-    main_loop();
-
-    #[cfg(target_os = "macos")]
-    {
-        #[link(name = "foundation", kind = "framework")]
-        extern "C" {
-            fn CFRunLoopRun();
-        }
-
-        std::thread::spawn(|| {
-            main_loop();
-        });
-
-        unsafe {
-            CFRunLoopRun();
-        }
-    }
 
     Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn main() {
+    main_loop().expect("failed to run main loop");
+}
+
+#[cfg(target_os = "macos")]
+fn main() {
+    // This code sequence is adapted from `gstreamer-rs` (https://github.com/sdroege/gstreamer-rs) under the MIT License.
+    // Original source: https://github.com/sdroege/gstreamer-rs/blob/main/examples/src/examples-common.rs#L15
+    // Copyright 2024 Sebastian Dröge
+    use std::{
+        ffi::c_void,
+        sync::mpsc::{channel, Sender},
+        thread,
+    };
+
+    use cocoa::{
+        appkit::{NSApplication, NSWindow},
+        base::id,
+        delegate,
+    };
+    use objc::{
+        class, msg_send,
+        runtime::{Object, Sel},
+        sel, sel_impl,
+    };
+
+    unsafe {
+        extern "C" fn on_finish_launching(this: &Object, _cmd: Sel, _notification: id) {
+            let send = unsafe {
+                let send_pointer = *this.get_ivar::<*const c_void>("send");
+                let boxed = Box::from_raw(send_pointer as *mut Sender<()>);
+                *boxed
+            };
+            send.send(()).expect("failed to send to main thread");
+        }
+
+        let app = cocoa::appkit::NSApp();
+        let (send, recv) = channel::<()>();
+
+        let delegate = delegate!("AppDelegate", {
+            app: id = app,
+            send: *const c_void = Box::into_raw(Box::new(send)) as *const c_void,
+            (applicationDidFinishLaunching:) => on_finish_launching as extern fn(&Object, Sel, id)
+        });
+        app.setDelegate_(delegate);
+
+        let t = thread::spawn(move || {
+            // Wait for the NSApp to launch to avoid possibly calling stop_() too early
+            recv.recv().expect("failed to receive from main thread");
+
+            let res = main_loop();
+
+            let app = cocoa::appkit::NSApp();
+            app.stop_(cocoa::base::nil);
+
+            // Stopping the event loop requires an actual event
+            let event = cocoa::appkit::NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                cocoa::base::nil,
+                cocoa::appkit::NSEventType::NSApplicationDefined,
+                cocoa::foundation::NSPoint { x: 0.0, y: 0.0 },
+                cocoa::appkit::NSEventModifierFlags::empty(),
+                0.0,
+                0,
+                cocoa::base::nil,
+                cocoa::appkit::NSEventSubtype::NSApplicationActivatedEventType,
+                0,
+                0,
+            );
+            app.postEvent_atStart_(event, cocoa::base::YES);
+
+            res
+        });
+
+        app.run();
+
+        let _ = t.join().expect("failed to join thread");
+    }
 }
 
 async fn rmq_session(
