@@ -443,7 +443,7 @@ where
         // After removing push the next screen share in the list to the first
         // position
         if let Some(descriptor) = self.get_first_screen_capture() {
-            self.set_stream_to_first_position(descriptor)
+            self.set_stream_to_active_position(descriptor)
                 .context("unable to set stream with id '{descriptor}' to first position")?;
         }
 
@@ -489,7 +489,7 @@ where
         if let Some(stream) = self.streams.get(&descriptor) {
             // The speaker has no screen, so it doesn't need to update the position
             if stream.status.video {
-                self.set_stream_to_first_position(descriptor)
+                self.set_stream_to_active_position(descriptor)
                     .context("unable to set stream with id '{descriptor}' to first position")?;
             }
         }
@@ -503,7 +503,7 @@ where
             if stream.status.video {
                 // check if noone is sharing their screen or the new speaker is also screen sharing
                 if self.get_first_screen_capture().is_none() {
-                    self.set_stream_to_first_position(descriptor)
+                    self.set_stream_to_active_position(descriptor)
                         .context("unable to set stream with id '{descriptor}' to first position")?;
                 } else {
                     self.set_stream_to_position(descriptor, 1).context(
@@ -797,7 +797,14 @@ where
     /// # Errors
     ///
     /// This can fail if the `set_stream_to_position` function is failing.
-    fn set_stream_to_first_position(&mut self, descriptor: MediaDescriptor) -> Result<()> {
+    fn set_stream_to_active_position(&mut self, descriptor: MediaDescriptor) -> Result<()> {
+        // Do not rerender the position if the same two participants
+        // are already in the room. This would cause an uneccessary
+        // flickering effect (swapping the two speaker).
+        if self.visibles.contains(&descriptor) && self.visibles.len() <= 2 {
+            return Ok(());
+        }
+
         self.set_stream_to_position(descriptor, 0)
     }
 
