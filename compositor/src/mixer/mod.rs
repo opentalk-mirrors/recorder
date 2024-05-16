@@ -141,12 +141,13 @@ where
         layout: impl Layout,
         max_visibles: usize,
         video_support: bool,
+        clock_format: &ClockFormat,
     ) -> Result<Self> {
         let pipeline = existing_pipeline.unwrap_or(Pipeline::new(Some("Compositor")));
 
         debug!("create compositor ( {output_resolution:?}, {max_visibles:?} )");
 
-        let overlay = TalkOverlay::create().context("unable to create TalkOverlay")?;
+        let overlay = TalkOverlay::create(clock_format).context("unable to create TalkOverlay")?;
         let audio_mixer = AudioMixer::create().context("unable to create AudioMixer")?;
         pipeline.add_with_context(audio_mixer.bin())?;
 

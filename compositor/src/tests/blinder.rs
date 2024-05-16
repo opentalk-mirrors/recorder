@@ -27,6 +27,7 @@ fn test_blinder() {
         Speaker::default(),
         testing::MAX_STREAMS,
         true,
+        &Default::default(),
     )
     .unwrap();
 

@@ -4,14 +4,16 @@
 
 use std::{fmt::Display, str::FromStr};
 
-use compositor::{MatroskaParameters, RTMPParameters};
+use compositor::{ClockFormat, MatroskaParameters, RTMPParameters};
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct RecorderSettings {
+    pub clock_format: ClockFormat,
     pub sinks: Vec<RecorderSink>,
 }
 

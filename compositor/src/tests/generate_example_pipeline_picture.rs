@@ -39,9 +39,15 @@ fn generate_example_pipeline_picture() {
     );
 
     // setup mixer
-    let mut mixer =
-        Mixer::<TestSource>::create(None, testing::RESOLUTION, Speaker::default(), 100, true)
-            .unwrap();
+    let mut mixer = Mixer::<TestSource>::create(
+        None,
+        testing::RESOLUTION,
+        Speaker::default(),
+        100,
+        true,
+        &Default::default(),
+    )
+    .unwrap();
 
     mixer
         .link_sink("test_sink", TestSink::create("Recording", true).unwrap())

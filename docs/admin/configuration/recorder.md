@@ -7,18 +7,26 @@ be a `MKV file`, `Display`, or `RTMP stream`.
 
 The section in the [configuration file](README.md) is called `recorder`.
 
-| Field                | Type     | Required | Default value | Description                                  |
-| -------------------- | -------- | -------- | ------------- | -------------------------------------------- |
-| `sink`               | `string` | no       | "mkv"         | The sink where the recorder should stream to |
-| `rtmp_uri`           | `int`    | yes*     | -             | The location for the rtmp sink               |
-| `rtmp_audio_bitrate` | `int`    | no       | 96000         | The audio bitrate for the rtmp sink          |
-| `rtmp_audio_rate`    | `int`    | no       | 48000         | The audio rate for the rtmp sink             |
-| `rtmp_video_bitrate` | `int`    | no       | 6000          | The video bitrate for the rtmp sink          |
-| `rtmp_speed_preset`  | `string` | no       | "fast"        | The video speed preset for the rtmp sink     |
+| Field                     | Type          | Required | Default value | Description                                  |
+| ------------------------- | ------------- | -------- | ------------- | -------------------------------------------- |
+| `clock_format`            | `string`      | no       | "%x %X %Z"    | The time format for the clock                |
+| `sinks`                   | `array<sink>` | no       | "mkv"         | The sink where the recorder should stream to |
+| `sink.rtmp_uri`           | `int`         | yes*     | -             | The location for the rtmp sink               |
+| `sink.rtmp_audio_bitrate` | `int`         | no       | 96000         | The audio bitrate for the rtmp sink          |
+| `sink.rtmp_audio_rate`    | `int`         | no       | 48000         | The audio rate for the rtmp sink             |
+| `sink.rtmp_video_bitrate` | `int`         | no       | 6000          | The video bitrate for the rtmp sink          |
+| `sink.rtmp_speed_preset`  | `string`      | no       | "fast"        | The video speed preset for the rtmp sink     |
 
 *`rtmp_uri` is only required when the sink `rtmp` is in use.
 
 ### Examples
+
+Set the time format for the clock in the recording.
+
+```toml
+[recorder]
+clock_format = "%d.%m.%Y %H:%M:%S"
+```
 
 #### Example with mkv sink (default behaviour)
 
@@ -26,7 +34,9 @@ The Display sink can be used to stream from the recorder to a mkv file.
 
 ```toml
 [recorder]
-sink = "mkv"
+
+[[recorder.sinks]]
+type = "mkv"
 ```
 
 #### Example with display sink
@@ -35,7 +45,9 @@ The Display sink can be used to stream from the recorder to a display.
 
 ```toml
 [recorder]
-sink = "display"
+
+[[recorder.sinks]]
+type = "display"
 ```
 
 #### Example with rtmp sink
@@ -45,7 +57,9 @@ server. `rtmp_uri` is optionally replacing the `$room` variable with the current
 
 ```toml
 [recorder]
-sink = "rtmp"
+
+[[recorder.sinks]]
+type = "rtmp"
 rtmp_uri = "rtmp://localhost:1935/live/$room live=1"
 # optional for the rtmp sink:
 #rtmp_audio_bitrate = 96000

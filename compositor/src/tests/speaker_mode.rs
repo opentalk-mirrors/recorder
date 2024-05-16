@@ -26,6 +26,7 @@ fn test_speaker_mode_without_prio() {
         Speaker::default(),
         MAX_VISIBLES,
         true,
+        &Default::default(),
     )
     .unwrap();
     mixer
@@ -67,6 +68,7 @@ fn test_speaker_mode_with_prio() {
         Speaker::default(),
         MAX_VISIBLES,
         true,
+        &Default::default(),
     )
     .unwrap();
     mixer

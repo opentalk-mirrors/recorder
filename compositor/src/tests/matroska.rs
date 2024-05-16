@@ -23,6 +23,7 @@ fn test_matroska() {
         Speaker::default(),
         testing::MAX_STREAMS,
         true,
+        &Default::default(),
     )
     .unwrap();
 

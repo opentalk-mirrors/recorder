@@ -16,6 +16,7 @@ fn test_multi(use_video: bool) {
         Speaker::default(),
         testing::MAX_STREAMS,
         use_video,
+        &Default::default(),
     )
     .unwrap();
 

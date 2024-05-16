@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use gst::{Element, GhostPad};
+use serde::Deserialize;
 
 use crate::{
     Align, ClockOverlay, Font, GstBinErrorExt, GstElementErrorExt, GstGhostPadErrorExt, HAlign,
@@ -53,6 +54,21 @@ impl Overlay for TalkOverlay {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ClockFormat(String);
+
+impl Default for ClockFormat {
+    fn default() -> Self {
+        Self(String::from("%x %X %Z"))
+    }
+}
+
+impl AsRef<str> for ClockFormat {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 impl TalkOverlay {
     /// Create and add new overlay sink into existing pipeline.
     ///
@@ -63,7 +79,7 @@ impl TalkOverlay {
     /// - The `TextOverlay` cannot be created.
     /// - The `ClockOverlay` cannot be created.
     /// - Adding the elements to Gstreamer or linking them.
-    pub fn create() -> Result<Self> {
+    pub fn create(format: &ClockFormat) -> Result<Self> {
         let bin = gst::Bin::new(Some("Talk Overlay"));
         let padding_overlay = PaddingOverlay::create(
             "padding",
@@ -90,7 +106,7 @@ impl TalkOverlay {
         )?;
         let clock_overlay = ClockOverlay::create(
             "Real Time Clock Overlay",
-            "%x %X %Z",
+            format.as_ref(),
             TextStyle {
                 align: Align {
                     horizontal: HAlign::Right,

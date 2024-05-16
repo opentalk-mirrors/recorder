@@ -20,6 +20,7 @@ fn test_stream_status() {
         Speaker::default(),
         testing::MAX_STREAMS,
         true,
+        &Default::default(),
     )
     .unwrap();
     mixer

@@ -44,7 +44,7 @@ use types::{
 use crate::{
     http::{FileExtension, HttpClient},
     rmq::InitializeRecording,
-    settings::{RecorderSettings, RecorderSink, Settings},
+    settings::{RecorderSink, Settings},
     signaling::{Event, Signaling, TrickleCandidate},
 };
 
@@ -251,11 +251,12 @@ impl RecordingSession {
 
         let (candidate_sender, candidate_receiver) = mpsc::channel(12);
 
-        let recorder_settings = service_context.settings.recorder.as_ref();
-        let recorder_sinks = recorder_settings
-            .unwrap_or(&RecorderSettings { sinks: vec![] })
-            .sinks
-            .clone();
+        let recorder_settings = service_context
+            .settings
+            .recorder
+            .clone()
+            .unwrap_or_default();
+        let recorder_sinks = recorder_settings.sinks.clone();
 
         let mut mixer = Mixer::create(
             None,
@@ -263,6 +264,7 @@ impl RecordingSession {
             compositor::layout::Speaker::default(),
             MAX_VISIBLES,
             true,
+            &recorder_settings.clock_format,
         )?;
 
         for (index, sink) in recorder_sinks.into_iter().enumerate() {
