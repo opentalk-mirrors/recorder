@@ -9,7 +9,7 @@ mod tests {
 
     use crate::common::prelude::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_single_user() {
         EventRunner::run(&[
             Event::StartRecording,

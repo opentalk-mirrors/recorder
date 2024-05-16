@@ -9,8 +9,8 @@ use crate::{
     TestSourceParameters,
 };
 
-#[test]
-fn test_blinder() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_blinder() {
     // initialize for testing
     testing::init();
 
@@ -22,7 +22,6 @@ fn test_blinder() {
     })
     .unwrap();
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,

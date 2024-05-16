@@ -9,10 +9,9 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
-use glib::ControlFlow;
 use gst::{
-    bus::BusWatchGuard, event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element,
-    ElementFactory, Fraction, GhostPad, Pipeline, SystemClock,
+    event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element, ElementFactory, Fraction,
+    GhostPad, MessageView, Pipeline, SystemClock,
 };
 use types::{
     core::ParticipantId,
@@ -20,6 +19,7 @@ use types::{
 };
 
 mod audio_mixer;
+mod bus;
 pub mod debug;
 mod sink;
 mod source;
@@ -29,8 +29,8 @@ mod video_mixer;
 
 use self::{audio_mixer::AudioMixer, sink::ActiveSink, video_mixer::VideoMixer};
 use crate::{
-    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
-    GstPadErrorExt,
+    mixer::bus::PipelineWatched, GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt,
+    GstGhostPadErrorExt, GstPadErrorExt,
 };
 
 #[rustfmt::skip]
@@ -110,14 +110,13 @@ where
     visibles: Vec<MediaDescriptor>,
     audio_mixer: AudioMixer,
     video_mixer: Option<VideoMixer>,
-    pipeline: Pipeline,
+    pipeline: PipelineWatched,
     overlay: TalkOverlay,
     sinks: HashMap<String, ActiveSink>,
     output_resolution: Size,
     layout: Box<dyn Layout>,
     system_clock: Clock,
     max_visibles: usize,
-    bus_watch_guard: Option<BusWatchGuard>,
 }
 
 impl<SRC> Mixer<SRC>
@@ -138,14 +137,14 @@ where
     ///
     /// This can fail if adding the pipeline and elements in `GStreamer` isn't working.
     pub fn create(
-        existing_pipeline: Option<Pipeline>,
         output_resolution: Size,
         layout: impl Layout,
         max_visibles: usize,
         video_support: bool,
         clock_format: &ClockFormat,
     ) -> Result<Self> {
-        let pipeline = existing_pipeline.unwrap_or(Pipeline::builder().name("Compositor").build());
+        let pipeline = PipelineWatched::new("Compositor", true, false)
+            .context("unable to create Compositor PipelineWatched")?;
 
         debug!("create compositor ( {output_resolution:?}, {max_visibles:?} )");
 
@@ -173,7 +172,7 @@ where
 
         let sinks = HashMap::<String, ActiveSink>::new();
 
-        let mut mixer = Mixer {
+        let mixer = Mixer {
             audio_mixer,
             video_mixer,
             visibles: Vec::new(),
@@ -185,11 +184,8 @@ where
             layout: Box::new(layout),
             system_clock,
             max_visibles,
-            bus_watch_guard: None,
         };
 
-        // start reading the pipeline bus
-        mixer.read_bus()?;
         Ok(mixer)
     }
 
@@ -313,7 +309,7 @@ where
             None
         };
 
-        debug::debug_dot(&self.pipeline, "stream_added");
+        debug::debug_dot(&*self.pipeline, "stream_added");
 
         bin.sync_state_with_parent_with_context()?;
 
@@ -678,7 +674,8 @@ where
             bail!("a stream with the name '{name}' already exists");
         }
 
-        let pipeline = Pipeline::builder().name(name).build();
+        let pipeline = PipelineWatched::new(name, sink.init_bus_watch(), sink.requires_eos())
+            .context("unable to create PipelineWatched")?;
 
         pipeline.use_clock(Some(&self.system_clock));
         pipeline.set_base_time(ClockTime::ZERO);
@@ -715,9 +712,9 @@ where
             .on_play()
             .context("unable to set sink to playing")?;
 
-        debug::dot(&self.pipeline, "link-sink-main-pipeline");
+        debug::dot(&*self.pipeline, "link-sink-main-pipeline");
         debug::dot(
-            &active_sink.pipeline,
+            &*active_sink.pipeline,
             format!("link-sink_sink-pipeline_{name}").as_str(),
         );
 
@@ -731,73 +728,11 @@ where
     /// # Errors
     ///
     /// This can fail if the sink could not be released from the mixer.
-    pub fn release_sink(&mut self, name: &String) {
-        self.sinks.remove(name);
-    }
-
-    /// Continuously read the bus for errors and EOS.
-    fn read_bus(&mut self) -> Result<()> {
-        if self.bus_watch_guard.is_some() {
-            debug!("BusWatch already added, won't add again.");
-            return Ok(());
+    pub async fn release_sink(&mut self, name: &String) {
+        trace!("release_sink {name}");
+        if let Some(mut sink) = self.sinks.remove(name) {
+            sink.pipeline.drop().await;
         }
-        // get pipeline bus
-        let bus = self
-            .pipeline
-            .bus()
-            .context("failed to get bus of pipeline")?;
-
-        // add watch which continuous recalculates latency
-        let pipeline_weak = self.pipeline.downgrade();
-        let bus_watch_guard = bus.add_watch(move |_, msg| {
-            use gst::MessageView;
-            // check several message types
-            match (msg.view(), &pipeline_weak.upgrade()) {
-                (MessageView::Error(err), Some(pipeline)) => {
-                    error!(
-                        "Error received from element {:?}: {}",
-                        err.src().map(GstObjectExt::path_string),
-                        err.error(),
-                    );
-                    debug::dot(pipeline, "BUS-ERROR");
-                    if let Some(info) = err.debug() {
-                        debug!("Debugging information: {}", info);
-                    }
-                }
-                (MessageView::Warning(warn), Some(pipeline)) => {
-                    warn!(
-                        "Warning received from element {:?}: {}",
-                        warn.src().map(GstObjectExt::path_string),
-                        warn.error(),
-                    );
-                    debug::dot(pipeline, "BUS-WARNING");
-                    if let Some(info) = warn.debug() {
-                        debug!("Debugging information: {}", info);
-                    }
-                }
-                (MessageView::Info(info), Some(pipeline)) => {
-                    info!(
-                        "Info received from element {:?}: {}",
-                        info.src().map(GstObjectExt::path_string),
-                        info.error(),
-                    );
-                    debug::dot(pipeline, "BUS-INFO");
-                    if let Some(info) = info.debug() {
-                        debug!("Debugging information: {}", info);
-                    }
-                }
-                (MessageView::Latency(_), Some(pipeline)) => {
-                    // Recalculate pipeline latency when requested
-                    let _ = pipeline.recalculate_latency();
-                }
-                _ => (),
-            }
-            // stop reading if we are expecting EOS after the following scan
-            ControlFlow::Continue
-        })?;
-        self.bus_watch_guard = Some(bus_watch_guard);
-
-        Ok(())
     }
 
     /// Set stream to the first position
@@ -891,10 +826,10 @@ where
     ) -> Result<()> {
         info!("set_status( {descriptor}, {new_status} )");
 
-        debug::debug_dot(&self.pipeline, "set_status_pipeline_main");
+        debug::debug_dot(&*self.pipeline, "set_status_pipeline_main");
         for sink in &self.sinks {
             debug::debug_dot(
-                &sink.1.pipeline,
+                &*sink.1.pipeline,
                 format!("set_status_pipeline_{}", sink.0).as_str(),
             );
         }
@@ -921,7 +856,7 @@ where
     /// - `params`: Parameters of graph.
     ///
     pub fn dot(&self, filename_without_extension: &str, params: &debug::Params) {
-        debug::dot_ext(&self.pipeline, filename_without_extension, params);
+        debug::dot_ext(&*self.pipeline, filename_without_extension, params);
     }
 
     /// Replace the current layout with the new one.
@@ -1014,31 +949,63 @@ where
 
         Ok(())
     }
+
+    /// Add a callback function to the bus watch of the given sink.
+    ///
+    /// # Errors
+    ///
+    /// This can fail if the sink doesn't exists or if the callback cannot be
+    /// added to the bus watch.
+    pub fn add_watch_to_sink<F>(&self, name: &str, callback: F) -> Result<()>
+    where
+        F: FnMut(&Pipeline, MessageView) + Send + Sync + 'static,
+    {
+        let Some(active_sink) = self.sinks.get(name) else {
+            bail!("there is no sink with the name {name}");
+        };
+
+        active_sink.pipeline.add_watch(callback);
+
+        Ok(())
+    }
 }
+
 impl<SRC> Drop for Mixer<SRC>
 where
     SRC: Source,
 {
     fn drop(&mut self) {
-        debug!("Dropping Mixer...");
-        debug::debug_dot(&self.pipeline, "MIXER-DROP");
+        let streams = self
+            .streams
+            .values()
+            .map(|stream| stream.bin.clone())
+            .collect::<Vec<_>>();
+        let mut mixer_pipeline = self.pipeline.clone_for_drop();
+        let mut sink_pipelines = Vec::new();
 
-        trace!("remove_all_stream()");
-        let descriptors: Vec<MediaDescriptor> = self.streams.keys().copied().collect();
-        for descriptor in descriptors {
-            if let Err(error) = self.remove_stream(descriptor) {
-                error!("could not remove stream, error: {error}");
-            }
+        for active_sink in self.sinks.values_mut() {
+            sink_pipelines.push(active_sink.pipeline.clone_for_drop());
         }
 
-        // Remove all sinks, before the main pipeline is getting shutdowned
-        self.sinks.drain();
-
-        debug!("Nulling pipeline...");
-        if let Err(error) = self.pipeline.set_state_with_context(gst::State::Null) {
-            error!("Unable to set the pipeline to the `Null` state, error: {error}");
+        self.audio_mixer.drop();
+        if let Some(mut video_mixer) = self.video_mixer.take() {
+            video_mixer.drop();
         }
 
-        debug!("Exited mixer.");
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                for stream in streams {
+                    if let Err(err) = stream.set_state(gst::State::Null) {
+                        log::error!("unable to set stream to Null, reason: {err}");
+                    }
+                }
+
+                for mut sink_pipeline in sink_pipelines {
+                    sink_pipeline.drop().await;
+                }
+
+                mixer_pipeline.drop().await;
+            });
+        });
     }
 }

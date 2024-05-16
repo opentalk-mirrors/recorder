@@ -66,7 +66,6 @@ async fn exec_events(events: Vec<Event>) {
     const MAX_VISIBLES: usize = 7;
 
     let mut mixer = Mixer::<WebRtcSource>::create(
-        None,
         Size::FHD,
         Speaker::default(),
         MAX_VISIBLES,
@@ -360,7 +359,7 @@ fn create_publish_pipeline(
 
 // --- scenarios
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[ignore = "failing in ci"]
 async fn webrtc_scenario1() {
     let _ = env_logger::try_init();

@@ -9,7 +9,7 @@ mod tests {
 
     use crate::common::prelude::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_presentation() {
         EventRunner::run(&[
             Event::JoinUsers(3, true, true, false),

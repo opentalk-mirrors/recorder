@@ -258,7 +258,6 @@ impl RecordingSession {
         let recorder_sinks = recorder_settings.sinks.clone();
 
         let mut mixer = Mixer::create(
-            None,
             compositor::Size::FHD,
             compositor::layout::Speaker::default(),
             MAX_VISIBLES,
@@ -432,7 +431,7 @@ impl RecordingSession {
         }
         let new_state = match stream.kind {
             RecorderStreamKind::Recording { file_name: _ } => {
-                self.mixer.release_sink(&"recording".to_owned());
+                self.mixer.release_sink(&"recording".to_owned()).await;
 
                 self.service_context
                     .upload(
@@ -443,7 +442,7 @@ impl RecordingSession {
                     .map_err(RecordingSessionError::UploadRecording)
             }
             RecorderStreamKind::Streaming { target: _ } => {
-                self.mixer.release_sink(&format!("Livestream-{id}"));
+                self.mixer.release_sink(&format!("Livestream-{id}")).await;
 
                 Ok(())
             }

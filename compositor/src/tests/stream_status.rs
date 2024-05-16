@@ -9,13 +9,12 @@ use types::{
 
 use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
 
-#[test]
-fn test_stream_status() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_stream_status() {
     // initialize for testing
     testing::init();
 
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,

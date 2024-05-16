@@ -13,9 +13,9 @@ const IMAGE_OUTPUT_PATH: &str = "./images";
 const DOT_PATH: &str = "pipelines";
 
 /// generate an example of a usual pipeline
-#[test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[ignore = "this is generating the pipeline pictues and should only be run manually"]
-fn generate_example_pipeline_picture() {
+async fn generate_example_pipeline_picture() {
     // initialize logging
     let _ = env_logger::try_init();
 
@@ -40,7 +40,6 @@ fn generate_example_pipeline_picture() {
 
     // setup mixer
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         100,

@@ -121,6 +121,7 @@ impl EventRunner {
         let websocket_addr = start_websocket_server(to_recorder_rx, to_controller_tx).await;
         let mock_controller =
             MockController::run(users.clone(), to_recorder_tx.clone(), to_controller_rx);
+        let mut mock_controller_handle = None;
 
         let mut event_runner = Self {
             users,
@@ -143,7 +144,8 @@ impl EventRunner {
                 Event::SpeakerFocusUnset => event_runner.speaker_focus_unset().await,
                 Event::StartRecording => {
                     log::info!("Start the recorder, everyone should be able to give consent");
-                    start_recorder(websocket_addr, shutdown_rx.clone()).await;
+                    mock_controller_handle =
+                        Some(start_recorder(websocket_addr, shutdown_rx.clone()).await);
                     event_runner.start_recorder().await
                 }
                 Event::StopRecording => {
@@ -168,6 +170,10 @@ impl EventRunner {
         shutdown_tx
             .send(true)
             .expect("unable to send shutdown request");
+
+        if let Some(mock_controller_handle) = mock_controller_handle {
+            mock_controller_handle.await.unwrap();
+        }
 
         log::debug!("Stop the MainLoop for gstreamer");
         main_loop.quit();

@@ -9,14 +9,13 @@ use types::{
 
 use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSource, WebMParameters, WebMSink};
 
-#[test]
-fn test_webm() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_webm() {
     // initialize for testing
     testing::init();
 
     // create grid mixer with test sources for streams and a WebMSink
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,

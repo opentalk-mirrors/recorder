@@ -67,7 +67,7 @@ impl AudioMixer {
         let audiomixer_capssetter = Self::build_caps()?;
 
         let queue = ElementFactory::make("queue").build_with_context()?;
-        let appsink = AppSink::builder().sync(true).build();
+        let appsink = AppSink::builder().sync(true).wait_on_eos(false).build();
 
         bin.add_many_with_context(&[
             &audiotestsrc,
@@ -181,10 +181,8 @@ impl AudioMixer {
             }
         });
     }
-}
 
-impl Drop for AudioMixer {
-    fn drop(&mut self) {
+    pub(crate) fn drop(&mut self) {
         self.appsink.set_callbacks(
             AppSinkCallbacks::builder()
                 .new_sample(|_| Ok(FlowSuccess::Ok))

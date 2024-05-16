@@ -12,16 +12,15 @@ use crate::{
     TestSourceParameters,
 };
 
-#[test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[ignore = "failing in ci"]
-fn test_speaker_mode_without_prio() {
+async fn test_speaker_mode_without_prio() {
     testing::init();
 
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         MAX_VISIBLES,
@@ -29,6 +28,7 @@ fn test_speaker_mode_without_prio() {
         &Default::default(),
     )
     .unwrap();
+
     mixer
         .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();
@@ -54,16 +54,15 @@ fn test_speaker_mode_without_prio() {
     }
 }
 
-#[test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[ignore = "failing in ci"]
-fn test_speaker_mode_with_prio() {
+async fn test_speaker_mode_with_prio() {
     testing::init();
 
     const MAX_VISIBLES: usize = 5;
     const NUM_PARTICIPANTS: usize = 10;
 
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         MAX_VISIBLES,
@@ -71,6 +70,7 @@ fn test_speaker_mode_with_prio() {
         &Default::default(),
     )
     .unwrap();
+
     mixer
         .link_sink("test_sink", TestSink::create("Testing Sink", true).unwrap())
         .unwrap();

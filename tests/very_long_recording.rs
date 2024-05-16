@@ -9,7 +9,7 @@ mod tests {
 
     use crate::common::prelude::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[ignore = "takes one hour to complete"]
     /// This tests starts a recording a for an hour and join a new participant every minute.
     /// The concurrent users are limited.
