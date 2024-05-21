@@ -15,6 +15,15 @@ use serde::{Deserialize, Deserializer};
 pub struct RecorderSettings {
     pub clock_format: ClockFormat,
     pub sinks: Vec<RecorderSink>,
+    // Sets the default value when cpu_hysteresis is not present in the config.toml to
+    // the return value of the function `default_hysteresis`
+    #[serde(default = "default_hysteresis")]
+    pub cpu_hysteresis: u8,
+}
+
+#[must_use]
+pub const fn default_hysteresis() -> u8 {
+    5
 }
 
 #[derive(Clone, Debug, Deserialize)]

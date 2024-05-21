@@ -10,6 +10,7 @@ use gst::glib;
 use http::HttpClient;
 use log::warn;
 use settings::Settings;
+use system_info::{cpu_usage_poll, is_new_recording_feasible};
 use tokio::{
     select,
     signal::{
@@ -26,6 +27,7 @@ mod recorder;
 mod rmq;
 mod settings;
 mod signaling;
+mod system_info;
 
 use crate::recorder::Recorder;
 
@@ -206,11 +208,25 @@ async fn rmq_session(
     recorder_context: &Recorder,
     tasks: &mut Vec<JoinHandle<Result<()>>>,
 ) -> Result<()> {
-    match rmq::connect_rabbitmq(&recorder_context.settings.rabbitmq).await {
+    let rabbitmq_settings = &recorder_context.settings.rabbitmq;
+    let channel = rmq::open_rabbitmq_connection(rabbitmq_settings).await?;
+
+    match rmq::create_rmq_queue_and_consume(channel, rabbitmq_settings).await {
         Ok(mut consumer) => {
             while let Some(delivery) = consumer.next().await {
                 match delivery {
                     Ok(ref delivery) => {
+                        if !is_new_recording_feasible() {
+                            if let Err(e) = delivery
+                                .reject(lapin::options::BasicRejectOptions { requeue: true })
+                                .await
+                            {
+                                log::error!("Failed to reject Deliver: {e:?}");
+                            }
+
+                            continue;
+                        }
+
                         let start_command = rmq::handle_delivery(delivery).await?;
                         let task = recorder_context
                             .spawn_session(start_command)
@@ -250,6 +266,12 @@ async fn main2(mut shutdown_rx: Receiver<bool>) -> Result<()> {
         .context("OIDC discovery failed")?;
     let recorder_context = Recorder::new(settings, http_client, shutdown_rx.clone());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
+    let mut hysteresis = settings::default_hysteresis();
+    if let Some(recorder_info) = &recorder_context.settings.recorder {
+        hysteresis = recorder_info.cpu_hysteresis;
+    };
+
+    _ = std::thread::spawn(move || cpu_usage_poll(hysteresis));
 
     while !*shutdown_rx.borrow() {
         select! {

@@ -21,7 +21,7 @@ pub struct InitializeRecording {
     pub breakout: Option<String>,
 }
 
-pub async fn connect_rabbitmq(settings: &RabbitMqSettings) -> Result<Consumer> {
+pub async fn open_rabbitmq_connection(settings: &RabbitMqSettings) -> Result<lapin::Channel> {
     let rmq_conn = lapin::Connection::connect_uri(
         settings.uri.clone(),
         lapin::ConnectionProperties::default()
@@ -30,8 +30,16 @@ pub async fn connect_rabbitmq(settings: &RabbitMqSettings) -> Result<Consumer> {
     )
     .await?;
 
-    let rmq_channel = rmq_conn.create_channel().await?;
+    rmq_conn
+        .create_channel()
+        .await
+        .context("failed to create lapin::channel")
+}
 
+pub async fn create_rmq_queue_and_consume(
+    rmq_channel: lapin::Channel,
+    settings: &RabbitMqSettings,
+) -> Result<Consumer> {
     let queue = rmq_channel
         .queue_declare(
             &settings.queue,
