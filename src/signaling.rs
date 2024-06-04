@@ -17,7 +17,7 @@ use tt::{
 use types::{
     core::{ParticipantId, StreamingTargetId},
     signaling::{
-        control::{event::ControlEvent, state::ControlState, AssociatedParticipant, Participant},
+        control::{event::ControlEvent, state::ControlState, Participant},
         media::{
             peer_state::MediaPeerState, MediaSessionState, MediaSessionType,
             ParticipantSpeakingState,
@@ -215,9 +215,9 @@ impl Signaling {
                 ControlEvent::JoinSuccess(state) => self.handle_join_success(state),
                 ControlEvent::Joined(participant) => Ok(self.handle_joined(&participant)),
                 ControlEvent::Update(participant) => Ok(self.handle_update(&participant)),
-                ControlEvent::Left(AssociatedParticipant { id }) => {
-                    self.participants.remove(&id);
-                    Ok(Some(Event::ParticipantLeft(id)))
+                ControlEvent::Left { id, .. } => {
+                    self.participants.remove(&id.id);
+                    Ok(Some(Event::ParticipantLeft(id.id)))
                 }
                 ref other => {
                     log::error!("Event {other:#?} not implemented for recorder.");
