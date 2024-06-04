@@ -42,7 +42,7 @@ use types::{
 };
 
 use crate::{
-    http::HttpClient,
+    http::{FileExtension, HttpClient},
     rmq::InitializeRecording,
     settings::{RecorderSettings, RecorderSink, Settings},
     signaling::{Event, Signaling, TrickleCandidate},
@@ -129,17 +129,13 @@ impl Recorder {
     pub async fn upload(&self, room_id: &str, recording_path: &Path) -> Result<()> {
         let file = File::open(recording_path).await?;
 
-        let file_name = recording_path
-            .file_name()
-            .context("recording path is broken (empty)")?;
-
         log::debug!("upload file '{:?}' for room: {}", recording_path, room_id);
 
         self.http_client
             .upload_render(
                 &self.settings.controller,
                 room_id,
-                file_name.to_string_lossy().as_ref(),
+                FileExtension::mkv(),
                 FileReadStream { file },
             )
             .await
