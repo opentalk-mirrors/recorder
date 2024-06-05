@@ -15,12 +15,12 @@ use opentalk_recorder::signaling::{incoming, outgoing};
 use tokio::sync::{mpsc, Mutex};
 use types::{
     common::event::EventInfo,
-    core::{EventId, ParticipantId, StreamingTargetId, TariffId, Timestamp},
+    core::{EventId, ParticipantId, RoomId, StreamingTargetId, TariffId, Timestamp},
     signaling::{
         control::{
             event::{ControlEvent, JoinSuccess},
             state::ControlState,
-            AssociatedParticipant, Participant,
+            AssociatedParticipant, Participant, Reason,
         },
         media::{peer_state::MediaPeerState, MediaSessionState, ParticipantMediaState},
         recording::{
@@ -102,6 +102,8 @@ impl MockController {
                 title: "Test Recording Title".to_string(),
                 id: EventId::generate(),
                 is_adhoc: false,
+                room_id: RoomId::generate(),
+                meeting_details: None,
             }),
             display_name: "".to_string(),
             avatar_url: None,
@@ -231,6 +233,8 @@ impl MockController {
                         title: "Test Recording Title".to_string(),
                         id: EventId::generate(),
                         is_adhoc: false,
+                        room_id: RoomId::generate(),
+                        meeting_details: None,
                     }),
                     display_name: "".to_string(),
                     avatar_url: None,
@@ -303,7 +307,10 @@ impl MockController {
     }
 
     pub(crate) async fn send_left(&mut self, participant: &Participant) {
-        let left_event = ControlEvent::Left(AssociatedParticipant { id: participant.id });
+        let left_event = ControlEvent::Left {
+            id: AssociatedParticipant { id: participant.id },
+            reason: Reason::Quit,
+        };
 
         self.to_recorder_tx
             .send(incoming::Message::Control(left_event))

@@ -13,8 +13,25 @@ use openidconnect::{reqwest::Error, AccessToken, HttpRequest, HttpResponse, OAut
 use reqwest::{Body, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
+use types::core::Timestamp;
 
 use crate::settings::{AuthSettings, ControllerSettings};
+
+// TODO: Replace with version from opentalk-types
+#[derive(Clone)]
+pub struct FileExtension(String);
+
+impl FileExtension {
+    #[must_use]
+    pub fn mkv() -> Self {
+        Self("mkv".to_string())
+    }
+
+    #[must_use]
+    pub fn str(&self) -> &str {
+        &self.0
+    }
+}
 
 #[derive(Debug)]
 pub struct HttpClient {
@@ -132,7 +149,7 @@ impl HttpClient {
         &self,
         settings: &ControllerSettings,
         room_id: &str,
-        file_name: &str,
+        file_extension: FileExtension,
         stream: S,
     ) -> Result<()>
     where
@@ -140,9 +157,11 @@ impl HttpClient {
         S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
         Bytes: From<S::Ok>,
     {
+        let timestamp = Timestamp::now();
         let uri = format!(
-            "{}/services/recording/upload_render?room_id={room_id}&filename={file_name}",
-            settings.v1_api_base_url()
+            "{}/services/recording/upload_render?room_id={room_id}&file_extension={}&timestamp={timestamp}",
+            settings.v1_api_base_url(),
+            file_extension.str()
         );
 
         // TODO: do not refresh access-token always here. Cannot refresh on request failure since the body
