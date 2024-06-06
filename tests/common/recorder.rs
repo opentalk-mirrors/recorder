@@ -78,6 +78,7 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
         compositor::layout::Speaker::default(),
         MAX_VISIBLES,
         true,
+        &Default::default(),
     )
     .expect("unable to create talk");
 

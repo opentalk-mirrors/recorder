@@ -69,9 +69,15 @@ async fn exec_events(events: Vec<Event>) {
 
     const MAX_VISIBLES: usize = 7;
 
-    let mut mixer =
-        Mixer::<WebRtcSource>::create(None, Size::FHD, Speaker::default(), MAX_VISIBLES, true)
-            .unwrap();
+    let mut mixer = Mixer::<WebRtcSource>::create(
+        None,
+        Size::FHD,
+        Speaker::default(),
+        MAX_VISIBLES,
+        true,
+        &Default::default(),
+    )
+    .unwrap();
 
     mixer
         .link_sink("test_sink", TestSink::create("Recording", true).unwrap())

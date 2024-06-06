@@ -18,6 +18,7 @@ fn test_overlay() {
         Speaker::default(),
         testing::MAX_STREAMS,
         true,
+        &Default::default(),
     )
     .unwrap();
     mixer

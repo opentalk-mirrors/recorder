@@ -26,6 +26,7 @@ fn test_layout(layout: impl Layout, name: &str) {
         layout,
         testing::MAX_STREAMS,
         true,
+        &Default::default(),
     )
     .unwrap();
 
@@ -69,6 +70,7 @@ fn test_remove(use_video: bool) {
         Speaker::default(),
         testing::MAX_STREAMS,
         use_video,
+        &Default::default(),
     )
     .unwrap();
 
