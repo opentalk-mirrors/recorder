@@ -4,13 +4,14 @@ Upstream-Name: OpenTalk Controller
 Upstream-Contact: OpenTalk GmbH <mail@opentalk.eu>
 
 Files:
- Cargo.lock
- CHANGELOG.md
  .gitlab/issue_templates/*.md
- docs/**.md
+ CHANGELOG.md
+ Cargo.lock
  compositor/images/**.graphml
  compositor/images/**.png
  compositor/images/**.xcf
+ docs/**.md
  images/**.png
+ renovate.json
 Copyright: OpenTalk GmbH <mail@opentalk.eu>
 License: EUPL-1.2
