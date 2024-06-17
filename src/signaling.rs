@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use core::fmt::Debug;
+use std::collections::{BTreeMap, HashMap};
 
 use anyhow::{bail, Context, Result};
 use compositor::MediaDescriptor;
-use futures::{SinkExt, StreamExt};
+use futures::SinkExt;
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
@@ -17,22 +18,16 @@ use tt::{
 use types::{
     core::{ParticipantId, StreamingTargetId},
     signaling::{
-        control::{event::ControlEvent, state::ControlState, Participant},
-        media::{
-            peer_state::MediaPeerState, MediaSessionState, MediaSessionType,
-            ParticipantSpeakingState,
-        },
+        control::{self, event::JoinSuccess, state::ControlState, Participant},
+        media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
         recording::{
             peer_state::RecordingPeerState, state::RecorderStreamInfo, StreamStatus, StreamUpdated,
         },
-        recording_service::{
-            command::RecordingServiceCommand, event::RecordingServiceEvent,
-            state::RecordingServiceState,
-        },
+        recording_service::{event::RecordingServiceEvent, state::RecordingServiceState},
     },
 };
 
-use crate::{http::HttpClient, settings::ControllerSettings, signaling::incoming::Error};
+use crate::{http::HttpClient, settings::ControllerSettings};
 
 #[derive(Debug)]
 pub struct Signaling {
@@ -42,7 +37,7 @@ pub struct Signaling {
     /// List of all other participants in the conference
     participants: HashMap<ParticipantId, ParticipantState>,
 
-    connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    pub connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
 #[allow(dead_code)]
@@ -60,7 +55,7 @@ pub struct ParticipantState {
 }
 
 impl ParticipantState {
-    fn from_incoming(p: &Participant) -> Result<Self> {
+    pub(crate) fn from_incoming(p: &Participant) -> Result<Self> {
         let media: MediaPeerState = p
             .get_module::<MediaPeerState>()
             .ok()
@@ -91,38 +86,12 @@ impl ParticipantState {
     }
 
     #[must_use]
-    pub fn publishes(&self, typ: MediaSessionType) -> Option<MediaSessionState> {
+    pub(crate) fn publishes(&self, typ: MediaSessionType) -> Option<MediaSessionState> {
         if !self.consents {
             return None;
         }
         self.publishing.get(&typ).copied()
     }
-}
-
-/// Event emitted by [`Signaling::run`]
-#[derive(Debug)]
-pub enum Event {
-    JoinSuccess {
-        participant_id: ParticipantId,
-        event_title: String,
-        streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
-    },
-    ParticipantJoined(ParticipantId),
-    ParticipantUpdated(ParticipantId),
-    ParticipantLeft(ParticipantId),
-
-    SdpOffer(MediaDescriptor, String),
-    SdpCandidate(MediaDescriptor, TrickleCandidate),
-    SdpEndOfCandidates(MediaDescriptor),
-
-    SpeakerUpdated(ParticipantSpeakingState),
-    FocusUpdate(Option<ParticipantId>),
-    MediaConnectionError(Error),
-    Close,
-
-    Start(BTreeSet<StreamingTargetId>),
-    Pause(BTreeSet<StreamingTargetId>),
-    Stop(BTreeSet<StreamingTargetId>),
 }
 
 impl Signaling {
@@ -175,25 +144,11 @@ impl Signaling {
         })
     }
 
-    pub async fn run(&mut self) -> Result<Event> {
-        loop {
-            tokio::select! {
-                msg = self.connection.next() => {
-                    if let Some(msg) = msg {
-                        let msg = msg.context("Failed to receive websocket message")?;
-                        if let Some(event) = self.handle_websocket_message(msg).await? {
-                            return Ok(event);
-                        }
-                    } else {
-                        bail!("unexpected websocket disconnection");
-                    }
-                }
-            }
-        }
-    }
-
     #[allow(clippy::too_many_lines)]
-    async fn handle_websocket_message(&mut self, msg: Message) -> Result<Option<Event>> {
+    pub(crate) async fn handle_websocket_message(
+        &mut self,
+        msg: Message,
+    ) -> Result<Option<incoming::Message>> {
         log::trace!("handle_websocket_message: {msg:#?}");
         let parse_result = match msg {
             Message::Text(ref s) => serde_json::from_str::<incoming::Message>(s),
@@ -205,143 +160,25 @@ impl Signaling {
             Message::Pong(_) => return Ok(None),
             Message::Close(_) => {
                 let _ = self.connection.close(None).await;
-                return Ok(Some(Event::Close));
+                return Ok(None);
             }
             Message::Frame(_) => unreachable!("send-only message"),
         };
 
-        let msg = match parse_result {
-            Ok(msg) => msg,
+        match parse_result {
+            Ok(msg) => Ok(Some(msg)),
             Err(e) => {
                 log::debug!("Unknown incoming message {msg:?}, {e}");
-                return Ok(None);
+                Err(e.into())
             }
-        };
-
-        match msg {
-            incoming::Message::Control(msg) => match msg {
-                ControlEvent::JoinSuccess(state) => self.handle_join_success(state),
-                ControlEvent::Joined(participant) => Ok(self.handle_joined(&participant)),
-                ControlEvent::Update(participant) => Ok(self.handle_update(&participant)),
-                ControlEvent::Left { id, .. } => {
-                    self.participants.remove(&id.id);
-                    Ok(Some(Event::ParticipantLeft(id.id)))
-                }
-                ref other => {
-                    log::error!("Event {other:#?} not implemented for recorder.");
-                    Ok(None)
-                }
-            },
-            incoming::Message::RecordingService(msg) => match msg {
-                RecordingServiceCommand::StartStreams { target_ids } => {
-                    Ok(Some(Event::Start(target_ids)))
-                }
-                RecordingServiceCommand::PauseStreams { target_ids } => {
-                    Ok(Some(Event::Pause(target_ids)))
-                }
-                RecordingServiceCommand::StopStreams { target_ids } => {
-                    Ok(Some(Event::Stop(target_ids)))
-                }
-            },
-            incoming::Message::Media(msg) => match msg {
-                incoming::MediaMessage::SdpOffer(sdp) => {
-                    Ok(Some(Event::SdpOffer(sdp.source.into(), sdp.sdp)))
-                }
-                incoming::MediaMessage::SdpCandidate(candidate) => Ok(Some(Event::SdpCandidate(
-                    candidate.source.into(),
-                    candidate.candidate,
-                ))),
-                incoming::MediaMessage::SdpEndOfCandidates(source) => {
-                    Ok(Some(Event::SdpEndOfCandidates(source.into())))
-                }
-                incoming::MediaMessage::WebRtcUp(_) | incoming::MediaMessage::WebRtcDown(_) => {
-                    Ok(None)
-                }
-                incoming::MediaMessage::FocusUpdate(focus) => {
-                    Ok(Some(Event::FocusUpdate(focus.focus)))
-                }
-                incoming::MediaMessage::WebRtcSlow(slow) => {
-                    log::warn!("Slow participant {:?}", slow.source);
-                    Ok(None)
-                }
-                incoming::MediaMessage::Error(error) => {
-                    Ok(Some(Event::MediaConnectionError(error)))
-                }
-                incoming::MediaMessage::SpeakerUpdated(speak_state) => {
-                    Ok(Some(Event::SpeakerUpdated(speak_state)))
-                }
-            },
         }
     }
 
-    fn handle_update(&mut self, participant: &Participant) -> Option<Event> {
-        let Some(state) = self.participants.get_mut(&participant.id) else {
-            log::error!("Got update for unknown participant {:?}", participant.id);
-            return None;
-        };
-
-        let id = participant.id;
-        *state = match ParticipantState::from_incoming(participant) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to parse incoming Update message: {e}");
-                return None;
-            }
-        };
-
-        Some(Event::ParticipantUpdated(id))
-    }
-
-    fn handle_joined(&mut self, participant: &Participant) -> Option<Event> {
-        let id = participant.id;
-        let participant = match ParticipantState::from_incoming(participant) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to parse incoming Joined message: {e}");
-                return None;
-            }
-        };
-        self.participants.insert(id, participant);
-        Some(Event::ParticipantJoined(id))
-    }
-
-    fn handle_join_success(
-        &mut self,
-        state: types::signaling::control::event::JoinSuccess,
-    ) -> std::prelude::v1::Result<Option<Event>, anyhow::Error> {
-        let streaming_targets = state
-            .get_module::<RecordingServiceState>()?
-            .context("No Service State has been found")?
-            .streams;
-
-        self.participants = match state
-            .participants
-            .into_iter()
-            .map(|p| {
-                let id = p.id;
-                ParticipantState::from_incoming(&p).map(|ps| (id, ps))
-            })
-            .collect::<Result<HashMap<_, _>>>()
-        {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to parse incoming JoinSuccess message: {e}");
-                return Ok(None);
-            }
-        };
-
-        Ok(Some(Event::JoinSuccess {
-            participant_id: state.id,
-            event_title: state.event_info.map(|ei| ei.title).unwrap_or_default(),
-            streaming_targets,
-        }))
-    }
-
-    pub fn participants(&self) -> &HashMap<ParticipantId, ParticipantState> {
+    pub(crate) fn participants(&self) -> &HashMap<ParticipantId, ParticipantState> {
         &self.participants
     }
 
-    pub fn participant(&self, id: &ParticipantId) -> Result<&ParticipantState> {
+    pub(crate) fn participant(&self, id: &ParticipantId) -> Result<&ParticipantState> {
         let Some(participant_state) = self.participants.get(id) else {
             bail!("Participant {id} joined but not state exists");
         };
@@ -430,6 +267,67 @@ impl Signaling {
             ))
             .await
             .context("failed to send message")
+    }
+
+    pub(crate) fn handle_join_success(
+        &mut self,
+        state: JoinSuccess,
+    ) -> Result<BTreeMap<StreamingTargetId, RecorderStreamInfo>> {
+        let recording_service_state = state
+            .get_module::<RecordingServiceState>()?
+            .context("No Service State has been found")?;
+
+        let streaming_targets = recording_service_state.streams;
+
+        self.participants = match state
+            .participants
+            .into_iter()
+            .map(|p| {
+                let id = p.id;
+                ParticipantState::from_incoming(&p).map(|ps| (id, ps))
+            })
+            .collect::<Result<HashMap<_, _>>>()
+        {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to parse incoming JoinSuccess message: {e}");
+                return Err(e);
+            }
+        };
+
+        Ok(streaming_targets)
+    }
+
+    pub(crate) fn handle_joined(&mut self, participant: &Participant) -> Result<()> {
+        let id = participant.id;
+        let participant = match ParticipantState::from_incoming(participant) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to parse incoming Joined message: {e}");
+                return Err(e);
+            }
+        };
+        self.participants.insert(id, participant);
+        Ok(())
+    }
+
+    pub(crate) fn handle_left(&mut self, id: &control::AssociatedParticipant) {
+        self.participants.remove(&id.id);
+    }
+
+    pub(crate) fn handle_update(&mut self, participant: &Participant) {
+        let Some(state) = self.participants.get_mut(&participant.id) else {
+            log::error!("Got update for unknown participant {:?}", participant.id);
+            return;
+        };
+
+        *state = match ParticipantState::from_incoming(participant) {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to parse incoming Update message: {e}");
+                return;
+            }
+        };
     }
 }
 
