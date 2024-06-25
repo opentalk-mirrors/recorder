@@ -137,8 +137,9 @@ impl Signaling {
         client: &HttpClient,
         settings: &ControllerSettings,
         room_id: &str,
+        breakout_id: &Option<String>,
     ) -> Result<Self> {
-        let ticket = client.start(settings, room_id).await?;
+        let ticket = client.start(settings, room_id, breakout_id).await?;
 
         let mut websocket_request = settings.websocket_url().into_client_request()?;
         websocket_request.headers_mut().insert(

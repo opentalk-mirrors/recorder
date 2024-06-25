@@ -149,6 +149,8 @@ pub struct RecordingSession {
     signaling: Signaling,
 
     room_id: String,
+    participant_id: Option<ParticipantId>,
+
     temp_dir: TempDir,
 
     mixer: Mixer,
@@ -227,6 +229,7 @@ impl RecordingSession {
             service_context,
             signaling,
             room_id,
+            participant_id: None,
             temp_dir,
             mixer,
             streaming_targets,
@@ -244,6 +247,7 @@ impl RecordingSession {
             service_context.http_client.as_ref(),
             &service_context.settings.controller,
             &command.room,
+            &command.breakout,
         )
         .await?;
 
@@ -318,6 +322,7 @@ impl RecordingSession {
             service_context,
             signaling,
             room_id: command.room,
+            participant_id: None,
             temp_dir,
             mixer,
             streaming_targets: BTreeMap::new(),
@@ -512,11 +517,11 @@ impl RecordingSession {
     async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
         match event {
             Event::JoinSuccess {
-                participant_id: _,
+                participant_id,
                 event_title,
                 streaming_targets,
             } => {
-                self.handle_join_success(streaming_targets, event_title)
+                self.handle_join_success(streaming_targets, event_title, participant_id)
                     .await?;
             }
 
@@ -593,7 +598,9 @@ impl RecordingSession {
         &mut self,
         streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
         event_title: String,
+        participant_id: ParticipantId,
     ) -> Result<(), anyhow::Error> {
+        self.participant_id = Some(participant_id);
         self.streaming_targets = streaming_targets
             .iter()
             .map(|(id, target)| {
