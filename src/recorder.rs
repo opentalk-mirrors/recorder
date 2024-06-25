@@ -35,7 +35,7 @@ use types::{
     signaling::{
         media::{MediaSessionState, MediaSessionType},
         recording::{
-            state::{RecorderStreamInfo, RecordingTarget, StreamingTarget},
+            state::{RecorderStreamInfo, StreamingTarget},
             StreamErrorReason, StreamStatus,
         },
     },
@@ -57,13 +57,8 @@ type Mixer = compositor::Mixer<WebRtcSource>;
 
 #[derive(Clone, Debug)]
 pub enum RecorderStreamKind {
-    Recording {
-        file_name: String,
-        target: RecordingTarget,
-    },
-    Streaming {
-        target: StreamingTarget,
-    },
+    Recording { file_name: String },
+    Streaming { target: StreamingTarget },
 }
 
 #[derive(Clone, Debug)]
@@ -408,11 +403,10 @@ impl RecordingSession {
                 )
                 .map_err(RecordingSessionError::StartLivestream)
             }
-            RecorderStreamKind::Recording {
-                file_name,
-                target: _,
-            } => Self::start_recording(&mut self.mixer, &self.temp_dir, file_name.as_str())
-                .map_err(RecordingSessionError::StartRecording),
+            RecorderStreamKind::Recording { file_name } => {
+                Self::start_recording(&mut self.mixer, &self.temp_dir, file_name.as_str())
+                    .map_err(RecordingSessionError::StartRecording)
+            }
         };
 
         stream.state = match new_state {
@@ -437,10 +431,7 @@ impl RecordingSession {
             return Err(RecordingSessionError::NotRunning(id));
         }
         let new_state = match stream.kind {
-            RecorderStreamKind::Recording {
-                file_name: _,
-                target: _,
-            } => {
+            RecorderStreamKind::Recording { file_name: _ } => {
                 self.mixer.release_sink(&"recording".to_owned());
 
                 self.service_context
@@ -611,7 +602,6 @@ impl RecordingSession {
                             state: target.stream_start_options.status.clone(),
                             kind: RecorderStreamKind::Recording {
                                 file_name: TEMP_RECORDING_NAME.to_owned(),
-                                target: target.clone(),
                             },
                         },
                         RecorderStreamInfo::Streaming(target) => RecorderStreamStatus {
