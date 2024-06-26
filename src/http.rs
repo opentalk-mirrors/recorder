@@ -104,7 +104,12 @@ impl HttpClient {
         Ok(())
     }
 
-    pub async fn start(&self, settings: &ControllerSettings, room_id: &str) -> Result<String> {
+    pub async fn start(
+        &self,
+        settings: &ControllerSettings,
+        room_id: &str,
+        breakout_room: &Option<String>,
+    ) -> Result<String> {
         let uri = format!("{}/services/recording/start", settings.v1_api_base_url());
 
         // max 10 authentication tries
@@ -119,7 +124,10 @@ impl HttpClient {
                 .client
                 .post(&uri)
                 .bearer_auth(token.secret())
-                .json(&StartRequest { room_id })
+                .json(&StartRequest {
+                    room_id,
+                    breakout_room,
+                })
                 .send()
                 .await?;
 
@@ -203,6 +211,7 @@ pub struct InvalidCredentials;
 #[derive(Serialize)]
 struct StartRequest<'s> {
     room_id: &'s str,
+    breakout_room: &'s Option<String>,
 }
 
 #[derive(Deserialize)]
