@@ -4,8 +4,11 @@
 
 //! Functions for debugging..
 
-use glib::Cast;
-use gst::{traits::GstObjectExt, DebugGraphDetails};
+use glib::object::Cast;
+use gst::{
+    prelude::{GstBinExtManual, GstObjectExt as _},
+    DebugGraphDetails,
+};
 
 /// Pipeline DOT debugging parameters
 pub struct Params {
@@ -49,7 +52,7 @@ impl Default for Params {
 ///
 /// - `element`: Element in the pipeline which shall be generated a DOT file from.
 ///
-pub fn debug_dot(element: &impl glib::IsA<gst::Element>, filename_without_extension: &str) {
+pub fn debug_dot(element: &impl glib::object::IsA<gst::Element>, filename_without_extension: &str) {
     if log::max_level() >= log::Level::Debug {
         dot(element, filename_without_extension);
     }
@@ -61,7 +64,7 @@ pub fn debug_dot(element: &impl glib::IsA<gst::Element>, filename_without_extens
 ///
 /// - `element`: Element in the pipeline which shall be generated a DOT file from.
 ///
-pub fn dot(element: &impl glib::IsA<gst::Element>, filename_without_extension: &str) {
+pub fn dot(element: &impl glib::object::IsA<gst::Element>, filename_without_extension: &str) {
     dot_ext(element, filename_without_extension, &Params::default());
 }
 
@@ -71,7 +74,7 @@ pub fn dot(element: &impl glib::IsA<gst::Element>, filename_without_extension: &
 ///
 /// - `element`: Element in the pipeline which shall be generated a DOT file from.
 pub fn dot_ext(
-    element: &impl glib::IsA<gst::Element>,
+    element: &impl glib::object::IsA<gst::Element>,
     filename_without_extension: &str,
     params: &Params,
 ) {
@@ -128,7 +131,7 @@ pub fn dot_ext(
         error!("Generation of dot file failed: unable to cast element to bin");
         return;
     };
-    gst::debug_bin_to_dot_file(&bin, params.details, name);
+    bin.debug_to_dot_file(params.details, name);
 }
 
 /// Create a name (and parent name as suffix) from given gstreamer object.
@@ -137,7 +140,7 @@ pub fn dot_ext(
 ///
 /// - `object`: Object to return name from.
 ///
-pub fn name(object: &impl glib::IsA<gst::Object>) -> glib::GString {
+pub fn name(object: &impl glib::object::IsA<gst::Object>) -> glib::GString {
     if let Some(parent) = object.parent() {
         format!("{}.{}", name(&parent), object.name()).into()
     } else {

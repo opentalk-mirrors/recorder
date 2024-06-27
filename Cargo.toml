@@ -18,9 +18,9 @@ types = { package = "opentalk-types", version = "0.15.0-alpha" }
 compositor = { path = "compositor" }
 types = { workspace = true, features = ["rand", "serde"] }
 
-gst = { package = "gstreamer", version = "0.20" }
-gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
-gst-webrtc = { package = "gstreamer-webrtc", version = "0.20", features = [
+gst = { package = "gstreamer", version = "0.22" }
+gst-sdp = { package = "gstreamer-sdp", version = "0.22" }
+gst-webrtc = { package = "gstreamer-webrtc", version = "0.22", features = [
     "v1_22",
 ] }
 tt = { package = "tokio-tungstenite", version = "0.20", features = [

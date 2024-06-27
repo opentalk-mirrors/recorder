@@ -9,9 +9,10 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use glib::ControlFlow;
 use gst::{
-    event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element, ElementFactory, Fraction,
-    GhostPad, Pipeline, SystemClock,
+    bus::BusWatchGuard, event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element,
+    ElementFactory, Fraction, GhostPad, Pipeline, SystemClock,
 };
 use types::{
     core::ParticipantId,
@@ -38,7 +39,7 @@ pub use {
     source::*,
     stream::*,
     text_style::*,
-    
+
     super::{layout::*, overlays::*}
 };
 
@@ -116,6 +117,7 @@ where
     layout: Box<dyn Layout>,
     system_clock: Clock,
     max_visibles: usize,
+    bus_watch_guard: Option<BusWatchGuard>,
 }
 
 impl<SRC> Mixer<SRC>
@@ -143,7 +145,7 @@ where
         video_support: bool,
         clock_format: &ClockFormat,
     ) -> Result<Self> {
-        let pipeline = existing_pipeline.unwrap_or(Pipeline::new(Some("Compositor")));
+        let pipeline = existing_pipeline.unwrap_or(Pipeline::builder().name("Compositor").build());
 
         debug!("create compositor ( {output_resolution:?}, {max_visibles:?} )");
 
@@ -183,6 +185,7 @@ where
             layout: Box::new(layout),
             system_clock,
             max_visibles,
+            bus_watch_guard: None,
         };
 
         // start reading the pipeline bus
@@ -274,7 +277,9 @@ where
 
         // create new source bin
         let source = SRC::create(&descriptor, params).context("unable to create Source")?;
-        let bin = Bin::new(Some(format!("Overlay: {descriptor}").as_str()));
+        let bin = Bin::builder()
+            .name(format!("Overlay: {descriptor}"))
+            .build();
 
         // Add source bin to bin
         bin.add_with_context(&source.bin())?;
@@ -376,7 +381,8 @@ where
             .overlay
             .src()
             .context("unable to get src pad from overlay")?;
-        let overlay_ghost_pad = GhostPad::with_target_with_context(None, &overlay_src_pad)?;
+        let overlay_ghost_pad =
+            GhostPad::with_target_with_context(Some("overlay-src"), &overlay_src_pad)?;
 
         source.bin.add_pad_with_context(&overlay_ghost_pad)?;
 
@@ -672,7 +678,7 @@ where
             bail!("a stream with the name '{name}' already exists");
         }
 
-        let pipeline = Pipeline::new(Some(name));
+        let pipeline = Pipeline::builder().name(name).build();
 
         pipeline.use_clock(Some(&self.system_clock));
         pipeline.set_base_time(ClockTime::ZERO);
@@ -731,6 +737,10 @@ where
 
     /// Continuously read the bus for errors and EOS.
     fn read_bus(&mut self) -> Result<()> {
+        if self.bus_watch_guard.is_some() {
+            debug!("BusWatch already added, won't add again.");
+            return Ok(());
+        }
         // get pipeline bus
         let bus = self
             .pipeline
@@ -739,7 +749,7 @@ where
 
         // add watch which continuous recalculates latency
         let pipeline_weak = self.pipeline.downgrade();
-        bus.add_watch(move |_, msg| {
+        let bus_watch_guard = bus.add_watch(move |_, msg| {
             use gst::MessageView;
             // check several message types
             match (msg.view(), &pipeline_weak.upgrade()) {
@@ -783,8 +793,9 @@ where
                 _ => (),
             }
             // stop reading if we are expecting EOS after the following scan
-            Continue(true)
+            ControlFlow::Continue
         })?;
+        self.bus_watch_guard = Some(bus_watch_guard);
 
         Ok(())
     }

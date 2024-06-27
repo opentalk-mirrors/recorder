@@ -7,7 +7,6 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
-use glib::Cast;
 use gst::{
     prelude::*, ClockTime, Element, ElementFactory, Fraction, GhostPad, MessageType, Pipeline,
 };

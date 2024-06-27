@@ -13,15 +13,15 @@ publish = false
 [dependencies]
 types.workspace = true
 
-gst = { package = "gstreamer", version = "0.20", features = ["v1_22"] }
-gst-app = { package = "gstreamer-app", version = "0.20" }
-gst-base = { package = "gstreamer-base", version = "0.20", features = ["v1_22"] }
-gst-sdp = { package = "gstreamer-sdp", version = "0.20" }
-gst-webrtc = { package = "gstreamer-webrtc", version = "0.20", features = [
+gst = { package = "gstreamer", version = "0.22", features = ["v1_22"] }
+gst-app = { package = "gstreamer-app", version = "0.22" }
+gst-base = { package = "gstreamer-base", version = "0.22", features = ["v1_22"] }
+gst-sdp = { package = "gstreamer-sdp", version = "0.22" }
+gst-webrtc = { package = "gstreamer-webrtc", version = "0.22", features = [
     "v1_22",
 ] }
 log = "0.4"
-glib = "0.17"
+glib = "0.19"
 tokio = { version = "1", features = [
     "sync",
     "net",

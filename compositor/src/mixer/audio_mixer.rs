@@ -45,7 +45,7 @@ impl AudioMixer {
 
     #[allow(clippy::too_many_lines)]
     pub(crate) fn create() -> Result<Self> {
-        let bin = Bin::new(Some("AudioMixer"));
+        let bin = Bin::builder().name("AudioMixer").build();
 
         let audiotestsrc = ElementFactory::make("audiotestsrc")
             .name("Audio Background Source")
