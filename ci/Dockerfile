@@ -28,7 +28,7 @@ COPY compositor/src compositor/src
 RUN touch src/main.rs; \
     RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release
 
-FROM alpine:3.19
+FROM alpine:3.20
 
 RUN apk add --no-cache glib libssl3 libcrypto3 ffmpeg \
     gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav \
