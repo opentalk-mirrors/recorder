@@ -46,7 +46,7 @@ A composite placing all visible participants in a grid.
 Please try the following line which starts a demo which uses an existing crate test to generate DASH output of a scene with one participant (simulated by a test video):
 
 ```sh
-RUST_LOG=trace cargo test test_matroska & sleep 1 ; bin/record-ffmpeg.sh tcp://127.0.0.1:9000 test_output/dash.mpd 1M 5 auto
+RUST_LOG=trace cargo test test_webm & sleep 1 ; bin/record-ffmpeg.sh tcp://127.0.0.1:9000 test_output/dash.mpd 1M 5 auto
 ```
 
 If the cargo build lasts longer then 1s try to precompile or increase the sleep time in the line above.

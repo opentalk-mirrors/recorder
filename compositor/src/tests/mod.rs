@@ -4,12 +4,12 @@
 
 mod blinder;
 mod generate_example_pipeline_picture;
-mod matroska;
 mod mixer;
 mod multi;
 mod overlays;
 mod speaker_mode;
 mod stream_status;
+mod webm;
 mod webrtc;
 
 pub mod testing {

@@ -7,16 +7,14 @@ use types::{
     signaling::media::{MediaSessionState, MediaSessionType},
 };
 
-use crate::{
-    testing, MatroskaParameters, MatroskaSink, MediaDescriptor, Mixer, Speaker, TestSource,
-};
+use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSource, WebMParameters, WebMSink};
 
 #[test]
-fn test_matroska() {
+fn test_webm() {
     // initialize for testing
     testing::init();
 
-    // create grid mixer with test sources for streams and a MatroskaSink
+    // create grid mixer with test sources for streams and a WebMSink
     let mut mixer = Mixer::<TestSource>::create(
         None,
         testing::RESOLUTION,
@@ -29,11 +27,11 @@ fn test_matroska() {
 
     mixer
         .link_sink(
-            "matroska_sink",
-            MatroskaSink::create(
+            "webm_sink",
+            WebMSink::create(
                 "test",
-                &MatroskaParameters {
-                    path: "/tmp/test.mkv".to_owned(),
+                &WebMParameters {
+                    path: "/tmp/test.webm".to_owned(),
                 },
             )
             .unwrap(),
@@ -54,7 +52,7 @@ fn test_matroska() {
         )
         .unwrap();
 
-    mixer.dot("test_matroska", testing::DOT_PARAMS);
+    mixer.dot("test_webm", testing::DOT_PARAMS);
 
     // stir until done
     testing::wait_secs(3);

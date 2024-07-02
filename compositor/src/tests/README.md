@@ -17,7 +17,7 @@ This picture is used within documentation.
 The following tests are testing several units of the compositor library:
 
 - Stream blinding: [blinder](doc/blinder.md)
-- Matroska output: [matroska](doc/matroska.md)
+- WebM output: [WebM](doc/webm.md)
 - Mixer tests
     - Several layouts: [layout](doc/layout.md)
     - Removing streams: [remove](doc/remove.md)

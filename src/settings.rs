@@ -4,7 +4,7 @@
 
 use std::{fmt::Display, str::FromStr};
 
-use compositor::{ClockFormat, MatroskaParameters, RTMPParameters};
+use compositor::{ClockFormat, RTMPParameters, WebMParameters};
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
@@ -22,7 +22,7 @@ pub struct RecorderSettings {
 #[serde(rename_all = "lowercase")]
 pub enum RecorderSink {
     Display,
-    Matroska(MatroskaParameters),
+    WebM(WebMParameters),
     Rtmp(RTMPParameters),
 }
 

@@ -80,6 +80,9 @@ impl ActiveSink {
             .build();
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
+            .property("max-size-time", 10_000_000_000u64)
+            .property("max-size-bytes", 10_000_000u32)
+            .property("max-size-buffers", 0u32)
             .build_with_context()?;
         let audioconvert = ElementFactory::make("audioconvert").build_with_context()?;
 
@@ -125,6 +128,9 @@ impl ActiveSink {
             .build();
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
+            .property("max-size-time", 10_000_000_000u64)
+            .property("max-size-bytes", 200_000_000u32)
+            .property("max-size-buffers", 0u32)
             .build_with_context()?;
         let videoconvert = ElementFactory::make("videoconvert").build_with_context()?;
 
