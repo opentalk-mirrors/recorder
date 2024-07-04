@@ -9,7 +9,7 @@ use crate::{testing, Mixer, Speaker, TestSink, TestSource};
 fn test_multi(use_video: bool) {
     // initialize for testing
     testing::init();
-    // create grid mixer with test sources for streams and a MatroskaSink
+    // create grid mixer with test sources for streams and a TestSink
     let mut mixer = Mixer::<TestSource>::create(
         None,
         testing::RESOLUTION,

@@ -17,8 +17,8 @@ use std::{
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    MatroskaParameters, MatroskaSink, MediaDescriptor, RTMPParameters, RTMPSink, SystemSink,
-    WebRtcSource, WebRtcSourceParams,
+    MediaDescriptor, RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink, WebRtcSource,
+    WebRtcSourceParams,
 };
 use futures::Stream;
 use log::error;
@@ -51,7 +51,7 @@ use crate::{
 // TODO; make this configurable
 pub const MAX_VISIBLES: usize = 8;
 
-const TEMP_RECORDING_NAME: &str = "recording.mkv";
+const TEMP_RECORDING_NAME: &str = "recording.webm";
 
 type Mixer = compositor::Mixer<WebRtcSource>;
 
@@ -130,7 +130,7 @@ impl Recorder {
             .upload_render(
                 &self.settings.controller,
                 room_id,
-                FileExtension::mkv(),
+                FileExtension::webm(),
                 FileReadStream { file },
             )
             .await
@@ -269,7 +269,7 @@ impl RecordingSession {
         for (index, sink) in recorder_sinks.into_iter().enumerate() {
             let tag = match sink {
                 RecorderSink::Display => "Display",
-                RecorderSink::Matroska(_) => "Matroska",
+                RecorderSink::WebM(_) => "WebM",
                 RecorderSink::Rtmp(_) => "RTMP",
             };
             let name = format!("{tag}-Sink-{index}");
@@ -283,12 +283,12 @@ impl RecordingSession {
                         )
                         .context("unable to link sink to mixer")?;
                 }
-                RecorderSink::Matroska(matroska_parameters) => {
+                RecorderSink::WebM(webm_parameters) => {
                     mixer
                         .link_sink(
                             name.as_str(),
-                            MatroskaSink::create(name.as_str(), &matroska_parameters)
-                                .context("MatroskaSink could not created")?,
+                            WebMSink::create(name.as_str(), &webm_parameters)
+                                .context("WebMSink could not created")?,
                         )
                         .context("unable to link sink to mixer")?;
                 }
@@ -363,16 +363,16 @@ impl RecordingSession {
         mixer
             .link_sink(
                 "recording",
-                MatroskaSink::create(
-                    "Matroska-Sink",
-                    &MatroskaParameters {
+                WebMSink::create(
+                    "WebM-Sink",
+                    &WebMParameters {
                         path: file_path
                             .to_str()
-                            .context("failed to convert Matroska file path into string")?
+                            .context("failed to convert WebM file path into string")?
                             .into(),
                     },
                 )
-                .context("Matroska-Sink could not created")?,
+                .context("WebM-Sink could not created")?,
             )
             .context("unable to link sink to talk")?;
 

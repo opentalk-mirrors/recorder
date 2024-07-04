@@ -1,16 +1,16 @@
 # Recorder
 
 The OpenTalk Recorder is capable of streaming into different sinks. A sink can
-be a `MKV file`, `Display`, or `RTMP stream`.
+be a `WebM file`, `Display`, or `RTMP stream`.
 
 ## Configuration
 
 The section in the [configuration file](README.md) is called `recorder`.
 
 | Field                     | Type          | Required | Default value | Description                                  |
-| ------------------------- | ------------- | -------- | ------------- | -------------------------------------------- |
+| ------------------------- | ------------- | -------- |---------------| -------------------------------------------- |
 | `clock_format`            | `string`      | no       | "%x %X %Z"    | The time format for the clock                |
-| `sinks`                   | `array<sink>` | no       | "mkv"         | The sink where the recorder should stream to |
+| `sinks`                   | `array<sink>` | no       | "webm"        | The sink where the recorder should stream to |
 | `sink.rtmp_uri`           | `int`         | yes*     | -             | The location for the rtmp sink               |
 | `sink.rtmp_audio_bitrate` | `int`         | no       | 96000         | The audio bitrate for the rtmp sink          |
 | `sink.rtmp_audio_rate`    | `int`         | no       | 48000         | The audio rate for the rtmp sink             |
@@ -28,15 +28,15 @@ Set the time format for the clock in the recording.
 clock_format = "%d.%m.%Y %H:%M:%S"
 ```
 
-#### Example with mkv sink (default behaviour)
+#### Example with webm sink (default behaviour)
 
-The Display sink can be used to stream from the recorder to a mkv file.
+The Display sink can be used to stream from the recorder to a webm file.
 
 ```toml
 [recorder]
 
 [[recorder.sinks]]
-type = "mkv"
+type = "webm"
 ```
 
 #### Example with display sink

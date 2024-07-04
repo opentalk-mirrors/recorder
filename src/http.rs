@@ -23,8 +23,8 @@ pub struct FileExtension(String);
 
 impl FileExtension {
     #[must_use]
-    pub fn mkv() -> Self {
-        Self("mkv".to_string())
+    pub fn webm() -> Self {
+        Self("webm".to_string())
     }
 
     #[must_use]

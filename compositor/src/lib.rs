@@ -30,10 +30,8 @@
       is an universal sink that can be one of the following.
     - `[DashSink`]
       writes the output into a Dash instance consisting of an MPD file and several audio/video files.
-    - `[MatroskaSink`]
-      writes the output into a MPEG4 file.
-    - `[MatroskaSink`]
-      listens on a TCP port to write the raw output to, after someone connects.
+    - `[WebMSink`]
+      writes the output into a WebM file.
     - `[TestBlinder`]
       blinds it's input with an alternative input (currently test source)
     - `[MultiSink`]
