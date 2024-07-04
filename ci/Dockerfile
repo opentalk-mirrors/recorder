@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-FROM git.opentalk.dev:5050/opentalk/backend/containers/rust:alpine3.19 AS Builder
+FROM git.opentalk.dev:5050/opentalk/backend/containers/rust:alpine3.20 AS Builder
 
 RUN apk add --no-cache glib-dev openssl-dev gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev
 
