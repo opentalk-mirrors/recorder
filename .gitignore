@@ -10,3 +10,6 @@
 /target
 config.toml
 .DS_Store
+
+# gstreamer pipelines
+/pipelines
