@@ -6,11 +6,12 @@
   "packageRules": [
     {
       "matchPackagePatterns": [
-        "gst",
-        "gst-*"
+        "glib",
+        "gstreamer-*",
+        "gstreamer"
       ],
-      "groupName": "gst-rs",
-      "groupSlug": "gst-rs"
+      "groupName": "gstreamer-rs",
+      "groupSlug": "gstreamer-rs"
     }
   ]
 }
