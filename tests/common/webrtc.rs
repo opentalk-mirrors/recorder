@@ -26,7 +26,7 @@ pub(crate) fn create_pipeline(
         }
         MediaSessionType::Screen => "",
     };
-    let pipeline = gst::parse_launch(format!(r#"
+    let pipeline = gst::parse::launch(format!(r#"
         webrtcbin name=webrtc bundle-policy=max-bundle
         videotestsrc is-live=true pattern={pattern} ! video/x-raw,width=720,height=480 ! vp8enc deadline=1 ! rtpvp8pay pt=101 ! webrtc.
         {audiotestsrc}

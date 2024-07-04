@@ -6,11 +6,11 @@
 use std::panic::Location;
 
 use anyhow::{Context, Result};
-use glib::{IsA, ObjectExt};
+use glib::object::{IsA, ObjectExt as _};
 use gst::{
     element_factory::ElementBuilder,
     prelude::{ElementExt, ElementExtManual, GstBinExt, GstBinExtManual, PadExt},
-    Bin, Element, ElementFactory, GhostPad, Pad, PadLinkSuccess, State, StateChangeSuccess,
+    Bin, Element, ElementFactory, GhostPad, Object, Pad, PadLinkSuccess, State, StateChangeSuccess,
 };
 
 pub trait GstBinErrorExt: IsA<Bin> {
@@ -167,20 +167,30 @@ impl GstElementFactoryErrorExt for ElementFactory {
 
 pub trait GstGhostPadErrorExt: Sized {
     #[track_caller]
-    fn with_target_with_context<P: IsA<Pad>>(name: Option<&str>, target: &P) -> Result<Self>;
+    fn with_target_with_context<P: IsA<Pad> + IsA<Object>>(
+        name: Option<&str>,
+        target: &P,
+    ) -> Result<Self>;
 }
 
 impl GstGhostPadErrorExt for GhostPad {
     #[track_caller]
-    fn with_target_with_context<P: IsA<Pad>>(name: Option<&str>, target: &P) -> Result<Self> {
-        GhostPad::with_target(name, target).with_context(|| {
+    fn with_target_with_context<P: IsA<Pad> + IsA<Object>>(
+        name: Option<&str>,
+        target: &P,
+    ) -> Result<Self> {
+        let mut build = GhostPad::builder_with_target(target).with_context(|| {
             format!(
                 "Unable to create a GhostPad '{:?}' with target '{}' in {}",
                 name,
                 target.type_(),
                 Location::caller()
             )
-        })
+        })?;
+        if let Some(name) = name {
+            build = build.name(name);
+        }
+        Ok(build.build())
     }
 }
 
@@ -205,8 +215,7 @@ pub fn parse_bin_from_description_with_context(
     bin_description: &str,
     ghost_unlinked_pads: bool,
 ) -> Result<Bin> {
-    gst::parse_bin_from_description(bin_description, ghost_unlinked_pads)
-.with_context(|| {
+    gst::parse::bin_from_description(bin_description, ghost_unlinked_pads).with_context(|| {
             format!(
                 "Unable to parse bin from description with ghost_unlinked_pad={ghost_unlinked_pads} in {}.\nbin_description:\n{bin_description}",
                 Location::caller()

@@ -5,11 +5,7 @@
 use core::time::Duration;
 use std::collections::HashMap;
 
-use glib::{Cast, Continue, ObjectExt};
-use gst::{
-    prelude::*,
-    traits::{ElementExt, GstBinExt},
-};
+use gst::prelude::*;
 use tokio::{sync::mpsc, time::sleep};
 use types::{
     core::ParticipantId,
@@ -230,7 +226,7 @@ fn create_publish_pipeline(
     state: &mut MockParticipantState,
     mixer: &mut Mixer<WebRtcSource>,
 ) {
-    let pipeline = gst::parse_launch(
+    let pipeline = gst::parse::launch(
         r#"
             webrtcbin name=webrtc bundle-policy=max-bundle
             videotestsrc is-live=true pattern=ball ! video/x-raw,width=720,height=480 ! vp8enc ! rtpvp8pay pt=100 ! webrtc.
@@ -276,16 +272,17 @@ fn create_publish_pipeline(
 
     // ON LAST ICE CANDIDATE
     let pipeline_weak = pipeline.downgrade();
-    bus.add_watch(move |_, msg| {
-        if let gst::MessageView::Latency(_) = msg.view() {
-            if let Some(pipeline) = pipeline_weak.upgrade() {
-                let _ = pipeline.recalculate_latency();
+    let watch = bus
+        .add_watch(move |_, msg| {
+            if let gst::MessageView::Latency(_) = msg.view() {
+                if let Some(pipeline) = pipeline_weak.upgrade() {
+                    let _ = pipeline.recalculate_latency();
+                }
             }
-        }
 
-        Continue(true)
-    })
-    .unwrap();
+            glib::ControlFlow::Continue
+        })
+        .unwrap();
 
     // ON NEGOTIATION NEEDED
     webrtcbin.connect("on-negotiation-needed", true, {
@@ -356,6 +353,9 @@ fn create_publish_pipeline(
             },
         )
         .unwrap();
+
+    // we want to close the watch here and not earlier
+    drop(watch);
 }
 
 // --- scenarios

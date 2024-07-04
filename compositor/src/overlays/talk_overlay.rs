@@ -80,7 +80,7 @@ impl TalkOverlay {
     /// - The `ClockOverlay` cannot be created.
     /// - Adding the elements to Gstreamer or linking them.
     pub fn create(format: &ClockFormat) -> Result<Self> {
-        let bin = gst::Bin::new(Some("Talk Overlay"));
+        let bin = gst::Bin::builder().name("Talk Overlay").build();
         let padding_overlay = PaddingOverlay::create(
             "padding",
             &Padding {

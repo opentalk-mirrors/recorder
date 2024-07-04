@@ -85,14 +85,18 @@ impl Source for WebRtcSource {
         let webrtcbin = bin.by_name_with_context("webrtc")?;
 
         let video_src = if params.has_video {
-            let video_src = gst::GhostPad::new(Some("video"), gst::PadDirection::Src);
+            let video_src = gst::GhostPad::builder(gst::PadDirection::Src)
+                .name("video")
+                .build();
             bin.add_pad_with_context(&video_src)?;
             Some(video_src)
         } else {
             None
         };
 
-        let audio_src = gst::GhostPad::new(Some("audio"), gst::PadDirection::Src);
+        let audio_src = gst::GhostPad::builder(gst::PadDirection::Src)
+            .name("audio")
+            .build();
         bin.add_pad_with_context(&audio_src)?;
 
         webrtcbin.connect_pad_added(webrtcbin_on_pad_added(
@@ -277,7 +281,7 @@ fn try_webrtcbin_on_pad_added(
     video_ghost_pad: Option<WeakRef<gst::GhostPad>>,
 ) -> Result<()> {
     // Check what kind of media this pad emits
-    let caps = pad.caps().context("no caps in added pad")?;
+    let caps = pad.current_caps().context("no caps in added pad")?;
     let caps = caps.structure(0).context("empty caps list")?;
 
     let media: String = caps

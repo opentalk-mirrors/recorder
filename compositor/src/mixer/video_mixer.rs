@@ -29,7 +29,7 @@ pub(crate) struct VideoMixer {
 impl VideoMixer {
     #[allow(clippy::too_many_lines)]
     pub(crate) fn create(output_size: Size, overlay: &impl Overlay) -> Result<Self> {
-        let bin = Bin::new(Some("VideoMixer"));
+        let bin = Bin::builder().name("VideoMixer").build();
 
         let videotestsrc = ElementFactory::make("videotestsrc")
             .name("Video Background Source")
