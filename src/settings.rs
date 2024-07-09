@@ -15,15 +15,15 @@ use serde::{Deserialize, Deserializer};
 pub struct RecorderSettings {
     pub clock_format: ClockFormat,
     pub sinks: Vec<RecorderSink>,
-    // Sets the default value when cpu_hysteresis is not present in the config.toml to
-    // the return value of the function `default_hysteresis`
-    #[serde(default = "default_hysteresis")]
-    pub cpu_hysteresis: u8,
+    // Sets the default value when max_load is not present in the config.toml to
+    // the return value of the function `default_max_load`
+    #[serde(default = "default_max_load")]
+    pub max_load: u8,
 }
 
 #[must_use]
-pub const fn default_hysteresis() -> u8 {
-    5
+pub const fn default_max_load() -> u8 {
+    80
 }
 
 #[derive(Clone, Debug, Deserialize)]

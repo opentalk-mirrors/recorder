@@ -266,12 +266,12 @@ async fn main2(mut shutdown_rx: Receiver<bool>) -> Result<()> {
         .context("OIDC discovery failed")?;
     let recorder_context = Recorder::new(settings, http_client, shutdown_rx.clone());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
-    let mut hysteresis = settings::default_hysteresis();
+    let mut cutoff = settings::default_max_load();
     if let Some(recorder_info) = &recorder_context.settings.recorder {
-        hysteresis = recorder_info.cpu_hysteresis;
-    };
+        cutoff = recorder_info.max_load;
+    }
 
-    _ = std::thread::spawn(move || cpu_usage_poll(hysteresis));
+    _ = std::thread::spawn(move || cpu_usage_poll(cutoff));
 
     while !*shutdown_rx.borrow() {
         select! {
