@@ -21,9 +21,9 @@ use crate::{
 /// Source that connects to an `WebRTC` source and provides the incoming streams as participant's input.
 #[derive(Debug)]
 pub struct WebRtcSource {
-    /// GStreamer bin surrounding all included elements
+    /// `GStreamer` bin surrounding all included elements
     bin: gst::Bin,
-    /// WebRTC GStreamer element which manages mostly everything.
+    /// `WebRTC` `GStreamer` element which manages mostly everything.
     webrtcbin: gst::Element,
     video_src: Option<gst::GhostPad>,
     audio_src: gst::GhostPad,

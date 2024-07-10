@@ -17,7 +17,7 @@ fn init() -> MainLoop {
     MainLoop::new(None, false)
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn basic_test() {
     let gst_loop = init();
     let context = Recorder {

@@ -20,7 +20,7 @@ pub struct WebMParameters {
 }
 
 impl WebMSink {
-    /// Create and add new WebM sink into existing pipeline.
+    /// Create and add new `WebM` sink into existing pipeline.
     ///
     /// # Errors
     ///

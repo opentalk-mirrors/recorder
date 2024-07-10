@@ -20,10 +20,16 @@ use opentalk_recorder::{
     signaling::Signaling,
 };
 use tempfile::TempDir;
-use tokio::sync::{mpsc, watch, RwLock};
+use tokio::{
+    sync::{mpsc, watch, RwLock},
+    task::JoinHandle,
+};
 use tt::{connect_async, tungstenite::client::IntoClientRequest};
 
-pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watch::Receiver<bool>) {
+pub(crate) async fn start_recorder(
+    websocket_addr: SocketAddr,
+    shutdown_rx: watch::Receiver<bool>,
+) -> JoinHandle<()> {
     log::info!("Start recorder...");
 
     let issuer = IssuerUrl::new("http://127.0.0.1".to_string()).unwrap();
@@ -73,7 +79,6 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
     let temp_dir = TempDir::new().expect("unable to create temp dir");
 
     let mut mixer = Mixer::create(
-        None,
         compositor::Size::FHD,
         compositor::layout::Speaker::default(),
         MAX_VISIBLES,
@@ -114,6 +119,6 @@ pub(crate) async fn start_recorder(websocket_addr: SocketAddr, shutdown_rx: watc
         recording_session
             .run()
             .await
-            .expect("unable to run recording session")
-    });
+            .expect("unable to run recording session");
+    })
 }

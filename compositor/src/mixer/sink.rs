@@ -7,13 +7,11 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
-use gst::{
-    prelude::*, ClockTime, Element, ElementFactory, Fraction, GhostPad, MessageType, Pipeline,
-};
+use glib::object::Cast;
+use gst::{Element, ElementFactory, Fraction, GhostPad};
 use gst_app::AppSrc;
-use gst_base::prelude::ElementExt;
 
-use super::{audio_mixer::AudioMixer, video_mixer::VideoMixer};
+use super::{audio_mixer::AudioMixer, bus::PipelineWatched, video_mixer::VideoMixer};
 use crate::{
     debug, GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
     GstPadErrorExt, AUDIO_CHANNELS, AUDIO_SAMPLE_RATE, VIDEO_FRAMERATE, VIDEO_HEIGHT, VIDEO_WIDTH,
@@ -41,6 +39,11 @@ pub trait Sink: Send + Debug + 'static {
     /// Called by `Mixer::pause()`.
     fn on_pause(&mut self) {}
 
+    /// Decides if the bus should not be watched, because the bus watcher is required outside of this sink
+    fn init_bus_watch(&self) -> bool {
+        true
+    }
+
     /// Does the sink pipeline require an eos signal before nulling
     fn requires_eos(&self) -> bool {
         true
@@ -49,7 +52,7 @@ pub trait Sink: Send + Debug + 'static {
 
 #[derive(Debug)]
 pub(crate) struct ActiveSink {
-    pub(crate) pipeline: Pipeline,
+    pub(crate) pipeline: PipelineWatched,
     // The sink needs to be hold until it's dropped at the end
     pub(crate) inner: Box<dyn Sink>,
 }
@@ -145,39 +148,6 @@ impl ActiveSink {
         video_mixer.link_sink(&app_src);
 
         Ok(())
-    }
-}
-
-impl Drop for ActiveSink {
-    fn drop(&mut self) {
-        debug!("Dropping ActiveSink...");
-        debug::debug_dot(&self.pipeline, "SINK-DROP");
-
-        if self.inner.requires_eos() {
-            debug!("Send EOS to pipeline");
-
-            self.pipeline.send_event(gst::event::Eos::new());
-
-            debug!("Wait for EOS to be done");
-
-            if let Some(bus) = self.pipeline.bus() {
-                if bus
-                    .timed_pop_filtered(ClockTime::NONE, &[MessageType::Eos])
-                    .is_none()
-                {
-                    error!("unable to send the EOS");
-                }
-            } else {
-                error!("Unable to send EOS, there is no bus in the pipeline");
-            }
-        }
-
-        debug!("Nulling Pipeline...");
-        if let Err(error) = self.pipeline.set_state_with_context(gst::State::Null) {
-            error!("Unable to set the pipeline to the `Null` state, error: {error}");
-        }
-
-        debug!("Nulling Pipeline completed, remove sink");
     }
 }
 

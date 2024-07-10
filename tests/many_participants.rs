@@ -11,7 +11,7 @@ mod tests {
 
     const AMOUNT_OF_CONCURRENT_PARTICIPANTS: usize = 100;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[ignore = "this tests takes very long"]
     async fn test_many_participants_slow() {
         let mut events = vec![
@@ -36,7 +36,7 @@ mod tests {
         EventRunner::run(events.as_slice()).await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     #[ignore = "this tests takes very long"]
     async fn test_many_participants_fast() {
         EventRunner::run(&[

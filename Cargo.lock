@@ -701,6 +701,7 @@ dependencies = [
  "gstreamer-webrtc",
  "log",
  "opentalk-types",
+ "parking_lot",
  "serde",
  "tokio",
 ]

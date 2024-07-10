@@ -6,13 +6,13 @@ use types::signaling::media::MediaSessionType;
 
 use crate::{testing, Grid, Layout, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
 
-#[test]
-fn test_layout_speaker() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_layout_speaker() {
     test_layout(Speaker::default(), "speaker");
 }
 
-#[test]
-fn test_layout_grid() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_layout_grid() {
     test_layout(Grid::default(), "grid");
 }
 
@@ -21,7 +21,6 @@ fn test_layout(layout: impl Layout, name: &str) {
     testing::init();
 
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         layout,
         testing::MAX_STREAMS,
@@ -65,7 +64,6 @@ fn test_remove(use_video: bool) {
     testing::init();
 
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -191,12 +189,12 @@ fn test_remove(use_video: bool) {
     testing::wait_secs(10);
 }
 
-#[test]
-fn test_remove_video() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_remove_video() {
     test_remove(true);
 }
 
-#[test]
-fn test_remove_audio() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_remove_audio() {
     test_remove(false);
 }

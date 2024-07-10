@@ -6,14 +6,13 @@ use types::{core::ParticipantId, signaling::media::MediaSessionType};
 
 use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
 
-#[test]
-fn test_overlay() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_overlay() {
     // initialize for testing
     testing::init();
 
     // get output resolution from arguments
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,

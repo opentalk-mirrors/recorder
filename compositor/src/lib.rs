@@ -31,7 +31,7 @@
     - `[DashSink`]
       writes the output into a Dash instance consisting of an MPD file and several audio/video files.
     - `[WebMSink`]
-      writes the output into a WebM file.
+      writes the output into a `WebM` file.
     - `[TestBlinder`]
       blinds it's input with an alternative input (currently test source)
     - `[MultiSink`]

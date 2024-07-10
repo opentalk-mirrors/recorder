@@ -58,7 +58,7 @@ impl VideoMixer {
             .build_with_context()?;
 
         let queue = ElementFactory::make("queue").build_with_context()?;
-        let appsink: AppSink = AppSink::builder().sync(true).build();
+        let appsink = AppSink::builder().sync(true).wait_on_eos(false).build();
 
         bin.add_many_with_context(&[
             &videotestsrc,
@@ -174,10 +174,8 @@ impl VideoMixer {
             }
         });
     }
-}
 
-impl Drop for VideoMixer {
-    fn drop(&mut self) {
+    pub(crate) fn drop(&mut self) {
         self.appsink.set_callbacks(
             AppSinkCallbacks::builder()
                 .new_sample(|_| Ok(FlowSuccess::Ok))

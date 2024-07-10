@@ -11,7 +11,6 @@ fn test_multi(use_video: bool) {
     testing::init();
     // create grid mixer with test sources for streams and a TestSink
     let mut mixer = Mixer::<TestSource>::create(
-        None,
         testing::RESOLUTION,
         Speaker::default(),
         testing::MAX_STREAMS,
@@ -35,12 +34,12 @@ fn test_multi(use_video: bool) {
     testing::wait_secs(4);
 }
 
-#[test]
-fn test_multi_audio() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_multi_audio() {
     test_multi(false);
 }
 
-#[test]
-fn test_multi_video() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_multi_video() {
     test_multi(true);
 }
