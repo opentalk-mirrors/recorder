@@ -45,6 +45,13 @@ pub struct Signaling {
     connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
+#[allow(dead_code)]
+enum Substream {
+    Low = 0,
+    Medium = 1,
+    High = 2,
+}
+
 #[derive(Debug, Clone)]
 pub struct ParticipantState {
     pub display_name: String,
@@ -373,6 +380,27 @@ impl Signaling {
         .await
     }
 
+    pub async fn send_configuration(
+        &mut self,
+        descriptor: MediaDescriptor,
+        video: bool,
+    ) -> Result<()> {
+        log::trace!("send_configuration for descriptor '{descriptor:?}' with video '{video}'");
+        self.send(outgoing::Message::Media(outgoing::MediaMessage::Configure(
+            outgoing::Configure {
+                configuration: outgoing::Configuration {
+                    video,
+                    substream: Substream::High as usize,
+                },
+                target: outgoing::Target {
+                    target: descriptor.participant_id,
+                    media_session_type: descriptor.media_type,
+                },
+            },
+        )))
+        .await
+    }
+
     pub async fn send_end_of_candidates(&mut self, descriptor: MediaDescriptor) -> Result<()> {
         self.send(outgoing::Message::Media(
             outgoing::MediaMessage::SdpEndOfCandidates(outgoing::Target {
@@ -549,9 +577,23 @@ pub mod outgoing {
     #[serde(rename_all = "snake_case", tag = "action")]
     pub enum MediaMessage {
         Subscribe(Target),
+        Configure(Configure),
         SdpAnswer(Sdp),
         SdpCandidate(SdpCandidate),
         SdpEndOfCandidates(Target),
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct Configure {
+        pub configuration: Configuration,
+        #[serde(flatten)]
+        pub target: Target,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct Configuration {
+        pub video: bool,
+        pub substream: usize,
     }
 
     #[derive(Debug, Serialize, Deserialize)]

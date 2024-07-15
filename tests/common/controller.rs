@@ -76,6 +76,7 @@ impl MockController {
                         // that the Recorder <-> Controller communication for streaming
                         // is mostly triggered by the frontend, and not a *true* event <-> action.
                         outgoing::Message::RecordingService(_) => {}
+                        outgoing::Message::Media(outgoing::MediaMessage::Configure(_)) => {}
                     }
                 }
             }

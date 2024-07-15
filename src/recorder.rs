@@ -7,7 +7,7 @@ use core::{
     task::{ready, Context, Poll},
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::Debug,
     io,
     path::Path,
@@ -156,6 +156,8 @@ pub struct RecordingSession {
     candidate_sender: mpsc::Sender<(MediaDescriptor, u32, Option<String>)>,
 
     done: bool,
+
+    configurations: HashMap<MediaDescriptor, bool>,
 }
 
 #[derive(Debug, Error)]
@@ -231,6 +233,7 @@ impl RecordingSession {
             candidate_receiver,
             candidate_sender,
             done,
+            configurations: HashMap::new(),
         }
     }
 
@@ -323,6 +326,7 @@ impl RecordingSession {
             candidate_receiver,
             candidate_sender,
             done: false,
+            configurations: HashMap::new(),
         })
     }
 
@@ -543,6 +547,9 @@ impl RecordingSession {
                 if let Some(source) = self.mixer.get_source(descriptor) {
                     let answer = source.receive_offer(offer).await?;
                     self.signaling.send_answer(descriptor, answer).await?;
+
+                    // Insert descriptor to configuration set to track
+                    self.configurations.insert(descriptor, true);
                 }
             }
             Event::SdpCandidate(descriptor, candidate) => {
@@ -589,6 +596,49 @@ impl RecordingSession {
             Event::Stop(target_ids) => {
                 log::debug!("[Stop]: {target_ids:#?}");
                 self.handle_stop_event(target_ids).await?;
+            }
+        }
+
+        self.send_configuration().await?;
+
+        Ok(())
+    }
+
+    /// Send the configuration if the state changed. For example a participant
+    /// updates there media or if a new participant is not shown in the
+    /// recording.
+    async fn send_configuration(&mut self) -> Result<()> {
+        let visibles = self.mixer.get_visibles();
+
+        let configurations_to_add = self
+            .mixer
+            .get_visibles()
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let configurations_to_remove = self
+            .configurations
+            .keys()
+            .filter(|key| !visibles.contains(key))
+            .copied()
+            .collect::<HashSet<_>>();
+
+        for descriptor in configurations_to_add {
+            let old_configuration = self.configurations.insert(descriptor, true);
+            if old_configuration.is_none() || old_configuration == Some(false) {
+                self.signaling
+                    .send_configuration(descriptor, true)
+                    .await
+                    .context("unable to send configuration")?;
+            }
+        }
+
+        for descriptor in configurations_to_remove {
+            let old_configuration = self.configurations.insert(descriptor, false);
+            if old_configuration.is_none() || old_configuration == Some(true) {
+                self.signaling
+                    .send_configuration(descriptor, false)
+                    .await
+                    .context("unable to send configuration")?;
             }
         }
 
