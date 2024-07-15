@@ -354,6 +354,17 @@ impl RecordingSession {
             }
         }
 
+        // The streaming targets are per session
+        // therefore making sure we're in the right context isn't necessary here.
+        log::debug!("Recorder is done, attempting to upload remaining streams...");
+        let cloned_stream = self.streaming_targets.clone();
+        for (stream_target_id, _) in cloned_stream
+            .iter()
+            .filter(|(_, status)| RecorderStreamStatus::stream_running(status))
+        {
+            self.stop_stream(*stream_target_id).await?;
+        }
+
         Ok(())
     }
 
@@ -742,7 +753,7 @@ impl RecordingSession {
         Ok(())
     }
 
-    fn handle_participant_left(&mut self, id: ParticipantId) -> Result<(), anyhow::Error> {
+    fn handle_participant_left(&mut self, id: ParticipantId) -> Result<()> {
         for media_type in media_types() {
             if self.mixer.contains_stream(MediaDescriptor {
                 participant_id: id,
@@ -755,8 +766,9 @@ impl RecordingSession {
             }
         }
         if self.signaling.participants().is_empty() {
-            self.done = true;
             log::debug!("Last participant left the session. Stop recording.");
+            self.done = true;
+
             return Ok(());
         }
 
