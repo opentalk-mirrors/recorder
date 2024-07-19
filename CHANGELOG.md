@@ -5,11 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unversioned
+## 0.4.0
 
-### Fixed
+### <!-- 0 -->:rocket: New features
 
+- Implement simple load balancing logic [#125](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/125))
 - configure recording to use vp8 encoder in realtime mode and webm container format [#136](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/136))
+
+### <!-- 1 -->:bug: Bug fixes
+
+- Remove hysteresis and use absolute value instead of avg ([!132](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/132))
+- End all streams when recorder is done [#140](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/140))
+- *(deps)* Update rust crate bytes to v1.6.1
+
+### <!-- 3 -->:gear: Miscellaneous
+
+- Update alpine docker tag to v3.20
+- Update rust crate config to 0.14
+- Update rust crate log to v0.4.22
+- Update rust crate serde to v1.0.204
+- Update rust crate serde_json to v1.0.120
+- Update rust crate uuid to v1.9.1
+- Update rust crates gstreamer to v0.22
+
+### Ci
+
+- Call `cargo-deny` with `--deny unmatched-skip` ([#130](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/130))
+- Use image with fixed rust version
+- Update ci image to alpine3.20
 
 ## 0.3.0
 
