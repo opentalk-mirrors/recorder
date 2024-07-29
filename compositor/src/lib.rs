@@ -99,6 +99,7 @@
 #[macro_use]
 extern crate log;
 
+pub mod elements;
 mod gst_with_context;
 pub mod layout;
 mod mixer;

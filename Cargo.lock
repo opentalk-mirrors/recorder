@@ -619,6 +619,7 @@ dependencies = [
  "gstreamer-sdp",
  "gstreamer-webrtc",
  "log",
+ "once_cell",
  "opentalk-types",
  "parking_lot",
  "serde",
