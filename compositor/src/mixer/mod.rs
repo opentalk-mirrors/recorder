@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Debug, Display},
     hash::Hash,
 };
@@ -967,6 +967,14 @@ where
         active_sink.pipeline.add_watch(callback);
 
         Ok(())
+    }
+
+    /// Get the current visible participants
+    #[must_use]
+    pub fn get_visibles(&self) -> HashSet<MediaDescriptor> {
+        let mut visibles = self.visibles.clone();
+        visibles.truncate(self.max_visibles);
+        visibles.into_iter().collect::<HashSet<_>>()
     }
 }
 
