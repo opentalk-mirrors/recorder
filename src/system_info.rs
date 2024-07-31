@@ -41,7 +41,7 @@ impl RuntimeInformation {
     pub fn setup_cpu_poll(&mut self) {
         // Enforce an update happened
         std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
-        self.system.refresh_cpu();
+        self.system.refresh_cpu_all();
 
         let max_cpu_usage: u32 = u32::from(self.cutoff) * self.system.cpus().len() as u32;
 
