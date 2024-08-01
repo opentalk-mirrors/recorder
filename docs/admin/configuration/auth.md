@@ -3,6 +3,8 @@
 The OpenTalk Controller uses [keycloak](https://www.keycloak.org/), an OpenID Connect compatible
 identity and access management software for single sign-on.
 
+Note: The controller expects the `Recorder` client to be setup as service account with the _service account role_ `opentalk-recorder`.
+
 ## Configuration
 
 The section in the [configuration file](README.md) is called `auth`.
