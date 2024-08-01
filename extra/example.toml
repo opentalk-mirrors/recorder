@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 
 [auth]
+# Note:
+# The Recorder client must be a service account
+# with the _service account role_ "opentalk-recorder"
 issuer = "http://localhost:8080/auth/realms/MyRealm"
 client_id = "Recorder"
 client_secret = "INSERT_KEY"
@@ -15,15 +18,18 @@ insecure = true
 uri = "amqp://username:password@localhost/%2F"
 queue = "recorder"
 
+# Section for static streaming targets
+#[recorder]
 
-[recorder]
+# Development:
+# Always to stream to an extra display sink for monitoring
+#[[recorder.sinks]]
+#type = "display"
 
-[[recorder.sinks]]
-type = "display"
-
-[[recorder.sinks]]
-type = "rtmp"
-location = "rtmp://localhost:1935/live/$room live=1"
+# Static RTMP streaming, for testing purpose
+#[[recorder.sinks]]
+#type = "rtmp"
+#location = "rtmp://localhost:1935/live/$room live=1"
 # optional
 #audio_bitrate = 96000
 #audio_rate = 48000

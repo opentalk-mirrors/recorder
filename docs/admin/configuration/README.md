@@ -53,32 +53,39 @@ This file can be found in the source code distribution under `extra/example.toml
 # SPDX-License-Identifier: EUPL-1.2
 
 [auth]
+# Note:
+# The Recorder client must be a service account
+# with the _service account role_ "opentalk-recorder"
+
 issuer = "http://localhost:8080/auth/realms/MyRealm"
 client_id = "Recorder"
 client_secret = "INSERT_KEY"
+
 
 [controller]
 domain = "localhost:11311"
 insecure = true
 
+
 [rabbitmq]
 uri = "amqp://username:password@localhost/%2F"
 queue = "recorder"
 
-# Allow to stream to the display
+# Development:
+# Always to stream to an extra display sink for monitoring
 #[recorder]
-#sink = "display"
+#[[recorder.sinks]]
+#type = "display"
 
-# Allows to stream to a rtmp server
-#[recorder]
-#sink = "rtmp"
-# required for the rtmp sink:
-#rtmp_uri = "rtmp://localhost:1935/live/$room live=1"
-# optional for the rtmp sink:
-#rtmp_audio_bitrate = 96000
-#rtmp_audio_rate = 48000
-#rtmp_video_bitrate = 6000
-#rtmp_video_speed_preset = fast
+# Static RTMP streaming, for testing purpose
+#[[recorder.sinks]]
+#type = "rtmp"
+#location = "rtmp://localhost:1935/live/$room live=1"
+# optional RTMP fields
+#audio_bitrate = 96000
+#audio_rate = 48000
+#video_bitrate = 6000
+#video_speed_preset = fast
 ```
 
 <!-- end:fromfile:toml:config/example.toml -->
