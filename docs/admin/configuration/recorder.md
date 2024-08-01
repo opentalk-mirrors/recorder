@@ -9,16 +9,17 @@ The section in the [configuration file](README.md) is called `recorder`.
 
 | Field                     | Type          | Required | Default value | Description                                                      |
 | ------------------------- | ------------- | -------- | ------------- | ---------------------------------------------------------------- |
-| `clock_format`            | `string`      | no       | "%x %X %Z"    | The time format for the clock                                    |
-| `sinks`                   | `array<sink>` | no       | "mkv"         | The sink where the recorder should stream to                     |
-| `sink.rtmp_uri`           | `int`         | yes*     | -             | The location for the rtmp sink                                   |
+| `clock_format`            | `string`      | no       | "%x %X %Z"    | The time format for the clock, see `man strftime` for details    |
+| `sinks`                   | `array<sink>` | no       | `<empty>`     | The sink where the recorder should stream to                     |
+| `sink.type`               | `string`      | yes      | -             | The sink type is one of `rtmp`, `webm` or `display`              |
+| `sink.rtmp_uri`           | `int`         | yes[^1]  | -             | The location for the rtmp sink                                   |
 | `sink.rtmp_audio_bitrate` | `int`         | no       | 96000         | The audio bitrate for the rtmp sink                              |
 | `sink.rtmp_audio_rate`    | `int`         | no       | 48000         | The audio rate for the rtmp sink                                 |
 | `sink.rtmp_video_bitrate` | `int`         | no       | 6000          | The video bitrate for the rtmp sink                              |
 | `sink.rtmp_speed_preset`  | `string`      | no       | "fast"        | The video speed preset for the rtmp sink                         |
 | `max_load`                | `int`         | no       | 80            | The usage value per core (in %) until when new jobs are accepted |
 
-*`rtmp_uri` is only required when the sink `rtmp` is in use.
+[^1]: `rtmp_uri` is only required when the sink `rtmp` is in use.
 
 ### Examples
 

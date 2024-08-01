@@ -33,6 +33,7 @@ FROM alpine:3.20
 RUN apk add --no-cache glib libssl3 libcrypto3 \
     gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav \
     openh264 ca-certificates \
+    tzdata \
     terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-noto; \
     fc-cache -fv
 
