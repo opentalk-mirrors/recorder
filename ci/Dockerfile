@@ -26,12 +26,13 @@ COPY compositor/src compositor/src
 
 # Cargo detects changes only by mtime
 RUN touch src/main.rs; \
-    RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release
+    RUSTFLAGS=-Ctarget-feature=-crt-static cargo auditable build --release
 
 FROM alpine:3.20
 
-RUN apk add --no-cache glib libssl3 libcrypto3 ffmpeg \
+RUN apk add --no-cache glib libssl3 libcrypto3 \
     gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav \
+    openh264 ca-certificates \
     terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-noto; \
     fc-cache -fv
 
