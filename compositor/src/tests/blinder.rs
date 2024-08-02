@@ -21,6 +21,7 @@ async fn test_blinder() {
         alt_source_params: TestSourceParameters::default(),
     })
     .unwrap();
+
     let mut mixer = Mixer::<TestSource>::create(
         testing::RESOLUTION,
         Speaker::default(),

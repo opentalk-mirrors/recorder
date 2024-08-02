@@ -277,40 +277,32 @@ impl RecordingSession {
             let name = format!("{tag}-Sink-{index}");
             match sink {
                 RecorderSink::Display => {
-                    mixer
-                        .link_sink(
-                            name.as_str(),
-                            SystemSink::create(name.as_str(), true)
-                                .context("DisplaySink could not created")?,
-                        )
-                        .context("unable to link sink to mixer")?;
+                    mixer.link_sink(
+                        name.as_str(),
+                        SystemSink::create(name.as_str(), true)
+                            .context("DisplaySink could not created")?,
+                    )?;
                 }
                 RecorderSink::WebM(webm_parameters) => {
-                    mixer
-                        .link_sink(
-                            name.as_str(),
-                            WebMSink::create(name.as_str(), &webm_parameters)
-                                .context("WebMSink could not created")?,
-                        )
-                        .context("unable to link sink to mixer")?;
+                    mixer.link_sink(
+                        name.as_str(),
+                        WebMSink::create(name.as_str(), &webm_parameters)
+                            .context("WebMSink could not created")?,
+                    )?;
                 }
 
                 RecorderSink::Rtmp(rtmp_parameters) => {
-                    mixer
-                        .link_sink(
+                    mixer.link_sink(
+                        name.as_str(),
+                        RTMPSink::create(
                             name.as_str(),
-                            RTMPSink::create(
-                                name.as_str(),
-                                RTMPParameters {
-                                    location: rtmp_parameters
-                                        .location
-                                        .replace("$room", &command.room),
-                                    ..rtmp_parameters.clone()
-                                },
-                            )
-                            .context("RTMPSink could not created")?,
+                            RTMPParameters {
+                                location: rtmp_parameters.location.replace("$room", &command.room),
+                                ..rtmp_parameters.clone()
+                            },
                         )
-                        .context("unable to link sink to mixer")?;
+                        .context("RTMPSink could not created")?,
+                    )?;
                 }
             }
         }
@@ -374,21 +366,19 @@ impl RecordingSession {
 
     pub fn start_recording(mixer: &mut Mixer, temp_dir: &TempDir, file_name: &str) -> Result<()> {
         let file_path = temp_dir.path().join(file_name);
-        mixer
-            .link_sink(
-                "recording",
-                WebMSink::create(
-                    "WebM-Sink",
-                    &WebMParameters {
-                        path: file_path
-                            .to_str()
-                            .context("failed to convert WebM file path into string")?
-                            .into(),
-                    },
-                )
-                .context("WebM-Sink could not created")?,
+        mixer.link_sink(
+            "recording",
+            WebMSink::create(
+                "WebM-Sink",
+                &WebMParameters {
+                    path: file_path
+                        .to_str()
+                        .context("failed to convert WebM file path into string")?
+                        .into(),
+                },
             )
-            .context("unable to link sink to talk")?;
+            .context("WebM-Sink could not created")?,
+        )?;
 
         Ok(())
     }
@@ -474,22 +464,20 @@ impl RecordingSession {
     }
 
     pub fn start_livestream(mixer: &mut Mixer, location: String, name: &str) -> Result<()> {
-        mixer
-            .link_sink(
+        mixer.link_sink(
+            name,
+            RTMPSink::create(
                 name,
-                RTMPSink::create(
-                    name,
-                    RTMPParameters {
-                        location,
-                        audio_bitrate: None,
-                        audio_rate: None,
-                        video_bitrate: None,
-                        video_speed_preset: None,
-                    },
-                )
-                .context("RTMPSink could not created")?,
+                RTMPParameters {
+                    location,
+                    audio_bitrate: None,
+                    audio_rate: None,
+                    video_bitrate: None,
+                    video_speed_preset: None,
+                },
             )
-            .context("unable to link sink to talk")?;
+            .context("RTMPSink could not created")?,
+        )?;
 
         Ok(())
     }

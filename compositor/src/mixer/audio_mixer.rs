@@ -3,28 +3,19 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use anyhow::{Context, Result};
-use gst::{
-    element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
-    GhostPad, Pad, Sample, StreamError,
-};
-use gst_app::{AppSink, AppSinkCallbacks, AppSrc};
+use gst::{prelude::*, Bin, Caps, Element, ElementFactory, GhostPad, Pad};
 use gst_base::AggregatorStartTimeSelection;
-use tokio::sync::broadcast;
 
 use crate::{
     mixer::{AUDIO_CHANNELS, AUDIO_SAMPLE_RATE},
     GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
-    GstPadErrorExt,
+    GstPadErrorExt, AUDIO_INTER_COMPOSITOR,
 };
-
-const QUEUE_SIZE: usize = 128; // expect a buffers of 10ms -> 1s queue size
 
 #[derive(Debug)]
 pub(crate) struct AudioMixer {
     bin: Bin,
     audiomixer: Element,
-    buffer: broadcast::Sender<Sample>,
-    appsink: AppSink,
 }
 
 impl AudioMixer {
@@ -44,8 +35,9 @@ impl AudioMixer {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub(crate) fn create() -> Result<Self> {
+    pub(crate) fn create(producer_id: u64) -> Result<Self> {
         let bin = Bin::builder().name("AudioMixer").build();
+        let producer_name = format!("{AUDIO_INTER_COMPOSITOR}_{producer_id}",);
 
         let audiotestsrc = ElementFactory::make("audiotestsrc")
             .name("Audio Background Source")
@@ -67,7 +59,9 @@ impl AudioMixer {
         let audiomixer_capssetter = Self::build_caps()?;
 
         let queue = ElementFactory::make("queue").build_with_context()?;
-        let appsink = AppSink::builder().sync(true).wait_on_eos(false).build();
+        let intersink = ElementFactory::make("intersink")
+            .property("producer-name", producer_name.as_str())
+            .build_with_context()?;
 
         bin.add_many_with_context(&[
             &audiotestsrc,
@@ -76,7 +70,7 @@ impl AudioMixer {
             &audiomixer,
             &audiomixer_capssetter,
             &queue,
-            appsink.upcast_ref(),
+            &intersink,
         ])?;
 
         Element::link_many_with_context(&[&audiotestsrc, &clocksync, &audiotestsrc_capssetter])?;
@@ -90,40 +84,10 @@ impl AudioMixer {
             &audiomixer,
             &audiomixer_capssetter,
             &queue,
-            appsink.upcast_ref(),
+            &intersink,
         ])?;
 
-        let buffer = broadcast::Sender::new(QUEUE_SIZE);
-        let sender = buffer.clone();
-        appsink.set_callbacks(
-            AppSinkCallbacks::builder()
-                .new_sample({
-                    move |app_sink| match app_sink.pull_sample() {
-                        Ok(sample) => {
-                            sender.send(sample).ok();
-                            Ok(FlowSuccess::Ok)
-                        }
-                        Err(error) => {
-                            element_error!(
-                                app_sink,
-                                StreamError::Failed,
-                                ("unable to pull sample from app_sink")
-                            );
-                            error!("unable to pull sample from app_sink, received: {error}");
-
-                            Err(FlowError::Error)
-                        }
-                    }
-                })
-                .build(),
-        );
-
-        Ok(Self {
-            bin,
-            audiomixer,
-            buffer,
-            appsink,
-        })
+        Ok(Self { bin, audiomixer })
     }
 
     #[must_use]
@@ -155,38 +119,5 @@ impl AudioMixer {
         self.audiomixer.release_request_pad(src);
 
         Ok(())
-    }
-
-    pub(crate) fn link_sink(&self, app_src: &AppSrc) {
-        let mut receiver = self.buffer.subscribe();
-        let app_src = app_src.clone();
-
-        std::thread::spawn(move || {
-            while let Ok(sample) = receiver.blocking_recv() {
-                if let Err(error) = app_src.push_sample(&sample) {
-                    let src_name = app_src.name();
-                    match error {
-                        FlowError::Flushing => {
-                            debug!("Flush and exit app_src {src_name}");
-                        }
-                        FlowError::Eos => {
-                            debug!("Eos and exit app_src {src_name}");
-                        }
-                        _ => {
-                            error!("Failed pushing sample to app_src {src_name} with error: {error:?}, sample: {sample:?}");
-                        }
-                    }
-                    return;
-                }
-            }
-        });
-    }
-
-    pub(crate) fn drop(&mut self) {
-        self.appsink.set_callbacks(
-            AppSinkCallbacks::builder()
-                .new_sample(|_| Ok(FlowSuccess::Ok))
-                .build(),
-        );
     }
 }

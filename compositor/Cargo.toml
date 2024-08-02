@@ -14,12 +14,12 @@ publish = false
 types.workspace = true
 
 gst = { package = "gstreamer", version = "0.23", features = ["v1_22"] }
-gst-app = { package = "gstreamer-app", version = "0.23" }
 gst-base = { package = "gstreamer-base", version = "0.23", features = ["v1_22"] }
 gst-sdp = { package = "gstreamer-sdp", version = "0.23" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.23", features = [
     "v1_22",
 ] }
+gst-plugin-inter = "0.13.0"
 log = "0.4"
 glib = "0.20"
 tokio = { version = "1", features = [

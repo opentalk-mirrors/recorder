@@ -47,6 +47,8 @@ fn check_plugins() -> Result<()> {
         warn!("ffmpeg is not present on the system. Some features may not work.");
     }
 
+    gstrsinter::plugin_register_static()?;
+
     let registry = gst::Registry::get();
 
     let required = [
@@ -57,6 +59,7 @@ fn check_plugins() -> Result<()> {
         "debug",
         "dtls",
         "pango",
+        "rsinter",
         "rtp",
         "srtp",
         "udp",
