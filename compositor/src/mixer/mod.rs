@@ -30,8 +30,8 @@ mod video_mixer;
 
 use self::{audio_mixer::AudioMixer, sink::ActiveSink, video_mixer::VideoMixer};
 use crate::{
-    mixer::bus::PipelineWatched, GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt,
-    GstGhostPadErrorExt, GstPadErrorExt,
+    elements::register_all, mixer::bus::PipelineWatched, GstBinErrorExt, GstElementBuilderErrorExt,
+    GstElementErrorExt, GstGhostPadErrorExt, GstPadErrorExt,
 };
 
 #[rustfmt::skip]
@@ -146,6 +146,8 @@ where
         video_support: bool,
         clock_format: &ClockFormat,
     ) -> Result<Self> {
+        register_all().context("Unable to register all custom GStreamer Elements")?;
+
         let pipeline = PipelineWatched::new("Compositor", true, false)
             .context("unable to create Compositor PipelineWatched")?;
 

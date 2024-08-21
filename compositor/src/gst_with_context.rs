@@ -79,6 +79,16 @@ pub trait GstElementErrorExt: IsA<Element> {
     }
 
     #[track_caller]
+    fn link_with_context(&self, dest: &impl IsA<Element>) -> Result<()> {
+        self.link(dest).with_context(|| {
+            format!(
+                "Unable to link element '{self:?}' with '{dest:?}' in {}",
+                Location::caller()
+            )
+        })
+    }
+
+    #[track_caller]
     fn link_many_with_context<E: IsA<Element>>(elements: &[&E]) -> Result<()> {
         Element::link_many(elements).with_context(|| {
             format!(

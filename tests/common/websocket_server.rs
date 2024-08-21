@@ -13,9 +13,9 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, oneshot},
 };
-use tt::{accept_async, WebSocketStream};
+use tt::{accept_async, tungstenite::Message, WebSocketStream};
 
-pub(crate) async fn start_websocket_server(
+pub(crate) async fn start_signaling_websocket_server(
     to_recorder_rx: mpsc::Receiver<incoming::Message>,
     to_controller_tx: mpsc::Sender<outgoing::Message>,
 ) -> SocketAddr {
@@ -103,4 +103,48 @@ async fn send_data_from_websocket_to_controller(
             }
         }
     }
+}
+
+pub(crate) async fn start_chunk_upload_websocket_server() -> SocketAddr {
+    log::info!("Start websocket for the communication between recorder and controller");
+
+    let (connection_tx, connection_rx) = oneshot::channel();
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("unable to create tcp listener to mock the controller");
+
+    let local_addr = listener
+        .local_addr()
+        .expect("unable to get local_addr from tcp listener");
+
+    tokio::spawn(async move {
+        connection_tx
+            .send(())
+            .expect("unable to unblock the connection_tx");
+        let (connection, _) = listener.accept().await.expect("No connections to accept");
+        let stream = accept_async(connection)
+            .await
+            .expect("Failed to handshake with connection");
+
+        let (mut stream_tx, mut stream_rx) = stream.split();
+
+        while let Some(message) = stream_rx.next().await {
+            match message {
+                Ok(Message::Ping(data)) => {
+                    stream_tx.send(Message::Pong(data)).await.unwrap();
+                }
+                Ok(message) => {
+                    stream_tx.send(message).await.unwrap();
+                }
+                Err(_err) => {}
+            }
+        }
+    });
+
+    log::debug!("Waiting for the websocket to be ready...");
+
+    connection_rx.await.expect("Websocket not ready");
+
+    local_addr
 }

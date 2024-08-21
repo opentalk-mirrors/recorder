@@ -27,6 +27,7 @@ use tokio::{
 use tt::{connect_async, tungstenite::client::IntoClientRequest};
 
 pub(crate) async fn start_recorder(
+    controller_addr: SocketAddr,
     websocket_addr: SocketAddr,
     shutdown_rx: watch::Receiver<bool>,
 ) -> JoinHandle<()> {
@@ -40,7 +41,7 @@ pub(crate) async fn start_recorder(
         client_secret: ClientSecret::new("NOT_USED_IN_TESTS".to_string()),
     };
     let controller = ControllerSettings {
-        domain: "127.0.0.1".to_string(),
+        domain: controller_addr.to_string(),
         insecure: true,
     };
     let rabbitmq = RabbitMqSettings {

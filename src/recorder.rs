@@ -9,8 +9,7 @@ use core::{
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::Debug,
-    io,
-    path::Path,
+    io, mem,
     sync::Arc,
 };
 
@@ -25,9 +24,8 @@ use log::error;
 use tempfile::TempDir;
 use thiserror::Error;
 use tokio::{
-    fs::File,
     io::{AsyncRead, ReadBuf},
-    sync::{mpsc, watch},
+    sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
 use types::{
@@ -120,21 +118,6 @@ impl Recorder {
 
         Ok(recording_task)
     }
-
-    pub async fn upload(&self, room_id: &str, recording_path: &Path) -> Result<()> {
-        let file = File::open(recording_path).await?;
-
-        log::debug!("upload file '{:?}' for room: {}", recording_path, room_id);
-
-        self.http_client
-            .upload_render(
-                &self.settings.controller,
-                room_id,
-                FileExtension::webm(),
-                FileReadStream { file },
-            )
-            .await
-    }
 }
 
 #[derive(Debug)]
@@ -158,6 +141,7 @@ pub struct RecordingSession {
     done: bool,
 
     configurations: HashMap<MediaDescriptor, bool>,
+    join_handles: Arc<Mutex<Vec<JoinHandle<Result<()>>>>>,
 }
 
 #[derive(Debug, Error)]
@@ -234,6 +218,7 @@ impl RecordingSession {
             candidate_sender,
             done,
             configurations: HashMap::new(),
+            join_handles: Arc::default(),
         }
     }
 
@@ -319,6 +304,7 @@ impl RecordingSession {
             candidate_sender,
             done: false,
             configurations: HashMap::new(),
+            join_handles: Arc::default(),
         })
     }
 
@@ -364,31 +350,53 @@ impl RecordingSession {
         Ok(())
     }
 
-    pub fn start_recording(mixer: &mut Mixer, temp_dir: &TempDir, file_name: &str) -> Result<()> {
-        let file_path = temp_dir.path().join(file_name);
-        mixer.link_sink(
-            "recording",
-            WebMSink::create(
-                "WebM-Sink",
-                &WebMParameters {
-                    path: file_path
-                        .to_str()
-                        .context("failed to convert WebM file path into string")?
-                        .into(),
-                },
-            )
-            .context("WebM-Sink could not created")?,
-        )?;
+    pub async fn start_recording(&mut self, file_name: &str) -> Result<()> {
+        let file_path = self.temp_dir.path().join(file_name);
+        let webm_sink = WebMSink::create(
+            "WebM-Sink",
+            &WebMParameters {
+                path: file_path
+                    .to_str()
+                    .context("failed to convert WebM file path into string")?
+                    .into(),
+            },
+        )
+        .context("WebM-Sink could not created")?;
+
+        let handle = tokio::spawn({
+            let service_context = self.service_context.clone();
+            let room_id = self.room_id.clone();
+            let receiver = webm_sink.subscribe();
+
+            async move {
+                service_context
+                    .http_client
+                    .upload_render(
+                        &service_context.settings.controller,
+                        &room_id,
+                        FileExtension::webm(),
+                        receiver,
+                    )
+                    .await?;
+
+                Ok(())
+            }
+        });
+        self.join_handles.lock().await.push(handle);
+
+        self.mixer
+            .link_sink("recording", webm_sink)
+            .context("unable to link sink to talk")?;
 
         Ok(())
     }
 
-    fn start_stream(
+    async fn start_stream(
         &mut self,
         id: StreamingTargetId,
     ) -> Result<StreamStatus, RecordingSessionError> {
         log::trace!("start_stream, id: {id:?}");
-        let Some(stream) = self.streaming_targets.get_mut(&id) else {
+        let Some(mut stream) = self.streaming_targets.get_mut(&id).cloned() else {
             return Err(RecordingSessionError::NotFound(id));
         };
         if stream.state == StreamStatus::Active {
@@ -400,17 +408,13 @@ impl RecordingSession {
                     return Err(RecordingSessionError::NoLocation(id));
                 };
 
-                Self::start_livestream(
-                    &mut self.mixer,
-                    location.to_string(),
-                    &format!("Livestream-{id}"),
-                )
-                .map_err(RecordingSessionError::StartLivestream)
+                self.start_livestream(location.to_string(), &format!("Livestream-{id}"))
+                    .map_err(RecordingSessionError::StartLivestream)
             }
-            RecorderStreamKind::Recording { file_name } => {
-                Self::start_recording(&mut self.mixer, &self.temp_dir, file_name.as_str())
-                    .map_err(RecordingSessionError::StartRecording)
-            }
+            RecorderStreamKind::Recording { file_name } => self
+                .start_recording(file_name.as_str())
+                .await
+                .map_err(RecordingSessionError::StartRecording),
         };
 
         stream.state = match new_state {
@@ -419,6 +423,8 @@ impl RecordingSession {
                 reason: error.into(),
             },
         };
+
+        self.streaming_targets.insert(id, stream.clone());
 
         Ok(stream.state.clone())
     }
@@ -434,17 +440,11 @@ impl RecordingSession {
         if stream.state != StreamStatus::Active && stream.state != StreamStatus::Paused {
             return Err(RecordingSessionError::NotRunning(id));
         }
-        let new_state = match stream.kind {
+        let new_state: Result<(), StreamErrorReason> = match stream.kind {
             RecorderStreamKind::Recording { file_name: _ } => {
                 self.mixer.release_sink(&"recording".to_owned()).await;
 
-                self.service_context
-                    .upload(
-                        &self.room_id,
-                        self.temp_dir.path().join(TEMP_RECORDING_NAME).as_path(),
-                    )
-                    .await
-                    .map_err(RecordingSessionError::UploadRecording)
+                Ok(())
             }
             RecorderStreamKind::Streaming { target: _ } => {
                 self.mixer.release_sink(&format!("Livestream-{id}")).await;
@@ -455,29 +455,29 @@ impl RecordingSession {
 
         stream.state = match new_state {
             Ok(()) => StreamStatus::Inactive,
-            Err(error) => StreamStatus::Error {
-                reason: error.into(),
-            },
+            Err(error) => StreamStatus::Error { reason: error },
         };
 
         Ok(stream.state.clone())
     }
 
-    pub fn start_livestream(mixer: &mut Mixer, location: String, name: &str) -> Result<()> {
-        mixer.link_sink(
-            name,
-            RTMPSink::create(
+    pub fn start_livestream(&mut self, location: String, name: &str) -> Result<()> {
+        self.mixer
+            .link_sink(
                 name,
-                RTMPParameters {
-                    location,
-                    audio_bitrate: None,
-                    audio_rate: None,
-                    video_bitrate: None,
-                    video_speed_preset: None,
-                },
+                RTMPSink::create(
+                    name,
+                    RTMPParameters {
+                        location,
+                        audio_bitrate: None,
+                        audio_rate: None,
+                        video_bitrate: None,
+                        video_speed_preset: None,
+                    },
+                )
+                .context("RTMPSink could not created")?,
             )
-            .context("RTMPSink could not created")?,
-        )?;
+            .context("unable to link sink to talk")?;
 
         Ok(())
     }
@@ -699,7 +699,7 @@ impl RecordingSession {
             .iter()
             .filter(|(_id, state)| state.is_start_requested())
         {
-            let status = match self.start_stream(*id) {
+            let status = match self.start_stream(*id).await {
                 Ok(status) => status,
                 Err(reason) => StreamStatus::Error {
                     reason: reason.into(),
@@ -845,7 +845,7 @@ impl RecordingSession {
         target_ids: BTreeSet<StreamingTargetId>,
     ) -> Result<(), anyhow::Error> {
         for id in target_ids {
-            let status = match self.start_stream(id) {
+            let status = match self.start_stream(id).await {
                 Ok(status) => status,
                 Err(reason) => StreamStatus::Error {
                     reason: reason.into(),
@@ -911,6 +911,23 @@ impl RecordingSession {
         } else {
             self.signaling.send_end_of_candidates(descriptor).await
         }
+    }
+}
+
+impl Drop for RecordingSession {
+    fn drop(&mut self) {
+        log::debug!("drop RecordingSession");
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                let join_handles = mem::take(&mut self.join_handles);
+                let mut join_handles = join_handles.lock().await;
+                for join_handle in join_handles.iter_mut() {
+                    if let Err(err) = join_handle.await {
+                        log::error!("JoinHandle received an error: {err:?}");
+                    }
+                }
+            });
+        });
     }
 }
 
