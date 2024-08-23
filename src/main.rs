@@ -38,21 +38,7 @@ use crate::recorder::Recorder;
 const RECONNECT_INTERVAL: Duration = Duration::from_millis(3_000); //ms
 const DOT_OUTPUT_PATH: &str = "./pipelines";
 
-fn check_for_ffmpeg() -> Result<()> {
-    _ = std::process::Command::new("ffmpeg")
-        .args(["--help"])
-        .output()?;
-
-    Ok(())
-}
-
 fn check_plugins() -> Result<()> {
-    if check_for_ffmpeg().is_err() {
-        warn!("ffmpeg is not present on the system. Some features may not work.");
-    }
-
-    gstrsinter::plugin_register_static()?;
-
     let registry = gst::Registry::get();
 
     let required = [
@@ -62,7 +48,9 @@ fn check_plugins() -> Result<()> {
         "compositor",
         "debug",
         "dtls",
+        "fdkaac",
         "pango",
+        "png",
         "rsinter",
         "rtp",
         "srtp",
@@ -109,6 +97,7 @@ fn main_loop() -> Result<()> {
     };
 
     gst::init()?;
+    gstrsinter::plugin_register_static()?;
     check_plugins()?;
 
     // Run a MainLoop on a separate thread so gstreamer bus watches work

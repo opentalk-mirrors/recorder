@@ -34,6 +34,39 @@ pub mod testing {
 
     static INIT: Once = Once::new();
 
+    fn check_plugins() -> anyhow::Result<()> {
+        let registry = gst::Registry::get();
+
+        let required = [
+            "audiomixer",
+            "audiotestsrc",
+            "autodetect",
+            "compositor",
+            "debug",
+            "dtls",
+            "fdkaac",
+            "pango",
+            "png",
+            "rtp",
+            "srtp",
+            "udp",
+            "videotestsrc",
+            "vpx",
+            "webrtc",
+        ];
+
+        let failed_plugins: Vec<_> = required
+            .into_iter()
+            .filter(|plug| registry.find_plugin(plug).is_none())
+            .collect();
+
+        if !failed_plugins.is_empty() {
+            anyhow::bail!("Failed to load GStreamer plugins [{}], try to start the application with 'GST_DEBUG=1' if the plugins are installed correctly.", failed_plugins.join(", "));
+        }
+
+        Ok(())
+    }
+
     /// initialize for testing
     pub fn init() {
         trace!("init()");
@@ -53,6 +86,7 @@ pub mod testing {
         // initialize gstreamer
         gst::init().unwrap();
         gstrsinter::plugin_register_static().unwrap();
+        check_plugins().unwrap();
 
         // init logger
         env_logger::try_init().ok();
@@ -167,7 +201,7 @@ pub mod testing {
                     params,
                     MediaSessionState::audio_and_video(),
                 )
-                .unwrap();
+                .expect("create mixer failed");
         }
 
         (streams, ids)
