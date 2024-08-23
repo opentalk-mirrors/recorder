@@ -19,7 +19,7 @@ use compositor::{
     EncoderType, MediaDescriptor, RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink,
     WebRtcSource, WebRtcSourceParams,
 };
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use log::error;
 use tempfile::TempDir;
 use thiserror::Error;
@@ -318,14 +318,7 @@ impl RecordingSession {
 
         while !self.done {
             tokio::select! {
-                msg = self.signaling.connection.next() => {
-                    let Some(msg) = msg else {
-                        bail!("Failed to receive websocket message");
-                    };
-
-                    let msg = msg.context("Failed to receive websocket message")?;
-
-                    let msg = self.signaling.handle_websocket_message(msg).await;
+                msg = self.signaling.recv_new_signal() => {
                     match msg {
                         Err(err) => {
                             log::debug!("Unexpected websocket message. {err}");

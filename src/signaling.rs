@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use anyhow::{bail, Context, Result};
 use compositor::MediaDescriptor;
-use futures::SinkExt;
+use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
@@ -172,6 +172,18 @@ impl Signaling {
                 Err(e.into())
             }
         }
+    }
+
+    pub async fn recv_new_signal(&mut self) -> Result<Option<incoming::Message>> {
+        let msg = self.connection.next().await;
+
+        let Some(msg) = msg else {
+            bail!("Failed to receive websocket message");
+        };
+
+        let msg = msg.context("Failed to receive websocket message")?;
+
+        self.handle_websocket_message(msg).await
     }
 
     pub(crate) fn participants(&self) -> &HashMap<ParticipantId, ParticipantState> {
