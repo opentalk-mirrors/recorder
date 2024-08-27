@@ -34,9 +34,6 @@ pub struct Signaling {
     /// Own participant id
     _id: Option<ParticipantId>,
 
-    /// List of all other participants in the conference
-    participants: HashMap<ParticipantId, ParticipantState>,
-
     pub connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
@@ -99,12 +96,10 @@ impl Signaling {
     #[allow(dead_code)]
     pub fn new(
         id: Option<ParticipantId>,
-        participants: HashMap<ParticipantId, ParticipantState>,
         connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
     ) -> Self {
         Self {
             _id: id,
-            participants,
             connection,
         }
     }
@@ -139,7 +134,6 @@ impl Signaling {
 
         Ok(Self {
             _id: None,
-            participants: HashMap::new(),
             connection: stream,
         })
     }
@@ -184,18 +178,6 @@ impl Signaling {
         let msg = msg.context("Failed to receive websocket message")?;
 
         self.handle_websocket_message(msg).await
-    }
-
-    pub(crate) fn participants(&self) -> &HashMap<ParticipantId, ParticipantState> {
-        &self.participants
-    }
-
-    pub(crate) fn participant(&self, id: &ParticipantId) -> Result<&ParticipantState> {
-        let Some(participant_state) = self.participants.get(id) else {
-            bail!("Participant {id} joined but not state exists");
-        };
-
-        Ok(participant_state)
     }
 
     pub async fn start_subscribe(&mut self, descriptor: MediaDescriptor) -> Result<()> {
@@ -280,66 +262,79 @@ impl Signaling {
             .await
             .context("failed to send message")
     }
+}
 
-    pub(crate) fn handle_join_success(
-        &mut self,
-        state: JoinSuccess,
-    ) -> Result<BTreeMap<StreamingTargetId, RecorderStreamInfo>> {
-        let recording_service_state = state
-            .get_module::<RecordingServiceState>()?
-            .context("No Service State has been found")?;
+pub(crate) fn handle_join_success(
+    state: &JoinSuccess,
+) -> Result<BTreeMap<StreamingTargetId, RecorderStreamInfo>> {
+    let recording_service_state = state
+        .get_module::<RecordingServiceState>()?
+        .context("No Service State has been found")?;
 
-        let streaming_targets = recording_service_state.streams;
+    let streaming_targets = recording_service_state.streams;
 
-        self.participants = match state
-            .participants
-            .into_iter()
-            .map(|p| {
-                let id = p.id;
-                ParticipantState::from_incoming(&p).map(|ps| (id, ps))
-            })
-            .collect::<Result<HashMap<_, _>>>()
-        {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to parse incoming JoinSuccess message: {e}");
-                return Err(e);
-            }
-        };
+    Ok(streaming_targets)
+}
 
-        Ok(streaming_targets)
-    }
+pub(crate) fn handle_joined(
+    participant: &Participant,
+    participants: &mut HashMap<ParticipantId, ParticipantState>,
+) -> Result<()> {
+    let id = participant.id;
+    let participant = match ParticipantState::from_incoming(participant) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to parse incoming Joined message: {e}");
+            return Err(e);
+        }
+    };
+    participants.insert(id, participant);
+    Ok(())
+}
 
-    pub(crate) fn handle_joined(&mut self, participant: &Participant) -> Result<()> {
-        let id = participant.id;
-        let participant = match ParticipantState::from_incoming(participant) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to parse incoming Joined message: {e}");
-                return Err(e);
-            }
-        };
-        self.participants.insert(id, participant);
-        Ok(())
-    }
+pub(crate) fn handle_left(
+    id: &control::AssociatedParticipant,
+    participants: &mut HashMap<ParticipantId, ParticipantState>,
+) {
+    participants.remove(&id.id);
+}
 
-    pub(crate) fn handle_left(&mut self, id: &control::AssociatedParticipant) {
-        self.participants.remove(&id.id);
-    }
+pub(crate) fn handle_update(
+    participant: &Participant,
+    participants: &mut HashMap<ParticipantId, ParticipantState>,
+) {
+    let Some(state) = participants.get_mut(&participant.id) else {
+        log::error!("Got update for unknown participant {:?}", participant.id);
+        return;
+    };
 
-    pub(crate) fn handle_update(&mut self, participant: &Participant) {
-        let Some(state) = self.participants.get_mut(&participant.id) else {
-            log::error!("Got update for unknown participant {:?}", participant.id);
+    *state = match ParticipantState::from_incoming(participant) {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to parse incoming Update message: {e}");
             return;
-        };
+        }
+    };
+}
 
-        *state = match ParticipantState::from_incoming(participant) {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("Failed to parse incoming Update message: {e}");
-                return;
-            }
-        };
+pub(crate) fn process_participants(
+    state: &JoinSuccess,
+) -> Result<HashMap<ParticipantId, ParticipantState>> {
+    match state
+        .participants
+        .clone()
+        .into_iter()
+        .map(|p| {
+            let id = p.id;
+            ParticipantState::from_incoming(&p).map(|ps| (id, ps))
+        })
+        .collect::<Result<HashMap<_, _>>>()
+    {
+        Ok(p) => Ok(p),
+        Err(e) => {
+            log::error!("Failed to parse incoming JoinSuccess message: {e}");
+            Err(e)
+        }
     }
 }
 

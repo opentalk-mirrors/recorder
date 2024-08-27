@@ -46,8 +46,9 @@ use crate::{
     rmq::InitializeRecording,
     settings::{RecorderSink, Settings},
     signaling::{
+        self,
         incoming::{self, MediaMessage},
-        Signaling, TrickleCandidate,
+        ParticipantState, Signaling, TrickleCandidate,
     },
 };
 
@@ -131,6 +132,9 @@ pub struct RecordingSession {
 
     signaling: Signaling,
 
+    /// List of all other participants in the conference
+    participants: HashMap<ParticipantId, ParticipantState>,
+
     room_id: String,
     participant_id: Option<ParticipantId>,
 
@@ -203,6 +207,7 @@ impl RecordingSession {
     pub fn new(
         service_context: Arc<Recorder>,
         signaling: Signaling,
+        participants: HashMap<ParticipantId, ParticipantState>,
         room_id: String,
         temp_dir: TempDir,
         mixer: Mixer,
@@ -214,6 +219,7 @@ impl RecordingSession {
         Self {
             service_context,
             signaling,
+            participants,
             room_id,
             participant_id: None,
             temp_dir,
@@ -300,6 +306,7 @@ impl RecordingSession {
         Ok(Self {
             service_context,
             signaling,
+            participants: HashMap::new(),
             room_id: command.room,
             participant_id: None,
             temp_dir,
@@ -554,7 +561,12 @@ impl RecordingSession {
         match msg {
             incoming::Message::Control(msg) => match msg {
                 ControlEvent::JoinSuccess(state) => {
-                    let Ok(streams) = self.signaling.handle_join_success(state.clone()) else {
+                    let Ok(participants) = signaling::process_participants(&state) else {
+                        return Ok(());
+                    };
+                    self.participants = participants;
+
+                    let Ok(streams) = signaling::handle_join_success(&state) else {
                         log::info!("No Streaming targets in ControlEvent::JoinSuccess found.");
                         return Ok(());
                     };
@@ -568,18 +580,18 @@ impl RecordingSession {
                         .await?;
                 }
                 ControlEvent::Joined(participant) => {
-                    self.signaling.handle_joined(&participant)?;
+                    signaling::handle_joined(&participant, &mut self.participants)?;
                     self.handle_participant_joined(participant.id).await?;
                 }
                 ControlEvent::Update(participant) => {
-                    self.signaling.handle_update(&participant);
+                    signaling::handle_update(&participant, &mut self.participants);
                     self.handle_participant_updated(participant.id).await?;
                 }
                 ControlEvent::Left {
                     id: assoc_participant,
                     ..
                 } => {
-                    self.signaling.handle_left(&assoc_participant);
+                    signaling::handle_left(&assoc_participant, &mut self.participants);
                     self.handle_participant_left(assoc_participant.id)?;
                 }
                 ref other => {
@@ -766,8 +778,7 @@ impl RecordingSession {
             MediaSessionType,
             MediaSessionState,
         )> = self
-            .signaling
-            .participants()
+            .participants
             .iter()
             .flat_map(|(id, participant_state)| {
                 media_types().filter_map(|media_type| {
@@ -812,7 +823,11 @@ impl RecordingSession {
     }
 
     async fn handle_participant_joined(&mut self, id: ParticipantId) -> Result<()> {
-        let participant_state = self.signaling.participant(&id)?.clone();
+        let participant_state = self
+            .participants
+            .get(&id)
+            .context("participant not found")?
+            .clone();
         let available_media_streams = media_types().filter_map(|media_type| {
             participant_state
                 .publishes(media_type)
@@ -832,7 +847,11 @@ impl RecordingSession {
     }
 
     async fn handle_participant_updated(&mut self, id: ParticipantId) -> Result<()> {
-        let participant_state = self.signaling.participant(&id)?.clone();
+        let participant_state = self
+            .participants
+            .get(&id)
+            .context("participant not found")?
+            .clone();
         for media_type in media_types() {
             let is_subscribed = self.mixer.contains_stream(MediaDescriptor {
                 participant_id: id,
@@ -890,7 +909,7 @@ impl RecordingSession {
                 })?;
             }
         }
-        if self.signaling.participants().is_empty() {
+        if self.participants.is_empty() {
             log::debug!("Last participant left the session. Stop recording.");
             self.done = true;
 
@@ -899,15 +918,18 @@ impl RecordingSession {
 
         log::trace!(
             "{} remaining participants : {:?}",
-            self.signaling.participants().len(),
-            self.signaling.participants().keys()
+            self.participants.len(),
+            self.participants.keys()
         );
 
         Ok(())
     }
 
     pub(crate) fn handle_end_of_candidates(&mut self, descriptor: MediaDescriptor) -> Result<()> {
-        let participant_state = self.signaling.participant(&descriptor.participant_id)?;
+        let participant_state = self
+            .participants
+            .get(&descriptor.participant_id)
+            .context("participant not found")?;
         if participant_state.publishes(descriptor.media_type).is_none() {
             bail!(
                 "EndOfCandidates message for {:?} with no media stream",

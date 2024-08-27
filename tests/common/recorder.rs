@@ -75,7 +75,7 @@ pub(crate) async fn start_recorder(
     let (connection, _) = connect_async(websocket_request)
         .await
         .expect("Client failed to connect");
-    let signaling = Signaling::new(None, HashMap::new(), connection);
+    let signaling = Signaling::new(None, connection);
     let (candidate_sender, candidate_receiver) = mpsc::channel(12);
     let temp_dir = TempDir::new().expect("unable to create temp dir");
 
@@ -107,6 +107,7 @@ pub(crate) async fn start_recorder(
     let mut recording_session = RecordingSession::new(
         Arc::new(recorder),
         signaling,
+        HashMap::new(),
         "TESTROOM".to_string(),
         temp_dir,
         mixer,
