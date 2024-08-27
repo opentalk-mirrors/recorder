@@ -52,6 +52,8 @@ pub mod testing {
         }
         // initialize gstreamer
         gst::init().unwrap();
+        gstrsinter::plugin_register_static().unwrap();
+
         // init logger
         env_logger::try_init().ok();
 

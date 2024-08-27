@@ -3,33 +3,31 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use anyhow::{Context, Result};
-use gst::{
-    element_error, prelude::*, Bin, Caps, Element, ElementFactory, FlowError, FlowSuccess,
-    GhostPad, Pad, Sample, StreamError,
-};
-use gst_app::{AppSink, AppSinkCallbacks, AppSrc};
+use gst::{prelude::*, Bin, Caps, Element, ElementFactory, GhostPad, Pad};
 use gst_base::AggregatorStartTimeSelection;
-use tokio::sync::broadcast;
 
 use crate::{
-    mixer::VIDEO_FRAMERATE, GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt,
-    GstGhostPadErrorExt, GstPadErrorExt, Overlay, Size,
+    GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
+    GstPadErrorExt, Overlay, Size, VIDEO_INTER_COMPOSITOR,
 };
 
-const QUEUE_SIZE: usize = VIDEO_FRAMERATE as usize;
+// const QUEUE_SIZE: usize = VIDEO_FRAMERATE as usize;
 
 #[derive(Debug)]
 pub(crate) struct VideoMixer {
     bin: Bin,
     compositor: Element,
-    buffer: broadcast::Sender<Sample>,
-    appsink: AppSink,
 }
 
 impl VideoMixer {
     #[allow(clippy::too_many_lines)]
-    pub(crate) fn create(output_size: Size, overlay: &impl Overlay) -> Result<Self> {
+    pub(crate) fn create(
+        output_size: Size,
+        overlay: &impl Overlay,
+        producer_id: u64,
+    ) -> Result<Self> {
         let bin = Bin::builder().name("VideoMixer").build();
+        let producer_name = format!("{VIDEO_INTER_COMPOSITOR}_{producer_id}");
 
         let videotestsrc = ElementFactory::make("videotestsrc")
             .name("Video Background Source")
@@ -58,7 +56,9 @@ impl VideoMixer {
             .build_with_context()?;
 
         let queue = ElementFactory::make("queue").build_with_context()?;
-        let appsink = AppSink::builder().sync(true).wait_on_eos(false).build();
+        let intersink = ElementFactory::make("intersink")
+            .property("producer-name", producer_name.as_str())
+            .build_with_context()?;
 
         bin.add_many_with_context(&[
             &videotestsrc,
@@ -67,7 +67,7 @@ impl VideoMixer {
             &compositor,
             overlay.element(),
             &queue,
-            appsink.upcast_ref(),
+            &intersink,
         ])?;
 
         Element::link_many_with_context(&[&videotestsrc, &clocksync, &videotestsrc_capssetter])?;
@@ -77,44 +77,9 @@ impl VideoMixer {
             .static_pad_with_context("src")?
             .link_with_context(&compositor_sink_pad)?;
 
-        Element::link_many_with_context(&[
-            &compositor,
-            overlay.element(),
-            &queue,
-            appsink.upcast_ref(),
-        ])?;
+        Element::link_many_with_context(&[&compositor, overlay.element(), &queue, &intersink])?;
 
-        let buffer = broadcast::Sender::new(QUEUE_SIZE);
-        let sender = buffer.clone();
-        appsink.set_callbacks(
-            AppSinkCallbacks::builder()
-                .new_sample({
-                    move |app_sink| match app_sink.pull_sample() {
-                        Ok(sample) => {
-                            sender.send(sample).ok();
-                            Ok(FlowSuccess::Ok)
-                        }
-                        Err(error) => {
-                            element_error!(
-                                app_sink,
-                                StreamError::Failed,
-                                ("unable to pull sample from app_sink")
-                            );
-                            error!("unable to pull sample from app_sink, received: {error}");
-
-                            Err(FlowError::Error)
-                        }
-                    }
-                })
-                .build(),
-        );
-
-        Ok(Self {
-            bin,
-            compositor,
-            buffer,
-            appsink,
-        })
+        Ok(Self { bin, compositor })
     }
 
     #[must_use]
@@ -148,38 +113,5 @@ impl VideoMixer {
         self.compositor.release_request_pad(src);
 
         Ok(())
-    }
-
-    pub(crate) fn link_sink(&self, app_src: &AppSrc) {
-        let mut receiver = self.buffer.subscribe();
-        let app_src = app_src.clone();
-
-        std::thread::spawn(move || {
-            while let Ok(sample) = receiver.blocking_recv() {
-                if let Err(error) = app_src.push_sample(&sample) {
-                    let src_name = app_src.name();
-                    match error {
-                        FlowError::Flushing => {
-                            debug!("Flush and exit app_src {src_name}");
-                        }
-                        FlowError::Eos => {
-                            debug!("Eos and exit app_src {src_name}");
-                        }
-                        _ => {
-                            error!("Failed pushing sample to app_src {src_name} with error: {error:?}, sample: {sample:?}");
-                        }
-                    }
-                    return;
-                }
-            }
-        });
-    }
-
-    pub(crate) fn drop(&mut self) {
-        self.appsink.set_callbacks(
-            AppSinkCallbacks::builder()
-                .new_sample(|_| Ok(FlowSuccess::Ok))
-                .build(),
-        );
     }
 }

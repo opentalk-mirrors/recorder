@@ -6,6 +6,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display},
     hash::Hash,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -46,11 +47,12 @@ pub use {
 pub(crate) const AUDIO_SAMPLE_RATE: i32 = 48_000;
 pub(crate) const AUDIO_CHANNELS: i32 = 2;
 
-pub(crate) const VIDEO_WIDTH: i32 = 1920;
-pub(crate) const VIDEO_HEIGHT: i32 = 1136;
-pub(crate) const VIDEO_FRAMERATE: i32 = 30;
-
 pub(crate) const NAME_FONT_SIZE: u32 = 16;
+
+pub const AUDIO_INTER_COMPOSITOR: &str = "audio-compositor";
+pub const VIDEO_INTER_COMPOSITOR: &str = "video-compositor";
+
+pub static INTER_COUNTER: AtomicU64 = AtomicU64::new(0u64);
 
 /// `MediaDescriptor` identifies a media stream by participant and media type.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -107,6 +109,7 @@ where
     SRC: Source,
 {
     streams: HashMap<MediaDescriptor, Stream<SRC>>,
+    producer_id: u64,
     visibles: Vec<MediaDescriptor>,
     audio_mixer: AudioMixer,
     video_mixer: Option<VideoMixer>,
@@ -147,13 +150,14 @@ where
             .context("unable to create Compositor PipelineWatched")?;
 
         debug!("create compositor ( {output_resolution:?}, {max_visibles:?} )");
+        let producer_id = INTER_COUNTER.fetch_add(1, Ordering::Relaxed);
 
         let overlay = TalkOverlay::create(clock_format).context("unable to create TalkOverlay")?;
-        let audio_mixer = AudioMixer::create().context("unable to create AudioMixer")?;
+        let audio_mixer = AudioMixer::create(producer_id).context("unable to create AudioMixer")?;
         pipeline.add_with_context(audio_mixer.bin())?;
 
         let video_mixer = if video_support {
-            let video_mixer = VideoMixer::create(output_resolution, &overlay)
+            let video_mixer = VideoMixer::create(output_resolution, &overlay, producer_id)
                 .context("unable to create VideoMixer")?;
 
             pipeline.add_with_context(video_mixer.bin())?;
@@ -184,6 +188,7 @@ where
             layout: Box::new(layout),
             system_clock,
             max_visibles,
+            producer_id,
         };
 
         Ok(mixer)
@@ -200,8 +205,9 @@ where
             return Ok(());
         }
 
-        let video_mixer = VideoMixer::create(self.output_resolution, &self.overlay)
-            .context("unable to create VideoMixer")?;
+        let video_mixer =
+            VideoMixer::create(self.output_resolution, &self.overlay, self.producer_id)
+                .context("unable to create VideoMixer")?;
 
         self.pipeline.add_with_context(video_mixer.bin())?;
 
@@ -214,7 +220,7 @@ where
         }
 
         for sink in self.sinks.values() {
-            sink.link_video_mixer(&video_mixer)
+            sink.link_video_mixer(self.producer_id)
                 .context("unable to link VideoMixer to sink")?;
             sink.pipeline.set_state_with_context(gst::State::Playing)?;
         }
@@ -690,12 +696,12 @@ where
         };
 
         active_sink
-            .link_audio_mixer(&self.audio_mixer)
+            .link_audio_mixer(self.producer_id)
             .context("unable to link AudioMixer to sink")?;
 
-        if let Some(video_mixer) = &self.video_mixer {
+        if self.video_mixer.is_some() {
             active_sink
-                .link_video_mixer(video_mixer)
+                .link_video_mixer(self.producer_id)
                 .context("unable to link VideoMixer to sink")?;
         }
 
@@ -993,11 +999,6 @@ where
 
         for active_sink in self.sinks.values_mut() {
             sink_pipelines.push(active_sink.pipeline.clone_for_drop());
-        }
-
-        self.audio_mixer.drop();
-        if let Some(mut video_mixer) = self.video_mixer.take() {
-            video_mixer.drop();
         }
 
         tokio::task::block_in_place(move || {

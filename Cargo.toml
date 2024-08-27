@@ -23,6 +23,7 @@ gst-sdp = { package = "gstreamer-sdp", version = "0.23" }
 gst-webrtc = { package = "gstreamer-webrtc", version = "0.23", features = [
     "v1_22",
 ] }
+gst-plugin-inter = "0.13.0"
 tt = { package = "tokio-tungstenite", version = "0.20", features = [
     "rustls-tls-webpki-roots",
 ] }

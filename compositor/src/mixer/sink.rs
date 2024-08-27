@@ -7,14 +7,12 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
-use glib::object::Cast;
-use gst::{Element, ElementFactory, Fraction, GhostPad};
-use gst_app::AppSrc;
+use gst::{Element, ElementFactory, GhostPad};
 
-use super::{audio_mixer::AudioMixer, bus::PipelineWatched, video_mixer::VideoMixer};
+use super::bus::PipelineWatched;
 use crate::{
     debug, GstBinErrorExt, GstElementBuilderErrorExt, GstElementErrorExt, GstGhostPadErrorExt,
-    GstPadErrorExt, AUDIO_CHANNELS, AUDIO_SAMPLE_RATE, VIDEO_FRAMERATE, VIDEO_HEIGHT, VIDEO_WIDTH,
+    GstPadErrorExt, AUDIO_INTER_COMPOSITOR, VIDEO_INTER_COMPOSITOR,
 };
 
 /// Trait of an output sink.
@@ -63,23 +61,12 @@ impl ActiveSink {
     /// # Errors
     ///
     /// This can fail if the audio sink could not be linked to the `audio_mixer`.
-    pub(crate) fn link_audio_mixer(&self, audio_mixer: &AudioMixer) -> Result<()> {
-        let app_src = AppSrc::builder()
-            .name("audiosrc")
-            .caps(
-                &gst::Caps::builder("audio/x-raw")
-                    .field("format", "S16LE")
-                    .field("layout", "interleaved")
-                    .field("rate", AUDIO_SAMPLE_RATE)
-                    .field("channels", AUDIO_CHANNELS)
-                    .build(),
-            )
-            .min_latency(200_000_000i64)
-            .format(gst::Format::Time)
-            .max_bytes(1)
-            .block(true)
-            .is_live(true)
-            .build();
+    pub(crate) fn link_audio_mixer(&self, producer_id: u64) -> Result<()> {
+        let producer_name = format!("{AUDIO_INTER_COMPOSITOR}_{producer_id}");
+        let intersrc = ElementFactory::make("intersrc")
+            .property("producer-name", producer_name.as_str())
+            .build_with_context()?;
+
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
             .property("max-size-time", 10_000_000_000u64)
@@ -89,15 +76,13 @@ impl ActiveSink {
         let audioconvert = ElementFactory::make("audioconvert").build_with_context()?;
 
         self.pipeline
-            .add_many_with_context(&[app_src.upcast_ref(), &queue, &audioconvert])?;
+            .add_many_with_context(&[&intersrc, &queue, &audioconvert])?;
 
-        Element::link_many_with_context(&[app_src.upcast_ref(), &queue, &audioconvert])?;
+        Element::link_many_with_context(&[&intersrc, &queue, &audioconvert])?;
 
         audioconvert
             .static_pad_with_context("src")?
             .link_with_context(&self.inner.audio())?;
-
-        audio_mixer.link_sink(&app_src);
 
         Ok(())
     }
@@ -107,27 +92,16 @@ impl ActiveSink {
     /// # Errors
     ///
     /// This can fail if the video sink could not be linked to the `video_mixer`.
-    pub(crate) fn link_video_mixer(&self, video_mixer: &VideoMixer) -> Result<()> {
+    pub(crate) fn link_video_mixer(&self, producer_id: u64) -> Result<()> {
         let Some(video_sink) = &self.inner.video() else {
             return Ok(());
         };
+        let producer_name = format!("{VIDEO_INTER_COMPOSITOR}_{producer_id}");
 
-        let app_src = AppSrc::builder()
-            .name("videosrc")
-            .caps(
-                &gst::Caps::builder("video/x-raw")
-                    .field("format", "I420")
-                    .field("width", VIDEO_WIDTH)
-                    .field("height", VIDEO_HEIGHT)
-                    .field("framerate", Fraction::new(VIDEO_FRAMERATE, 1))
-                    .build(),
-            )
-            .min_latency(200_000_000i64)
-            .format(gst::Format::Time)
-            .max_bytes(1)
-            .block(true)
-            .is_live(true)
-            .build();
+        let intersrc = ElementFactory::make("intersrc")
+            .property("producer-name", producer_name.as_str())
+            .build_with_context()?;
+
         let queue = ElementFactory::make("queue")
             .property_from_str("leaky", "downstream")
             .property("max-size-time", 10_000_000_000u64)
@@ -137,15 +111,13 @@ impl ActiveSink {
         let videoconvert = ElementFactory::make("videoconvert").build_with_context()?;
 
         self.pipeline
-            .add_many_with_context(&[app_src.upcast_ref(), &queue, &videoconvert])?;
+            .add_many_with_context(&[&intersrc, &queue, &videoconvert])?;
 
-        Element::link_many_with_context(&[app_src.upcast_ref(), &queue, &videoconvert])?;
+        Element::link_many_with_context(&[&intersrc, &queue, &videoconvert])?;
 
         videoconvert
             .static_pad_with_context("src")?
             .link_with_context(video_sink)?;
-
-        video_mixer.link_sink(&app_src);
 
         Ok(())
     }

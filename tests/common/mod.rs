@@ -102,6 +102,7 @@ impl EventRunner {
 
         log::info!("Initialize gstreamer");
         gst::init().expect("unable to init gst");
+        gstrsinter::plugin_register_static().expect("initialize gst inter");
 
         log::info!("Start gstreamers MainLoop");
         let main_loop = glib::MainLoop::new(None, false);
