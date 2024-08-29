@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1
+
+### 🚀 New features
+
+- Auto Configure Quality of Subscribed Video Streams ([!177](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/177))
+
+### 🐛 Bug fixes
+
+- Check for gstreamer srtp elements on start ([!198](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/198))
+- Update TLS dependencies to support self signed certs ([!192](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/192))
+- Update docs ([!192](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/192))
+- Add timezone package ([!201](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/201))
+- Replace appsink/src with intersink/src ([!206](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/206))
+
+### 📚 Documentation
+
+- Add clock pattern to example config and ENV ([!201](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/201))
+
+### 📦 Dependencies
+
+- Lock file maintenance ([!210](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/210))
+- Update rust crate bytes to v1.7.1 ([!199](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/199))
+- Update rust crate env_logger to v0.11.5 ([!191](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/191))
+- Update rust crate lapin to v2.5.0 ([!194](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/194))
+- Update rust crate serde to v1.0.205 ([!209](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/209))
+- Update rust crate serde_json to v1.0.125 ([!215](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/215))
+- Update rust crate sysinfo to v0.31.2 ([!205](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/205))
+- Update rust crate tempfile to v3.12.0 ([!207](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/207))
+- Update rust crate tokio to v1.39.2 ([!193](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/193))
+- Update rust crate types to 0.19.0 ([!184](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/184))
+
+## 0.5.0
+
+### <!-- 0 -->🚀 New features
+
+- Auto Configure Quality of Subscribed Video Streams ([#119](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/119))
+- Watch GStreamer bus for better error handling ([#117](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/117))
+
+### <!-- 1 -->🐛 Bug fixes
+
+- Check for gstreamer srtp elements on start ([!198](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/198))
+- Update TLS dependencies to support self signed certs ([!192](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/192))
+- Update docs ([#147](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/147))
+- Add timezone package to container ([#147](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/147))
+- End all streams when recorder is done ([#140](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/140))
+
+### <!-- 3 -->:gear: Miscellaneous
+
+- Build executable with `cargo auditable`
+
+### <!-- 4 -->📚 Documentation
+
+- Add clock pattern to example config and ENV ([#147](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/147))
+
+### <!-- 5 --> Dependencies
+
+- Update gstreamer-rs
+- Update rust crate bytes to v1.6.1
+- Update rust crate env_logger to v0.11.5
+- Update rust crate lapin to v2.5.0
+- Update rust crate serde_json to v1.0.121
+- Update rust crate thiserror to v1.0.63
+- Update rust crate tokio to v1.39.2
+
 ## 0.4.0
 
 ### <!-- 0 -->:rocket: New features
