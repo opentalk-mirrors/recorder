@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
@@ -19,6 +19,7 @@ use types::{
     signaling::{
         control::{
             event::{ControlEvent, JoinSuccess},
+            room::{CreatorInfo, RoomInfo},
             state::ControlState,
             AssociatedParticipant, Participant, Reason,
         },
@@ -113,13 +114,14 @@ impl MockController {
             tariff: Box::new(types::common::tariff::TariffResource {
                 id: TariffId::nil(),
                 name: "".to_owned(),
-                quotas: HashMap::new(),
-                enabled_modules: HashSet::new(),
-                disabled_features: HashSet::new(),
-                modules: HashMap::new(),
+                quotas: BTreeMap::new(),
+                enabled_modules: BTreeSet::new(),
+                disabled_features: BTreeSet::new(),
+                modules: BTreeMap::new(),
             }),
             module_data,
             is_room_owner: false,
+            room_info: new_room_info(),
         }));
 
         self.to_recorder_tx
@@ -244,13 +246,14 @@ impl MockController {
                     tariff: Box::new(types::common::tariff::TariffResource {
                         id: TariffId::nil(),
                         name: "".to_owned(),
-                        quotas: HashMap::new(),
-                        enabled_modules: HashSet::new(),
-                        disabled_features: HashSet::new(),
-                        modules: HashMap::new(),
+                        quotas: BTreeMap::new(),
+                        enabled_modules: BTreeSet::new(),
+                        disabled_features: BTreeSet::new(),
+                        modules: BTreeMap::new(),
                     }),
                     module_data,
                     is_room_owner: false,
+                    room_info: new_room_info(),
                 },
             )))
             .await
@@ -379,5 +382,19 @@ impl MockController {
             ))
             .await
             .expect("unable to send update event to recorder");
+    }
+}
+
+fn new_room_info() -> RoomInfo {
+    RoomInfo {
+        id: RoomId::from_u128(0x5e0f2b14_bf2b_46b3_a989_f7fe39d2bc2f),
+        password: None,
+        created_by: CreatorInfo {
+            title: "Msc.".to_string(),
+            firstname: "Alice".to_string(),
+            lastname: "Bob".to_string(),
+            display_name: "Msc. Alice Bob!".to_string(),
+            avatar_url: "example.com".to_string(),
+        },
     }
 }
