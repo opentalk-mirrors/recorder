@@ -2,19 +2,14 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{
-    sync::atomic::{AtomicBool, Ordering},
-    time::Duration,
-};
+use std::{sync::atomic::Ordering, time::Duration};
 
+use anyhow::Result;
 use sysinfo::{self, RefreshKind, System};
 
-static IS_FEASIBLE: AtomicBool = AtomicBool::new(true);
-pub fn is_new_recording_feasible() -> bool {
-    IS_FEASIBLE.load(Ordering::Relaxed)
-}
+use super::IS_FEASIBLE;
 
-pub fn cpu_usage_poll(cutoff: u8) {
+pub(crate) fn cpu_usage_poll(cutoff: u8) -> Result<()> {
     const INTERVAL: Duration = Duration::from_secs(1u64);
     let mut rti = RuntimeInformation::new(cutoff);
     loop {
@@ -25,20 +20,18 @@ pub fn cpu_usage_poll(cutoff: u8) {
 
 struct RuntimeInformation {
     cutoff: u8,
-    last_cpu_usage: u32,
     system: System,
 }
 
 impl RuntimeInformation {
-    pub fn new(cutoff: u8) -> Self {
+    pub(crate) fn new(cutoff: u8) -> Self {
         Self {
             cutoff,
             system: System::new_with_specifics(RefreshKind::everything()),
-            last_cpu_usage: 0,
         }
     }
 
-    pub fn setup_cpu_poll(&mut self) {
+    pub(crate) fn setup_cpu_poll(&mut self) {
         // Enforce an update happened
         std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
         self.system.refresh_cpu_all();
@@ -50,8 +43,6 @@ impl RuntimeInformation {
             cpu_usage += cpu.cpu_usage() as u32;
         }
 
-        self.last_cpu_usage = cpu_usage;
-
-        IS_FEASIBLE.store(self.last_cpu_usage <= max_cpu_usage, Ordering::Relaxed);
+        IS_FEASIBLE.store(cpu_usage <= max_cpu_usage, Ordering::Relaxed);
     }
 }

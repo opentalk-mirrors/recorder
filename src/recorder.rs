@@ -16,8 +16,8 @@ use std::{
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    MediaDescriptor, RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink, WebRtcSource,
-    WebRtcSourceParams,
+    EncoderType, MediaDescriptor, RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink,
+    WebRtcSource, WebRtcSourceParams,
 };
 use futures::Stream;
 use log::error;
@@ -350,7 +350,11 @@ impl RecordingSession {
         Ok(())
     }
 
-    pub async fn start_recording(&mut self, file_name: &str) -> Result<()> {
+    pub async fn start_recording(
+        &mut self,
+        file_name: &str,
+        encoder_type: EncoderType,
+    ) -> Result<()> {
         let file_path = self.temp_dir.path().join(file_name);
         let webm_sink = WebMSink::create(
             "WebM-Sink",
@@ -359,6 +363,7 @@ impl RecordingSession {
                     .to_str()
                     .context("failed to convert WebM file path into string")?
                     .into(),
+                encoder_type,
             },
         )
         .context("WebM-Sink could not created")?;
@@ -408,11 +413,18 @@ impl RecordingSession {
                     return Err(RecordingSessionError::NoLocation(id));
                 };
 
-                self.start_livestream(location.to_string(), &format!("Livestream-{id}"))
-                    .map_err(RecordingSessionError::StartLivestream)
+                self.start_livestream(
+                    location.to_string(),
+                    &format!("Livestream-{id}"),
+                    self.service_context.settings.encoder_type(),
+                )
+                .map_err(RecordingSessionError::StartLivestream)
             }
             RecorderStreamKind::Recording { file_name } => self
-                .start_recording(file_name.as_str())
+                .start_recording(
+                    file_name.as_str(),
+                    self.service_context.settings.encoder_type(),
+                )
                 .await
                 .map_err(RecordingSessionError::StartRecording),
         };
@@ -461,7 +473,12 @@ impl RecordingSession {
         Ok(stream.state.clone())
     }
 
-    pub fn start_livestream(&mut self, location: String, name: &str) -> Result<()> {
+    pub fn start_livestream(
+        &mut self,
+        location: String,
+        name: &str,
+        encoder_type: EncoderType,
+    ) -> Result<()> {
         self.mixer
             .link_sink(
                 name,
@@ -473,6 +490,7 @@ impl RecordingSession {
                         audio_rate: None,
                         video_bitrate: None,
                         video_speed_preset: None,
+                        encoder_type,
                     },
                 )
                 .context("RTMPSink could not created")?,

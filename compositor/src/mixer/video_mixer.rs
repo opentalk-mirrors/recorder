@@ -41,7 +41,6 @@ impl VideoMixer {
             .property(
                 "caps",
                 Caps::builder("video/x-raw")
-                    .field("format", "I420")
                     .field("width", output_size.width as i32)
                     .field("height", output_size.height as i32)
                     .build(),

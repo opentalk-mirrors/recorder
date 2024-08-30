@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-use crate::{add_ghost_pad, parse_bin_from_description_with_context, Sink};
+use crate::{add_ghost_pad, parse_bin_from_description_with_context, EncoderType, Sink};
 
 const DEFAULT_AUDIO_RATE: usize = 48000;
 const DEFAULT_AUDIO_BITRATE: usize = 96000;
@@ -26,6 +26,7 @@ pub struct RTMPParameters {
     pub audio_rate: Option<usize>,
     pub video_bitrate: Option<usize>,
     pub video_speed_preset: Option<SpeedPreset>,
+    pub encoder_type: EncoderType,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -71,7 +72,7 @@ impl RTMPSink {
                 
             videoconvert
                 name=video
-            ! x264enc speed-preset={video_speed_preset} tune=zerolatency bitrate={video_bitrate}
+            ! {encoder_type}
             ! video/x-h264,profile=high
             ! h264parse
             ! mux.
@@ -92,11 +93,20 @@ impl RTMPSink {
             ! rtmpsink
                 location="{location}"
             "#,
+                encoder_type = match parameters.encoder_type {
+                    EncoderType::CPU => format!(
+                        "x264enc speed-preset={video_speed_preset} tune=zerolatency bitrate={video_bitrate}",
+                        video_bitrate = parameters.video_bitrate.unwrap_or(DEFAULT_VIDEO_BITRATE),
+                        video_speed_preset = parameters.video_speed_preset.unwrap_or_default() as usize,
+                    ),
+                    EncoderType::VAAPI => format!(
+                        "vaapih264enc tune=low-power bitrate={video_bitrate}",
+                        video_bitrate = parameters.video_bitrate.unwrap_or(DEFAULT_VIDEO_BITRATE),
+                    ),
+                },
                 location = parameters.location,
                 audio_bitrate = parameters.audio_bitrate.unwrap_or(DEFAULT_AUDIO_BITRATE),
                 audio_rate = parameters.audio_rate.unwrap_or(DEFAULT_AUDIO_RATE),
-                video_bitrate = parameters.video_bitrate.unwrap_or(DEFAULT_VIDEO_BITRATE),
-                video_speed_preset = parameters.video_speed_preset.unwrap_or_default() as usize,
             )
             .as_str(),
             false,

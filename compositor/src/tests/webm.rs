@@ -7,7 +7,9 @@ use types::{
     signaling::media::{MediaSessionState, MediaSessionType},
 };
 
-use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSource, WebMParameters, WebMSink};
+use crate::{
+    testing, EncoderType, MediaDescriptor, Mixer, Speaker, TestSource, WebMParameters, WebMSink,
+};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn test_webm() {
@@ -31,6 +33,7 @@ async fn test_webm() {
                 "test",
                 &WebMParameters {
                     path: "/tmp/test.webm".to_owned(),
+                    encoder_type: EncoderType::CPU,
                 },
             )
             .unwrap(),

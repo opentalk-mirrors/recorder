@@ -31,10 +31,14 @@ RUN touch src/main.rs; \
 FROM alpine:3.20
 
 RUN apk add --no-cache glib libssl3 libcrypto3 \
-    gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav \
+    gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav gst-vaapi \
+    intel-media-driver \
     openh264 ca-certificates \
     tzdata \
-    terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-noto; \
+    terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-noto \
+    libcap-setcap; \
+    apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing/ igt-gpu-tools; \
+    setcap cap_perfmon=+ep $(which intel_gpu_top); \
     fc-cache -fv
 
 WORKDIR /recorder
