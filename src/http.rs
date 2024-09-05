@@ -4,18 +4,27 @@
 
 //! HTTP calls made by this library (except for websockets)
 
-use std::{future::Future, pin::Pin};
+use std::{
+    future::Future,
+    pin::Pin,
+    time::{Duration, Instant},
+};
 
-use anyhow::{bail, Result};
-use bytes::Bytes;
-use futures::TryStream;
+use anyhow::{bail, Context, Result};
+use futures::{SinkExt, StreamExt};
 use openidconnect::{reqwest::Error, AccessToken, HttpRequest, HttpResponse, OAuth2TokenResponse};
-use reqwest::{Body, StatusCode};
+use reqwest::{header::HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
+use tt::{
+    tungstenite::{client::IntoClientRequest, Message},
+    WebSocketStream,
+};
 use types::core::Timestamp;
 
 use crate::settings::{AuthSettings, ControllerSettings};
+
+const S3_MINIMUM_STORAGE_SIZE: usize = 5_000_000;
 
 // TODO: Replace with version from opentalk-types
 #[derive(Clone)]
@@ -153,53 +162,117 @@ impl HttpClient {
         bail!("failed to authorize")
     }
 
-    pub async fn upload_render<S>(
+    pub async fn upload_render(
         &self,
         settings: &ControllerSettings,
         room_id: &str,
         file_extension: FileExtension,
-        stream: S,
-    ) -> Result<()>
-    where
-        S: TryStream + Send + Sync + 'static,
-        S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-        Bytes: From<S::Ok>,
-    {
+        mut receiver: broadcast::Receiver<Vec<u8>>,
+    ) -> Result<()> {
         let timestamp = Timestamp::now();
         let uri = format!(
-            "{}/services/recording/upload_render?room_id={room_id}&file_extension={}&timestamp={timestamp}",
-            settings.v1_api_base_url(),
-            file_extension.str()
+            "{}/services/recording/upload?room_id={room_id}&file_extension={}&timestamp={}",
+            settings
+                .v1_api_base_url()
+                .replace("https", "wss")
+                .replace("http", "ws"),
+            file_extension.str(),
+            urlencoding::encode(&timestamp.to_string()),
         );
 
-        // TODO: do not refresh access-token always here. Cannot refresh on request failure since the body
-        // consumes the stream. So we can only make the request once. We could solve this by having the body stream be
-        // created by a callback or something.
-        let token = {
-            let l = self.access_token.read().await;
-            l.clone()
-        };
-
-        self.refresh_access_tokens(token).await?;
-
-        let token = {
-            let l = self.access_token.read().await;
-            l.clone()
-        };
-
-        let response = self
-            .client
-            .post(&uri)
-            .bearer_auth(token.secret())
-            .body(Body::wrap_stream(stream))
-            .send()
-            .await?;
-
-        if response.status().is_success() {
-            Ok(())
+        log::debug!("connect websocket to {uri}");
+        let ws_stream = if let Ok((ws_stream, _response)) =
+            self.websocket_connect(uri.clone()).await
+        {
+            ws_stream
         } else {
-            bail!("unexpected status code {:?}", response.status())
+            log::debug!("Unable to connect to the websocket, refresh access token and retry it");
+            self.refresh_access_tokens(self.access_token.read().await.clone())
+                .await
+                .context("unable to refresh the access token")?;
+
+            self.websocket_connect(uri).await?.0
+        };
+        let (mut tx, mut rx) = ws_stream.split();
+
+        let mut last_pong = Instant::now();
+        let mut latest_data = Vec::<u8>::new();
+
+        let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(15));
+        loop {
+            tokio::select! {
+                Some(message) = rx.next() => {
+                    log::trace!("received message {message:?}");
+                    match message {
+                        Ok(Message::Ping(data)) => tx.send(Message::Pong(data)).await.unwrap(),
+                        Ok(Message::Pong(msg)) => {
+                            if msg == b"heartbeat"[..] {
+                                last_pong = Instant::now();
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(err) => log::error!("Received websocket error for upload stream: {err:?}"),
+                    }
+                }
+                _ = heartbeat_interval.tick() => {
+                    if Instant::now().duration_since(last_pong) > Duration::from_secs(20) {
+                        tx.close().await?;
+                        bail!("Upload canceled, there was no websocket heartbeat within 15 seconds.");
+                    }
+
+                    tx.send(tt::tungstenite::Message::Ping("heartbeat".as_bytes().to_owned()))
+                        .await
+                        .context("Data could not be send to the websocket")?;
+                }
+                result = receiver.recv() => {
+                    let Ok(bytes) = result else {
+                        break;
+                    };
+
+                    // Only the latest data should be the smallest chunk in
+                    // S3, this helps so send the fanilized first chunk and afterwards send the small
+                    // chunk.
+                    if bytes.len() < S3_MINIMUM_STORAGE_SIZE{
+                        latest_data = bytes;
+                    } else {
+                        tx.send(tt::tungstenite::Message::Binary(bytes))
+                            .await
+                            .context("Data could not be send to the websocket")?;
+                    }
+                }
+            }
         }
+
+        // Send the smallest chunk afterwards, otherwise S3 will reject it.
+        if !latest_data.is_empty() {
+            tx.send(tt::tungstenite::Message::Binary(latest_data))
+                .await
+                .context("Data could not be send to the websocket")?;
+        }
+
+        Ok(())
+    }
+
+    async fn websocket_connect(
+        &self,
+        uri: String,
+    ) -> Result<(
+        WebSocketStream<tt::MaybeTlsStream<tokio::net::TcpStream>>,
+        openidconnect::http::Response<std::option::Option<Vec<u8>>>,
+    )> {
+        let token = {
+            let l = self.access_token.read().await;
+            l.clone()
+        };
+
+        let mut request = uri.into_client_request().unwrap();
+        request.headers_mut().insert(
+            reqwest::header::AUTHORIZATION,
+            HeaderValue::from_str(format!("Bearer {}", token.secret()).as_str())
+                .context("HeaderValue is not valid")?,
+        );
+
+        tt::connect_async(request).await.map_err(Into::into)
     }
 }
 

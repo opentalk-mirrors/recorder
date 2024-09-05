@@ -19,10 +19,11 @@ use tokio::{
     time::sleep,
 };
 use types::signaling::control::Participant;
+use websocket_server::start_chunk_upload_websocket_server;
 
 use crate::common::{
     controller::MockController, logger::PanicLogger, recorder::start_recorder,
-    websocket_server::start_websocket_server,
+    websocket_server::start_signaling_websocket_server,
 };
 
 mod controller;
@@ -119,7 +120,9 @@ impl EventRunner {
         let (to_controller_tx, to_controller_rx) = mpsc::channel::<outgoing::Message>(20);
 
         let users = Arc::new(Mutex::new(BTreeMap::<usize, User>::new()));
-        let websocket_addr = start_websocket_server(to_recorder_rx, to_controller_tx).await;
+        let controller_addr = start_chunk_upload_websocket_server().await;
+        let websocket_addr =
+            start_signaling_websocket_server(to_recorder_rx, to_controller_tx).await;
         let mock_controller =
             MockController::run(users.clone(), to_recorder_tx.clone(), to_controller_rx);
         let mut mock_controller_handle = None;
@@ -145,8 +148,9 @@ impl EventRunner {
                 Event::SpeakerFocusUnset => event_runner.speaker_focus_unset().await,
                 Event::StartRecording => {
                     log::info!("Start the recorder, everyone should be able to give consent");
-                    mock_controller_handle =
-                        Some(start_recorder(websocket_addr, shutdown_rx.clone()).await);
+                    mock_controller_handle = Some(
+                        start_recorder(controller_addr, websocket_addr, shutdown_rx.clone()).await,
+                    );
                     event_runner.start_recorder().await
                 }
                 Event::StopRecording => {
