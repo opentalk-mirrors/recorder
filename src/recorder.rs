@@ -413,20 +413,32 @@ impl RecordingSession {
                     return Err(RecordingSessionError::NoLocation(id));
                 };
 
-                self.start_livestream(
+                let result = self.start_livestream(
                     location.to_string(),
                     &format!("Livestream-{id}"),
                     self.service_context.settings.encoder_type(),
-                )
-                .map_err(RecordingSessionError::StartLivestream)
+                );
+
+                if let Err(ref e) = result {
+                    log::error!("failed to start live stream: {e}");
+                }
+
+                result.map_err(RecordingSessionError::StartLivestream)
             }
-            RecorderStreamKind::Recording { file_name } => self
-                .start_recording(
-                    file_name.as_str(),
-                    self.service_context.settings.encoder_type(),
-                )
-                .await
-                .map_err(RecordingSessionError::StartRecording),
+            RecorderStreamKind::Recording { file_name } => {
+                let result = self
+                    .start_recording(
+                        file_name.as_str(),
+                        self.service_context.settings.encoder_type(),
+                    )
+                    .await;
+
+                if let Err(ref e) = result {
+                    log::error!("failed to start recording: {e}");
+                }
+
+                result.map_err(RecordingSessionError::StartRecording)
+            }
         };
 
         stream.state = match new_state {
