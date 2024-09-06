@@ -7,7 +7,9 @@ use glib::object::ObjectExt;
 use serde::Deserialize;
 use tokio::sync::broadcast;
 
-use crate::{add_ghost_pad, parse_bin_from_description_with_context, GstBinErrorExt, Sink};
+use crate::{
+    add_ghost_pad, parse_bin_from_description_with_context, EncoderType, GstBinErrorExt, Sink,
+};
 
 #[derive(Debug)]
 pub struct WebMSink {
@@ -20,6 +22,7 @@ pub struct WebMSink {
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebMParameters {
     pub path: String,
+    pub encoder_type: EncoderType,
 }
 
 impl WebMSink {
@@ -46,40 +49,52 @@ impl WebMSink {
         // Therefore the audio queue is set to 8s (queue max-size-time=8000000000 [ns]) and
         // the video queue to 2s (queue max-size-time=8000000000 [ns])
         let bin = parse_bin_from_description_with_context(
-            r#"
-            name="{name}"
-               
-            videoconvert
-                name=video
-            ! videorate
-                drop-only=true
-            ! videoscale
-            ! video/x-raw,format=I420,framerate=30/1,pixel-aspect-ratio=1/1,colorimetry=bt709
-            ! vp8enc 
-              deadline=1 cpu-used=4 threads=4 token-partitions=1
-              end-usage=cbr target-bitrate=2600000 undershoot=90
-              buffer-size=6000 buffer-initial-size=4000 buffer-optimal-size=5000
-              dropframe-threshold=25 resize-allowed=true
-            ! queue
-                max-size-time=2000000000 max-size-bytes=0 max-size-buffers=0
-            ! mux.
+            &format!(
+                r#"
+                name="{name}"
+                   
+                videoconvert
+                    name=video
+                ! videorate
+                    drop-only=true
+                ! videoscale
+                ! {encoder}
+                ! queue
+                    max-size-time=2000000000 max-size-bytes=0 max-size-buffers=0
+                ! mux.
 
-            audioconvert
-                name=audio
-            ! audio/x-raw,format=S16LE,layout=interleaved,rate=48000
-            ! opusenc bitrate=96000 complexity=7 audio-type=voice
-            ! queue
-                max-size-time=8000000000 max-size-bytes=0 max-size-buffers=0
-            ! mux.
+                audioconvert
+                    name=audio
+                ! audio/x-raw,format=S16LE,layout=interleaved,rate=48000
+                ! opusenc bitrate=96000 complexity=7 audio-type=voice
+                ! queue
+                    max-size-time=8000000000 max-size-bytes=0 max-size-buffers=0
+                ! mux.
 
-            webmmux
-                name=mux
-                writing-app=OpenTalk
-                offset-to-zero=true
-                streamable=false
-            ! opentalk-matroska-s3-sink
-                name=matroska-s3
-            "#,
+                webmmux
+                    name=mux
+                    writing-app=OpenTalk
+                    offset-to-zero=true
+                ! opentalk-matroska-s3-sink
+                    name=matroska-s3
+                "#,
+                encoder = match params.encoder_type {
+                    EncoderType::CPU =>
+                        "
+                        video/x-raw,format=I420,framerate=30/1,pixel-aspect-ratio=1/1,colorimetry=bt709
+                        ! vp8enc
+                          deadline=1 cpu-used=4 threads=4 token-partitions=1
+                          end-usage=cbr target-bitrate=2600000 undershoot=90
+                          buffer-size=6000 buffer-initial-size=4000 buffer-optimal-size=5000
+                          dropframe-threshold=25 resize-allowed=true
+                    ",
+                    EncoderType::VAAPI =>
+                        "
+                        video/x-raw,format=NV12,framerate=30/1,pixel-aspect-ratio=1/1,colorimetry=bt709
+                        ! vaapivp9enc
+                    ",
+                },
+            ),
             false,
         )?;
 

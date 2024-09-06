@@ -4,13 +4,17 @@
 
 #![allow(clippy::module_name_repetitions)]
 
+use std::process::{Command, Stdio};
+
 use anyhow::{Context, Result};
 use futures::{future::join_all, StreamExt};
 use gst::glib;
 use http::HttpClient;
 use log::warn;
-use settings::Settings;
-use system_info::{cpu_usage_poll, is_new_recording_feasible};
+use settings::{HardwareAcceleration, HardwareAccelerationIntel, Settings};
+use system_info::{
+    cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll, is_new_recording_feasible,
+};
 use tokio::{
     select,
     signal::{
@@ -63,6 +67,7 @@ fn check_plugins() -> Result<()> {
         "rtp",
         "srtp",
         "udp",
+        "vaapi",
         "videotestsrc",
         "vpx",
         "webrtc",
@@ -75,6 +80,21 @@ fn check_plugins() -> Result<()> {
 
     if !failed_plugins.is_empty() {
         anyhow::bail!("Failed to load GStreamer plugins [{}], try to start the application with 'GST_DEBUG=1' if the plugins are installed correctly.", failed_plugins.join(", "));
+    }
+
+    Ok(())
+}
+
+fn check_intel_gpu_top_command() -> Result<()> {
+    let status = Command::new("intel_gpu_top")
+        .arg("-h")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .status()
+        .map(|status| status.success());
+
+    if status.is_err() || status.ok() == Some(false) {
+        anyhow::bail!("The intel_gpu_top command is not installed, this is mandataory for hardware accelaration, please install it or remove hardware acceleration.");
     }
 
     Ok(())
@@ -275,10 +295,29 @@ async fn main2(mut shutdown_rx: Receiver<bool>) -> Result<()> {
         cutoff = recorder_info.max_load;
     }
 
-    _ = std::thread::spawn(move || cpu_usage_poll(cutoff));
+    let mut usage_handle = if let Some(hardware_acceleration) = recorder_context
+        .settings
+        .recorder
+        .clone()
+        .and_then(|s| s.hardware_acceleration)
+    {
+        log::info!("Hardware Acceleration enabled, using the GPU for encoding");
+        match hardware_acceleration {
+            HardwareAcceleration::Intel(HardwareAccelerationIntel { device }) => {
+                check_intel_gpu_top_command()?;
+                tokio::task::spawn_blocking(move || gpu_intel_usage_poll(cutoff, device))
+            }
+        }
+    } else {
+        log::info!("Hardware Acceleration disabled, this can cause high cpu load");
+        tokio::task::spawn_blocking(move || cpu_usage_poll(cutoff))
+    };
 
     while !*shutdown_rx.borrow() {
         select! {
+            result = &mut usage_handle => {
+                result??;
+            }
             result = shutdown_rx.changed() => {
                 result?;
             }

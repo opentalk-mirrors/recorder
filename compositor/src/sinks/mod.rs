@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+use serde::Deserialize;
+
 mod blinder;
 mod fake;
 mod rtmp;
@@ -15,3 +17,9 @@ pub use rtmp::*;
 pub use system::*;
 pub use test::*;
 pub use webm::*;
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum EncoderType {
+    CPU,
+    VAAPI,
+}

@@ -25,7 +25,6 @@ impl AudioMixer {
             .property(
                 "caps",
                 Caps::builder("audio/x-raw")
-                    .field("format", "S16LE")
                     .field("channels", AUDIO_CHANNELS)
                     .field("layout", "interleaved")
                     .field("rate", AUDIO_SAMPLE_RATE)

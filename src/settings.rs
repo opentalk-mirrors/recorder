@@ -4,7 +4,7 @@
 
 use std::{fmt::Display, str::FromStr};
 
-use compositor::{ClockFormat, RTMPParameters, WebMParameters};
+use compositor::{ClockFormat, EncoderType, RTMPParameters, WebMParameters};
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
@@ -19,6 +19,7 @@ pub struct RecorderSettings {
     // the return value of the function `default_max_load`
     #[serde(default = "default_max_load")]
     pub max_load: u8,
+    pub hardware_acceleration: Option<HardwareAcceleration>,
 }
 
 #[must_use]
@@ -33,6 +34,18 @@ pub enum RecorderSink {
     Display,
     WebM(WebMParameters),
     Rtmp(RTMPParameters),
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "manufacturer")]
+#[serde(rename_all = "lowercase")]
+pub enum HardwareAcceleration {
+    Intel(HardwareAccelerationIntel),
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct HardwareAccelerationIntel {
+    pub device: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,6 +63,19 @@ impl Settings {
             .add_source(Environment::with_prefix("OPENTALK_REC").separator("__"))
             .build()?
             .try_deserialize()
+    }
+
+    #[must_use]
+    pub fn encoder_type(&self) -> EncoderType {
+        self.recorder
+            .as_ref()
+            .and_then(|settings| settings.hardware_acceleration.as_ref())
+            .map_or(
+                EncoderType::CPU,
+                |hardware_acceleration| match hardware_acceleration {
+                    HardwareAcceleration::Intel(_) => EncoderType::VAAPI,
+                },
+            )
     }
 }
 

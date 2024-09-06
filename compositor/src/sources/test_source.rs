@@ -201,7 +201,7 @@ impl Source for TestSource {
                     name="Audio Test Source"
                     volume=0.01
                     is-live=true
-                ! audio/x-raw,format=S16LE,channels=2,rate=48000
+                ! audio/x-raw,channels=2,rate=48000
                 ! queue
                     name=audio
                     max-size-time=2000000000
