@@ -40,7 +40,15 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
-ignore = ["RUSTSEC-2023-0071"]
+ignore = [
+  "RUSTSEC-2023-0071",
+
+  # proc-macro-error is unmaintained
+  #
+  # This is a transitive dependency of this project.
+  # We need to wait for our dependencies to fix this by switching themselves.
+  "RUSTSEC-2024-0370",
+]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
 # will still output a note when they are encountered.
