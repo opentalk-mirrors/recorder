@@ -606,27 +606,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fd119d74b830634cea2a0f58bbd0d54540518a14397557951e79340abc28c0"
 
 [[package]]
-name = "compositor"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "env_logger",
- "glib",
- "glob",
- "gst-plugin-inter",
- "gstreamer",
- "gstreamer-base",
- "gstreamer-sdp",
- "gstreamer-webrtc",
- "log",
- "once_cell",
- "opentalk-types",
- "parking_lot",
- "serde",
- "tokio",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2232,13 +2211,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+name = "opentalk-compositor"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "glib",
+ "glob",
+ "gst-plugin-inter",
+ "gstreamer",
+ "gstreamer-base",
+ "gstreamer-sdp",
+ "gstreamer-webrtc",
+ "log",
+ "once_cell",
+ "opentalk-types",
+ "parking_lot",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opentalk-recorder"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "bytes",
  "cocoa",
- "compositor",
  "config",
  "env_logger",
  "futures",
@@ -2250,6 +2249,7 @@ dependencies = [
  "log",
  "objc",
  "openidconnect",
+ "opentalk-compositor",
  "opentalk-types",
  "pin-project-lite",
  "reqwest",
