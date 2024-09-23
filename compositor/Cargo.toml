@@ -3,12 +3,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 
 [package]
-name = "compositor"
-version = "0.1.1"
-edition = "2021"
 authors.workspace = true
+description = "GStreamer based compositor for the OpenTalk Recorder and Obelisk"
+documentation = "https://docs.rs/opentalk-compositor"
+edition = "2021"
+homepage.workspace = true
 license = "EUPL-1.2"
-publish = false
+name = "opentalk-compositor"
+publish = true
+repository.workspace = true
+version.workspace = true
 
 [dependencies]
 types.workspace = true
