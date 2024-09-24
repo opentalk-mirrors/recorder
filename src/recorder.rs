@@ -727,6 +727,7 @@ impl RecordingSession {
         if let Some(source) = self.mixer.get_source(descriptor) {
             let answer = source.receive_offer(sdp).await?;
             self.signaling.send_answer(descriptor, answer).await?;
+            self.configurations.insert(descriptor, true);
         }
 
         Ok(())
