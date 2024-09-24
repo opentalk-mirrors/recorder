@@ -13,6 +13,7 @@ name = "opentalk-compositor"
 publish = true
 repository.workspace = true
 version.workspace = true
+exclude = ["/images/"]
 
 [dependencies]
 types.workspace = true
