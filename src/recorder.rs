@@ -31,11 +31,13 @@ use tokio::{
 use types::{
     core::{ParticipantId, StreamingTargetId},
     signaling::{
-        media::{MediaSessionState, MediaSessionType},
+        control::event::ControlEvent,
+        media::{self, MediaSessionState, MediaSessionType},
         recording::{
             state::{RecorderStreamInfo, StreamingTarget},
             StreamErrorReason, StreamStatus,
         },
+        recording_service::command::RecordingServiceCommand,
     },
 };
 
@@ -43,7 +45,11 @@ use crate::{
     http::{FileExtension, HttpClient},
     rmq::InitializeRecording,
     settings::{RecorderSink, Settings},
-    signaling::{Event, Signaling, TrickleCandidate},
+    signaling::{
+        self,
+        incoming::{self, MediaMessage},
+        ParticipantState, Signaling, TrickleCandidate,
+    },
 };
 
 // TODO; make this configurable
@@ -126,6 +132,9 @@ pub struct RecordingSession {
 
     signaling: Signaling,
 
+    /// List of all other participants in the conference
+    participants: HashMap<ParticipantId, ParticipantState>,
+
     room_id: String,
     participant_id: Option<ParticipantId>,
 
@@ -198,6 +207,7 @@ impl RecordingSession {
     pub fn new(
         service_context: Arc<Recorder>,
         signaling: Signaling,
+        participants: HashMap<ParticipantId, ParticipantState>,
         room_id: String,
         temp_dir: TempDir,
         mixer: Mixer,
@@ -209,6 +219,7 @@ impl RecordingSession {
         Self {
             service_context,
             signaling,
+            participants,
             room_id,
             participant_id: None,
             temp_dir,
@@ -295,6 +306,7 @@ impl RecordingSession {
         Ok(Self {
             service_context,
             signaling,
+            participants: HashMap::new(),
             room_id: command.room,
             participant_id: None,
             temp_dir,
@@ -313,10 +325,20 @@ impl RecordingSession {
 
         while !self.done {
             tokio::select! {
-                event = self.signaling.run() => {
-                    let signaling_msg = event.context("signaling error")?;
-                    log::trace!("signaling_event {:?}", signaling_msg);
-                    self.handle_signaling_event(signaling_msg).await?;
+                msg = self.signaling.recv_new_signal() => {
+                    match msg {
+                        Err(err) => {
+                            log::debug!("Unexpected websocket message. {err}");
+                            continue;
+                        },
+                        Ok(Some(msg)) => {
+                            self.handle_signaling_event(msg).await?;
+                        }
+                        Ok(None) => {
+                            log::trace!("Received None message");
+                            continue;
+                        }
+                    }
                 }
                 maybe_candidate = self.candidate_receiver.recv() => {
                     let Some((descriptor, mline, candidate)) = maybe_candidate else {
@@ -535,86 +557,106 @@ impl RecordingSession {
         Ok(())
     }
 
-    // TODO: This makes no sense at the current state, docs will be created after some major refactoring.
-    #[allow(clippy::too_many_lines)]
-    async fn handle_signaling_event(&mut self, event: Event) -> Result<()> {
-        match event {
-            Event::JoinSuccess {
-                participant_id,
-                event_title,
-                streaming_targets,
-            } => {
-                self.handle_join_success(streaming_targets, event_title, participant_id)
-                    .await?;
-            }
+    async fn handle_signaling_event(&mut self, msg: incoming::Message) -> Result<()> {
+        match msg {
+            incoming::Message::Control(msg) => match msg {
+                ControlEvent::JoinSuccess(state) => {
+                    let Ok(participants) = signaling::process_participants(&state) else {
+                        return Ok(());
+                    };
+                    self.participants = participants;
 
-            Event::ParticipantJoined(id) => {
-                log::debug!("Event::ParticipantJoined");
-                self.handle_participant_joined(id).await?;
-            }
-            Event::ParticipantUpdated(id) => {
-                log::debug!("Event::ParticipantUpdated");
-                self.handle_participant_updated(id).await?;
-            }
-            Event::ParticipantLeft(id) => {
-                log::debug!("Event::ParticipantLeft");
-                self.handle_participant_left(id)?;
-            }
-            Event::SdpOffer(descriptor, offer) => {
-                log::debug!("Event::SdpOffer");
-                if let Some(source) = self.mixer.get_source(descriptor) {
-                    let answer = source.receive_offer(offer).await?;
-                    self.signaling.send_answer(descriptor, answer).await?;
+                    let Ok(streams) = signaling::handle_join_success(&state) else {
+                        log::info!("No Streaming targets in ControlEvent::JoinSuccess found.");
+                        return Ok(());
+                    };
 
-                    // Insert descriptor to configuration set to track
-                    self.configurations.insert(descriptor, true);
+                    let Some(event) = state.event_info else {
+                        log::info!("No Event info found in ControlEvent::JoinSuccess.");
+                        return Ok(());
+                    };
+
+                    self.handle_join_success(streams, event.title, state.id)
+                        .await?;
                 }
-            }
-            Event::SdpCandidate(descriptor, candidate) => {
-                log::debug!("Event::SdpCandidate");
-                if let Some(source) = self.mixer.get_source(descriptor) {
-                    source
-                        .receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
+                ControlEvent::Joined(participant) => {
+                    signaling::handle_joined(&participant, &mut self.participants)?;
+                    self.handle_participant_joined(participant.id).await?;
                 }
-            }
-            Event::SdpEndOfCandidates(descriptor) => {
-                log::debug!("Event::SdpEndOfCandidates");
-                self.handle_end_of_candidates(descriptor)?;
-            }
-            Event::FocusUpdate(focus_change) => {
-                log::debug!("Event::FocusUpdate");
-                log::debug!("Set active speaker to {:?}", focus_change);
-                if let Some(speaker) = focus_change {
-                    self.mixer
-                        .set_speaker(speaker)
-                        .context("unable to set speaker for '{speaker}'")?;
+                ControlEvent::Update(participant) => {
+                    signaling::handle_update(&participant, &mut self.participants);
+                    self.handle_participant_updated(participant.id).await?;
                 }
-            }
-            Event::MediaConnectionError(error) => {
-                log::debug!("Event::MediaConnectionError");
-                log::warn!("Skipping media connection error: {:?}", error);
-            }
-            Event::Close => self.done = true,
-            Event::SpeakerUpdated(speaking_state) => {
-                log::debug!("Event::SpeakerUpdated");
-                let participant = speaking_state.participant;
-                if speaking_state.speaker.is_speaking {
-                    self.mixer
-                        .set_speaker(participant)
-                        .context("unable to set speaker for '{participant}'")?;
+                ControlEvent::Left {
+                    id: assoc_participant,
+                    ..
+                } => {
+                    signaling::handle_left(&assoc_participant, &mut self.participants);
+                    self.handle_participant_left(assoc_participant.id)?;
                 }
-            }
-            Event::Start(target_ids) => {
-                log::debug!("[Start]: {target_ids:#?}");
-                self.handle_start_event(target_ids).await?;
-            }
-            Event::Pause(target_ids) => {
-                log::debug!("[Pause]: {target_ids:#?}");
-            }
-            Event::Stop(target_ids) => {
-                log::debug!("[Stop]: {target_ids:#?}");
-                self.handle_stop_event(target_ids).await?;
-            }
+                ref other => {
+                    log::error!("Event {other:#?} not implemented for recorder.");
+                    return Ok(());
+                }
+            },
+            incoming::Message::Media(msg) => match msg {
+                MediaMessage::SdpOffer(incoming::Sdp { sdp, source }) => {
+                    log::debug!("MediaMessage::SdpOffer");
+                    self.handle_sdp_offer(source, sdp).await?;
+                }
+                MediaMessage::SdpCandidate(incoming::SdpCandidate { candidate, source }) => {
+                    log::debug!("MediaMessage::SdpCandidate");
+                    self.handle_sdp_candidate(source, &candidate);
+                }
+                MediaMessage::SdpEndOfCandidates(source) => {
+                    log::debug!("MediaMessage::SdpEndOfCandidates");
+                    self.handle_end_of_candidates(source.into())?;
+                }
+                MediaMessage::WebRtcUp(_) | MediaMessage::WebRtcDown(_) => {}
+                MediaMessage::WebRtcSlow(_) => {
+                    log::debug!("MediaMessage::WebRtcSlow");
+                    return Ok(());
+                }
+                MediaMessage::FocusUpdate(focus_update) => {
+                    log::debug!("MediaMessage::FocusUpdate");
+                    log::debug!("Set active speaker to {:?}", focus_update.focus);
+                    self.handle_focus_update(&focus_update)?;
+                }
+                MediaMessage::SpeakerUpdated(speaker_state) => {
+                    log::debug!("MediaMessage::SpeakerUpdated");
+                    self.handle_speaker_updated(&speaker_state).await?;
+                }
+                MediaMessage::Error(media_conn_err) => {
+                    log::debug!("MediaMessage::MediaConnectionError");
+                    log::warn!("Skipping media connection error: {media_conn_err:?}");
+                }
+            },
+            incoming::Message::RecordingService(msg) => match msg {
+                RecordingServiceCommand::StartStreams { target_ids } => {
+                    log::debug!("[Start]: {target_ids:#?}");
+                    self.handle_start_stream(target_ids).await?;
+                }
+                RecordingServiceCommand::PauseStreams { target_ids } => {
+                    log::debug!("[Pause]: {target_ids:#?}");
+                }
+                RecordingServiceCommand::StopStreams { target_ids } => {
+                    log::debug!("[Stop]: {target_ids:#?}");
+                    self.handle_stop_stream(target_ids).await?;
+                }
+            },
+        }
+        Ok(())
+    }
+
+    async fn handle_speaker_updated(
+        &mut self,
+        speaker_state: &media::ParticipantSpeakingState,
+    ) -> Result<()> {
+        let participant = speaker_state.participant;
+        if speaker_state.speaker.is_speaking {
+            self.mixer
+                .set_speaker(participant)
+                .context("unable to set speaker for '{participant}'")?;
         }
 
         self.send_configuration().await?;
@@ -663,12 +705,40 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_join_success(
+    fn handle_focus_update(&mut self, focus_update: &incoming::FocusUpdate) -> Result<()> {
+        if let Some(speaker) = focus_update.focus {
+            self.mixer
+                .set_speaker(speaker)
+                .context("unable to set speaker for '{speaker}'")?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_sdp_candidate(&mut self, source: incoming::Source, candidate: &TrickleCandidate) {
+        let descriptor = source.into();
+        if let Some(source) = self.mixer.get_source(descriptor) {
+            source.receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
+        }
+    }
+
+    async fn handle_sdp_offer(&mut self, source: incoming::Source, sdp: String) -> Result<()> {
+        let descriptor = source.into();
+        if let Some(source) = self.mixer.get_source(descriptor) {
+            let answer = source.receive_offer(sdp).await?;
+            self.signaling.send_answer(descriptor, answer).await?;
+            self.configurations.insert(descriptor, true);
+        }
+
+        Ok(())
+    }
+
+    pub(crate) async fn handle_join_success(
         &mut self,
         streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
         event_title: String,
         participant_id: ParticipantId,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<()> {
         self.participant_id = Some(participant_id);
         self.streaming_targets = streaming_targets
             .iter()
@@ -709,8 +779,7 @@ impl RecordingSession {
             MediaSessionType,
             MediaSessionState,
         )> = self
-            .signaling
-            .participants()
+            .participants
             .iter()
             .flat_map(|(id, participant_state)| {
                 media_types().filter_map(|media_type| {
@@ -754,8 +823,12 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_participant_joined(&mut self, id: ParticipantId) -> Result<(), anyhow::Error> {
-        let participant_state = self.signaling.participant(&id)?.clone();
+    async fn handle_participant_joined(&mut self, id: ParticipantId) -> Result<()> {
+        let participant_state = self
+            .participants
+            .get(&id)
+            .context("participant not found")?
+            .clone();
         let available_media_streams = media_types().filter_map(|media_type| {
             participant_state
                 .publishes(media_type)
@@ -774,8 +847,12 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_participant_updated(&mut self, id: ParticipantId) -> Result<(), anyhow::Error> {
-        let participant_state = self.signaling.participant(&id)?.clone();
+    async fn handle_participant_updated(&mut self, id: ParticipantId) -> Result<()> {
+        let participant_state = self
+            .participants
+            .get(&id)
+            .context("participant not found")?
+            .clone();
         for media_type in media_types() {
             let is_subscribed = self.mixer.contains_stream(MediaDescriptor {
                 participant_id: id,
@@ -833,7 +910,7 @@ impl RecordingSession {
                 })?;
             }
         }
-        if self.signaling.participants().is_empty() {
+        if self.participants.is_empty() {
             log::debug!("Last participant left the session. Stop recording.");
             self.done = true;
 
@@ -842,18 +919,18 @@ impl RecordingSession {
 
         log::trace!(
             "{} remaining participants : {:?}",
-            self.signaling.participants().len(),
-            self.signaling.participants().keys()
+            self.participants.len(),
+            self.participants.keys()
         );
 
         Ok(())
     }
 
-    fn handle_end_of_candidates(
-        &mut self,
-        descriptor: MediaDescriptor,
-    ) -> Result<(), anyhow::Error> {
-        let participant_state = self.signaling.participant(&descriptor.participant_id)?;
+    pub(crate) fn handle_end_of_candidates(&mut self, descriptor: MediaDescriptor) -> Result<()> {
+        let participant_state = self
+            .participants
+            .get(&descriptor.participant_id)
+            .context("participant not found")?;
         if participant_state.publishes(descriptor.media_type).is_none() {
             bail!(
                 "EndOfCandidates message for {:?} with no media stream",
@@ -870,10 +947,10 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_start_event(
+    pub(crate) async fn handle_start_stream(
         &mut self,
         target_ids: BTreeSet<StreamingTargetId>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<()> {
         for id in target_ids {
             let status = match self.start_stream(id).await {
                 Ok(status) => status,
@@ -891,10 +968,7 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_stop_event(
-        &mut self,
-        target_ids: BTreeSet<StreamingTargetId>,
-    ) -> Result<(), anyhow::Error> {
+    async fn handle_stop_stream(&mut self, target_ids: BTreeSet<StreamingTargetId>) -> Result<()> {
         for id in target_ids {
             let status = match self.stop_stream(id).await {
                 Ok(status) => status,
