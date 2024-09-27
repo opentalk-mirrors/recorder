@@ -13,26 +13,30 @@ use gst_sdp::SDPMessage;
 use gst_webrtc::{WebRTCSDPType, WebRTCSessionDescription};
 use opentalk_recorder::signaling::{incoming, outgoing};
 use tokio::sync::{mpsc, Mutex};
-use types::{
-    common::event::EventInfo,
-    core::{EventId, ParticipantId, RoomId, StreamingTargetId, TariffId, Timestamp},
-    signaling::{
-        control::{
-            event::{ControlEvent, JoinSuccess},
-            room::{CreatorInfo, RoomInfo},
-            state::ControlState,
-            AssociatedParticipant, Participant, Reason,
-        },
-        media::{peer_state::MediaPeerState, MediaSessionState, ParticipantMediaState},
-        recording::{
-            peer_state::RecordingPeerState,
-            state::{RecorderStreamInfo, RecordingTarget, StreamStartOption},
-            StreamStatus,
-        },
-        recording_service::{command::RecordingServiceCommand, state::RecordingServiceState},
-        ModuleData, ModulePeerData,
+use types::signaling::{
+    control::{
+        event::{ControlEvent, JoinSuccess},
+        room::{CreatorInfo, RoomInfo},
+        state::ControlState,
+        AssociatedParticipant, Participant, Reason,
     },
+    media::{peer_state::MediaPeerState, MediaSessionState, ParticipantMediaState},
+    recording::{
+        peer_state::RecordingPeerState,
+        state::{RecorderStreamInfo, RecordingTarget, StreamStartOption},
+        StreamStatus,
+    },
+    recording_service::{command::RecordingServiceCommand, state::RecordingServiceState},
+    ModuleData, ModulePeerData,
 };
+use types_common::{
+    events::{EventId, EventInfo},
+    rooms::RoomId,
+    streaming::StreamingTargetId,
+    tariffs::{TariffId, TariffResource},
+    time::Timestamp,
+};
+use types_signaling::ParticipantId;
 
 use super::{webrtc::create_pipeline, User};
 
@@ -106,12 +110,13 @@ impl MockController {
                 is_adhoc: false,
                 room_id: RoomId::generate(),
                 meeting_details: None,
+                e2e_encrytion: false,
             }),
             display_name: "".to_string(),
             avatar_url: None,
-            role: types::signaling::Role::User,
+            role: types_signaling::Role::User,
             closes_at: None,
-            tariff: Box::new(types::common::tariff::TariffResource {
+            tariff: Box::new(TariffResource {
                 id: TariffId::nil(),
                 name: "".to_owned(),
                 quotas: BTreeMap::new(),
@@ -238,12 +243,13 @@ impl MockController {
                         is_adhoc: false,
                         room_id: RoomId::generate(),
                         meeting_details: None,
+                        e2e_encrytion: false,
                     }),
                     display_name: "".to_string(),
                     avatar_url: None,
-                    role: types::signaling::Role::User,
+                    role: types_signaling::Role::User,
                     closes_at: None,
-                    tariff: Box::new(types::common::tariff::TariffResource {
+                    tariff: Box::new(TariffResource {
                         id: TariffId::nil(),
                         name: "".to_owned(),
                         quotas: BTreeMap::new(),
@@ -278,9 +284,9 @@ impl MockController {
         };
         let _ = participant.module_data.insert(&ControlState {
             display_name: format!("MockUser {index}"),
-            role: types::signaling::Role::User,
+            role: types_signaling::Role::User,
             avatar_url: None,
-            participation_kind: types::core::ParticipationKind::User,
+            participation_kind: types_signaling::ParticipationKind::User,
             hand_is_up: false,
             joined_at: Timestamp::now(),
             left_at: None,

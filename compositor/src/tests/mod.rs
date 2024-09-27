@@ -17,10 +17,8 @@ pub mod testing {
     use core::time::Duration;
     use std::sync::Once;
 
-    use types::{
-        core::ParticipantId,
-        signaling::media::{MediaSessionState, MediaSessionType},
-    };
+    use types::signaling::media::{MediaSessionState, MediaSessionType};
+    use types_signaling::ParticipantId;
 
     use crate::*;
 

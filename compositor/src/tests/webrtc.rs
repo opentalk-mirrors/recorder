@@ -7,10 +7,8 @@ use std::collections::HashMap;
 
 use gst::prelude::*;
 use tokio::{sync::mpsc, time::sleep};
-use types::{
-    core::ParticipantId,
-    signaling::media::{MediaSessionState, MediaSessionType},
-};
+use types::signaling::media::{MediaSessionState, MediaSessionType};
+use types_signaling::ParticipantId;
 
 use crate::{
     log, GstBinErrorExt, GstElementErrorExt, MediaDescriptor, Mixer, Size, Speaker, TestSink,

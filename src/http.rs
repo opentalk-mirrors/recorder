@@ -20,7 +20,7 @@ use tt::{
     tungstenite::{client::IntoClientRequest, Message},
     WebSocketStream,
 };
-use types::core::Timestamp;
+use types_common::time::Timestamp;
 
 use crate::settings::{AuthSettings, ControllerSettings};
 

@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use types::{
-    core::ParticipantId,
-    signaling::media::{MediaSessionState, MediaSessionType},
-};
+use types::signaling::media::{MediaSessionState, MediaSessionType};
+use types_signaling::ParticipantId;
 
 use crate::{testing, MediaDescriptor, Mixer, Speaker, TestSink, TestSource};
 

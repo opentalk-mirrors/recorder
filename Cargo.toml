@@ -19,11 +19,15 @@ repository = "https://gitlab.opencode.de/opentalk/recorder"
 version = "0.0.0-dev"
 
 [workspace.dependencies]
-types = { package = "opentalk-types", version = "0.19.0" }
+types = { package = "opentalk-types", version = "0.20.0" }
+types-signaling = { package = "opentalk-types-signaling", version = "0.20.0" }
+types-common = { package = "opentalk-types-common", version = "0.20.0" }
 
 [dependencies]
 compositor = { path = "compositor", package = "opentalk-compositor" }
 types = { workspace = true, features = ["rand", "serde"] }
+types-signaling = { workspace = true, features = ["rand", "serde"] }
+types-common = { workspace = true, features = ["rand", "serde"] }
 
 gst = { package = "gstreamer", version = "0.23" }
 gst-sdp = { package = "gstreamer-sdp", version = "0.23" }

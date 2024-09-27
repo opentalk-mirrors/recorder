@@ -14,10 +14,8 @@ use gst::{
     event::Reconfigure, prelude::*, Bin, Clock, ClockTime, Element, ElementFactory, Fraction,
     GhostPad, MessageView, Pipeline, SystemClock,
 };
-use types::{
-    core::ParticipantId,
-    signaling::media::{self, MediaSessionState, MediaSessionType},
-};
+use types::signaling::media::{self, MediaSessionState, MediaSessionType};
+use types_signaling::ParticipantId;
 
 mod audio_mixer;
 mod bus;
