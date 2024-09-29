@@ -6,7 +6,6 @@ use core::fmt::Debug;
 use std::collections::{BTreeMap, HashMap};
 
 use anyhow::{bail, Context, Result};
-use compositor::MediaDescriptor;
 use futures::{SinkExt, StreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
@@ -16,7 +15,7 @@ use tt::{
     MaybeTlsStream, WebSocketStream,
 };
 use types::signaling::{
-    media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
+    media::{peer_state::MediaPeerState, MediaSessionType},
     recording::{
         peer_state::RecordingPeerState, state::RecorderStreamInfo, StreamStatus, StreamUpdated,
     },
@@ -29,11 +28,11 @@ use types_signaling::{AssociatedParticipant, Participant, ParticipantId};
 use crate::{http::HttpClient, settings::ControllerSettings};
 
 #[derive(Debug)]
-pub struct Signaling {
+pub(crate) struct Signaling {
     /// Own participant id
     _id: Option<ParticipantId>,
 
-    pub connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    pub(crate) connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
 #[allow(dead_code)]
@@ -44,10 +43,9 @@ enum Substream {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParticipantState {
-    pub display_name: String,
-    pub consents: bool,
-    publishing: HashMap<MediaSessionType, MediaSessionState>,
+pub(crate) struct ParticipantState {
+    pub(crate) display_name: String,
+    pub(crate) consents: bool,
 }
 
 impl ParticipantState {
@@ -77,23 +75,14 @@ impl ParticipantState {
         Ok(Self {
             display_name: control.display_name,
             consents: recording.consents_recording,
-            publishing,
         })
-    }
-
-    #[must_use]
-    pub(crate) fn publishes(&self, typ: MediaSessionType) -> Option<MediaSessionState> {
-        if !self.consents {
-            return None;
-        }
-        self.publishing.get(&typ).copied()
     }
 }
 
 impl Signaling {
     /// This constructor is used by the integration tests to mock data.
     #[allow(dead_code)]
-    pub fn new(
+    pub(crate) fn new(
         id: Option<ParticipantId>,
         connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
     ) -> Self {
@@ -103,7 +92,7 @@ impl Signaling {
         }
     }
 
-    pub async fn connect(
+    pub(crate) async fn connect(
         client: &HttpClient,
         settings: &ControllerSettings,
         room_id: &str,
@@ -167,7 +156,7 @@ impl Signaling {
         }
     }
 
-    pub async fn recv_new_signal(&mut self) -> Result<Option<incoming::Message>> {
+    pub(crate) async fn recv_new_signal(&mut self) -> Result<Option<incoming::Message>> {
         let msg = self.connection.next().await;
 
         let Some(msg) = msg else {
@@ -179,69 +168,7 @@ impl Signaling {
         self.handle_websocket_message(msg).await
     }
 
-    pub async fn start_subscribe(&mut self, descriptor: MediaDescriptor) -> Result<()> {
-        self.send(outgoing::Message::Media(outgoing::MediaMessage::Subscribe(
-            descriptor.into(),
-        )))
-        .await
-    }
-
-    pub async fn send_answer(&mut self, descriptor: MediaDescriptor, sdp: String) -> Result<()> {
-        self.send(outgoing::Message::Media(outgoing::MediaMessage::SdpAnswer(
-            outgoing::Sdp {
-                sdp,
-                target: descriptor.into(),
-            },
-        )))
-        .await
-    }
-
-    pub async fn send_candidate(
-        &mut self,
-        descriptor: MediaDescriptor,
-        candidate: TrickleCandidate,
-    ) -> Result<()> {
-        self.send(outgoing::Message::Media(
-            outgoing::MediaMessage::SdpCandidate(outgoing::SdpCandidate {
-                candidate,
-                target: descriptor.into(),
-            }),
-        ))
-        .await
-    }
-
-    pub async fn send_configuration(
-        &mut self,
-        descriptor: MediaDescriptor,
-        video: bool,
-    ) -> Result<()> {
-        log::trace!("send_configuration for descriptor '{descriptor:?}' with video '{video}'");
-        self.send(outgoing::Message::Media(outgoing::MediaMessage::Configure(
-            outgoing::Configure {
-                configuration: outgoing::Configuration {
-                    video,
-                    substream: Substream::High as usize,
-                },
-                target: outgoing::Target {
-                    target: descriptor.participant_id,
-                    media_session_type: descriptor.media_type,
-                },
-            },
-        )))
-        .await
-    }
-
-    pub async fn send_end_of_candidates(&mut self, descriptor: MediaDescriptor) -> Result<()> {
-        self.send(outgoing::Message::Media(
-            outgoing::MediaMessage::SdpEndOfCandidates(outgoing::Target {
-                target: descriptor.participant_id,
-                media_session_type: descriptor.media_type,
-            }),
-        ))
-        .await
-    }
-
-    pub async fn send_stream_update(
+    pub(crate) async fn send_stream_update(
         &mut self,
         target_id: StreamingTargetId,
         status: StreamStatus,
@@ -339,200 +266,45 @@ pub(crate) fn process_participants(
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Payload<'s, T> {
-    pub namespace: &'s str,
-    pub payload: T,
+    pub(crate) namespace: &'s str,
+    pub(crate) payload: T,
 }
 
-pub mod incoming {
+pub(crate) mod incoming {
 
-    use compositor::MediaDescriptor;
     use serde::{Deserialize, Serialize};
-    use types::signaling::{
-        media::{MediaSessionType, ParticipantSpeakingState},
-        recording_service::command::RecordingServiceCommand,
-    };
+    use types::signaling::recording_service::command::RecordingServiceCommand;
     use types_control::event::ControlEvent;
-
-    use super::{ParticipantId, TrickleCandidate};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
-    pub enum Message {
+    pub(crate) enum Message {
         Control(ControlEvent),
-        Media(MediaMessage),
         RecordingService(RecordingServiceCommand),
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    #[serde(rename_all = "snake_case", tag = "message")]
-    pub enum MediaMessage {
-        SdpOffer(Sdp),
-        SdpCandidate(SdpCandidate),
-        SdpEndOfCandidates(Source),
-        #[serde(rename = "webrtc_up")]
-        WebRtcUp(Source),
-        #[serde(rename = "webrtc_down")]
-        WebRtcDown(Source),
-        /// A webrtc connection experienced package loss
-        #[serde(rename = "webrtc_slow")]
-        WebRtcSlow(Link),
-
-        #[serde(rename = "focus_update")]
-        FocusUpdate(FocusUpdate),
-
-        #[serde(rename = "speaker_updated")]
-        SpeakerUpdated(ParticipantSpeakingState),
-
-        #[serde(rename = "error")]
-        Error(Error),
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct Sdp {
-        pub sdp: String,
-        #[serde(flatten)]
-        pub source: Source,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct SdpCandidate {
-        pub candidate: TrickleCandidate,
-        #[serde(flatten)]
-        pub source: Source,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-    pub struct Source {
-        pub source: ParticipantId,
-        pub media_session_type: MediaSessionType,
-    }
-
-    impl From<Source> for MediaDescriptor {
-        fn from(value: Source) -> Self {
-            MediaDescriptor {
-                participant_id: value.source,
-                media_type: value.media_session_type,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-    #[serde(rename_all = "lowercase")]
-    pub enum LinkDirection {
-        Upstream,
-        Downstream,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-    pub struct Link {
-        pub direction: LinkDirection,
-        #[serde(flatten)]
-        pub source: Source,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-    pub struct FocusUpdate {
-        pub focus: Option<ParticipantId>,
-    }
-
-    /// Represents a error of the janus media module
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-    #[serde(rename_all = "snake_case", tag = "error")]
-    pub enum Error {
-        InvalidSdpOffer,
-        HandleSdpAnswer,
-        InvalidCandidate,
-        InvalidEndOfCandidates,
-        InvalidRequestOffer(Source),
-        InvalidConfigureRequest(Source),
-        PermissionDenied,
     }
 }
 
-pub mod outgoing {
+pub(crate) mod outgoing {
     use serde::{Deserialize, Serialize};
     use types::signaling::recording_service::event::RecordingServiceEvent;
 
-    use super::{ParticipantId, TrickleCandidate};
-    use crate::signaling::MediaSessionType;
-
     #[derive(Debug, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
-    pub enum Message {
+    pub(crate) enum Message {
         #[allow(unused)]
         Control(ControlMessage),
-        Media(MediaMessage),
         RecordingService(RecordingServiceEvent),
     }
 
     #[derive(Debug, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case", tag = "action")]
-    pub enum ControlMessage {
+    pub(crate) enum ControlMessage {
         Join(Join),
     }
 
     #[derive(Debug, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case")]
-    pub struct Join {
+    pub(crate) struct Join {
         display_name: String,
     }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    #[serde(rename_all = "snake_case", tag = "action")]
-    pub enum MediaMessage {
-        Subscribe(Target),
-        Configure(Configure),
-        SdpAnswer(Sdp),
-        SdpCandidate(SdpCandidate),
-        SdpEndOfCandidates(Target),
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct Configure {
-        pub configuration: Configuration,
-        #[serde(flatten)]
-        pub target: Target,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct Configuration {
-        pub video: bool,
-        pub substream: usize,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct Sdp {
-        pub sdp: String,
-        #[serde(flatten)]
-        pub target: Target,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct SdpCandidate {
-        pub candidate: TrickleCandidate,
-        #[serde(flatten)]
-        pub target: Target,
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct Target {
-        pub target: ParticipantId,
-        pub media_session_type: MediaSessionType,
-    }
-}
-
-impl From<MediaDescriptor> for outgoing::Target {
-    fn from(value: MediaDescriptor) -> Self {
-        outgoing::Target {
-            target: value.participant_id,
-            media_session_type: value.media_type,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrickleCandidate {
-    pub candidate: String,
-    #[serde(rename = "sdpMLineIndex")]
-    pub sdp_m_line_index: u64,
 }

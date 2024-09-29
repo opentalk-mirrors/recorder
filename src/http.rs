@@ -28,22 +28,22 @@ const S3_MINIMUM_STORAGE_SIZE: usize = 5_000_000;
 
 // TODO: Replace with version from opentalk-types
 #[derive(Clone)]
-pub struct FileExtension(String);
+pub(crate) struct FileExtension(String);
 
 impl FileExtension {
     #[must_use]
-    pub fn webm() -> Self {
+    pub(crate) fn webm() -> Self {
         Self("webm".to_string())
     }
 
     #[must_use]
-    pub fn str(&self) -> &str {
+    pub(crate) fn str(&self) -> &str {
         &self.0
     }
 }
 
 #[derive(Debug)]
-pub struct HttpClient {
+pub(crate) struct HttpClient {
     client: reqwest::Client,
     oidc: openidconnect::core::CoreClient,
     access_token: RwLock<AccessToken>,
@@ -52,7 +52,7 @@ pub struct HttpClient {
 impl HttpClient {
     /// This constructor is used by the integration tests to mock data.
     #[allow(dead_code)]
-    pub fn new(
+    pub(crate) fn new(
         client: reqwest::Client,
         oidc: openidconnect::core::CoreClient,
         access_token: RwLock<AccessToken>,
@@ -64,7 +64,7 @@ impl HttpClient {
         }
     }
 
-    pub async fn discover(settings: &AuthSettings) -> Result<Self> {
+    pub(crate) async fn discover(settings: &AuthSettings) -> Result<Self> {
         let client = reqwest::Client::new();
 
         let metadata = openidconnect::core::CoreProviderMetadata::discover_async(
@@ -113,7 +113,7 @@ impl HttpClient {
         Ok(())
     }
 
-    pub async fn start(
+    pub(crate) async fn start(
         &self,
         settings: &ControllerSettings,
         room_id: &str,
@@ -162,7 +162,7 @@ impl HttpClient {
         bail!("failed to authorize")
     }
 
-    pub async fn upload_render(
+    pub(crate) async fn upload_render(
         &self,
         settings: &ControllerSettings,
         room_id: &str,
@@ -279,7 +279,7 @@ impl HttpClient {
 /// Error returned by the `start` function when the given digits were incorrect
 #[derive(Debug, thiserror::Error)]
 #[error("given credentials were invalid")]
-pub struct InvalidCredentials;
+pub(crate) struct InvalidCredentials;
 
 #[derive(Serialize)]
 struct StartRequest<'s> {

@@ -4,60 +4,23 @@
 
 use std::{fmt::Display, str::FromStr};
 
-use compositor::{ClockFormat, EncoderType, RTMPParameters, WebMParameters};
+use compositor::{ClockFormat, EncoderType};
 use config::{Config, ConfigError, Environment, File, FileFormat};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
 
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(default)]
-pub struct RecorderSettings {
-    pub clock_format: ClockFormat,
-    pub sinks: Vec<RecorderSink>,
-    // Sets the default value when max_load is not present in the config.toml to
-    // the return value of the function `default_max_load`
-    #[serde(default = "default_max_load")]
-    pub max_load: u8,
-    pub hardware_acceleration: Option<HardwareAcceleration>,
-}
-
-#[must_use]
-pub const fn default_max_load() -> u8 {
-    80
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type")]
-#[serde(rename_all = "lowercase")]
-pub enum RecorderSink {
-    Display,
-    WebM(WebMParameters),
-    Rtmp(RTMPParameters),
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "manufacturer")]
-#[serde(rename_all = "lowercase")]
-pub enum HardwareAcceleration {
-    Intel(HardwareAccelerationIntel),
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct HardwareAccelerationIntel {
-    pub device: Option<String>,
-}
-
 #[derive(Debug, Deserialize)]
-pub struct Settings {
-    pub auth: AuthSettings,
-    pub controller: ControllerSettings,
-    pub rabbitmq: RabbitMqSettings,
-    pub recorder: Option<RecorderSettings>,
+pub(crate) struct Settings {
+    pub(crate) auth: AuthSettings,
+    pub(crate) controller: ControllerSettings,
+    pub(crate) rabbitmq: RabbitMqSettings,
+    pub(crate) livekit: LiveKitSettings,
+    pub(crate) recorder: Option<RecorderSettings>,
 }
 
 impl Settings {
-    pub fn load(file_name: &str) -> Result<Self, ConfigError> {
+    pub(crate) fn load(file_name: &str) -> Result<Self, ConfigError> {
         Config::builder()
             .add_source(File::new(file_name, FileFormat::Toml))
             .add_source(Environment::with_prefix("OPENTALK_REC").separator("__"))
@@ -66,7 +29,7 @@ impl Settings {
     }
 
     #[must_use]
-    pub fn encoder_type(&self) -> EncoderType {
+    pub(crate) fn encoder_type(&self) -> EncoderType {
         self.recorder
             .as_ref()
             .and_then(|settings| settings.hardware_acceleration.as_ref())
@@ -80,29 +43,29 @@ impl Settings {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct AuthSettings {
-    pub issuer: IssuerUrl,
-    pub client_id: ClientId,
-    pub client_secret: ClientSecret,
+pub(crate) struct AuthSettings {
+    pub(crate) issuer: IssuerUrl,
+    pub(crate) client_id: ClientId,
+    pub(crate) client_secret: ClientSecret,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ControllerSettings {
-    pub domain: String,
+pub(crate) struct ControllerSettings {
+    pub(crate) domain: String,
     #[serde(default)]
-    pub insecure: bool,
+    pub(crate) insecure: bool,
 }
 
 impl ControllerSettings {
     #[must_use]
-    pub fn websocket_url(&self) -> String {
+    pub(crate) fn websocket_url(&self) -> String {
         let scheme = if self.insecure { "ws" } else { "wss" };
 
         format!("{scheme}://{}/signaling", self.domain)
     }
 
     #[must_use]
-    pub fn v1_api_base_url(&self) -> String {
+    pub(crate) fn v1_api_base_url(&self) -> String {
         let scheme = if self.insecure { "http" } else { "https" };
 
         format!("{scheme}://{}/v1", self.domain)
@@ -110,10 +73,10 @@ impl ControllerSettings {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RabbitMqSettings {
+pub(crate) struct RabbitMqSettings {
     #[serde(deserialize_with = "from_str")]
-    pub uri: AMQPUri,
-    pub queue: String,
+    pub(crate) uri: AMQPUri,
+    pub(crate) queue: String,
 }
 
 fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -124,4 +87,40 @@ where
 {
     let s = String::deserialize(deserializer)?;
     FromStr::from_str(&s).map_err(serde::de::Error::custom)
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct LiveKitSettings {
+    pub(crate) url: String,
+    pub(crate) api_key: String,
+    pub(crate) api_secret: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
+pub(crate) struct RecorderSettings {
+    pub(crate) clock_format: ClockFormat,
+    pub(crate) display: bool,
+    // Sets the default value when max_load is not present in the config.toml to
+    // the return value of the function `default_max_load`
+    #[serde(default = "default_max_load")]
+    pub(crate) max_load: u8,
+    pub(crate) hardware_acceleration: Option<HardwareAcceleration>,
+}
+
+#[must_use]
+pub(crate) const fn default_max_load() -> u8 {
+    80
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "manufacturer")]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum HardwareAcceleration {
+    Intel(HardwareAccelerationIntel),
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct HardwareAccelerationIntel {
+    pub(crate) device: Option<String>,
 }

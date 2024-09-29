@@ -16,12 +16,14 @@ use crate::settings::RabbitMqSettings;
 // Commands this recorder receives via RabbitMQ
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct InitializeRecording {
-    pub room: String,
-    pub breakout: Option<String>,
+pub(crate) struct InitializeRecording {
+    pub(crate) room: String,
+    pub(crate) breakout: Option<String>,
 }
 
-pub async fn open_rabbitmq_connection(settings: &RabbitMqSettings) -> Result<lapin::Channel> {
+pub(crate) async fn open_rabbitmq_connection(
+    settings: &RabbitMqSettings,
+) -> Result<lapin::Channel> {
     let rmq_conn = lapin::Connection::connect_uri(
         settings.uri.clone(),
         lapin::ConnectionProperties::default()
@@ -36,7 +38,7 @@ pub async fn open_rabbitmq_connection(settings: &RabbitMqSettings) -> Result<lap
         .context("failed to create lapin::channel")
 }
 
-pub async fn create_rmq_queue_and_consume(
+pub(crate) async fn create_rmq_queue_and_consume(
     rmq_channel: lapin::Channel,
     settings: &RabbitMqSettings,
 ) -> Result<Consumer> {
@@ -59,7 +61,7 @@ pub async fn create_rmq_queue_and_consume(
         .context("Failed to create consumer for RMQ channel")
 }
 
-pub async fn handle_delivery(delivery: &Delivery) -> Result<InitializeRecording> {
+pub(crate) async fn handle_delivery(delivery: &Delivery) -> Result<InitializeRecording> {
     delivery
         .ack(BasicAckOptions::default())
         .await

@@ -21,7 +21,7 @@ use tokio::{
         ctrl_c,
         unix::{signal, SignalKind},
     },
-    sync::watch::{self, Receiver},
+    sync::broadcast,
     task::JoinHandle,
     time::{sleep, Duration},
 };
@@ -51,7 +51,6 @@ fn check_plugins() -> Result<()> {
         "fdkaac",
         "pango",
         "png",
-        "rsinter",
         "rtp",
         "srtp",
         "udp",
@@ -84,55 +83,6 @@ fn check_intel_gpu_top_command() -> Result<()> {
     if status.is_err() || status.ok() == Some(false) {
         anyhow::bail!("The intel_gpu_top command is not installed, this is mandataory for hardware accelaration, please install it or remove hardware acceleration.");
     }
-
-    Ok(())
-}
-
-fn main_loop() -> Result<()> {
-    env_logger::init();
-
-    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
-        warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
-        std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
-    };
-
-    gst::init()?;
-    gstrsinter::plugin_register_static()?;
-    check_plugins()?;
-
-    // Run a MainLoop on a separate thread so gstreamer bus watches work
-    let main_loop = glib::MainLoop::new(None, false);
-    std::thread::spawn({
-        let main_loop = main_loop.clone();
-
-        move || {
-            main_loop.run();
-        }
-    });
-
-    let (shutdown_tx, shutdown_rx) = watch::channel::<bool>(false);
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .context("failed to start tokio async runtime")?;
-
-    runtime.spawn(async move {
-        let mut sig_term = signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
-        select! {
-            _ = ctrl_c() => { log::info!("received Ctrl-C"); }
-            _ = sig_term.recv() => { log::info!("received SIGTERM"); }
-        }
-        shutdown_tx
-            .send(true)
-            .expect("failed to send shutdown signal");
-    });
-
-    if let Err(e) = runtime.block_on(main2(shutdown_rx)) {
-        eprintln!("Exit on failure: {e:?}");
-        std::process::exit(-1);
-    }
-
-    main_loop.quit();
 
     Ok(())
 }
@@ -217,7 +167,126 @@ fn main() {
     }
 }
 
-async fn rmq_session(
+fn main_loop() -> Result<()> {
+    env_logger::init();
+
+    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
+        warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
+        unsafe {
+            std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
+        }
+    };
+
+    gst::init()?;
+    check_plugins()?;
+
+    // Run a MainLoop on a separate thread so gstreamer bus watches work
+    let gstreamer_main_loop = glib::MainLoop::new(None, false);
+    std::thread::spawn({
+        let main_loop = gstreamer_main_loop.clone();
+
+        move || {
+            main_loop.run();
+        }
+    });
+
+    let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .context("failed to start tokio async runtime")?;
+
+    runtime.spawn(async move {
+        let mut sig_term = signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
+        select! {
+            _ = ctrl_c() => { log::info!("received Ctrl-C"); }
+            _ = sig_term.recv() => { log::info!("received SIGTERM"); }
+        }
+        shutdown_tx
+            .send(())
+            .expect("failed to send shutdown signal");
+    });
+
+    if let Err(e) = runtime.block_on(run_recorder(shutdown_rx)) {
+        eprintln!("Exit on failure: {e:?}");
+        std::process::exit(-1);
+    }
+
+    log::debug!("Send quit to main_loop");
+    gstreamer_main_loop.quit();
+
+    Ok(())
+}
+
+async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+    let settings = Settings::load("config.toml").context("Failed to read config")?;
+
+    let http_client = HttpClient::discover(&settings.auth)
+        .await
+        .context("OIDC discovery failed")?;
+    let recorder_context = Recorder::new(settings, http_client, shutdown_rx.resubscribe());
+    let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
+
+    select! {
+        _ = shutdown_rx.recv() => {
+            log::debug!("Received shutdown, shutdown all remaining tasks");
+        }
+        _ = run_usage_polling(&recorder_context) => {
+            log::debug!("Usage polling failed, shutdown all remeining tasks");
+        }
+        _ = run_rabbitmq_session(&recorder_context, &mut tasks) => {}
+    }
+    tasks.retain(|task| !task.is_finished());
+
+    if !tasks.is_empty() {
+        log::info!("waiting for remaining {} tasks to finish", tasks.len());
+        join_all(tasks).await;
+    }
+    log::info!("All tasks are finished");
+
+    Ok(())
+}
+
+async fn run_usage_polling(recorder_context: &Recorder) -> Result<(), broadcast::error::RecvError> {
+    let hardware_acceleration = recorder_context
+        .settings
+        .recorder
+        .clone()
+        .and_then(|s| s.hardware_acceleration);
+    let mut cutoff = settings::default_max_load();
+    if let Some(recorder_info) = &recorder_context.settings.recorder {
+        cutoff = recorder_info.max_load;
+    }
+
+    let run_blocking = move || -> Result<()> {
+        if let Some(HardwareAcceleration::Intel(HardwareAccelerationIntel { device })) =
+            hardware_acceleration
+        {
+            log::info!("Hardware Acceleration enabled, using the GPU for encoding");
+            check_intel_gpu_top_command()?;
+            gpu_intel_usage_poll(cutoff, device)?;
+        } else {
+            log::info!("Hardware Acceleration disabled, this can cause high cpu load");
+            cpu_usage_poll(cutoff)?;
+        }
+
+        Ok(())
+    };
+
+    let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
+    std::thread::spawn(move || {
+        if let Err(err) = run_blocking() {
+            log::error!("Usage polling failed, received: {err}");
+            shutdown_tx
+                .send(())
+                .expect("Unable to send shutdown based on usage polling error");
+        }
+    });
+
+    shutdown_rx.recv().await
+}
+
+async fn run_rabbitmq_session(
     recorder_context: &Recorder,
     tasks: &mut Vec<JoinHandle<Result<()>>>,
 ) -> Result<()> {
@@ -269,56 +338,4 @@ async fn rmq_session(
         }
     }
     Ok::<(), anyhow::Error>(())
-}
-
-async fn main2(mut shutdown_rx: Receiver<bool>) -> Result<()> {
-    let settings = Settings::load("config.toml").context("Failed to read config")?;
-
-    let http_client = HttpClient::discover(&settings.auth)
-        .await
-        .context("OIDC discovery failed")?;
-    let recorder_context = Recorder::new(settings, http_client, shutdown_rx.clone());
-    let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
-    let mut cutoff = settings::default_max_load();
-    if let Some(recorder_info) = &recorder_context.settings.recorder {
-        cutoff = recorder_info.max_load;
-    }
-
-    let mut usage_handle = if let Some(hardware_acceleration) = recorder_context
-        .settings
-        .recorder
-        .clone()
-        .and_then(|s| s.hardware_acceleration)
-    {
-        log::info!("Hardware Acceleration enabled, using the GPU for encoding");
-        match hardware_acceleration {
-            HardwareAcceleration::Intel(HardwareAccelerationIntel { device }) => {
-                check_intel_gpu_top_command()?;
-                tokio::task::spawn_blocking(move || gpu_intel_usage_poll(cutoff, device))
-            }
-        }
-    } else {
-        log::info!("Hardware Acceleration disabled, this can cause high cpu load");
-        tokio::task::spawn_blocking(move || cpu_usage_poll(cutoff))
-    };
-
-    while !*shutdown_rx.borrow() {
-        select! {
-            result = &mut usage_handle => {
-                result??;
-            }
-            result = shutdown_rx.changed() => {
-                result?;
-            }
-            _ = rmq_session(&recorder_context, &mut tasks) => {}
-        }
-    }
-    tasks.retain(|task| !task.is_finished());
-
-    if !tasks.is_empty() {
-        log::info!("waiting for remaining {} tasks to finish", tasks.len());
-        join_all(tasks).await;
-    }
-
-    Ok(())
 }
