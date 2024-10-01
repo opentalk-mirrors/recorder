@@ -11,12 +11,8 @@ RUN apt-get install -y --no-install-recommends ca-certificates rustup build-esse
 WORKDIR /recorder
 
 COPY ./Cargo.toml ./Cargo.toml
-COPY src src
-
-COPY ./compositor/Cargo.toml ./compositor/Cargo.toml
-COPY compositor/src compositor/src
-
 COPY ./Cargo.lock ./Cargo.lock
+COPY src src
 
 RUN cargo build --release
 
