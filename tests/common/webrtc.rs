@@ -9,7 +9,8 @@ use opentalk_recorder::signaling::{
     TrickleCandidate,
 };
 use tokio::sync::mpsc;
-use types::{core::ParticipantId, signaling::media::MediaSessionType};
+use types::signaling::media::MediaSessionType;
+use types_signaling::ParticipantId;
 
 pub(crate) fn create_pipeline(
     uuid: ParticipantId,

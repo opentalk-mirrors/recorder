@@ -15,17 +15,16 @@ use tt::{
     tungstenite::{client::IntoClientRequest, Message},
     MaybeTlsStream, WebSocketStream,
 };
-use types::{
-    core::{ParticipantId, StreamingTargetId},
-    signaling::{
-        control::{self, event::JoinSuccess, state::ControlState, Participant},
-        media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
-        recording::{
-            peer_state::RecordingPeerState, state::RecorderStreamInfo, StreamStatus, StreamUpdated,
-        },
-        recording_service::{event::RecordingServiceEvent, state::RecordingServiceState},
+use types::signaling::{
+    control::{self, event::JoinSuccess, state::ControlState, Participant},
+    media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
+    recording::{
+        peer_state::RecordingPeerState, state::RecorderStreamInfo, StreamStatus, StreamUpdated,
     },
+    recording_service::{event::RecordingServiceEvent, state::RecordingServiceState},
 };
+use types_common::streaming::StreamingTargetId;
+use types_signaling::ParticipantId;
 
 use crate::{http::HttpClient, settings::ControllerSettings};
 

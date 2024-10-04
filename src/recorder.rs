@@ -28,18 +28,17 @@ use tokio::{
     sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
-use types::{
-    core::{ParticipantId, StreamingTargetId},
-    signaling::{
-        control::event::ControlEvent,
-        media::{self, MediaSessionState, MediaSessionType},
-        recording::{
-            state::{RecorderStreamInfo, StreamingTarget},
-            StreamErrorReason, StreamStatus,
-        },
-        recording_service::command::RecordingServiceCommand,
+use types::signaling::{
+    control::event::ControlEvent,
+    media::{self, MediaSessionState, MediaSessionType},
+    recording::{
+        state::{RecorderStreamInfo, StreamingTarget},
+        StreamErrorReason, StreamStatus,
     },
+    recording_service::command::RecordingServiceCommand,
 };
+use types_common::streaming::StreamingTargetId;
+use types_signaling::ParticipantId;
 
 use crate::{
     http::{FileExtension, HttpClient},
@@ -816,7 +815,7 @@ impl RecordingSession {
                 participant_id: id,
                 media_type,
             };
-            self.subscribe(descriptor, &display_name, media_state)
+            self.subscribe(descriptor, display_name.as_str(), media_state)
                 .await?;
         }
         self.mixer.set_title(&event_title);

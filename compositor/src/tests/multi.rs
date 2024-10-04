@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use types::core::ParticipantId;
+use types_signaling::ParticipantId;
 
 use crate::{testing, Mixer, Speaker, TestSink, TestSource};
 

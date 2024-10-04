@@ -17,6 +17,7 @@ exclude = ["/images/"]
 
 [dependencies]
 types.workspace = true
+types-signaling.workspace = true
 
 gst = { package = "gstreamer", version = "0.23", features = ["v1_22"] }
 gst-base = { package = "gstreamer-base", version = "0.23", features = ["v1_22"] }
