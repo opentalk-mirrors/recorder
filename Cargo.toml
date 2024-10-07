@@ -68,7 +68,7 @@ thiserror = "1"
 openidconnect = "3"
 tempfile = "3"
 pin-project-lite = "0.2"
-sysinfo = "0.31"
+sysinfo = "0.32"
 urlencoding = "2.1.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
