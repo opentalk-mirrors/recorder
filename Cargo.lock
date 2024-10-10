@@ -2254,6 +2254,7 @@ dependencies = [
  "opentalk-types",
  "opentalk-types-common",
  "opentalk-types-signaling",
+ "opentalk-types-signaling-control",
  "pin-project-lite",
  "reqwest",
  "serde",
@@ -2270,9 +2271,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cb66ab4a6890cdb07cba7a31f33c5f3eedf94c7d8e179543801fc8b9ebf7b2a"
+checksum = "83fc9c70ca0756791961e0cd677b26f8c7b29d4ab71279ed8849bed95083117f"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -2294,9 +2295,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-common"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffe5bf22e14e28cbd1e4c057a064b2803692a0565cbb16d39f3655385ad110f3"
+checksum = "1992692bb2290fd7de154948bf9c8c4a668bc10784541c997b9cf127940562f5"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -2314,15 +2315,28 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-signaling"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a52ff1b01d42a95472573bdf9a0204b9d2e0f5995023edcd9b8de999e2ea5c8"
+checksum = "d8d9d67d832113c0046d5db7e8906932e343107839bd846a4a76126529859e1b"
 dependencies = [
  "derive_more",
  "opentalk-types-common",
  "serde",
+ "serde_json",
  "strum",
  "uuid",
+]
+
+[[package]]
+name = "opentalk-types-signaling-control"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66f0cf3a31aa6eb54fc10840049e595cd11723c0dff94f4e490461cdf8b00cd5"
+dependencies = [
+ "opentalk-types-common",
+ "opentalk-types-signaling",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -92,6 +92,7 @@ exceptions = [
   { allow = ["EUPL-1.2"], name = "opentalk-compositor" },
   { allow = ["EUPL-1.2"], name = "opentalk-types" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-signaling" },
+  { allow = ["EUPL-1.2"], name = "opentalk-types-signaling-control" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-common" },
 ]
 

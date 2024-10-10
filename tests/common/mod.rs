@@ -18,7 +18,7 @@ use tokio::{
     sync::{mpsc, watch, Mutex},
     time::sleep,
 };
-use types::signaling::control::Participant;
+use types_signaling::Participant;
 use websocket_server::start_chunk_upload_websocket_server;
 
 use crate::common::{

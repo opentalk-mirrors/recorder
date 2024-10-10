@@ -16,7 +16,6 @@ use tt::{
     MaybeTlsStream, WebSocketStream,
 };
 use types::signaling::{
-    control::{self, event::JoinSuccess, state::ControlState, Participant},
     media::{peer_state::MediaPeerState, MediaSessionState, MediaSessionType},
     recording::{
         peer_state::RecordingPeerState, state::RecorderStreamInfo, StreamStatus, StreamUpdated,
@@ -24,7 +23,8 @@ use types::signaling::{
     recording_service::{event::RecordingServiceEvent, state::RecordingServiceState},
 };
 use types_common::streaming::StreamingTargetId;
-use types_signaling::ParticipantId;
+use types_control::{self, event::JoinSuccess, state::ControlState};
+use types_signaling::{AssociatedParticipant, Participant, ParticipantId};
 
 use crate::{http::HttpClient, settings::ControllerSettings};
 
@@ -292,7 +292,7 @@ pub(crate) fn handle_joined(
 }
 
 pub(crate) fn handle_left(
-    id: &control::AssociatedParticipant,
+    id: &AssociatedParticipant,
     participants: &mut HashMap<ParticipantId, ParticipantState>,
 ) {
     participants.remove(&id.id);
@@ -348,10 +348,10 @@ pub mod incoming {
     use compositor::MediaDescriptor;
     use serde::{Deserialize, Serialize};
     use types::signaling::{
-        control::event::ControlEvent,
         media::{MediaSessionType, ParticipantSpeakingState},
         recording_service::command::RecordingServiceCommand,
     };
+    use types_control::event::ControlEvent;
 
     use super::{ParticipantId, TrickleCandidate};
 
