@@ -2,47 +2,38 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-FROM git.opentalk.dev:5050/opentalk/backend/containers/rust:alpine3.20 AS Builder
+FROM git.opentalk.dev:5050/k.baltruschat/gstreamer:1.24-intel AS builder
 
-RUN apk add --no-cache glib-dev openssl-dev gstreamer-dev gst-plugins-base-dev gst-plugins-bad-dev
+RUN apt-get install -y --no-install-recommends ca-certificates rustup build-essential pkg-config libglib2.0-dev && \
+    rustup set auto-self-update disable && \
+    rustup install stable --profile minimal
 
 WORKDIR /recorder
 
 COPY ./Cargo.toml ./Cargo.toml
-COPY ./compositor/Cargo.toml ./compositor/Cargo.toml
-COPY ./Cargo.lock ./Cargo.lock
-
-# cache library build
-# We need a proper main.rs to make the first cargo build run
-# As we haven't copied any source files yet, this will only compile the dependencies
-RUN mkdir src; \
-    echo 'fn main() {println!("Hello World!");}' > src/main.rs \
-    && mkdir compositor/src && touch compositor/src/lib.rs;\
-    RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release
-
-# Now copy the real source over
 COPY src src
+
+COPY ./compositor/Cargo.toml ./compositor/Cargo.toml
 COPY compositor/src compositor/src
 
-# Cargo detects changes only by mtime
-RUN touch src/main.rs; \
-    RUSTFLAGS=-Ctarget-feature=-crt-static cargo auditable build --release
+COPY ./Cargo.lock ./Cargo.lock
 
-FROM alpine:3.20
+RUN cargo build --release
 
-RUN apk add --no-cache glib libssl3 libcrypto3 \
-    gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly libnice-gstreamer gst-libav gst-vaapi \
-    intel-media-driver \
-    openh264 ca-certificates \
+FROM git.opentalk.dev:5050/k.baltruschat/gstreamer:1.24-intel
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libssl3 libcrypto++ \
+    intel-media-va-driver intel-gpu-tools \
+    libopenh264-7 ca-certificates \
     tzdata \
-    terminus-font font-bitstream-type1 font-bitstream-75dpi font-bitstream-100dpi font-liberation font-noto \
-    libcap-setcap; \
-    apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing/ igt-gpu-tools; \
+    fontconfig fonts-terminus ttf-bitstream-vera fonts-liberation fonts-noto \
+    libcap2 && \
     setcap cap_perfmon=+ep $(which intel_gpu_top); \
     fc-cache -fv
 
 WORKDIR /recorder
 
-COPY --from=Builder /recorder/target/release/opentalk-recorder .
+COPY --from=builder /recorder/target/release/opentalk-recorder .
 
 ENTRYPOINT [ "./opentalk-recorder" ]

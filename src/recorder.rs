@@ -242,7 +242,8 @@ impl RecordingSession {
             &command.room,
             &command.breakout,
         )
-        .await?;
+        .await
+        .context("Failed to connect to signaling")?;
 
         let temp_dir = TempDir::new()?;
 
