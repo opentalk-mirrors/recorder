@@ -19,12 +19,14 @@ repository = "https://gitlab.opencode.de/opentalk/recorder"
 version = "0.0.0-dev"
 
 [workspace.dependencies]
-types = { package = "opentalk-types", version = "0.20.0" }
-types-signaling = { package = "opentalk-types-signaling", version = "0.20.0" }
-types-common = { package = "opentalk-types-common", version = "0.20.0" }
+types = { package = "opentalk-types", version = "0.21" }
+types-control = { package = "opentalk-types-signaling-control", version = "0.21" }
+types-signaling = { package = "opentalk-types-signaling", version = "0.21" }
+types-common = { package = "opentalk-types-common", version = "0.21" }
 
 [dependencies]
 compositor = { path = "compositor", package = "opentalk-compositor" }
+types-control = { workspace = true, features = ["serde"] }
 types = { workspace = true, features = ["rand", "serde"] }
 types-signaling = { workspace = true, features = ["rand", "serde"] }
 types-common = { workspace = true, features = ["rand", "serde"] }

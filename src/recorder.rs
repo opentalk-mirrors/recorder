@@ -29,8 +29,7 @@ use tokio::{
     task::JoinHandle,
 };
 use types::signaling::{
-    control::event::ControlEvent,
-    media::{self, MediaSessionState, MediaSessionType},
+    media::{MediaSessionState, MediaSessionType, ParticipantSpeakingState},
     recording::{
         state::{RecorderStreamInfo, StreamingTarget},
         StreamErrorReason, StreamStatus,
@@ -38,6 +37,7 @@ use types::signaling::{
     recording_service::command::RecordingServiceCommand,
 };
 use types_common::streaming::StreamingTargetId;
+use types_control::event::{ControlEvent, Left};
 use types_signaling::ParticipantId;
 
 use crate::{
@@ -575,7 +575,7 @@ impl RecordingSession {
                         return Ok(());
                     };
 
-                    self.handle_join_success(streams, event.title, state.id)
+                    self.handle_join_success(streams, event.title.to_string(), state.id)
                         .await?;
                 }
                 ControlEvent::Joined(participant) => {
@@ -586,10 +586,10 @@ impl RecordingSession {
                     signaling::handle_update(&participant, &mut self.participants);
                     self.handle_participant_updated(participant.id).await?;
                 }
-                ControlEvent::Left {
+                ControlEvent::Left(Left {
                     id: assoc_participant,
                     ..
-                } => {
+                }) => {
                     signaling::handle_left(&assoc_participant, &mut self.participants);
                     self.handle_participant_left(assoc_participant.id)?;
                 }
@@ -649,7 +649,7 @@ impl RecordingSession {
 
     async fn handle_speaker_updated(
         &mut self,
-        speaker_state: &media::ParticipantSpeakingState,
+        speaker_state: &ParticipantSpeakingState,
     ) -> Result<()> {
         let participant = speaker_state.participant;
         if speaker_state.speaker.is_speaking {

@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -14,12 +15,6 @@ use gst_webrtc::{WebRTCSDPType, WebRTCSessionDescription};
 use opentalk_recorder::signaling::{incoming, outgoing};
 use tokio::sync::{mpsc, Mutex};
 use types::signaling::{
-    control::{
-        event::{ControlEvent, JoinSuccess},
-        room::{CreatorInfo, RoomInfo},
-        state::ControlState,
-        AssociatedParticipant, Participant, Reason,
-    },
     media::{peer_state::MediaPeerState, MediaSessionState, ParticipantMediaState},
     recording::{
         peer_state::RecordingPeerState,
@@ -27,16 +22,22 @@ use types::signaling::{
         StreamStatus,
     },
     recording_service::{command::RecordingServiceCommand, state::RecordingServiceState},
-    ModuleData, ModulePeerData,
 };
 use types_common::{
-    events::{EventId, EventInfo},
+    events::{EventId, EventInfo, EventTitle},
     rooms::RoomId,
     streaming::StreamingTargetId,
     tariffs::{TariffId, TariffResource},
     time::Timestamp,
 };
-use types_signaling::ParticipantId;
+use types_control::{
+    event::{ControlEvent, JoinSuccess, Left},
+    room::{CreatorInfo, RoomInfo},
+    state::ControlState,
+};
+use types_signaling::{
+    AssociatedParticipant, LeaveReason, ModuleData, ModulePeerData, Participant, ParticipantId,
+};
 
 use super::{webrtc::create_pipeline, User};
 
@@ -105,12 +106,13 @@ impl MockController {
             id: ParticipantId::generate(),
             participants,
             event_info: Some(EventInfo {
-                title: "Test Recording Title".to_string(),
+                title: EventTitle::from_str("Test Recording Title")
+                    .expect("event title could not be created"),
                 id: EventId::generate(),
                 is_adhoc: false,
                 room_id: RoomId::generate(),
                 meeting_details: None,
-                e2e_encrytion: false,
+                e2e_encryption: false,
             }),
             display_name: "".to_string(),
             avatar_url: None,
@@ -238,12 +240,13 @@ impl MockController {
                     id: ParticipantId::generate(),
                     participants,
                     event_info: Some(EventInfo {
-                        title: "Test Recording Title".to_string(),
+                        title: EventTitle::from_str("Test Recording Title")
+                            .expect("event title could not be created"),
                         id: EventId::generate(),
                         is_adhoc: false,
                         room_id: RoomId::generate(),
                         meeting_details: None,
-                        e2e_encrytion: false,
+                        e2e_encryption: false,
                     }),
                     display_name: "".to_string(),
                     avatar_url: None,
@@ -317,10 +320,10 @@ impl MockController {
     }
 
     pub(crate) async fn send_left(&mut self, participant: &Participant) {
-        let left_event = ControlEvent::Left {
+        let left_event = ControlEvent::Left(Left {
             id: AssociatedParticipant { id: participant.id },
-            reason: Reason::Quit,
-        };
+            reason: LeaveReason::Quit,
+        });
 
         self.to_recorder_tx
             .send(incoming::Message::Control(left_event))
