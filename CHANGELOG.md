@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.1
+
+### 🚀 New features
+
+- feat: publish the compositor on crates.io ([#114](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/114), [!239](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/239))
+
+## 0.6.0
+
+### 🚀 New features
+
+- Add Chunk-Upload capability ([#92](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/92))
+- Add Hardware Acceleration for Intel GPUs ([#150](https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/150))
+
+### 🐛 Bug fixes
+
+- Add gst plugin checks ([!218](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/218))
+
+### ⚙ Miscellaneous
+
+- Ignore RUSTSEC-2024-0370 ([!224](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/224))
+- Sync changelog for release 0.5.0 and 0.5.1 ([!220](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/220))
+- Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.81.0 ([!225](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/225))
+
+### 📦 Dependencies
+
+- Lock file maintenance ([!233](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/233))
+- Update rust crate bytes to v1.7.2 ([!234](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/234))
+- Update rust crate cocoa to 0.26 ([!212](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/212))
+- Update rust crate serde_json to v1.0.128 ([!229](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/229))
+
 ## 0.5.1
 
 ### 🚀 New features
