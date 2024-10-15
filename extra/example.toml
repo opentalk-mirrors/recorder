@@ -18,7 +18,17 @@ insecure = true
 uri = "amqp://username:password@localhost/%2F"
 queue = "recorder"
 
+[livekit]
+# The `url` of the livekit server.
+url = "ws://localhost:7880"
+# The `api key` from the livekit server.
+api_key = "devkey"
+# The `api secret` from the livekit server.
+api_secret = "secret"
+
 [recorder]
+# Shows a display sink, for debug purpose
+display = true
 
 # see `man strftime`
 # European style - alpine with musl has no locale
@@ -27,17 +37,7 @@ clock_format = "%d.%m.%y %X %Z"
 # US style
 #clock_format = "%x %X %Z"
 
-# Development:
-# Always to stream to an extra display sink for monitoring
-#[[recorder.sinks]]
-#type = "display"
-
-# Static RTMP streaming, for testing purpose
-#[[recorder.sinks]]
-#type = "rtmp"
-#location = "rtmp://localhost:1935/live/$room live=1"
-# optional
-#audio_bitrate = 96000
-#audio_rate = 48000
-#video_bitrate = 6000
-#video_speed_preset = fast
+# Enables Hardware Acceleration for Intel GPUs
+#[recorder.hardware_acceleration]
+#manufacturer = "intel"
+#device = "/dev/dri/renderD129"

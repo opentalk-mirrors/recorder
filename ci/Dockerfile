@@ -4,19 +4,18 @@
 
 FROM git.opentalk.dev:5050/k.baltruschat/gstreamer:1.24-intel AS builder
 
-RUN apt-get install -y --no-install-recommends ca-certificates rustup build-essential pkg-config libglib2.0-dev && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates rustup build-essential pkg-config libglib2.0-dev \
+    # This is needed for the livekit crate in the compositor
+    libxext-dev libx11-dev libgl-dev && \
     rustup set auto-self-update disable && \
     rustup install stable --profile minimal
 
 WORKDIR /recorder
 
 COPY ./Cargo.toml ./Cargo.toml
-COPY src src
-
-COPY ./compositor/Cargo.toml ./compositor/Cargo.toml
-COPY compositor/src compositor/src
-
 COPY ./Cargo.lock ./Cargo.lock
+COPY src src
 
 RUN cargo build --release
 

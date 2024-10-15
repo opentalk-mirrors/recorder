@@ -7,29 +7,27 @@ use core::{
     task::{ready, Context, Poll},
 };
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
     io, mem,
     sync::Arc,
 };
 
-use anyhow::{bail, Context as ErrorContext, Result};
+use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    EncoderType, MediaDescriptor, RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink,
-    WebRtcSource, WebRtcSourceParams,
+    EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
+    WebMParameters, WebMSink,
 };
 use futures::Stream;
 use log::error;
-use tempfile::TempDir;
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
-    sync::{mpsc, watch, Mutex},
+    sync::{broadcast, Mutex},
     task::JoinHandle,
 };
 use types::signaling::{
-    media::{MediaSessionState, MediaSessionType, ParticipantSpeakingState},
     recording::{
         state::{RecorderStreamInfo, StreamingTarget},
         StreamErrorReason, StreamStatus,
@@ -38,60 +36,59 @@ use types::signaling::{
 };
 use types_common::streaming::StreamingTargetId;
 use types_control::event::{ControlEvent, Left};
-use types_signaling::ParticipantId;
+use types_signaling::{Participant, ParticipantId};
 
 use crate::{
     http::{FileExtension, HttpClient},
     rmq::InitializeRecording,
-    settings::{RecorderSink, Settings},
-    signaling::{
-        self,
-        incoming::{self, MediaMessage},
-        ParticipantState, Signaling, TrickleCandidate,
-    },
+    settings::Settings,
+    signaling::{self, incoming, ParticipantState, Signaling},
 };
 
-// TODO; make this configurable
-pub const MAX_VISIBLES: usize = 8;
-
-const TEMP_RECORDING_NAME: &str = "recording.webm";
-
-type Mixer = compositor::Mixer<WebRtcSource>;
-
 #[derive(Clone, Debug)]
-pub enum RecorderStreamKind {
-    Recording { file_name: String },
+pub(crate) enum RecorderStreamKind {
+    Recording,
     Streaming { target: StreamingTarget },
 }
 
 #[derive(Clone, Debug)]
-pub struct RecorderStreamStatus {
-    pub state: StreamStatus,
-    pub kind: RecorderStreamKind,
+pub(crate) struct RecorderStreamStatus {
+    pub(crate) state: StreamStatus,
+    pub(crate) kind: RecorderStreamKind,
 }
 
 impl RecorderStreamStatus {
     #[must_use]
-    pub fn stream_running(&self) -> bool {
+    pub(crate) fn stream_running(&self) -> bool {
         self.state == StreamStatus::Active
             || self.state == StreamStatus::Paused
             || self.state == StreamStatus::Starting
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Recorder {
-    pub settings: Arc<Settings>,
-    pub http_client: Arc<HttpClient>,
-    pub shutdown: watch::Receiver<bool>,
+#[derive(Debug)]
+pub(crate) struct Recorder {
+    pub(crate) settings: Arc<Settings>,
+    pub(crate) http_client: Arc<HttpClient>,
+    pub(crate) shutdown: broadcast::Receiver<()>,
+}
+
+impl Clone for Recorder {
+    fn clone(&self) -> Self {
+        Self {
+            settings: self.settings.clone(),
+            http_client: self.http_client.clone(),
+            shutdown: self.shutdown.resubscribe(),
+        }
+    }
 }
 
 impl Recorder {
     /// This constructor is used by the integration tests to mock data.
-    pub fn new(
+    pub(crate) fn new(
         settings: Settings,
         http_client: HttpClient,
-        shutdown: watch::Receiver<bool>,
+        shutdown: broadcast::Receiver<()>,
     ) -> Self {
         Self {
             settings: Arc::new(settings),
@@ -100,7 +97,7 @@ impl Recorder {
         }
     }
 
-    pub async fn spawn_session(
+    pub(crate) async fn spawn_session(
         &self,
         command: InitializeRecording,
     ) -> Result<JoinHandle<Result<()>>> {
@@ -126,7 +123,7 @@ impl Recorder {
 }
 
 #[derive(Debug)]
-pub struct RecordingSession {
+pub(crate) struct RecordingSession {
     service_context: Arc<Recorder>,
 
     signaling: Signaling,
@@ -137,23 +134,17 @@ pub struct RecordingSession {
     room_id: String,
     participant_id: Option<ParticipantId>,
 
-    temp_dir: TempDir,
-
     mixer: Mixer,
 
     streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
 
-    candidate_receiver: mpsc::Receiver<(MediaDescriptor, u32, Option<String>)>,
-    candidate_sender: mpsc::Sender<(MediaDescriptor, u32, Option<String>)>,
-
     done: bool,
 
-    configurations: HashMap<MediaDescriptor, bool>,
     join_handles: Arc<Mutex<Vec<JoinHandle<Result<()>>>>>,
 }
 
 #[derive(Debug, Error)]
-pub enum RecordingSessionError {
+pub(crate) enum RecordingSessionError {
     #[error("Stream '{0}' is already running")]
     AlreadyRunning(StreamingTargetId),
     #[error("Stream '{0}' not found")]
@@ -165,15 +156,9 @@ pub enum RecordingSessionError {
 
     #[error("Start livestream failed, reason: {0}")]
     StartLivestream(anyhow::Error),
-    #[error("Stop livestream failed, reason: {0}")]
-    StopLivestream(anyhow::Error),
 
     #[error("Start recording failed, reason: {0}")]
     StartRecording(anyhow::Error),
-    #[error("Stop recording failed, reason: {0}")]
-    StopRecording(anyhow::Error),
-    #[error("Upload recording failed, reason: {0}")]
-    UploadRecording(anyhow::Error),
 }
 
 impl From<RecordingSessionError> for StreamErrorReason {
@@ -185,11 +170,8 @@ impl From<RecordingSessionError> for StreamErrorReason {
             RecordingSessionError::NoLocation(_) => "no_location".to_owned(),
 
             RecordingSessionError::StartLivestream(_) => "start_livestream".to_owned(),
-            RecordingSessionError::StopLivestream(_) => "stop_livestream".to_owned(),
 
             RecordingSessionError::StartRecording(_) => "start_recording".to_owned(),
-            RecordingSessionError::StopRecording(_) => "stop_recording".to_owned(),
-            RecordingSessionError::UploadRecording(_) => "upload_recording".to_owned(),
         };
 
         Self {
@@ -203,16 +185,13 @@ impl RecordingSession {
     /// This constructor is used by the integration tests to mock data.
     #[allow(dead_code)]
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         service_context: Arc<Recorder>,
         signaling: Signaling,
         participants: HashMap<ParticipantId, ParticipantState>,
         room_id: String,
-        temp_dir: TempDir,
         mixer: Mixer,
         streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
-        candidate_receiver: mpsc::Receiver<(MediaDescriptor, u32, Option<String>)>,
-        candidate_sender: mpsc::Sender<(MediaDescriptor, u32, Option<String>)>,
         done: bool,
     ) -> Self {
         Self {
@@ -221,18 +200,14 @@ impl RecordingSession {
             participants,
             room_id,
             participant_id: None,
-            temp_dir,
             mixer,
             streaming_targets,
-            candidate_receiver,
-            candidate_sender,
             done,
-            configurations: HashMap::new(),
             join_handles: Arc::default(),
         }
     }
 
-    pub async fn create(
+    pub(crate) async fn create(
         service_context: Arc<Recorder>,
         command: InitializeRecording,
     ) -> Result<RecordingSession> {
@@ -245,62 +220,37 @@ impl RecordingSession {
         .await
         .context("Failed to connect to signaling")?;
 
-        let temp_dir = TempDir::new()?;
-
-        let (candidate_sender, candidate_receiver) = mpsc::channel(12);
-
         let recorder_settings = service_context
             .settings
             .recorder
             .clone()
             .unwrap_or_default();
-        let recorder_sinks = recorder_settings.sinks.clone();
 
-        let mut mixer = Mixer::create(
-            compositor::Size::FHD,
-            compositor::layout::Speaker::default(),
-            MAX_VISIBLES,
-            true,
-            &recorder_settings.clock_format,
-        )?;
+        let livekit_room = if let Some(breakout) = command.breakout {
+            format!("{}:{breakout}", command.room)
+        } else {
+            command.room.clone()
+        };
 
-        for (index, sink) in recorder_sinks.into_iter().enumerate() {
-            let tag = match sink {
-                RecorderSink::Display => "Display",
-                RecorderSink::WebM(_) => "WebM",
-                RecorderSink::Rtmp(_) => "RTMP",
-            };
-            let name = format!("{tag}-Sink-{index}");
-            match sink {
-                RecorderSink::Display => {
-                    mixer.link_sink(
-                        name.as_str(),
-                        SystemSink::create(name.as_str(), true)
-                            .context("DisplaySink could not created")?,
-                    )?;
-                }
-                RecorderSink::WebM(webm_parameters) => {
-                    mixer.link_sink(
-                        name.as_str(),
-                        WebMSink::create(name.as_str(), &webm_parameters)
-                            .context("WebMSink could not created")?,
-                    )?;
-                }
+        let mixer_parameters = MixerParameters {
+            video_support: true,
+            clock_format: service_context
+                .settings
+                .recorder
+                .clone()
+                .map(|recorder_settings| recorder_settings.clock_format)
+                .unwrap_or_default(),
+            livekit_url: service_context.settings.livekit.url.clone(),
+            livekit_api_key: service_context.settings.livekit.api_key.clone(),
+            livekit_api_secret: service_context.settings.livekit.api_secret.clone(),
+            livekit_room,
+        };
 
-                RecorderSink::Rtmp(rtmp_parameters) => {
-                    mixer.link_sink(
-                        name.as_str(),
-                        RTMPSink::create(
-                            name.as_str(),
-                            RTMPParameters {
-                                location: rtmp_parameters.location.replace("$room", &command.room),
-                                ..rtmp_parameters.clone()
-                            },
-                        )
-                        .context("RTMPSink could not created")?,
-                    )?;
-                }
-            }
+        let mut mixer = Mixer::new(mixer_parameters).await?;
+
+        if recorder_settings.display {
+            let system_sink = SystemSink::create(true).context("DisplaySink could not created")?;
+            mixer.link_sink("Display", system_sink).await?;
         }
 
         Ok(Self {
@@ -309,19 +259,15 @@ impl RecordingSession {
             participants: HashMap::new(),
             room_id: command.room,
             participant_id: None,
-            temp_dir,
             mixer,
             streaming_targets: BTreeMap::new(),
-            candidate_receiver,
-            candidate_sender,
             done: false,
-            configurations: HashMap::new(),
             join_handles: Arc::default(),
         })
     }
 
-    pub async fn run(&mut self) -> Result<()> {
-        let mut shutdown_rx = self.service_context.shutdown.clone();
+    pub(crate) async fn run(&mut self) -> Result<()> {
+        let mut shutdown_rx = self.service_context.shutdown.resubscribe();
 
         while !self.done {
             tokio::select! {
@@ -340,19 +286,13 @@ impl RecordingSession {
                         }
                     }
                 }
-                maybe_candidate = self.candidate_receiver.recv() => {
-                    let Some((descriptor, mline, candidate)) = maybe_candidate else {
-                        bail!("no candidate pair found");
-                    };
-                    self.handle_candidate(descriptor, mline, candidate).await?;
+                _ = shutdown_rx.recv() => {
+                    self.done = true;
+                    break;
                 }
-                result = shutdown_rx.changed() => {
-                    if result.is_err() {
-                        return result.context("failed to listen to shutdown signal");
-                    }
-                    if *shutdown_rx.borrow() {
-                        self.done = true;
-                        break;
+                result = self.mixer.run() => {
+                    if let Err(err) = result {
+                        log::error!("Running the mixer caused an error: {err:?}");
                     }
                 }
             }
@@ -372,23 +312,9 @@ impl RecordingSession {
         Ok(())
     }
 
-    pub async fn start_recording(
-        &mut self,
-        file_name: &str,
-        encoder_type: EncoderType,
-    ) -> Result<()> {
-        let file_path = self.temp_dir.path().join(file_name);
-        let webm_sink = WebMSink::create(
-            "WebM-Sink",
-            &WebMParameters {
-                path: file_path
-                    .to_str()
-                    .context("failed to convert WebM file path into string")?
-                    .into(),
-                encoder_type,
-            },
-        )
-        .context("WebM-Sink could not created")?;
+    pub(crate) async fn start_recording(&mut self, encoder_type: EncoderType) -> Result<()> {
+        let webm_sink = WebMSink::create(&WebMParameters { encoder_type })
+            .context("WebM-Sink could not created")?;
 
         let handle = tokio::spawn({
             let service_context = self.service_context.clone();
@@ -413,7 +339,8 @@ impl RecordingSession {
 
         self.mixer
             .link_sink("recording", webm_sink)
-            .context("unable to link sink to talk")?;
+            .await
+            .context("unable to link recording sink to compositor")?;
 
         Ok(())
     }
@@ -435,11 +362,13 @@ impl RecordingSession {
                     return Err(RecordingSessionError::NoLocation(id));
                 };
 
-                let result = self.start_livestream(
-                    location.to_string(),
-                    &format!("Livestream-{id}"),
-                    self.service_context.settings.encoder_type(),
-                );
+                let result = self
+                    .start_livestream(
+                        location.to_string(),
+                        &format!("Livestream-{id}"),
+                        self.service_context.settings.encoder_type(),
+                    )
+                    .await;
 
                 if let Err(ref e) = result {
                     log::error!("failed to start live stream: {e}");
@@ -447,12 +376,9 @@ impl RecordingSession {
 
                 result.map_err(RecordingSessionError::StartLivestream)
             }
-            RecorderStreamKind::Recording { file_name } => {
+            RecorderStreamKind::Recording => {
                 let result = self
-                    .start_recording(
-                        file_name.as_str(),
-                        self.service_context.settings.encoder_type(),
-                    )
+                    .start_recording(self.service_context.settings.encoder_type())
                     .await;
 
                 if let Err(ref e) = result {
@@ -487,7 +413,7 @@ impl RecordingSession {
             return Err(RecordingSessionError::NotRunning(id));
         }
         let new_state: Result<(), StreamErrorReason> = match stream.kind {
-            RecorderStreamKind::Recording { file_name: _ } => {
+            RecorderStreamKind::Recording => {
                 self.mixer.release_sink(&"recording".to_owned()).await;
 
                 Ok(())
@@ -507,7 +433,7 @@ impl RecordingSession {
         Ok(stream.state.clone())
     }
 
-    pub fn start_livestream(
+    pub async fn start_livestream(
         &mut self,
         location: String,
         name: &str,
@@ -516,43 +442,18 @@ impl RecordingSession {
         self.mixer
             .link_sink(
                 name,
-                RTMPSink::create(
-                    name,
-                    RTMPParameters {
-                        location,
-                        audio_bitrate: None,
-                        audio_rate: None,
-                        video_bitrate: None,
-                        video_speed_preset: None,
-                        encoder_type,
-                    },
-                )
+                RTMPSink::create(RTMPParameters {
+                    location,
+                    audio_bitrate: None,
+                    audio_rate: None,
+                    video_bitrate: None,
+                    video_speed_preset: None,
+                    encoder_type,
+                })
                 .context("RTMPSink could not created")?,
             )
+            .await
             .context("unable to link sink to talk")?;
-
-        Ok(())
-    }
-
-    async fn subscribe(
-        &mut self,
-        descriptor: MediaDescriptor,
-        display_name: &str,
-        media_state: MediaSessionState,
-    ) -> Result<()> {
-        self.mixer.add_stream(
-            descriptor,
-            display_name.to_owned(),
-            stream_params(descriptor, self.candidate_sender.clone()),
-            media_state,
-        )?;
-        self.signaling.start_subscribe(descriptor).await?;
-
-        if media_state.video {
-            self.mixer
-                .show_stream(descriptor)
-                .context("unable to show stream for descriptor '{descriptor}'")?;
-        }
 
         Ok(())
     }
@@ -576,8 +477,13 @@ impl RecordingSession {
                         return Ok(());
                     };
 
-                    self.handle_join_success(streams, event.title.to_string(), state.id)
-                        .await?;
+                    self.handle_join_success(
+                        streams,
+                        event.title.to_string(),
+                        state.id,
+                        state.participants,
+                    )
+                    .await?;
                 }
                 ControlEvent::Joined(participant) => {
                     signaling::handle_joined(&participant, &mut self.participants)?;
@@ -592,43 +498,11 @@ impl RecordingSession {
                     ..
                 }) => {
                     signaling::handle_left(&assoc_participant, &mut self.participants);
-                    self.handle_participant_left(assoc_participant.id)?;
+                    self.handle_participant_left(assoc_participant.id).await?;
                 }
                 ref other => {
                     log::error!("Event {other:#?} not implemented for recorder.");
                     return Ok(());
-                }
-            },
-            incoming::Message::Media(msg) => match msg {
-                MediaMessage::SdpOffer(incoming::Sdp { sdp, source }) => {
-                    log::debug!("MediaMessage::SdpOffer");
-                    self.handle_sdp_offer(source, sdp).await?;
-                }
-                MediaMessage::SdpCandidate(incoming::SdpCandidate { candidate, source }) => {
-                    log::debug!("MediaMessage::SdpCandidate");
-                    self.handle_sdp_candidate(source, &candidate);
-                }
-                MediaMessage::SdpEndOfCandidates(source) => {
-                    log::debug!("MediaMessage::SdpEndOfCandidates");
-                    self.handle_end_of_candidates(source.into())?;
-                }
-                MediaMessage::WebRtcUp(_) | MediaMessage::WebRtcDown(_) => {}
-                MediaMessage::WebRtcSlow(_) => {
-                    log::debug!("MediaMessage::WebRtcSlow");
-                    return Ok(());
-                }
-                MediaMessage::FocusUpdate(focus_update) => {
-                    log::debug!("MediaMessage::FocusUpdate");
-                    log::debug!("Set active speaker to {:?}", focus_update.focus);
-                    self.handle_focus_update(&focus_update)?;
-                }
-                MediaMessage::SpeakerUpdated(speaker_state) => {
-                    log::debug!("MediaMessage::SpeakerUpdated");
-                    self.handle_speaker_updated(&speaker_state).await?;
-                }
-                MediaMessage::Error(media_conn_err) => {
-                    log::debug!("MediaMessage::MediaConnectionError");
-                    log::warn!("Skipping media connection error: {media_conn_err:?}");
                 }
             },
             incoming::Message::RecordingService(msg) => match msg {
@@ -648,96 +522,12 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_speaker_updated(
-        &mut self,
-        speaker_state: &ParticipantSpeakingState,
-    ) -> Result<()> {
-        let participant = speaker_state.participant;
-        if speaker_state.speaker.is_speaking {
-            self.mixer
-                .set_speaker(participant)
-                .context("unable to set speaker for '{participant}'")?;
-        }
-
-        self.send_configuration().await?;
-
-        Ok(())
-    }
-
-    /// Send the configuration if the state changed. For example a participant
-    /// updates there media or if a new participant is not shown in the
-    /// recording.
-    async fn send_configuration(&mut self) -> Result<()> {
-        let visibles = self.mixer.get_visibles();
-
-        let configurations_to_add = self
-            .mixer
-            .get_visibles()
-            .into_iter()
-            .collect::<HashSet<_>>();
-        let configurations_to_remove = self
-            .configurations
-            .keys()
-            .filter(|key| !visibles.contains(key))
-            .copied()
-            .collect::<HashSet<_>>();
-
-        for descriptor in configurations_to_add {
-            let old_configuration = self.configurations.insert(descriptor, true);
-            if old_configuration.is_none() || old_configuration == Some(false) {
-                self.signaling
-                    .send_configuration(descriptor, true)
-                    .await
-                    .context("unable to send configuration")?;
-            }
-        }
-
-        for descriptor in configurations_to_remove {
-            let old_configuration = self.configurations.insert(descriptor, false);
-            if old_configuration.is_none() || old_configuration == Some(true) {
-                self.signaling
-                    .send_configuration(descriptor, false)
-                    .await
-                    .context("unable to send configuration")?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn handle_focus_update(&mut self, focus_update: &incoming::FocusUpdate) -> Result<()> {
-        if let Some(speaker) = focus_update.focus {
-            self.mixer
-                .set_speaker(speaker)
-                .context("unable to set speaker for '{speaker}'")?;
-        }
-
-        Ok(())
-    }
-
-    fn handle_sdp_candidate(&mut self, source: incoming::Source, candidate: &TrickleCandidate) {
-        let descriptor = source.into();
-        if let Some(source) = self.mixer.get_source(descriptor) {
-            source.receive_candidate(candidate.sdp_m_line_index as u32, &candidate.candidate);
-        }
-    }
-
-    async fn handle_sdp_offer(&mut self, source: incoming::Source, sdp: String) -> Result<()> {
-        let descriptor = source.into();
-        if let Some(source) = self.mixer.get_source(descriptor) {
-            let answer = source.receive_offer(sdp).await?;
-            self.signaling.send_answer(descriptor, answer).await?;
-            self.configurations.insert(descriptor, true);
-        }
-
-        Ok(())
-    }
-
     pub(crate) async fn handle_join_success(
         &mut self,
         streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
         event_title: String,
         participant_id: ParticipantId,
+        participants: Vec<Participant>,
     ) -> Result<()> {
         self.participant_id = Some(participant_id);
         self.streaming_targets = streaming_targets
@@ -748,9 +538,7 @@ impl RecordingSession {
                     match target {
                         RecorderStreamInfo::Recording(target) => RecorderStreamStatus {
                             state: target.stream_start_options.status.clone(),
-                            kind: RecorderStreamKind::Recording {
-                                file_name: TEMP_RECORDING_NAME.to_owned(),
-                            },
+                            kind: RecorderStreamKind::Recording,
                         },
                         RecorderStreamInfo::Streaming(target) => RecorderStreamStatus {
                             state: target.stream_start_options.status.clone(),
@@ -773,27 +561,6 @@ impl RecordingSession {
             return Ok(());
         }
 
-        let available_media_streams: Vec<(
-            ParticipantId,
-            String,
-            MediaSessionType,
-            MediaSessionState,
-        )> = self
-            .participants
-            .iter()
-            .flat_map(|(id, participant_state)| {
-                media_types().filter_map(|media_type| {
-                    participant_state.publishes(media_type).map(|media_state| {
-                        (
-                            *id,
-                            participant_state.display_name.clone(),
-                            media_type,
-                            media_state,
-                        )
-                    })
-                })
-            })
-            .collect();
         for (id, _status) in streaming_targets
             .iter()
             .filter(|(_id, state)| state.is_start_requested())
@@ -810,16 +577,26 @@ impl RecordingSession {
                 .await
                 .context("unable to send stream update")?;
         }
-        for (id, display_name, media_type, media_state) in available_media_streams {
-            log::debug!("JoinSuccess: subscribe stream of {id} {media_type}");
-            let descriptor = MediaDescriptor {
-                participant_id: id,
-                media_type,
-            };
-            self.subscribe(descriptor, display_name.as_str(), media_state)
-                .await?;
+
+        self.mixer.set_event_title(event_title).await;
+
+        for participant in participants {
+            let participant_state = self
+                .participants
+                .get(&participant.id)
+                .context("participant not found")?
+                .clone();
+
+            if participant_state.consents {
+                self.mixer
+                    .add_participant(
+                        ParticipantIdentity::from(participant.id.to_string()),
+                        participant_state.display_name,
+                    )
+                    .await;
+            }
         }
-        self.mixer.set_title(&event_title);
+
         Ok(())
     }
 
@@ -829,19 +606,14 @@ impl RecordingSession {
             .get(&id)
             .context("participant not found")?
             .clone();
-        let available_media_streams = media_types().filter_map(|media_type| {
-            participant_state
-                .publishes(media_type)
-                .map(|media_state| (media_type, media_state))
-        });
-        for (media_type, media_state) in available_media_streams {
-            log::debug!("Join: subscribe stream of {id} {media_type}");
-            let descriptor = MediaDescriptor {
-                participant_id: id,
-                media_type,
-            };
-            self.subscribe(descriptor, &participant_state.display_name, media_state)
-                .await?;
+
+        if participant_state.consents {
+            self.mixer
+                .add_participant(
+                    ParticipantIdentity::from(id.to_string()),
+                    participant_state.display_name,
+                )
+                .await;
         }
 
         Ok(())
@@ -853,63 +625,20 @@ impl RecordingSession {
             .get(&id)
             .context("participant not found")?
             .clone();
-        for media_type in media_types() {
-            let is_subscribed = self.mixer.contains_stream(MediaDescriptor {
-                participant_id: id,
-                media_type,
-            });
-            let media_state = participant_state.publishes(media_type);
 
-            if !is_subscribed {
-                if let Some(media_state) = media_state {
-                    log::debug!("Update: subscribe stream of {id} {media_type}");
-                    let descriptor = MediaDescriptor {
-                        participant_id: id,
-                        media_type,
-                    };
-                    self.subscribe(descriptor, &participant_state.display_name, media_state)
-                        .await?;
-                }
-            } else if media_state.is_none() {
-                log::debug!("Update: unsubscribe stream of {id} {media_type}");
-                self.mixer.remove_stream(MediaDescriptor {
-                    participant_id: id,
-                    media_type,
-                })?;
-            } else if let Some(media_state) = media_state {
-                log::debug!(
-                    "Update: update status of stream of {id} {media_type} to {media_state}"
-                );
-                self.mixer.set_status(
-                    MediaDescriptor {
-                        participant_id: id,
-                        media_type,
-                    },
-                    media_state,
-                )?;
-            } else {
-                log::trace!(
-                    "ignore update for {id}: media_state ({media_state:?}) == is_subscribed ({is_subscribed})"
-                );
-                return Ok(());
-            }
+        if participant_state.consents {
+            self.mixer
+                .add_participant(
+                    ParticipantIdentity::from(id.to_string()),
+                    participant_state.display_name,
+                )
+                .await;
         }
 
         Ok(())
     }
 
-    fn handle_participant_left(&mut self, id: ParticipantId) -> Result<()> {
-        for media_type in media_types() {
-            if self.mixer.contains_stream(MediaDescriptor {
-                participant_id: id,
-                media_type,
-            }) {
-                self.mixer.remove_stream(MediaDescriptor {
-                    participant_id: id,
-                    media_type,
-                })?;
-            }
-        }
+    async fn handle_participant_left(&mut self, id: ParticipantId) -> Result<()> {
         if self.participants.is_empty() {
             log::debug!("Last participant left the session. Stop recording.");
             self.done = true;
@@ -923,27 +652,10 @@ impl RecordingSession {
             self.participants.keys()
         );
 
-        Ok(())
-    }
+        self.mixer
+            .remove_participant(&ParticipantIdentity::from(id.to_string()))
+            .await;
 
-    pub(crate) fn handle_end_of_candidates(&mut self, descriptor: MediaDescriptor) -> Result<()> {
-        let participant_state = self
-            .participants
-            .get(&descriptor.participant_id)
-            .context("participant not found")?;
-        if participant_state.publishes(descriptor.media_type).is_none() {
-            bail!(
-                "EndOfCandidates message for {:?} with no media stream",
-                descriptor
-            );
-        }
-        let Some(source) = self.mixer.get_source(descriptor) else {
-            bail!(
-                "EndOfCandidates message for {:?} with no connection setup",
-                descriptor
-            );
-        };
-        source.receive_end_of_candidates(0);
         Ok(())
     }
 
@@ -994,33 +706,12 @@ impl RecordingSession {
 
         Ok(())
     }
-
-    /// Handle SDP candidates generated by us
-    async fn handle_candidate(
-        &mut self,
-        descriptor: MediaDescriptor,
-        mline: u32,
-        candidate: Option<String>,
-    ) -> Result<()> {
-        if let Some(candidate) = candidate {
-            self.signaling
-                .send_candidate(
-                    descriptor,
-                    TrickleCandidate {
-                        candidate: candidate.clone(),
-                        sdp_m_line_index: u64::from(mline),
-                    },
-                )
-                .await
-        } else {
-            self.signaling.send_end_of_candidates(descriptor).await
-        }
-    }
 }
 
 impl Drop for RecordingSession {
     fn drop(&mut self) {
-        log::debug!("drop RecordingSession");
+        log::debug!("Drop RecordingSession");
+
         tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async move {
                 let join_handles = mem::take(&mut self.join_handles);
@@ -1032,16 +723,8 @@ impl Drop for RecordingSession {
                 }
             });
         });
+        log::debug!("Drop RecordingSession is finished");
     }
-}
-
-fn stream_params(
-    id: MediaDescriptor,
-    sender: mpsc::Sender<(MediaDescriptor, u32, Option<String>)>,
-) -> WebRtcSourceParams {
-    WebRtcSourceParams::new(true).on_ice_candidate(move |mline, candidate| {
-        let _ = sender.blocking_send((id, mline, candidate));
-    })
 }
 
 pin_project_lite::pin_project! {
@@ -1068,9 +751,4 @@ impl Stream for FileReadStream {
 
         Poll::Ready(Some(Ok(Bytes::copy_from_slice(buffer))))
     }
-}
-
-#[must_use]
-fn media_types() -> impl DoubleEndedIterator<Item = MediaSessionType> {
-    [MediaSessionType::Screen, MediaSessionType::Video].into_iter()
 }
