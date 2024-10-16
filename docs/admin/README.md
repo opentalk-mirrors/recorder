@@ -7,6 +7,7 @@ title: Recorder
 ## General information about the service
 
 - [Configuration](./configuration/README.md)
+- [Hardware Acceleration](./hardware_acceleration.md)
 
 ### Environment
 
