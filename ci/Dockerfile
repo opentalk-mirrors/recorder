@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-FROM git.opentalk.dev:5050/k.baltruschat/gstreamer:1.24-intel AS builder
+FROM git.opentalk.dev:5050/opentalk/backend/containers/gstreamer:1.24-intel AS builder
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates rustup build-essential pkg-config libglib2.0-dev \
@@ -19,7 +19,7 @@ COPY src src
 
 RUN cargo build --release
 
-FROM git.opentalk.dev:5050/k.baltruschat/gstreamer:1.24-intel
+FROM git.opentalk.dev:5050/opentalk/backend/containers/gstreamer:1.24-intel
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libssl3 libcrypto++ \
