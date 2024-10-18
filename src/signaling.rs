@@ -5,8 +5,8 @@
 use core::fmt::Debug;
 use std::collections::{BTreeMap, HashMap};
 
-use anyhow::{bail, Context, Result};
-use futures::{SinkExt, StreamExt};
+use anyhow::{Context, Result};
+use futures::{SinkExt, TryStreamExt};
 use reqwest::header::SEC_WEBSOCKET_PROTOCOL;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
@@ -157,13 +157,12 @@ impl Signaling {
     }
 
     pub(crate) async fn recv_new_signal(&mut self) -> Result<Option<incoming::Message>> {
-        let msg = self.connection.next().await;
+        let msg = self.connection.try_next().await?;
 
         let Some(msg) = msg else {
-            bail!("Failed to receive websocket message");
+            log::debug!("Signaling websocket closed");
+            return Ok(None);
         };
-
-        let msg = msg.context("Failed to receive websocket message")?;
 
         self.handle_websocket_message(msg).await
     }
