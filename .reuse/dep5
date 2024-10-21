@@ -4,6 +4,7 @@ Upstream-Name: OpenTalk Controller
 Upstream-Contact: OpenTalk GmbH <mail@opentalk.eu>
 
 Files:
+ .commitlintrc.json
  .gitlab/issue_templates/*.md
  CHANGELOG.md
  Cargo.lock
