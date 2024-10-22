@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.1
+
+### 🐛 Bug fixes
+
+- Update base image ([!265](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/265))
+- handle `None` websockets as `EOS` ([!273](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/273))
+
+## 0.7.0
+
+### 🚀 New features
+
+- Publish the compositor on crates.io ([#114](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/114), [!239](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/239))
+
+### 🐛 Bug fixes
+
+- (release) Exclude images directory when publishing to crates.io ([!241](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/241))
+- Add configurations for descriptor ([#113](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/113), [!190](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/190))
+
+### 🔨 Refactor
+
+- All the events in the main recorder ([#113](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/113), [!190](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/190))
+- Signaling connection receive into separate func ([#113](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/113), [!190](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/190))
+- Move participants list from signaling to recording session ([#113](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/113), [!190](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/190))
+- Use self-built ubuntu based gstreamer image ([#129](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/129), [#159](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/159), [!255](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/255))
+
+### 📦 Dependencies
+
+- (deps) Lock file maintenance ([!238](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/238))
+- (deps) Lock file maintenance ([!245](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/245))
+- (deps) Update rust crate types to 0.20.0 ([!236](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/236))
+- (deps) Lock file maintenance ([!250](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/250))
+- (deps) Update rust crate sysinfo to 0.32 ([!249](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/249))
+- (deps) Update opentalk-types crate to 0.21 ([!256](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/256))
+
+### ⚙ Miscellaneous
+
+- (release) Add a `justfile` with a `create-release` target for release automation ([!251](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/251))
+
 ## 0.6.1
 
 ### 🚀 New features
