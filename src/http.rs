@@ -24,7 +24,7 @@ use types_common::time::Timestamp;
 
 use crate::settings::{AuthSettings, ControllerSettings};
 
-const S3_MINIMUM_STORAGE_SIZE: usize = 5_000_000;
+const S3_MINIMUM_STORAGE_SIZE: usize = 5 * 1024 * 1024;
 
 // TODO: Replace with version from opentalk-types
 #[derive(Clone)]
