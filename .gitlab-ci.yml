@@ -118,7 +118,8 @@ lint:commit:
   cache: {}
   image: node:lts-alpine
   stage: lint
-  <<: *default_job_condition
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   variables:
     GIT_DEPTH: 250
   before_script:
