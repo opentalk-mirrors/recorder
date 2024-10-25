@@ -233,6 +233,7 @@ impl RecordingSession {
         };
 
         let mixer_parameters = MixerParameters {
+            auto_subscribe: false,
             video_support: true,
             clock_format: service_context
                 .settings
@@ -250,7 +251,7 @@ impl RecordingSession {
 
         if recorder_settings.display {
             let system_sink = SystemSink::create(true).context("DisplaySink could not created")?;
-            mixer.link_sink("Display", system_sink).await?;
+            mixer.link_gstreamer_sink("Display", system_sink).await?;
         }
 
         Ok(Self {
@@ -338,7 +339,7 @@ impl RecordingSession {
         self.join_handles.lock().await.push(handle);
 
         self.mixer
-            .link_sink("recording", webm_sink)
+            .link_gstreamer_sink("recording", webm_sink)
             .await
             .context("unable to link recording sink to compositor")?;
 
@@ -440,7 +441,7 @@ impl RecordingSession {
         encoder_type: EncoderType,
     ) -> Result<()> {
         self.mixer
-            .link_sink(
+            .link_gstreamer_sink(
                 name,
                 RTMPSink::create(RTMPParameters {
                     location,
