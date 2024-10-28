@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
+[monitoring]
+port = 11411
+
 [auth]
 # Note:
 # The Recorder client must be a service account

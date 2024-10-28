@@ -14,6 +14,7 @@ use serde::{Deserialize, Deserializer};
 pub(crate) struct Settings {
     pub(crate) auth: AuthSettings,
     pub(crate) controller: ControllerSettings,
+    pub(crate) monitoring: Option<MonitoringSettings>,
     pub(crate) rabbitmq: RabbitMqSettings,
     pub(crate) recorder: Option<RecorderSettings>,
 }
@@ -69,6 +70,24 @@ impl ControllerSettings {
 
         format!("{scheme}://{}/v1", self.domain)
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct MonitoringSettings {
+    #[serde(default = "default_http_port")]
+    pub(crate) port: u16,
+}
+
+impl Default for MonitoringSettings {
+    fn default() -> Self {
+        Self {
+            port: default_http_port(),
+        }
+    }
+}
+
+fn default_http_port() -> u16 {
+    11411
 }
 
 #[derive(Debug, Deserialize)]

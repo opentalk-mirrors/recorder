@@ -85,12 +85,12 @@ impl Clone for Recorder {
 impl Recorder {
     /// This constructor is used by the integration tests to mock data.
     pub(crate) fn new(
-        settings: Settings,
+        settings: Arc<Settings>,
         http_client: HttpClient,
         shutdown: broadcast::Receiver<()>,
     ) -> Self {
         Self {
-            settings: Arc::new(settings),
+            settings,
             http_client: Arc::new(http_client),
             shutdown,
         }
