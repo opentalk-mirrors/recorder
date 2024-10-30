@@ -14,16 +14,16 @@ use tt::{
     tungstenite::{client::IntoClientRequest, Message},
     MaybeTlsStream, WebSocketStream,
 };
-use types::signaling::{
-    media::{peer_state::MediaPeerState, MediaSessionType},
-    recording::{
-        peer_state::RecordingPeerState, state::RecorderStreamInfo, StreamStatus, StreamUpdated,
-    },
-    recording_service::{event::RecordingServiceEvent, state::RecordingServiceState},
-};
+use types::signaling::media::{peer_state::MediaPeerState, MediaSessionType};
 use types_common::streaming::StreamingTargetId;
 use types_control::{self, event::JoinSuccess, state::ControlState};
 use types_signaling::{AssociatedParticipant, Participant, ParticipantId};
+use types_signaling_livekit::state::LiveKitState;
+use types_signaling_recording::{peer_state::RecordingPeerState, StreamStatus, StreamUpdated};
+use types_signaling_recording_service::{
+    event::RecordingServiceEvent,
+    state::{RecorderStreamInfo, RecordingServiceState},
+};
 
 use crate::{http::HttpClient, settings::ControllerSettings};
 
@@ -189,7 +189,7 @@ impl Signaling {
     }
 }
 
-pub(crate) fn handle_join_success(
+pub(crate) fn join_success_streams(
     state: &JoinSuccess,
 ) -> Result<BTreeMap<StreamingTargetId, RecorderStreamInfo>> {
     let recording_service_state = state
@@ -199,6 +199,14 @@ pub(crate) fn handle_join_success(
     let streaming_targets = recording_service_state.streams;
 
     Ok(streaming_targets)
+}
+
+pub(crate) fn join_success_livekit(state: &JoinSuccess) -> Result<LiveKitState> {
+    let livekit_state = state
+        .get_module::<LiveKitState>()?
+        .context("No LiveKit state has been found")?;
+
+    Ok(livekit_state)
 }
 
 pub(crate) fn handle_joined(
@@ -272,8 +280,8 @@ struct Payload<'s, T> {
 pub(crate) mod incoming {
 
     use serde::{Deserialize, Serialize};
-    use types::signaling::recording_service::command::RecordingServiceCommand;
     use types_control::event::ControlEvent;
+    use types_signaling_recording_service::command::RecordingServiceCommand;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]
@@ -285,7 +293,7 @@ pub(crate) mod incoming {
 
 pub(crate) mod outgoing {
     use serde::{Deserialize, Serialize};
-    use types::signaling::recording_service::event::RecordingServiceEvent;
+    use types_signaling_recording_service::event::RecordingServiceEvent;
 
     #[derive(Debug, Serialize, Deserialize)]
     #[serde(tag = "namespace", content = "payload", rename_all = "snake_case")]

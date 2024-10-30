@@ -15,7 +15,6 @@ pub(crate) struct Settings {
     pub(crate) auth: AuthSettings,
     pub(crate) controller: ControllerSettings,
     pub(crate) rabbitmq: RabbitMqSettings,
-    pub(crate) livekit: LiveKitSettings,
     pub(crate) recorder: Option<RecorderSettings>,
 }
 
@@ -87,13 +86,6 @@ where
 {
     let s = String::deserialize(deserializer)?;
     FromStr::from_str(&s).map_err(serde::de::Error::custom)
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct LiveKitSettings {
-    pub(crate) url: String,
-    pub(crate) api_key: String,
-    pub(crate) api_secret: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
