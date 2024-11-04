@@ -298,6 +298,7 @@ impl RecordingSession {
                 result = mixer_run(self.mixer.as_mut()) => {
                     if let Err(err) = result {
                         log::error!("Running the mixer caused an error: {err:?}");
+                        break;
                     }
                 }
             }
