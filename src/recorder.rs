@@ -27,16 +27,15 @@ use tokio::{
     sync::{broadcast, Mutex},
     task::JoinHandle,
 };
-use types::signaling::{
-    recording::{
-        state::{RecorderStreamInfo, StreamingTarget},
-        StreamErrorReason, StreamStatus,
-    },
-    recording_service::command::RecordingServiceCommand,
-};
 use types_common::streaming::StreamingTargetId;
 use types_control::event::{ControlEvent, Left};
 use types_signaling::{Participant, ParticipantId};
+use types_signaling_livekit::{state::LiveKitState, Credentials};
+use types_signaling_recording::{StreamErrorReason, StreamStatus};
+use types_signaling_recording_service::{
+    command::RecordingServiceCommand,
+    state::{RecorderStreamInfo, StreamingTarget},
+};
 
 use crate::{
     http::{FileExtension, HttpClient},
@@ -123,6 +122,27 @@ impl Recorder {
 }
 
 #[derive(Debug)]
+pub(crate) struct InitialData {
+    pub streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
+
+    pub livekit_data: Credentials,
+}
+
+impl Default for InitialData {
+    fn default() -> Self {
+        Self {
+            streaming_targets: BTreeMap::new(),
+            livekit_data: Credentials {
+                room: String::new(),
+                token: String::new(),
+                public_url: String::new(),
+                service_url: None,
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct RecordingSession {
     service_context: Arc<Recorder>,
 
@@ -134,9 +154,9 @@ pub(crate) struct RecordingSession {
     room_id: String,
     participant_id: Option<ParticipantId>,
 
-    mixer: Mixer,
+    mixer: Option<Mixer>,
 
-    streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
+    initial_data: InitialData,
 
     done: bool,
 
@@ -159,6 +179,9 @@ pub(crate) enum RecordingSessionError {
 
     #[error("Start recording failed, reason: {0}")]
     StartRecording(anyhow::Error),
+
+    #[error("Mixer does not exist")]
+    MixerError,
 }
 
 impl From<RecordingSessionError> for StreamErrorReason {
@@ -172,6 +195,7 @@ impl From<RecordingSessionError> for StreamErrorReason {
             RecordingSessionError::StartLivestream(_) => "start_livestream".to_owned(),
 
             RecordingSessionError::StartRecording(_) => "start_recording".to_owned(),
+            RecordingSessionError::MixerError => "internal_error".to_owned(),
         };
 
         Self {
@@ -190,8 +214,8 @@ impl RecordingSession {
         signaling: Signaling,
         participants: HashMap<ParticipantId, ParticipantState>,
         room_id: String,
-        mixer: Mixer,
-        streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
+        mixer: Option<Mixer>,
+        initial_data: InitialData,
         done: bool,
     ) -> Self {
         Self {
@@ -201,7 +225,7 @@ impl RecordingSession {
             room_id,
             participant_id: None,
             mixer,
-            streaming_targets,
+            initial_data,
             done,
             join_handles: Arc::default(),
         }
@@ -220,54 +244,34 @@ impl RecordingSession {
         .await
         .context("Failed to connect to signaling")?;
 
-        let recorder_settings = service_context
-            .settings
-            .recorder
-            .clone()
-            .unwrap_or_default();
-
         let livekit_room = if let Some(breakout) = command.breakout {
             format!("{}:{breakout}", command.room)
         } else {
             command.room.clone()
         };
 
-        let mixer_parameters = MixerParameters {
-            auto_subscribe: false,
-            video_support: true,
-            clock_format: service_context
-                .settings
-                .recorder
-                .clone()
-                .map(|recorder_settings| recorder_settings.clock_format)
-                .unwrap_or_default(),
-            livekit_url: service_context.settings.livekit.url.clone(),
-            livekit_api_key: service_context.settings.livekit.api_key.clone(),
-            livekit_api_secret: service_context.settings.livekit.api_secret.clone(),
-            livekit_room,
-        };
-
-        let mut mixer = Mixer::new(mixer_parameters).await?;
-
-        if recorder_settings.display {
-            let system_sink = SystemSink::create(true).context("DisplaySink could not created")?;
-            mixer.link_gstreamer_sink("Display", system_sink).await?;
-        }
-
         Ok(Self {
             service_context,
             signaling,
             participants: HashMap::new(),
-            room_id: command.room,
+            room_id: livekit_room,
             participant_id: None,
-            mixer,
-            streaming_targets: BTreeMap::new(),
+            mixer: None,
+            initial_data: InitialData::default(),
             done: false,
             join_handles: Arc::default(),
         })
     }
 
     pub(crate) async fn run(&mut self) -> Result<()> {
+        async fn mixer_run(mixer: Option<&mut Mixer>) -> Result<()> {
+            let Some(mixer) = mixer else {
+                std::future::pending().await
+            };
+
+            mixer.run().await
+        }
+
         let mut shutdown_rx = self.service_context.shutdown.resubscribe();
 
         while !self.done {
@@ -291,7 +295,7 @@ impl RecordingSession {
                     self.done = true;
                     break;
                 }
-                result = self.mixer.run() => {
+                result = mixer_run(self.mixer.as_mut()) => {
                     if let Err(err) = result {
                         log::error!("Running the mixer caused an error: {err:?}");
                     }
@@ -302,7 +306,7 @@ impl RecordingSession {
         // The streaming targets are per session
         // therefore making sure we're in the right context isn't necessary here.
         log::debug!("Recorder is done, attempting to upload remaining streams...");
-        let cloned_stream = self.streaming_targets.clone();
+        let cloned_stream = self.initial_data.streaming_targets.clone();
         for (stream_target_id, _) in cloned_stream
             .iter()
             .filter(|(_, status)| RecorderStreamStatus::stream_running(status))
@@ -339,6 +343,8 @@ impl RecordingSession {
         self.join_handles.lock().await.push(handle);
 
         self.mixer
+            .as_mut()
+            .context("Mixer does not exist")?
             .link_gstreamer_sink("recording", webm_sink)
             .await
             .context("unable to link recording sink to compositor")?;
@@ -351,7 +357,7 @@ impl RecordingSession {
         id: StreamingTargetId,
     ) -> Result<StreamStatus, RecordingSessionError> {
         log::trace!("start_stream, id: {id:?}");
-        let Some(mut stream) = self.streaming_targets.get_mut(&id).cloned() else {
+        let Some(mut stream) = self.initial_data.streaming_targets.get_mut(&id).cloned() else {
             return Err(RecordingSessionError::NotFound(id));
         };
         if stream.state == StreamStatus::Active {
@@ -397,7 +403,9 @@ impl RecordingSession {
             },
         };
 
-        self.streaming_targets.insert(id, stream.clone());
+        self.initial_data
+            .streaming_targets
+            .insert(id, stream.clone());
 
         Ok(stream.state.clone())
     }
@@ -407,7 +415,7 @@ impl RecordingSession {
         id: StreamingTargetId,
     ) -> Result<StreamStatus, RecordingSessionError> {
         log::trace!("stop_stream, id: {id:?}");
-        let Some(stream) = self.streaming_targets.get_mut(&id) else {
+        let Some(stream) = self.initial_data.streaming_targets.get_mut(&id) else {
             return Err(RecordingSessionError::NotFound(id));
         };
         if stream.state != StreamStatus::Active && stream.state != StreamStatus::Paused {
@@ -415,12 +423,20 @@ impl RecordingSession {
         }
         let new_state: Result<(), StreamErrorReason> = match stream.kind {
             RecorderStreamKind::Recording => {
-                self.mixer.release_sink(&"recording".to_owned()).await;
+                self.mixer
+                    .as_mut()
+                    .ok_or(RecordingSessionError::MixerError)?
+                    .release_sink(&"recording".to_owned())
+                    .await;
 
                 Ok(())
             }
             RecorderStreamKind::Streaming { target: _ } => {
-                self.mixer.release_sink(&format!("Livestream-{id}")).await;
+                self.mixer
+                    .as_mut()
+                    .ok_or(RecordingSessionError::MixerError)?
+                    .release_sink(&format!("Livestream-{id}"))
+                    .await;
 
                 Ok(())
             }
@@ -441,6 +457,8 @@ impl RecordingSession {
         encoder_type: EncoderType,
     ) -> Result<()> {
         self.mixer
+            .as_mut()
+            .context("mixer does not exist")?
             .link_gstreamer_sink(
                 name,
                 RTMPSink::create(RTMPParameters {
@@ -468,10 +486,12 @@ impl RecordingSession {
                     };
                     self.participants = participants;
 
-                    let Ok(streams) = signaling::handle_join_success(&state) else {
+                    let Ok(streams) = signaling::join_success_streams(&state) else {
                         log::info!("No Streaming targets in ControlEvent::JoinSuccess found.");
                         return Ok(());
                     };
+
+                    let livekit_state = signaling::join_success_livekit(&state);
 
                     let Some(event) = state.event_info else {
                         log::info!("No Event info found in ControlEvent::JoinSuccess.");
@@ -479,6 +499,7 @@ impl RecordingSession {
                     };
 
                     self.handle_join_success(
+                        livekit_state.ok(),
                         streams,
                         event.title.to_string(),
                         state.id,
@@ -523,15 +544,17 @@ impl RecordingSession {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) async fn handle_join_success(
         &mut self,
+        livekit_state: Option<LiveKitState>,
         streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
         event_title: String,
         participant_id: ParticipantId,
         participants: Vec<Participant>,
     ) -> Result<()> {
         self.participant_id = Some(participant_id);
-        self.streaming_targets = streaming_targets
+        self.initial_data.streaming_targets = streaming_targets
             .iter()
             .map(|(id, target)| {
                 (
@@ -552,7 +575,47 @@ impl RecordingSession {
             })
             .collect();
 
+        if let Some(livekit_data) = livekit_state {
+            self.initial_data.livekit_data = livekit_data.credentials;
+        }
+
+        let recorder_settings = self
+            .service_context
+            .settings
+            .recorder
+            .clone()
+            .unwrap_or_default();
+
+        let mixer_params = MixerParameters {
+            auto_subscribe: false,
+            clock_format: recorder_settings.clock_format,
+            livekit_url: self
+                .initial_data
+                .livekit_data
+                .service_url
+                .as_mut()
+                .context("service url does not exist")?
+                .clone(),
+            livekit_token: self.initial_data.livekit_data.token.clone(),
+        };
+
+        self.mixer = Some(
+            Mixer::new(mixer_params)
+                .await
+                .context("Mixer could not be created")?,
+        );
+
+        if recorder_settings.display {
+            let system_sink = SystemSink::create().context("DisplaySink could not created")?;
+            self.mixer
+                .as_mut()
+                .context("mixer does not exist")?
+                .link_gstreamer_sink("Display", system_sink)
+                .await?;
+        }
+
         if self
+            .initial_data
             .streaming_targets
             .iter()
             .all(|(_, rec_info)| rec_info.state == StreamStatus::Inactive)
@@ -579,7 +642,11 @@ impl RecordingSession {
                 .context("unable to send stream update")?;
         }
 
-        self.mixer.set_event_title(event_title).await;
+        self.mixer
+            .as_mut()
+            .context("mixer does not exist")?
+            .set_event_title(event_title)
+            .await;
 
         for participant in participants {
             let participant_state = self
@@ -590,6 +657,8 @@ impl RecordingSession {
 
             if participant_state.consents {
                 self.mixer
+                    .as_mut()
+                    .context("mixer does not exist")?
                     .add_participant(
                         ParticipantIdentity::from(participant.id.to_string()),
                         participant_state.display_name,
@@ -610,6 +679,8 @@ impl RecordingSession {
 
         if participant_state.consents {
             self.mixer
+                .as_mut()
+                .context("mixer does not exist")?
                 .add_participant(
                     ParticipantIdentity::from(id.to_string()),
                     participant_state.display_name,
@@ -629,6 +700,8 @@ impl RecordingSession {
 
         if participant_state.consents {
             self.mixer
+                .as_mut()
+                .context("mixer does not exist")?
                 .add_participant(
                     ParticipantIdentity::from(id.to_string()),
                     participant_state.display_name,
@@ -654,6 +727,8 @@ impl RecordingSession {
         );
 
         self.mixer
+            .as_mut()
+            .context("mixer does not exist")?
             .remove_participant(&ParticipantIdentity::from(id.to_string()))
             .await;
 
@@ -697,6 +772,7 @@ impl RecordingSession {
         }
 
         if !self
+            .initial_data
             .streaming_targets
             .iter()
             .any(|(_id, status)| status.stream_running())
