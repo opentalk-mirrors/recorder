@@ -18,14 +18,6 @@ insecure = true
 uri = "amqp://username:password@localhost/%2F"
 queue = "recorder"
 
-[livekit]
-# The `url` of the livekit server.
-url = "ws://localhost:7880"
-# The `api key` from the livekit server.
-api_key = "devkey"
-# The `api secret` from the livekit server.
-api_secret = "secret"
-
 [recorder]
 # Shows a display sink, for debug purpose
 display = true
