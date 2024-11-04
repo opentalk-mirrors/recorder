@@ -2236,10 +2236,11 @@ checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 
 [[package]]
 name = "livekit"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "947c23b7721f7086f4d471adcf4c88869c277d90dcf480ab55b5b491bf6478e6"
+checksum = "36ec17897d62c38721a67b0f5e1e91aebd5da5b96751e989f4762853a366ad34"
 dependencies = [
+ "chrono",
  "futures-util",
  "lazy_static",
  "libwebrtc",
@@ -2249,6 +2250,7 @@ dependencies = [
  "log",
  "parking_lot",
  "prost",
+ "semver",
  "serde",
  "serde_json",
  "thiserror",
@@ -2257,9 +2259,9 @@ dependencies = [
 
 [[package]]
 name = "livekit-api"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3bac65512605856963cc12243cd1be80e02941f5f9b11a7b53846dd37a65617"
+checksum = "bccba8f66e9eeef0edd98470bee3212ca4f4468793f18264995feb1ce4ab45dc"
 dependencies = [
  "base64 0.21.7",
  "futures-util",
@@ -2283,9 +2285,9 @@ dependencies = [
 
 [[package]]
 name = "livekit-protocol"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d05c1253e9781eea3e31d39eea3412e5ca74999204133b4f0f2d992ce4012e38"
+checksum = "6a3554533d83fb849cb140641edcbf48628980ef816f50002202368fe908fb85"
 dependencies = [
  "futures-util",
  "livekit-runtime",
@@ -2301,9 +2303,9 @@ dependencies = [
 
 [[package]]
 name = "livekit-runtime"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a83b0056f661ab04b7f3279135ea3b038bb3531f05897671b874b32022cfb272"
+checksum = "6ae53eb874eb86e96e8ccffc31b5a00926d46174cbcb1c24ce4e57b1fcc5c8f6"
 dependencies = [
  "tokio",
  "tokio-stream",
@@ -2590,9 +2592,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "opentalk-compositor"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9a700a9bc0d5fc4fc5ad6d5ffde08672231f6e1cb71b35069460af8e802e2f5"
+checksum = "9c6af99a92d972bf6d9ae1829ca790db37191652fe903088d8017e74289d5443"
 dependencies = [
  "ab_glyph",
  "anyhow",
