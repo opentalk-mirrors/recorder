@@ -189,6 +189,8 @@ skip = [
   { name = "rustls", version = "=0.21.12" },
   { name = "socket2", version = "=0.4" },
   { name = "syn", version = "=2" },
+  { name = "thiserror", version = "1" },
+  { name = "thiserror-impl", version = "1" },
   { name = "webpki-roots", version = "=0.25.4" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
