@@ -4,18 +4,27 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-use std::process::{Command, Stdio};
+use std::{
+    convert::Infallible,
+    net::SocketAddr,
+    process::{Command, Stdio},
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Context, Result};
 use futures::{future::join_all, StreamExt};
 use gst::glib;
 use http::HttpClient;
+use http_body_util::Full;
+use hyper::{body::Bytes, server::conn::http1, service::service_fn, Response};
+use hyper_util::rt::TokioIo;
 use log::warn;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, Settings};
 use system_info::{
     cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll, is_new_recording_feasible,
 };
 use tokio::{
+    net::TcpListener,
     select,
     signal::{
         ctrl_c,
@@ -37,6 +46,23 @@ use crate::recorder::Recorder;
 
 const RECONNECT_INTERVAL: Duration = Duration::from_millis(3_000); //ms
 const DOT_OUTPUT_PATH: &str = "./pipelines";
+
+static RECORDER_STATE: Mutex<RecorderState> = Mutex::new(RecorderState::Up);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RecorderState {
+    Up,
+    Ready,
+}
+
+impl From<RecorderState> for Bytes {
+    fn from(value: RecorderState) -> Self {
+        match value {
+            RecorderState::Up => Bytes::from("UP"),
+            RecorderState::Ready => Bytes::from("READY"),
+        }
+    }
+}
 
 fn check_plugins() -> Result<()> {
     let registry = gst::Registry::get();
@@ -219,13 +245,15 @@ fn main_loop() -> Result<()> {
 }
 
 async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
-    let settings = Settings::load("config.toml").context("Failed to read config")?;
+    let settings = Arc::new(Settings::load("config.toml").context("Failed to read config")?);
 
     let http_client = HttpClient::discover(&settings.auth)
         .await
         .context("OIDC discovery failed")?;
-    let recorder_context = Recorder::new(settings, http_client, shutdown_rx.resubscribe());
+    let recorder_context = Recorder::new(settings.clone(), http_client, shutdown_rx.resubscribe());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
+
+    tokio::spawn(run_health_check_server(settings));
 
     select! {
         _ = shutdown_rx.recv() => {
@@ -292,6 +320,7 @@ async fn run_rabbitmq_session(
 ) -> Result<()> {
     let rabbitmq_settings = &recorder_context.settings.rabbitmq;
     let channel = rmq::open_rabbitmq_connection(rabbitmq_settings).await?;
+    *RECORDER_STATE.lock().unwrap() = RecorderState::Ready;
 
     match rmq::create_rmq_queue_and_consume(channel, rabbitmq_settings).await {
         Ok(mut consumer) => {
@@ -338,4 +367,27 @@ async fn run_rabbitmq_session(
         }
     }
     Ok::<(), anyhow::Error>(())
+}
+
+async fn run_health_check_server(settings: Arc<Settings>) -> Result<()> {
+    let port = settings.monitoring.clone().unwrap_or_default().port;
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+
+    let listener = TcpListener::bind(addr).await?;
+    log::info!("Monitoring-Server listening on http://{}", addr);
+
+    let (tcp, _) = listener.accept().await?;
+    let io = TokioIo::new(tcp);
+
+    let service = service_fn(|_req| async {
+        Ok::<_, Infallible>(Response::new(Full::new(Into::<Bytes>::into(
+            *RECORDER_STATE.lock().unwrap(),
+        ))))
+    });
+
+    if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
+        log::error!("Error serving connection for health check: {:?}", err);
+    }
+
+    Ok(())
 }

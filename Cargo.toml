@@ -20,6 +20,9 @@ config = { version = "0.14", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
+http-body-util = "0.1"
+hyper = { version = "1.5", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 lapin = { version = "2.3", default-features = false, features = ["rustls-webpki-roots-certs"] }
 log = "0.4"
 openidconnect = "3"
