@@ -10,6 +10,9 @@ use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
 
+const S3_MINIMUM_CHUNK_SIZE: usize = 5 * 1024 * 1024;
+const S3_MAXIMUM_CHUNK_SIZE: usize = S3_MINIMUM_CHUNK_SIZE * 1024;
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct Settings {
     pub(crate) auth: AuthSettings,
@@ -54,6 +57,26 @@ pub(crate) struct ControllerSettings {
     pub(crate) domain: String,
     #[serde(default)]
     pub(crate) insecure: bool,
+    #[serde(deserialize_with = "clamp_chunk_size", default = "default_chunk_size")]
+    pub(crate) upload_chunk_size: usize,
+}
+
+fn default_chunk_size() -> usize {
+    S3_MINIMUM_CHUNK_SIZE
+}
+
+fn clamp_chunk_size<'de, D>(deserializer: D) -> Result<usize, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = usize::deserialize(deserializer)?;
+    let clamped = value.clamp(S3_MINIMUM_CHUNK_SIZE, S3_MAXIMUM_CHUNK_SIZE);
+
+    if value != clamped {
+        log::warn!("Chunk size is {value}, expected chunk size to be inbetween {S3_MINIMUM_CHUNK_SIZE} and {S3_MAXIMUM_CHUNK_SIZE}");
+    }
+
+    Ok(clamped)
 }
 
 impl ControllerSettings {
