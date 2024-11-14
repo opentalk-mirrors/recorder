@@ -14,7 +14,6 @@ use tt::{
     tungstenite::{client::IntoClientRequest, Message},
     MaybeTlsStream, WebSocketStream,
 };
-use types::signaling::media::{peer_state::MediaPeerState, MediaSessionType};
 use types_common::streaming::StreamingTargetId;
 use types_control::{self, event::JoinSuccess, state::ControlState};
 use types_signaling::{AssociatedParticipant, Participant, ParticipantId};
@@ -50,11 +49,6 @@ pub(crate) struct ParticipantState {
 
 impl ParticipantState {
     pub(crate) fn from_incoming(p: &Participant) -> Result<Self> {
-        let media: MediaPeerState = p
-            .get_module::<MediaPeerState>()
-            .ok()
-            .flatten()
-            .unwrap_or_default();
         let recording: RecordingPeerState = p
             .get_module::<RecordingPeerState>()
             .ok()
@@ -63,14 +57,6 @@ impl ParticipantState {
         let control: ControlState = p
             .get_module::<ControlState>()?
             .context("participant is missing control state")?;
-        let mut publishing = HashMap::new();
-        if let Some(camera) = media.state.video {
-            publishing.insert(MediaSessionType::Video, camera);
-        }
-
-        if let Some(screen) = media.state.screen {
-            publishing.insert(MediaSessionType::Screen, screen);
-        }
 
         Ok(Self {
             display_name: control.display_name,
