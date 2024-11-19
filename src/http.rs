@@ -24,8 +24,6 @@ use types_common::time::Timestamp;
 
 use crate::settings::{AuthSettings, ControllerSettings};
 
-const S3_MINIMUM_STORAGE_SIZE: usize = 5 * 1024 * 1024;
-
 // TODO: Replace with version from opentalk-types
 #[derive(Clone)]
 pub(crate) struct FileExtension(String);
@@ -232,7 +230,7 @@ impl HttpClient {
                     // Only the latest data should be the smallest chunk in
                     // S3, this helps so send the fanilized first chunk and afterwards send the small
                     // chunk.
-                    if bytes.len() < S3_MINIMUM_STORAGE_SIZE{
+                    if bytes.len() < settings.upload_chunk_size {
                         latest_data = bytes;
                     } else {
                         tx.send(tt::tungstenite::Message::Binary(bytes))
