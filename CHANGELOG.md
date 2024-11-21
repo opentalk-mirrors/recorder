@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.1
+
+### 🐛 Bug fixes
+
+- Close the livekit session after recording has finished ([!307](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/307), [#179](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/179))
+
+## 0.10.0
+
+### 🚀 New features
+
+- Use new compositor ([!246](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/246), [#139](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/139), [#103](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/103), [#146](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/146), [#152](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/152), [#132](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/132))
+- Receive livekit configuration from controller ([!297](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/297))
+
+### 🐛 Bug fixes
+
+- Handle None websockets as EOS ([!264](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/264))
+- Disable container build for release branches ([!261](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/261), [#163](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/163))
+- Update base image to add back missing RTMP GStreamer elements, which are required for streaming ([!265](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/265))
+- Upload can fail if the chunks are too small ([!281](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/281), [#169](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/169))
+- Fix wrong and obsolte documentation (sinks and display) ([!279](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/279), [#168](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/168))
+- Break out of infinite loop ([!293](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/293))
+- Remove old livekit section from docs ([!305](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/305))
+
+### 📦 Dependencies
+
+- (deps) Lock file maintenance ([!260](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/260), [!272](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/272), [!290](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/290))
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.82.0 ([!268](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/268))
+- (deps) Update rust crate anyhow to v1.0.91 ([!283](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/283))
+- (deps) Update rust crate bytes to v1.8.0 ([!276](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/276))
+- (deps) Update rust crate config to v0.14.1 ([!286](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/286))
+- (deps) Update rust crate pin-project-lite to v0.2.15 ([!287](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/287))
+- (deps) Update rust crate serde to v1.0.214 ([!277](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/277), [!282](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/282), [!292](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/292))
+- (deps) Update rust crate serde_json to v1.0.129 ([!266](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/266))
+- (deps) Update rust crate thiserror to v1.0.65 ([!284](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/284))
+- (deps) Update rust crate tokio to v1.41.0 ([!278](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/278))
+
+### ⚙ Miscellaneous
+
+- Add documentation for hardware acceleration ([!263](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/263))
+- (update) Compositor to v0.9.0 ([!289](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/289), [#155](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/155), [#164](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/164))
+
+### Ci
+
+- Introduce changelog bot ([!275](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/275))
+- (fix) Don't lint commits on main ([!285](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/285))
+
+## 0.7.2
+
+### 🐛 Bug fixes
+
+- Upload can fail under some circumstances ([#169](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/169))
+
 ## 0.7.1
 
 ### 🐛 Bug fixes
