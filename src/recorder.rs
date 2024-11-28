@@ -588,6 +588,7 @@ impl RecordingSession {
             .unwrap_or_default();
 
         let mixer_params = MixerParameters {
+            target_fps: 30,
             auto_subscribe: false,
             clock_format: recorder_settings.clock_format,
             livekit_url: self
