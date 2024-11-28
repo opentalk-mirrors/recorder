@@ -21,6 +21,26 @@ GPUs can handle up to `46 simultaneous video` streams at `1080p` resolution at
 `25` frames per second. When it comes to `AV1` encoding, they can process up to
 `14` simultaneous streams.
 
+### Adjusting the `perf_event_paranoid` Kernel Setting
+
+Depending on your operating system and kernel configuration, it may be necessary to modify the `/proc/sys/kernel/perf_event_paranoid` setting.
+
+#### Temporary Change
+
+To test the adjustment, run the following command. This change will last until the next reboot:
+
+```bash
+sudo sh -c 'echo 2 >/proc/sys/kernel/perf_event_paranoid'
+```
+
+#### Permanent Change
+
+To make the change persistent across reboots, append the setting to your sysctl configuration:
+
+```bash
+sudo sh -c 'echo kernel.perf_event_paranoid=2 >> /etc/sysctl.d/local.conf'
+```
+
 ## Nvidia
 
 Nvidia consumer GPUs, though tested, are limited to encoding a maximum of
