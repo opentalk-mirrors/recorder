@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, net::IpAddr, str::FromStr};
 
 use compositor::{ClockFormat, EncoderType};
 use config::{Config, ConfigError, Environment, File, FileFormat};
@@ -99,18 +99,16 @@ impl ControllerSettings {
 pub(crate) struct MonitoringSettings {
     #[serde(default = "default_http_port")]
     pub(crate) port: u16,
-}
-
-impl Default for MonitoringSettings {
-    fn default() -> Self {
-        Self {
-            port: default_http_port(),
-        }
-    }
+    #[serde(default = "default_http_address")]
+    pub(crate) addr: IpAddr,
 }
 
 fn default_http_port() -> u16 {
     11411
+}
+
+fn default_http_address() -> IpAddr {
+    [0, 0, 0, 0].into()
 }
 
 #[derive(Debug, Deserialize)]

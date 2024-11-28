@@ -20,9 +20,6 @@ config = { version = "0.14", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
-http-body-util = "0.1"
-hyper = { version = "1.5", features = ["http1", "server"] }
-hyper-util = { version = "0.1", features = ["tokio"] }
 lapin = { version = "2.3", default-features = false, features = ["rustls-webpki-roots-certs"] }
 log = "0.4"
 openidconnect = "3"
@@ -43,6 +40,7 @@ types-signaling-livekit = { package = "opentalk-types-signaling-livekit", versio
 types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.27", features = ["serde"] }
 types-signaling-recording-service = { package = "opentalk-types-signaling-recording-service", version = "0.27", features = ["serde"] }
 urlencoding = "2.1"
+service-probe = "0.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

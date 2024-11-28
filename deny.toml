@@ -76,7 +76,7 @@ allow = [
   "MIT",
   "MPL-2.0",
   "OpenSSL",
-  "Unicode-DFS-2016",
+  "Unicode-3.0",
   "Zlib",
 ]
 # The confidence threshold for detecting a license from license text.
@@ -91,7 +91,6 @@ exceptions = [
   # list
   #{ allow = ["Zlib"], name = "adler32", version = "*" },
   { allow = ["EUPL-1.2"], name = "opentalk-compositor" },
-  { allow = ["EUPL-1.2"], name = "opentalk-types" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-common" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-signaling" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-signaling-control" },
@@ -177,7 +176,7 @@ skip = [
   { name = "heck", version = "=0.4.1" },
   { name = "http", version = "=0.2.12" },
   { name = "http-body", version = "=0.4.6" },
-  { name = "hyper", version = "=0.14.31" },
+  { name = "hyper", version = "=1.5.1" },
   { name = "fastrand", version = "=1.9" },
   { name = "futures-lite", version = "=1.13.0" },
   { name = "itertools", version = "=0.10.5" },
