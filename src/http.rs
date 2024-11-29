@@ -194,7 +194,6 @@ impl HttpClient {
         let (mut tx, mut rx) = ws_stream.split();
 
         let mut last_pong = Instant::now();
-        let mut latest_data = Vec::<u8>::new();
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(15));
         loop {
@@ -227,25 +226,11 @@ impl HttpClient {
                         break;
                     };
 
-                    // Only the latest data should be the smallest chunk in
-                    // S3, this helps so send the fanilized first chunk and afterwards send the small
-                    // chunk.
-                    if bytes.len() < settings.upload_chunk_size {
-                        latest_data = bytes;
-                    } else {
-                        tx.send(tt::tungstenite::Message::Binary(bytes))
-                            .await
-                            .context("Data could not be send to the websocket")?;
-                    }
+                    tx.send(tt::tungstenite::Message::Binary(bytes))
+                        .await
+                        .context("Data could not be send to the websocket")?;
                 }
             }
-        }
-
-        // Send the smallest chunk afterwards, otherwise S3 will reject it.
-        if !latest_data.is_empty() {
-            tx.send(tt::tungstenite::Message::Binary(latest_data))
-                .await
-                .context("Data could not be send to the websocket")?;
         }
 
         Ok(())
