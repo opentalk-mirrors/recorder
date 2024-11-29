@@ -319,8 +319,11 @@ impl RecordingSession {
     }
 
     pub(crate) async fn start_recording(&mut self, encoder_type: EncoderType) -> Result<()> {
-        let webm_sink = WebMSink::create(&WebMParameters { encoder_type })
-            .context("WebM-Sink could not created")?;
+        let webm_sink = WebMSink::create(&WebMParameters {
+            encoder_type,
+            chunk_size: Some(self.service_context.settings.controller.upload_chunk_size as u64),
+        })
+        .context("WebM-Sink could not created")?;
 
         let handle = tokio::spawn({
             let service_context = self.service_context.clone();
