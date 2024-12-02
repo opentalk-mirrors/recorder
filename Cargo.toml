@@ -10,7 +10,7 @@ license = "EUPL-1.2"
 name = "opentalk-recorder"
 publish = false
 repository = "https://gitlab.opencode.de/opentalk/recorder"
-version = "0.12.0-alpha"
+version = "0.13.0-alpha"
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }

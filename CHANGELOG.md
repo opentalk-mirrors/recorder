@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2024-12-02
+
+[0.12.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.11.0...v0.12.0
+
+### 🐛 Bug fixes
+
+- Chunk size should be at least 5 MiB and not 5 MB ([!339](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/339), [#187](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/187))
+
+### 📚 Documentation
+
+- (admin) Missing kernel settings entry in documentation ([!329](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/329), [#183](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/183))
+- (monitoring) Explain optional behaviour ([!332](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/332))
+
+### 🔨 Refactor
+
+- (monitoring) Use service_probe crate ([!330](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/330))
+
+### 📦 Dependencies
+
+- (deps) Lock file maintenance ([!340](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/340), [!333](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/333))
+- (deps) Update rust crate gst to v0.23.3 ([!303](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/303))
+- (deps) Update rust crate hyper to v1.5.1 ([!324](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/324))
+- (deps) Update rust crate serde_json to v1.0.133 ([!317](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/317))
+- (deps) Update rust crate service-probe to v0.1.2 ([!336](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/336))
+
 ## [0.11.0] - 2024-11-21
 
 [0.11.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.10.0...v0.11.0
