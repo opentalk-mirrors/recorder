@@ -115,7 +115,7 @@ impl HttpClient {
         &self,
         settings: &ControllerSettings,
         room_id: &str,
-        breakout_room: &Option<String>,
+        breakout_room: Option<&str>,
     ) -> Result<String> {
         let uri = format!("{}/services/recording/start", settings.v1_api_base_url());
 
@@ -267,7 +267,7 @@ pub(crate) struct InvalidCredentials;
 #[derive(Serialize)]
 struct StartRequest<'s> {
     room_id: &'s str,
-    breakout_room: &'s Option<String>,
+    breakout_room: Option<&'s str>,
 }
 
 #[derive(Deserialize)]
@@ -280,11 +280,12 @@ struct StartResponse {
     ticket: String,
 }
 
+type BoxedHttpResponseFuture =
+    Box<dyn Future<Output = Result<HttpResponse, Error<reqwest::Error>>> + Send>;
+
 fn async_http_client(
     client: reqwest::Client,
-) -> impl Fn(
-    HttpRequest,
-) -> Pin<Box<dyn Future<Output = Result<HttpResponse, Error<reqwest::Error>>> + Send>> {
+) -> impl Fn(HttpRequest) -> Pin<BoxedHttpResponseFuture> {
     move |request| Box::pin(async_http_client_inner(client.clone(), request))
 }
 

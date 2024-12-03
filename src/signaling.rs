@@ -82,7 +82,7 @@ impl Signaling {
         client: &HttpClient,
         settings: &ControllerSettings,
         room_id: &str,
-        breakout_id: &Option<String>,
+        breakout_id: Option<&str>,
     ) -> Result<Self> {
         let ticket = client.start(settings, room_id, breakout_id).await?;
 
