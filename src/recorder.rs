@@ -239,7 +239,7 @@ impl RecordingSession {
             service_context.http_client.as_ref(),
             &service_context.settings.controller,
             &command.room,
-            &command.breakout,
+            command.breakout.as_deref(),
         )
         .await
         .context("Failed to connect to signaling")?;
