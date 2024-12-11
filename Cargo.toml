@@ -40,7 +40,7 @@ types-signaling-livekit = { package = "opentalk-types-signaling-livekit", versio
 types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.27", features = ["serde"] }
 types-signaling-recording-service = { package = "opentalk-types-signaling-recording-service", version = "0.27", features = ["serde"] }
 urlencoding = "2.1"
-service-probe = "0.1"
+service-probe = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
