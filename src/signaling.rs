@@ -59,7 +59,7 @@ impl ParticipantState {
             .context("participant is missing control state")?;
 
         Ok(Self {
-            display_name: control.display_name,
+            display_name: control.display_name.to_string(),
             consents: recording.consents_recording,
         })
     }

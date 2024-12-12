@@ -10,7 +10,7 @@ license = "EUPL-1.2"
 name = "opentalk-recorder"
 publish = false
 repository = "https://gitlab.opencode.de/opentalk/recorder"
-version = "0.13.0-alpha"
+version = "0.14.0-alpha"
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
@@ -20,25 +20,53 @@ config = { version = "0.14", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
-lapin = { version = "2.3", default-features = false, features = ["rustls-webpki-roots-certs"] }
+lapin = { version = "2.3", default-features = false, features = [
+  "rustls-webpki-roots-certs",
+] }
 log = "0.4"
 openidconnect = "3"
 pin-project-lite = "0.2"
-reqwest = { version = "0.11", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+reqwest = { version = "0.11", default-features = false, features = [
+  "json",
+  "stream",
+  "rustls-tls-native-roots",
+] }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 sysinfo = "0.33"
 thiserror = "2"
 tokio-executor-trait = "2"
 tokio-reactor-trait = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "time", "macros", "fs", "signal"] }
-tt = { package = "tokio-tungstenite", version = "0.20", features = ["rustls-tls-webpki-roots"] }
-types-common = { package = "opentalk-types-common", version = "0.27", features = ["rand", "serde"] }
-types-control = { package = "opentalk-types-signaling-control", version = "0.27", features = ["serde"] }
-types-signaling = { package = "opentalk-types-signaling", version = "0.27", features = ["rand", "serde"] }
-types-signaling-livekit = { package = "opentalk-types-signaling-livekit", version = "0.27", features = ["serde"] }
-types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.27", features = ["serde"] }
-types-signaling-recording-service = { package = "opentalk-types-signaling-recording-service", version = "0.27", features = ["serde"] }
+tokio = { version = "1", features = [
+  "rt-multi-thread",
+  "time",
+  "macros",
+  "fs",
+  "signal",
+] }
+tt = { package = "tokio-tungstenite", version = "0.20", features = [
+  "rustls-tls-webpki-roots",
+] }
+types-common = { package = "opentalk-types-common", version = "0.28", features = [
+  "rand",
+  "serde",
+] }
+types-control = { package = "opentalk-types-signaling-control", version = "0.28", features = [
+  "serde",
+] }
+types-signaling = { package = "opentalk-types-signaling", version = "0.28", features = [
+  "rand",
+  "serde",
+] }
+types-signaling-livekit = { package = "opentalk-types-signaling-livekit", version = "0.28", features = [
+  "serde",
+] }
+types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.28", features = [
+  "serde",
+] }
+types-signaling-recording-service = { package = "opentalk-types-signaling-recording-service", version = "0.28", features = [
+  "serde",
+] }
 urlencoding = "2.1"
 service-probe = "0.2"
 
