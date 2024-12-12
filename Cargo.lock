@@ -4120,9 +4120,9 @@ dependencies = [
 
 [[package]]
 name = "service-probe"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d20103e52fb3f1be434737d331a8925283cfa2faa62846aae67adecf3f8d32c"
+checksum = "ec741014f3d2e6dca4a2d5a905c0e92bf067c8ca5412150e911f864dad39186d"
 dependencies = [
  "http-body-util",
  "hyper 1.5.1",

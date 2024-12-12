@@ -231,9 +231,8 @@ async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
     let recorder_context = Recorder::new(settings.clone(), http_client, shutdown_rx.resubscribe());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
 
-    set_service_state(ServiceState::Up);
     if let Some(MonitoringSettings { port, addr }) = settings.monitoring {
-        start_probe(addr, port).await?;
+        start_probe(addr, port, ServiceState::Up).await?;
     }
 
     select! {
