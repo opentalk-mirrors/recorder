@@ -38,7 +38,7 @@ use types_signaling_recording_service::{
 };
 
 use crate::{
-    http::{FileExtension, HttpClient},
+    http::{FileExtension, HttpClient, UploadLimitReached},
     rmq::InitializeRecording,
     settings::Settings,
     signaling::{self, incoming, ParticipantState, Signaling},
@@ -273,6 +273,8 @@ impl RecordingSession {
         }
 
         let mut shutdown_rx = self.service_context.shutdown.resubscribe();
+        let (chunk_limit_reached_tx, mut chunk_limit_reached_rx) =
+            broadcast::channel::<UploadLimitReached>(1);
 
         while !self.done {
             tokio::select! {
@@ -283,7 +285,7 @@ impl RecordingSession {
                             continue;
                         },
                         Ok(Some(msg)) => {
-                            self.handle_signaling_event(msg).await?;
+                            self.handle_signaling_event(msg, chunk_limit_reached_tx.clone()).await?;
                         }
                         Ok(None) => {
                             log::trace!("Received None message");
@@ -300,6 +302,10 @@ impl RecordingSession {
                         log::error!("Running the mixer caused an error: {err:?}");
                         break;
                     }
+                }
+                chunk_limit_stream = chunk_limit_reached_rx.recv() => {
+                    let id = chunk_limit_stream?.id;
+                    self.handle_stop_stream(BTreeSet::from([id])).await?;
                 }
             }
         }
@@ -318,32 +324,46 @@ impl RecordingSession {
         Ok(())
     }
 
-    pub(crate) async fn start_recording(&mut self, encoder_type: EncoderType) -> Result<()> {
+    pub(crate) async fn start_recording(
+        &mut self,
+        id: StreamingTargetId,
+        encoder_type: EncoderType,
+        sender: broadcast::Sender<UploadLimitReached>,
+    ) -> Result<()> {
         let webm_sink = WebMSink::create(&WebMParameters {
             encoder_type,
             chunk_size: Some(self.service_context.settings.controller.upload_chunk_size as u64),
         })
         .context("WebM-Sink could not created")?;
 
+        // probably actually use a channel to signal when limit reached, would probably make much more sense
+        // than to attempt to circumvent the move
         let handle = tokio::spawn({
             let service_context = self.service_context.clone();
             let room_id = self.room_id.clone();
             let receiver = webm_sink.subscribe();
 
             async move {
-                service_context
+                match service_context
                     .http_client
                     .upload_render(
                         &service_context.settings.controller,
                         &room_id,
                         FileExtension::webm(),
                         receiver,
+                        sender,
+                        id,
                     )
-                    .await?;
+                    .await
+                {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
 
                 Ok(())
             }
         });
+
         self.join_handles.lock().await.push(handle);
 
         self.mixer
@@ -359,6 +379,7 @@ impl RecordingSession {
     async fn start_stream(
         &mut self,
         id: StreamingTargetId,
+        chunk_limit_sender: Option<broadcast::Sender<UploadLimitReached>>,
     ) -> Result<StreamStatus, RecordingSessionError> {
         log::trace!("start_stream, id: {id:?}");
         let Some(mut stream) = self.initial_data.streaming_targets.get_mut(&id).cloned() else {
@@ -388,8 +409,16 @@ impl RecordingSession {
                 result.map_err(RecordingSessionError::StartLivestream)
             }
             RecorderStreamKind::Recording => {
+                let Some(chunk_limit_sender) = chunk_limit_sender else {
+                    return Err(anyhow::anyhow!("Chunk Limit sender doesn't exist"))
+                        .map_err(RecordingSessionError::StartRecording);
+                };
                 let result = self
-                    .start_recording(self.service_context.settings.encoder_type())
+                    .start_recording(
+                        id,
+                        self.service_context.settings.encoder_type(),
+                        chunk_limit_sender.clone(),
+                    )
                     .await;
 
                 if let Err(ref e) = result {
@@ -481,7 +510,11 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_signaling_event(&mut self, msg: incoming::Message) -> Result<()> {
+    async fn handle_signaling_event(
+        &mut self,
+        msg: incoming::Message,
+        chunk_limit_sender: broadcast::Sender<UploadLimitReached>,
+    ) -> Result<()> {
         match msg {
             incoming::Message::Control(msg) => match msg {
                 ControlEvent::JoinSuccess(state) => {
@@ -508,6 +541,7 @@ impl RecordingSession {
                         event.title.to_string(),
                         state.id,
                         state.participants,
+                        Some(chunk_limit_sender),
                     )
                     .await?;
                 }
@@ -534,7 +568,8 @@ impl RecordingSession {
             incoming::Message::RecordingService(msg) => match msg {
                 RecordingServiceCommand::StartStreams { target_ids } => {
                     log::debug!("[Start]: {target_ids:#?}");
-                    self.handle_start_stream(target_ids).await?;
+                    self.handle_start_stream(target_ids, chunk_limit_sender)
+                        .await?;
                 }
                 RecordingServiceCommand::PauseStreams { target_ids } => {
                     log::debug!("[Pause]: {target_ids:#?}");
@@ -556,6 +591,7 @@ impl RecordingSession {
         event_title: String,
         participant_id: ParticipantId,
         participants: Vec<Participant>,
+        chunk_limit_sender: Option<broadcast::Sender<UploadLimitReached>>,
     ) -> Result<()> {
         self.participant_id = Some(participant_id);
         self.initial_data.streaming_targets = streaming_targets
@@ -634,7 +670,7 @@ impl RecordingSession {
             .iter()
             .filter(|(_id, state)| state.is_start_requested())
         {
-            let status = match self.start_stream(*id).await {
+            let status = match self.start_stream(*id, chunk_limit_sender.clone()).await {
                 Ok(status) => status,
                 Err(reason) => StreamStatus::Error {
                     reason: reason.into(),
@@ -743,9 +779,13 @@ impl RecordingSession {
     pub(crate) async fn handle_start_stream(
         &mut self,
         target_ids: BTreeSet<StreamingTargetId>,
+        chunk_limit_sender: broadcast::Sender<UploadLimitReached>,
     ) -> Result<()> {
         for id in target_ids {
-            let status = match self.start_stream(id).await {
+            let status = match self
+                .start_stream(id, Some(chunk_limit_sender.clone()))
+                .await
+            {
                 Ok(status) => status,
                 Err(reason) => StreamStatus::Error {
                     reason: reason.into(),
