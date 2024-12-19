@@ -30,6 +30,7 @@ use tokio::{
     time::{sleep, Duration},
 };
 
+mod cli;
 mod http;
 mod recorder;
 mod rmq;
@@ -174,6 +175,11 @@ fn main() {
 fn main_loop() -> Result<()> {
     env_logger::init();
 
+    let args = cli::parse_args();
+    if !args.should_start() {
+        return Ok(());
+    }
+
     if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
         warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
         unsafe {
@@ -211,7 +217,7 @@ fn main_loop() -> Result<()> {
             .expect("failed to send shutdown signal");
     });
 
-    if let Err(e) = runtime.block_on(run_recorder(shutdown_rx)) {
+    if let Err(e) = runtime.block_on(run_recorder(shutdown_rx, &args.config)) {
         eprintln!("Exit on failure: {e:?}");
         std::process::exit(-1);
     }
@@ -222,8 +228,8 @@ fn main_loop() -> Result<()> {
     Ok(())
 }
 
-async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
-    let settings = Arc::new(Settings::load("config.toml").context("Failed to read config")?);
+async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>, config_file: &str) -> Result<()> {
+    let settings = Arc::new(Settings::load(config_file).context("Failed to read config")?);
 
     let http_client = HttpClient::discover(&settings.auth)
         .await
