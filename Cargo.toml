@@ -16,7 +16,7 @@ version = "0.14.0-alpha"
 anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1"
 compositor = { package = "opentalk-compositor", version = "0.12" }
-config = { version = "0.14", default-features = false, features = ["toml"] }
+config = { version = "0.15", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
