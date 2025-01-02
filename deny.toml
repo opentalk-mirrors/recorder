@@ -190,7 +190,7 @@ skip = [
   { name = "rustls-webpki", version = "=0.101.7" },
   { name = "rustls", version = "=0.21.12" },
   { name = "socket2", version = "=0.4" },
-  { name = "syn", version = "=2" },
+  { name = "hashbrown", version = "0.14.5" },
   { name = "thiserror", version = "1" },
   { name = "thiserror-impl", version = "1" },
   { name = "webpki-roots", version = "=0.25.4" },
