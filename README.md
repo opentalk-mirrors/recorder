@@ -20,6 +20,12 @@ example.toml) file. It can be copied to the root directory:
 cp ./extra/example.toml ./config.toml
 ```
 
+or be used with
+
+```sh
+cargo run -- -c ./extra/example.toml
+```
+
 ## Limitations
 
 ### File Descriptor limitations
