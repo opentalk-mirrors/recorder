@@ -182,6 +182,7 @@ skip = [
   { name = "itertools", version = "=0.10.5" },
   { name = "itertools", version = "=0.11.0" },
   { name = "itertools", version = "=0.12.1" },
+  { name = "itertools", version = "=0.13" },
   { name = "linux-raw-sys", version = "=0.3" },
   { name = "pbkdf2", version = "=0.11.0" },
   { name = "polling", version = "=2.8.0" },
