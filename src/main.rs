@@ -246,9 +246,11 @@ async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>, config_file: &st
             log::debug!("Received shutdown, shutdown all remaining tasks");
         }
         _ = run_usage_polling(&recorder_context) => {
-            log::debug!("Usage polling failed, shutdown all remeining tasks");
+            log::debug!("Usage polling failed, shutdown all remaining tasks");
         }
-        _ = run_rabbitmq_session(&recorder_context, &mut tasks) => {}
+        Err(rmq_err) = run_rabbitmq_session(&recorder_context, &mut tasks) => {
+            log::error!("Connection to RabbitMQ failed with: {rmq_err:?}");
+        }
     }
     tasks.retain(|task| !task.is_finished());
 
