@@ -20,13 +20,24 @@ use tt::{
     tungstenite::{client::IntoClientRequest, Message},
     WebSocketStream,
 };
-use types_common::time::Timestamp;
+use types_common::{streaming::StreamingTargetId, time::Timestamp};
 
 use crate::settings::{AuthSettings, ControllerSettings};
+
+const CHUNK_LIMIT: u32 = 950;
 
 // TODO: Replace with version from opentalk-types
 #[derive(Clone)]
 pub(crate) struct FileExtension(String);
+
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("reached chunk limit")]
+pub struct ChunkUploadLimitReached;
+
+#[derive(Debug, Clone)]
+pub(crate) struct UploadLimitReached {
+    pub(crate) id: StreamingTargetId,
+}
 
 impl FileExtension {
     #[must_use]
@@ -166,6 +177,8 @@ impl HttpClient {
         room_id: &str,
         file_extension: FileExtension,
         mut receiver: broadcast::Receiver<Vec<u8>>,
+        sender: broadcast::Sender<UploadLimitReached>,
+        id: StreamingTargetId,
     ) -> Result<()> {
         let timestamp = Timestamp::now();
         let uri = format!(
@@ -226,13 +239,22 @@ impl HttpClient {
                         break;
                     };
 
+                    let part_num = u32::from_be_bytes(bytes[..4].try_into().unwrap_or_default());
                     tx.send(tt::tungstenite::Message::Binary(bytes))
                         .await
                         .context("Data could not be send to the websocket")?;
+
+                    // Limit the chunk count to the fixed maximum chunk amount
+                    // by S3, it's defined to be 1000, but we need *some buffer* since we cannot
+                    // perfectly control it to stop at exactly the upper limit
+                    // so currently, the CHUNK_LIMIT is set to 950 to have some wiggle-room.
+                    if part_num > CHUNK_LIMIT {
+                        let limit_reached = UploadLimitReached { id };
+                        sender.send(limit_reached)?;
+                    }
                 }
             }
         }
-
         Ok(())
     }
 
