@@ -3648,9 +3648,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "opentalk-compositor"
-version = "0.12.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d3e44510becf5b61405b507d2c5b1f8a7bba1c198fd90cc31da8b5212d58db1"
+checksum = "cf5cd704e13e42c5f190ae5455ed9d03675947e14e936489ccd524e59a66da1f"
 dependencies = [
  "ab_glyph",
  "anyhow",

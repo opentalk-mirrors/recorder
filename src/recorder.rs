@@ -547,11 +547,11 @@ impl RecordingSession {
                 }
                 ControlEvent::Joined(participant) => {
                     signaling::handle_joined(&participant, &mut self.participants)?;
-                    self.handle_participant_joined(participant.id).await?;
+                    self.handle_participant_joined(participant.id)?;
                 }
                 ControlEvent::Update(participant) => {
                     signaling::handle_update(&participant, &mut self.participants);
-                    self.handle_participant_updated(participant.id).await?;
+                    self.handle_participant_updated(participant.id)?;
                 }
                 ControlEvent::Left(Left {
                     id: assoc_participant,
@@ -686,8 +686,7 @@ impl RecordingSession {
         self.mixer
             .as_mut()
             .context("mixer does not exist")?
-            .set_event_title(event_title)
-            .await;
+            .set_event_title(event_title);
 
         for participant in participants {
             let participant_state = self
@@ -701,17 +700,16 @@ impl RecordingSession {
                     .as_mut()
                     .context("mixer does not exist")?
                     .add_participant(
-                        ParticipantIdentity::from(participant.id.to_string()),
+                        &ParticipantIdentity::from(participant.id.to_string()),
                         participant_state.display_name,
-                    )
-                    .await;
+                    );
             }
         }
 
         Ok(())
     }
 
-    async fn handle_participant_joined(&mut self, id: ParticipantId) -> Result<()> {
+    fn handle_participant_joined(&mut self, id: ParticipantId) -> Result<()> {
         let participant_state = self
             .participants
             .get(&id)
@@ -723,16 +721,15 @@ impl RecordingSession {
                 .as_mut()
                 .context("mixer does not exist")?
                 .add_participant(
-                    ParticipantIdentity::from(id.to_string()),
+                    &ParticipantIdentity::from(id.to_string()),
                     participant_state.display_name,
-                )
-                .await;
+                );
         }
 
         Ok(())
     }
 
-    async fn handle_participant_updated(&mut self, id: ParticipantId) -> Result<()> {
+    fn handle_participant_updated(&mut self, id: ParticipantId) -> Result<()> {
         let participant_state = self
             .participants
             .get(&id)
@@ -744,10 +741,9 @@ impl RecordingSession {
                 .as_mut()
                 .context("mixer does not exist")?
                 .add_participant(
-                    ParticipantIdentity::from(id.to_string()),
+                    &ParticipantIdentity::from(id.to_string()),
                     participant_state.display_name,
-                )
-                .await;
+                );
         }
 
         Ok(())
