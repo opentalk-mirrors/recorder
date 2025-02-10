@@ -48,24 +48,24 @@ tokio = { version = "1", features = [
 tt = { package = "tokio-tungstenite", version = "0.20", features = [
   "rustls-tls-webpki-roots",
 ] }
-types-common = { package = "opentalk-types-common", version = "0.30", features = [
+types-common = { package = "opentalk-types-common", version = "0.31", features = [
   "rand",
   "serde",
 ] }
-types-control = { package = "opentalk-types-signaling-control", version = "0.30", features = [
+types-control = { package = "opentalk-types-signaling-control", version = "0.31", features = [
   "serde",
 ] }
-types-signaling = { package = "opentalk-types-signaling", version = "0.30", features = [
+types-signaling = { package = "opentalk-types-signaling", version = "0.31", features = [
   "rand",
   "serde",
 ] }
-types-signaling-livekit = { package = "opentalk-types-signaling-livekit", version = "0.30", features = [
+types-signaling-livekit = { package = "opentalk-types-signaling-livekit", version = "0.31", features = [
   "serde",
 ] }
-types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.30", features = [
+types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.31", features = [
   "serde",
 ] }
-types-signaling-recording-service = { package = "opentalk-types-signaling-recording-service", version = "0.30", features = [
+types-signaling-recording-service = { package = "opentalk-types-signaling-recording-service", version = "0.31", features = [
   "serde",
 ] }
 urlencoding = "2.1"
