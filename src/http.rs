@@ -4,15 +4,20 @@
 
 //! HTTP calls made by this library (except for websockets)
 
-use std::{
-    future::Future,
-    pin::Pin,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
 use futures::{SinkExt, StreamExt};
-use openidconnect::{reqwest::Error, AccessToken, HttpRequest, HttpResponse, OAuth2TokenResponse};
+use openidconnect::{
+    core::{
+        CoreAuthDisplay, CoreAuthPrompt, CoreClient, CoreErrorResponseType, CoreGenderClaim,
+        CoreJsonWebKey, CoreJweContentEncryptionAlgorithm, CoreJwsSigningAlgorithm,
+        CoreProviderMetadata, CoreRevocableToken, CoreTokenType,
+    },
+    AccessToken, EmptyAdditionalClaims, EmptyExtraTokenFields, EndpointNotSet, EndpointSet,
+    IdTokenFields, OAuth2TokenResponse, RevocationErrorResponseType, StandardErrorResponse,
+    StandardTokenIntrospectionResponse, StandardTokenResponse,
+};
 use reqwest::{header::HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, RwLock};
@@ -51,10 +56,39 @@ impl FileExtension {
     }
 }
 
+type OidcClient = openidconnect::Client<
+    EmptyAdditionalClaims,
+    CoreAuthDisplay,
+    CoreGenderClaim,
+    CoreJweContentEncryptionAlgorithm,
+    CoreJsonWebKey,
+    CoreAuthPrompt,
+    StandardErrorResponse<CoreErrorResponseType>,
+    StandardTokenResponse<
+        IdTokenFields<
+            EmptyAdditionalClaims,
+            EmptyExtraTokenFields,
+            CoreGenderClaim,
+            CoreJweContentEncryptionAlgorithm,
+            CoreJwsSigningAlgorithm,
+        >,
+        CoreTokenType,
+    >,
+    StandardTokenIntrospectionResponse<EmptyExtraTokenFields, CoreTokenType>,
+    CoreRevocableToken,
+    StandardErrorResponse<RevocationErrorResponseType>,
+    EndpointSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointSet,
+    EndpointNotSet,
+>;
+
 #[derive(Debug)]
 pub(crate) struct HttpClient {
     client: reqwest::Client,
-    oidc: openidconnect::core::CoreClient,
+    oidc: OidcClient,
     access_token: RwLock<AccessToken>,
 }
 
@@ -63,7 +97,7 @@ impl HttpClient {
     #[allow(dead_code)]
     pub(crate) fn new(
         client: reqwest::Client,
-        oidc: openidconnect::core::CoreClient,
+        oidc: OidcClient,
         access_token: RwLock<AccessToken>,
     ) -> Self {
         Self {
@@ -76,25 +110,26 @@ impl HttpClient {
     pub(crate) async fn discover(settings: &AuthSettings) -> Result<Self> {
         let client = reqwest::Client::new();
 
-        let metadata = openidconnect::core::CoreProviderMetadata::discover_async(
-            settings.issuer.clone(),
-            async_http_client(client.clone()),
-        )
-        .await?;
+        let metadata =
+            CoreProviderMetadata::discover_async(settings.issuer.clone(), &client).await?;
 
-        let oidc = openidconnect::core::CoreClient::new(
+        let oidc = CoreClient::new(
             settings.client_id.clone(),
-            Some(settings.client_secret.clone()),
             settings.issuer.clone(),
-            metadata.authorization_endpoint().clone(),
-            metadata.token_endpoint().cloned(),
-            None,
             metadata.jwks().clone(),
+        )
+        .set_client_secret(settings.client_secret.clone())
+        .set_auth_uri(metadata.authorization_endpoint().clone())
+        .set_token_uri(
+            metadata
+                .token_endpoint()
+                .context("Missing token endpoint url in OIDC metadata")?
+                .clone(),
         );
 
         let response = oidc
             .exchange_client_credentials()
-            .request_async(async_http_client(client.clone()))
+            .request_async(&client)
             .await?;
 
         Ok(Self {
@@ -114,7 +149,7 @@ impl HttpClient {
         let response = self
             .oidc
             .exchange_client_credentials()
-            .request_async(async_http_client(self.client.clone()))
+            .request_async(&self.client)
             .await?;
 
         *token = response.access_token().clone();
@@ -230,7 +265,7 @@ impl HttpClient {
                         bail!("Upload canceled, there was no websocket heartbeat within 15 seconds.");
                     }
 
-                    tx.send(tt::tungstenite::Message::Ping("heartbeat".as_bytes().to_owned()))
+                    tx.send(tt::tungstenite::Message::Ping("heartbeat".into()))
                         .await
                         .context("Data could not be send to the websocket")?;
                 }
@@ -240,7 +275,7 @@ impl HttpClient {
                     };
 
                     let part_num = u32::from_be_bytes(bytes[..4].try_into().unwrap_or_default());
-                    tx.send(tt::tungstenite::Message::Binary(bytes))
+                    tx.send(tt::tungstenite::Message::Binary(bytes.into()))
                         .await
                         .context("Data could not be send to the websocket")?;
 
@@ -300,37 +335,4 @@ struct ApiError {
 #[derive(Deserialize)]
 struct StartResponse {
     ticket: String,
-}
-
-type BoxedHttpResponseFuture =
-    Box<dyn Future<Output = Result<HttpResponse, Error<reqwest::Error>>> + Send>;
-
-fn async_http_client(
-    client: reqwest::Client,
-) -> impl Fn(HttpRequest) -> Pin<BoxedHttpResponseFuture> {
-    move |request| Box::pin(async_http_client_inner(client.clone(), request))
-}
-
-async fn async_http_client_inner(
-    client: reqwest::Client,
-    request: HttpRequest,
-) -> Result<HttpResponse, Error<reqwest::Error>> {
-    let mut request_builder = client
-        .request(request.method, request.url.as_str())
-        .body(request.body);
-    for (name, value) in &request.headers {
-        request_builder = request_builder.header(name.as_str(), value.as_bytes());
-    }
-    let request = request_builder.build().map_err(Error::Reqwest)?;
-
-    let response = client.execute(request).await.map_err(Error::Reqwest)?;
-
-    let status_code = response.status();
-    let headers = response.headers().clone();
-    let chunks = response.bytes().await.map_err(Error::Reqwest)?;
-    Ok(HttpResponse {
-        status_code,
-        headers,
-        body: chunks.to_vec(),
-    })
 }

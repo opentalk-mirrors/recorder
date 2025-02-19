@@ -97,13 +97,16 @@ impl Signaling {
             .context("failed create websocket connection")?;
 
         stream
-            .send(Message::Text(serde_json::to_string(&serde_json::json!({
-                "namespace":"control",
-                "payload": {
-                    "action":"join",
-                    "display_name": "recorder"
-                }
-            }))?))
+            .send(Message::Text(
+                serde_json::to_string(&serde_json::json!({
+                    "namespace":"control",
+                    "payload": {
+                        "action":"join",
+                        "display_name": "recorder"
+                    }
+                }))?
+                .into(),
+            ))
             .await?;
 
         Ok(Self {
@@ -168,7 +171,9 @@ impl Signaling {
         log::trace!("send signaling message {:?}", msg);
         self.connection
             .send(Message::Text(
-                serde_json::to_string(&msg).context("failed to serialize message")?,
+                serde_json::to_string(&msg)
+                    .context("failed to serialize message")?
+                    .into(),
             ))
             .await
             .context("failed to send message")
