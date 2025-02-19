@@ -16,8 +16,8 @@ use std::{
 use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
-    WebMParameters, WebMSink,
+    livekit::prelude::DisconnectReason, EncoderType, Mixer, MixerParameters, ParticipantIdentity,
+    RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink,
 };
 use futures::Stream;
 use log::error;
@@ -264,7 +264,7 @@ impl RecordingSession {
     }
 
     pub(crate) async fn run(&mut self) -> Result<()> {
-        async fn mixer_run(mixer: Option<&mut Mixer>) -> Result<()> {
+        async fn mixer_run(mixer: Option<&mut Mixer>) -> DisconnectReason {
             let Some(mixer) = mixer else {
                 std::future::pending().await
             };
@@ -297,11 +297,9 @@ impl RecordingSession {
                     self.done = true;
                     break;
                 }
-                result = mixer_run(self.mixer.as_mut()) => {
-                    if let Err(err) = result {
-                        log::error!("Running the mixer caused an error: {err:?}");
-                        break;
-                    }
+                disconnect_reason = mixer_run(self.mixer.as_mut()) => {
+                    log::error!("Disconnected from livekit: {disconnect_reason:?}");
+                    break;
                 }
                 chunk_limit_stream = chunk_limit_reached_rx.recv() => {
                     let id = chunk_limit_stream?.id;
@@ -558,7 +556,7 @@ impl RecordingSession {
                     ..
                 }) => {
                     signaling::handle_left(&assoc_participant, &mut self.participants);
-                    self.handle_participant_left(assoc_participant.id).await?;
+                    self.handle_participant_left(assoc_participant.id)?;
                 }
                 ref other => {
                     log::error!("Event {other:#?} not implemented for recorder.");
@@ -749,7 +747,7 @@ impl RecordingSession {
         Ok(())
     }
 
-    async fn handle_participant_left(&mut self, id: ParticipantId) -> Result<()> {
+    fn handle_participant_left(&mut self, id: ParticipantId) -> Result<()> {
         if self.participants.is_empty() {
             log::debug!("Last participant left the session. Stop recording.");
             self.done = true;
@@ -766,8 +764,7 @@ impl RecordingSession {
         self.mixer
             .as_mut()
             .context("mixer does not exist")?
-            .remove_participant(&ParticipantIdentity::from(id.to_string()))
-            .await;
+            .remove_participant(&ParticipantIdentity::from(id.to_string()));
 
         Ok(())
     }
