@@ -23,7 +23,7 @@ RUN cargo build --release
 FROM git.opentalk.dev:5050/opentalk/backend/containers/gstreamer:1.24-intel
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libssl3 libcrypto++ \
+    apt-get install -y --no-install-recommends libssl3 \
     intel-media-va-driver intel-gpu-tools \
     libopenh264-7 ca-certificates \
     tzdata \
