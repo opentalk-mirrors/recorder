@@ -5,6 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2025-03-05
+
+[0.14.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.13.2...v0.14.0
+
+### 🚀 New features
+
+- Add cli argument parsing and implement version & config ([!360](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/360))
+- (uploading) Add automatic stream end when chunk limit reached ([!358](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/358))
+
+### 🐛 Bug fixes
+
+- (logging) Log rabbitmq connection error ([!372](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/372))
+- (ci) Remove unnecessary packages from container image ([!418](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/418))
+
+### 📚 Documentation
+
+- Add instructions for passing config file as argument ([!369](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/369))
+
+### 📦 Dependencies
+
+- (deps) Update rust crate config to 0.15 ([!359](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/359))
+- (deps) Update rust crate config to v0.15.3 ([!361](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/361))
+- (deps) Update rust crate serde to v1.0.217 ([!368](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/368))
+- (deps) Update rust crate sysinfo to v0.33.1 ()
+- (deps) Update rust crate anyhow to v1.0.95 ([!366](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/366))
+- (deps) Update rust crate serde_json to v1.0.134 ([!365](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/365))
+- (deps) Update rust crate config to v0.15.4 ([!363](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/363))
+- (deps) Update opentalk-type crates to version 0.29.0 ([!371](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/371))
+- (deps) Lock file maintenance ([!357](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/357))
+- (deps) Update rust crate clap to v4.5.24 ([!373](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/373))
+- (deps) Update rust crate pin-project-lite to v0.2.16 ([!375](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/375))
+- (deps) Update rust crate compositor to v0.12.1 ([!374](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/374))
+- (deps) Update rust crate tokio to v1.43.0 ([!377](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/377))
+- (deps) Update rust crate serde_json to v1.0.135 ([!376](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/376))
+- (deps) Update rust crate thiserror to v2.0.10 ([!378](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/378))
+- (deps) Update rust crate clap to v4.5.26 ([!379](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/379))
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.84.0 ([!380](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/380))
+- (deps) Update rust crate log to v0.4.24 ([!385](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/385))
+- (deps) Update rust crate thiserror to v2.0.11 ([!384](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/384))
+- (deps) Update rust crate config to v0.15.5 ([!383](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/383))
+- (deps) Lock file maintenance ([!386](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/386))
+- (deps) Update rust crate log to v0.4.25 ([!388](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/388))
+- (deps) Update rust crate config to v0.15.6 ([!390](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/390))
+- (deps) Update opentalk-controller to 0.30 ([!387](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/387))
+- (deps) Lock file maintenance ([!392](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/392))
+- (deps) Update rust crate clap to v4.5.27 ([!393](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/393))
+- (deps) Lock file maintenance ([!395](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/395))
+- (deps) Update compositor to 0.13 ([!397](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/397))
+- (deps) Update rust crate serde_json to v1.0.138 ([!398](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/398))
+- (deps) Update rust crate service-probe to v0.2.1 ([!402](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/402))
+- (deps) Update rust crate clap to v4.5.28 ([!406](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/406))
+- (deps) Update rust crate bytes to v1.10.0 ([!405](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/405))
+- (deps) Lock file maintenance ([!403](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/403))
+- (deps) Update opentalk-controller to 0.31 ([!401](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/401))
+- (deps) Update rust crate config to v0.15.8 ([!407](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/407))
+- (deps) Update opentalk-controller to 0.31 ([!408](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/408))
+- (deps) Update compositor to 0.13.1 ([!410](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/410))
+- (deps) Update rust crate clap to v4.5.29 ([!411](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/411))
+- (deps) Lock file maintenance ([!415](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/415))
+- (deps) Update rust crate clap to v4.5.30 ([!416](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/416))
+- (deps) Update rust crate openidconnect to v4 ([!413](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/413))
+- (deps) Update rust crate compositor to 0.14.0 ([!414](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/414))
+- (deps) Update rust crate serde to v1.0.218 ([!421](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/421))
+- (deps) Update rust crate serde_json to v1.0.139 ([!419](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/419))
+- (deps) Update rust crate anyhow to v1.0.96 ([!420](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/420))
+- (deps) Update rust crate log to v0.4.26 ([!422](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/422))
+- (deps) Update rust crate clap to v4.5.31 ([!424](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/424))
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.85.0 ([!425](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/425))
+- (deps) Update opentalk-controller to 0.32 ([!417](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/417))
+- (deps) Lock file maintenance ([!423](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/423))
+- (deps) Lock file maintenance ([!426](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/426))
+- (deps) Update rust crate serde_json to v1.0.140 ([!429](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/429))
+- (deps) Update rust crate anyhow to v1.0.97 ([!428](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/428))
+- (deps) Update rust crate thiserror to v2.0.12 ([!427](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/427))
+- (deps) Update rust crate config to v0.15.9 ([!430](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/430))
+- (deps) Update rust crate bytes to v1.10.1 ([!431](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/431))
+
+### ⚙ Miscellaneous
+
+- (fix) Order skipped crates in deny.toml alphabetically ([!403](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/403))
+
+### Ci
+
+- Verify that commits are signed ([!370](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/370))
+- Allow ssh signed commits ([!372](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/372))
+
 ## [0.13.0] - 2024-12-12
 
 [0.13.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.12.0...v0.13.0
