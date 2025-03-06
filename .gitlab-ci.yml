@@ -260,14 +260,17 @@ build:container:
     # with a period or hyphen, so we replace those if we find them at the start of a line.
     # It must be no longer than 128 characters, so we truncate it in addition.
     #
-    # tr -c means the same as --complement, but busybox tr doesn't have that
+    # tr -c means the same as --complement, but busybox tr doesn't have that.
+    #
+    # Some platforms on which this service is deployed allow only 63 characters
+    # for the container tag, so we restrict the length to that.
     - >
       if [ $CI_PIPELINE_SOURCE == 'merge_request_event' ]; then
         IMAGE_TAG=$(
           echo -n "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" |
           tr -c '[:alnum:]_.-' '_' |
           sed 's/^[.-]/_/' |
-          cut -c -128
+          cut -c -63
         );
         IMAGE_DESTINATION_ARGS="--destination $CI_REGISTRY_IMAGE:$IMAGE_TAG";
       fi
