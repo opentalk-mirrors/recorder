@@ -3773,9 +3773,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-common"
-version = "0.32.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc7b6f5082ce4410a8a4b483a33ac523863a974344be8ffeeb339e37624a9fd"
+checksum = "13523221c1cf75be9cf89b5149542013472d58eafdadb085f6bdd93def143921"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -4397,7 +4397,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.12.1",
  "log",
  "multimap",
@@ -5362,7 +5362,7 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03c3c6b7927ffe7ecaa769ee0e3994da3b8cafc8f444578982c83ecb161af917"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn",
