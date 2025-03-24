@@ -179,6 +179,7 @@ skip = [
   { name = "itertools", version = "=0.12" },
   { name = "itertools", version = "=0.13" },
   { name = "itertools", version = "=0.14" },
+  { name = "jiff", version = "=0.2.4" },
   { name = "linux-raw-sys", version = "=0.3" },
   { name = "linux-raw-sys", version = "0.4" },
   { name = "livekit-runtime", version = "0.3" },
