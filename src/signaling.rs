@@ -168,7 +168,7 @@ impl Signaling {
     }
 
     async fn send(&mut self, msg: outgoing::Message) -> Result<()> {
-        log::trace!("send signaling message {:?}", msg);
+        log::trace!("send signaling message {msg:?}");
         self.connection
             .send(Message::Text(
                 serde_json::to_string(&msg)
