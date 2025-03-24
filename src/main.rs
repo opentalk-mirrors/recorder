@@ -331,14 +331,14 @@ async fn run_rabbitmq_session(
                             .spawn_session(start_command)
                             .await
                             .map_err(|e| {
-                                log::error!("Recording session failed: {:?}", e);
+                                log::error!("Recording session failed: {e:?}");
                                 e
                             })?;
 
                         tasks.push(task);
                     }
                     Err(e) => {
-                        log::error!("RabbitMQ consumer returned error: {:?}", e);
+                        log::error!("RabbitMQ consumer returned error: {e:?}");
                         break;
                     }
                 }
@@ -346,11 +346,7 @@ async fn run_rabbitmq_session(
             }
         }
         Err(e) => {
-            log::error!(
-                "RMQ connect error: {:?} (reconnecting in {:?})",
-                e,
-                RECONNECT_INTERVAL
-            );
+            log::error!("RMQ connect error: {e:?} (reconnecting in {RECONNECT_INTERVAL:?})");
             sleep(RECONNECT_INTERVAL).await;
         }
     }

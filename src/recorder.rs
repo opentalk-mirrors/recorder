@@ -108,10 +108,7 @@ impl Recorder {
 
         let recording_task = tokio::spawn(async move {
             if let Err(ref recording_err) = session.run().await {
-                error!(
-                    "recording session failed but trying upload anyway:\n{:?}",
-                    recording_err
-                );
+                error!("recording session failed but trying upload anyway:\n{recording_err:?}",);
             };
 
             Ok(())
