@@ -16,11 +16,13 @@ build = "build.rs"
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1"
+chrono = "0.4"
 compositor = { package = "opentalk-compositor", version = "0.14.0" }
 config = { version = "0.15", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
+jsonwebtoken = "9.3"
 lapin = { version = "2.3", default-features = false, features = [
   "rustls-webpki-roots-certs",
 ] }

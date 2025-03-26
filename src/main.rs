@@ -53,7 +53,6 @@ fn check_plugins() -> Result<()> {
         "compositor",
         "debug",
         "dtls",
-        "fdkaac",
         "pango",
         "png",
         "rtp",

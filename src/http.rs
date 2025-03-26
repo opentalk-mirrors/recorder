@@ -4,10 +4,12 @@
 
 //! HTTP calls made by this library (except for websockets)
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, Context, Result};
+use chrono::{serde::ts_seconds::deserialize as from_ts, DateTime, Utc};
 use futures::{SinkExt, StreamExt};
+use jsonwebtoken::{self, decode, DecodingKey, Validation};
 use openidconnect::{
     core::{
         CoreAuthDisplay, CoreAuthPrompt, CoreClient, CoreErrorResponseType, CoreGenderClaim,
@@ -139,24 +141,6 @@ impl HttpClient {
         })
     }
 
-    async fn refresh_access_tokens(&self, invalid_token: AccessToken) -> Result<()> {
-        let mut token = self.access_token.write().await;
-
-        if token.secret() != invalid_token.secret() {
-            return Ok(());
-        }
-
-        let response = self
-            .oidc
-            .exchange_client_credentials()
-            .request_async(&self.client)
-            .await?;
-
-        *token = response.access_token().clone();
-
-        Ok(())
-    }
-
     pub(crate) async fn start(
         &self,
         settings: &ControllerSettings,
@@ -165,45 +149,32 @@ impl HttpClient {
     ) -> Result<String> {
         let uri = format!("{}/services/recording/start", settings.v1_api_base_url());
 
-        // max 10 authentication tries
-        for _ in 0..10 {
-            let token = {
-                // Scope the access to the lock to avoid holding it for the entire loop-body
-                let l = self.access_token.read().await;
-                l.clone()
-            };
+        let token = self.get_valid_access_token().await?;
 
-            let response = self
-                .client
-                .post(&uri)
-                .bearer_auth(token.secret())
-                .json(&StartRequest {
-                    room_id,
-                    breakout_room,
-                })
-                .send()
-                .await?;
+        let response = self
+            .client
+            .post(&uri)
+            .bearer_auth(token.secret())
+            .json(&StartRequest {
+                room_id,
+                breakout_room,
+            })
+            .send()
+            .await?;
 
-            match response.status() {
-                StatusCode::OK => {
-                    let response = response.json::<StartResponse>().await?;
+        match response.status() {
+            StatusCode::OK => {
+                let response = response.json::<StartResponse>().await?;
 
-                    return Ok(response.ticket);
-                }
-                StatusCode::UNAUTHORIZED => {
-                    let ApiError { code } = response.json::<ApiError>().await?;
-
-                    if code == "unauthorized" {
-                        self.refresh_access_tokens(token).await?;
-                    } else {
-                        bail!(InvalidCredentials);
-                    }
-                }
-                code => bail!("unexpected status code {code:?}"),
+                Ok(response.ticket)
             }
-        }
+            StatusCode::UNAUTHORIZED => {
+                let ApiError { code } = response.json::<ApiError>().await?;
 
-        bail!("failed to authorize")
+                bail!("failed to authorize, {code:?}");
+            }
+            code => bail!("unexpected status code {code:?}"),
+        }
     }
 
     pub(crate) async fn upload_render(
@@ -226,19 +197,10 @@ impl HttpClient {
             urlencoding::encode(&timestamp.to_string()),
         );
 
-        log::debug!("connect websocket to {uri}");
-        let ws_stream = if let Ok((ws_stream, _response)) =
-            self.websocket_connect(uri.clone()).await
-        {
-            ws_stream
-        } else {
-            log::debug!("Unable to connect to the websocket, refresh access token and retry it");
-            self.refresh_access_tokens(self.access_token.read().await.clone())
-                .await
-                .context("unable to refresh the access token")?;
+        let token = self.get_valid_access_token().await?;
 
-            self.websocket_connect(uri).await?.0
-        };
+        log::debug!("connect websocket to {uri}");
+        let (ws_stream, _response) = self.websocket_connect(uri.clone(), token).await?;
         let (mut tx, mut rx) = ws_stream.split();
 
         let mut last_pong = Instant::now();
@@ -293,18 +255,31 @@ impl HttpClient {
         Ok(())
     }
 
+    async fn get_valid_access_token(&self) -> Result<AccessToken> {
+        let mut token = self.access_token.write().await;
+
+        // Refresh access token if it's expired
+        if check_if_token_is_expired(token.secret())? {
+            let response = self
+                .oidc
+                .exchange_client_credentials()
+                .request_async(&self.client)
+                .await?;
+
+            *token = response.access_token().clone();
+        }
+
+        Ok(token.clone())
+    }
+
     async fn websocket_connect(
         &self,
         uri: String,
+        token: AccessToken,
     ) -> Result<(
         WebSocketStream<tt::MaybeTlsStream<tokio::net::TcpStream>>,
         openidconnect::http::Response<std::option::Option<Vec<u8>>>,
     )> {
-        let token = {
-            let l = self.access_token.read().await;
-            l.clone()
-        };
-
         let mut request = uri.into_client_request().unwrap();
         request.headers_mut().insert(
             reqwest::header::AUTHORIZATION,
@@ -316,10 +291,25 @@ impl HttpClient {
     }
 }
 
-/// Error returned by the `start` function when the given digits were incorrect
-#[derive(Debug, thiserror::Error)]
-#[error("given credentials were invalid")]
-pub(crate) struct InvalidCredentials;
+#[derive(Deserialize)]
+struct TokenClaims {
+    #[serde(deserialize_with = "from_ts")]
+    exp: DateTime<Utc>,
+}
+
+/// Check if the token is expired or is expiring within a minute
+fn check_if_token_is_expired(token: &str) -> Result<bool> {
+    let mut validation = Validation::default();
+    validation.insecure_disable_signature_validation();
+    validation.validate_exp = false;
+    validation.validate_aud = false;
+
+    let token = decode::<TokenClaims>(token, &DecodingKey::from_secret(&[]), &validation)?;
+
+    let now = DateTime::<Utc>::from(SystemTime::now());
+
+    Ok(now > token.claims.exp + Duration::from_secs(60))
+}
 
 #[derive(Serialize)]
 struct StartRequest<'s> {
