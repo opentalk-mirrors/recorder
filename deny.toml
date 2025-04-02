@@ -45,7 +45,7 @@ ignore = [
   # This is an advisory for the 'paste' crate, which is no longer maintained
   # Since this is a dependency for gstreamer, we can't really do anything
   # against it, but wait for a new gstreamer release.
-  "RUSTSEC-2024-0436"
+  "RUSTSEC-2024-0436",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
