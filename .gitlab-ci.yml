@@ -296,7 +296,7 @@ package:read-trivy-ignore-file:
     - echo "TRIVY_IGNORE_FILE_STR=$(cat $CI_PROJECT_DIR/.trivyignore)" >> build.env
   artifacts:
     reports:
-      dotenv: build.env
+      dotenv: package.env
 
 package:container-scanning:
   needs:
