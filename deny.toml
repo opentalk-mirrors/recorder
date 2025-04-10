@@ -185,7 +185,6 @@ skip = [
   { name = "itertools", version = "=0.12" },
   { name = "itertools", version = "=0.13" },
   { name = "itertools", version = "=0.14" },
-  { name = "jiff", version = "=0.2.4" },
   { name = "linux-raw-sys", version = "=0.3" },
   { name = "linux-raw-sys", version = "0.4" },
   { name = "livekit-runtime", version = "0.3" },
@@ -208,7 +207,6 @@ skip = [
   { name = "tokio-rustls", version = "0.24.1" },
   { name = "tokio-tungstenite", version = "0.20.1" },
   { name = "tungstenite", version = "0.20.1" },
-  { name = "winnow", version = "0.6" },
   { name = "zerocopy", version = "0.8" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
