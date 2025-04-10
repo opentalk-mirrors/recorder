@@ -1368,7 +1368,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1789,7 +1789,7 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3048,7 +3048,7 @@ checksum = "e04d7f318608d35d4b61ddd75cbdaee86b023ebe2bd5a66ee0915f0bf93095a9"
 dependencies = [
  "hermit-abi 0.5.0",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3119,7 +3119,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3810,9 +3810,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-common"
-version = "0.32.1"
+version = "0.32.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13523221c1cf75be9cf89b5149542013472d58eafdadb085f6bdd93def143921"
+checksum = "f6bfd7aa6d20337192d3ede384e958eb67844ac1d9268927955bc41d5acc3111"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3857,9 +3857,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-signaling"
-version = "0.32.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c5b9d2ebd82755d4a939b170fbfe210fb9d5636274fb8f6bdf611e9d0b01b59"
+checksum = "c97a5677fdbcb8c2e12d78aa07973c0da02acbab0a6566263c3f36723ef9216e"
 dependencies = [
  "derive_more",
  "opentalk-types-common",
@@ -3871,9 +3871,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-signaling-control"
-version = "0.32.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72d792349e65059af7f4c4ea5ade54f3d084d710f7864c6a11e8217894625e32"
+checksum = "5d556333e3461ca49a3f65b411b26c76fd7a777f35cc40023bf2dea73924dfc7"
 dependencies = [
  "opentalk-types-common",
  "opentalk-types-signaling",
@@ -3883,9 +3883,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-signaling-livekit"
-version = "0.32.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79ffdc3c937f78c1019d0c9caa318af330b810228a68363b498fbbf051c15e30"
+checksum = "10c5d88f67ae101870acff127b0d5d7869b56dc0aa4d6310ea52779b74ae83c9"
 dependencies = [
  "opentalk-types-common",
  "opentalk-types-signaling",
@@ -3894,9 +3894,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-signaling-recording"
-version = "0.32.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "668b6ccb34d0a67b311414c8fe09c8e0c27357db980e0cd5e5d3a29982ad0c4b"
+checksum = "cdf5945c6e7f14e10dbe9023eb16a55051abfd6cc8cc36e10deb51678e8d4cd0"
 dependencies = [
  "derive_more",
  "opentalk-types-common",
@@ -3907,9 +3907,9 @@ dependencies = [
 
 [[package]]
 name = "opentalk-types-signaling-recording-service"
-version = "0.32.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11aefc7d88e29621448246c64b6bc5674883e0225503aeb8d0fdeb0829713285"
+checksum = "8aaa5d6968a901cf14050edd8a73d32645540185d114bf55a68e661fac5c4dd9"
 dependencies = [
  "opentalk-types-common",
  "opentalk-types-signaling",
@@ -4444,7 +4444,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.12.1",
  "log",
  "multimap",
@@ -4529,7 +4529,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.8",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4906,7 +4906,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4919,7 +4919,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.9.3",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5421,7 +5421,7 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03c3c6b7927ffe7ecaa769ee0e3994da3b8cafc8f444578982c83ecb161af917"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn",
@@ -5624,7 +5624,7 @@ dependencies = [
  "getrandom 0.3.1",
  "once_cell",
  "rustix 1.0.2",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6357,7 +6357,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
