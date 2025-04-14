@@ -109,7 +109,7 @@ impl Recorder {
         let recording_task = tokio::spawn(async move {
             if let Err(ref recording_err) = session.run().await {
                 error!("recording session failed but trying upload anyway:\n{recording_err:?}",);
-            };
+            }
 
             Ok(())
         });
@@ -279,14 +279,12 @@ impl RecordingSession {
                     match msg {
                         Err(err) => {
                             log::debug!("Unexpected websocket message. {err}");
-                            continue;
                         },
                         Ok(Some(msg)) => {
                             self.handle_signaling_event(msg, chunk_limit_reached_tx.clone()).await?;
                         }
                         Ok(None) => {
                             log::trace!("Received None message");
-                            continue;
                         }
                     }
                 }

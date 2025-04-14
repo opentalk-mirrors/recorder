@@ -184,7 +184,7 @@ fn main_loop() -> Result<()> {
         unsafe {
             std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
         }
-    };
+    }
 
     gst::init()?;
     check_plugins()?;
