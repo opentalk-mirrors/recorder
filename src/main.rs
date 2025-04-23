@@ -40,7 +40,7 @@ mod system_info;
 
 use crate::recorder::Recorder;
 
-const RECONNECT_INTERVAL: Duration = Duration::from_millis(3_000); //ms
+const RECONNECT_INTERVAL: Duration = Duration::from_secs(3);
 const DOT_OUTPUT_PATH: &str = "./pipelines";
 
 fn check_plugins() -> Result<()> {
@@ -247,9 +247,7 @@ async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>, config_file: &st
         _ = run_usage_polling(&recorder_context) => {
             log::debug!("Usage polling failed, shutdown all remaining tasks");
         }
-        Err(rmq_err) = run_rabbitmq_session(&recorder_context, &mut tasks) => {
-            log::error!("Connection to RabbitMQ failed with: {rmq_err:?}");
-        }
+        () = run_rabbitmq_session(&recorder_context, &mut tasks) => {}
     }
     tasks.retain(|task| !task.is_finished());
 
@@ -304,50 +302,74 @@ async fn run_usage_polling(recorder_context: &Recorder) -> Result<(), broadcast:
 async fn run_rabbitmq_session(
     recorder_context: &Recorder,
     tasks: &mut Vec<JoinHandle<Result<()>>>,
-) -> Result<()> {
-    let rabbitmq_settings = &recorder_context.settings.rabbitmq;
-    let channel = rmq::open_rabbitmq_connection(rabbitmq_settings).await?;
-    set_service_state(ServiceState::Ready);
+) {
+    loop {
+        set_service_state(ServiceState::Up);
+        log::debug!("Trying to connect to RabbitMQ");
 
-    match rmq::create_rmq_queue_and_consume(channel, rabbitmq_settings).await {
-        Ok(mut consumer) => {
-            while let Some(delivery) = consumer.next().await {
-                match delivery {
-                    Ok(ref delivery) => {
-                        if !is_new_recording_feasible() {
-                            if let Err(e) = delivery
-                                .reject(lapin::options::BasicRejectOptions { requeue: true })
-                                .await
-                            {
-                                log::error!("Failed to reject Deliver: {e:?}");
-                            }
-
-                            continue;
-                        }
-
-                        let start_command = rmq::handle_delivery(delivery).await?;
-                        let task = recorder_context
-                            .spawn_session(start_command)
-                            .await
-                            .map_err(|e| {
-                                log::error!("Recording session failed: {e:?}");
-                                e
-                            })?;
-
-                        tasks.push(task);
-                    }
-                    Err(e) => {
-                        log::error!("RabbitMQ consumer returned error: {e:?}");
-                        break;
-                    }
-                }
-                tasks.retain(|task| !task.is_finished());
+        let rabbitmq_settings = &recorder_context.settings.rabbitmq;
+        let channel = match rmq::open_rabbitmq_connection(rabbitmq_settings).await {
+            Ok(channel) => channel,
+            Err(err) => {
+                log::error!(
+                    "Unable to connect to RabbitMQ (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}"
+                );
+                sleep(RECONNECT_INTERVAL).await;
+                continue;
             }
-        }
-        Err(e) => {
-            log::error!("RMQ connect error: {e:?} (reconnecting in {RECONNECT_INTERVAL:?})");
-            sleep(RECONNECT_INTERVAL).await;
+        };
+
+        let mut consumer = match rmq::create_rmq_queue_and_consume(channel, rabbitmq_settings).await
+        {
+            Ok(consumer) => consumer,
+            Err(err) => {
+                log::error!("Unable to create RabbitMQ queue and consume (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}");
+                sleep(RECONNECT_INTERVAL).await;
+                continue;
+            }
+        };
+
+        log::info!("RabbitMQ connection established successfully");
+        set_service_state(ServiceState::Ready);
+
+        while let Some(delivery) = consumer.next().await {
+            let delivery = match delivery {
+                Ok(delivery) => delivery,
+                Err(err) => {
+                    log::error!("RabbitMQ consumer returned error\n{err:?}");
+                    break;
+                }
+            };
+
+            if !is_new_recording_feasible() {
+                if let Err(err) = delivery
+                    .reject(lapin::options::BasicRejectOptions { requeue: true })
+                    .await
+                {
+                    log::error!("RabbitMQ failed to reject deliver\n{err:?}");
+                    break;
+                }
+                continue;
+            }
+
+            let start_command = match rmq::handle_delivery(&delivery).await {
+                Ok(start_command) => start_command,
+                Err(err) => {
+                    log::error!("RabbitMQ handle delivery failed\n{err:?}");
+                    continue;
+                }
+            };
+
+            let task = match recorder_context.spawn_session(start_command).await {
+                Ok(task) => task,
+                Err(err) => {
+                    log::error!("Recording session failed\n{err:?}");
+                    continue;
+                }
+            };
+
+            tasks.push(task);
+            tasks.retain(|task| !task.is_finished());
         }
     }
-    Ok::<(), anyhow::Error>(())
 }
