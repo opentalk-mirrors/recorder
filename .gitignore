@@ -9,6 +9,7 @@
 /*.webm
 /target
 config.toml
+recorder.toml
 .DS_Store
 
 # gstreamer pipelines

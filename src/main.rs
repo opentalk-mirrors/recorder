@@ -216,7 +216,7 @@ fn main_loop() -> Result<()> {
             .expect("failed to send shutdown signal");
     });
 
-    if let Err(e) = runtime.block_on(run_recorder(shutdown_rx, &args.config)) {
+    if let Err(e) = runtime.block_on(run_recorder(shutdown_rx, args.config.as_ref())) {
         eprintln!("Exit on failure: {e:?}");
         std::process::exit(-1);
     }
@@ -227,7 +227,10 @@ fn main_loop() -> Result<()> {
     Ok(())
 }
 
-async fn run_recorder(mut shutdown_rx: broadcast::Receiver<()>, config_file: &str) -> Result<()> {
+async fn run_recorder(
+    mut shutdown_rx: broadcast::Receiver<()>,
+    config_file: Option<&String>,
+) -> Result<()> {
     let settings = Arc::new(Settings::load(config_file).context("Failed to read config")?);
 
     let http_client = HttpClient::discover(&settings.auth)
