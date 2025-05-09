@@ -4,8 +4,9 @@
 
 use std::{fmt::Display, net::IpAddr, str::FromStr};
 
+use anyhow::{bail, Context, Result};
 use compositor::{ClockFormat, EncoderType};
-use config::{Config, ConfigError, Environment, File, FileFormat};
+use config::{Config, Environment, File, FileFormat, FileSourceFile};
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
 use serde::{Deserialize, Deserializer};
@@ -22,13 +23,46 @@ pub(crate) struct Settings {
     pub(crate) recorder: Option<RecorderSettings>,
 }
 
+fn discover_config_file(
+    config_arg_path: Option<&String>,
+) -> Result<File<FileSourceFile, FileFormat>> {
+    use std::fs::exists;
+
+    if let Some(path) = config_arg_path {
+        return Ok(File::new(path, FileFormat::Toml));
+    }
+
+    if exists("recorder.toml").unwrap_or_default() {
+        return Ok(File::new("recorder.toml", FileFormat::Toml));
+    }
+
+    if let Some(dirs) = directories::BaseDirs::new() {
+        let config_path = dirs.config_dir().join("recorder.toml");
+
+        if exists(&config_path).unwrap_or_default() {
+            let name = config_path
+                .to_str()
+                .context("Failed to convert config path to UTF8")?;
+
+            return Ok(File::new(name, FileFormat::Toml));
+        }
+    }
+
+    if exists("/etc/opentalk/recorder.toml").unwrap_or_default() {
+        return Ok(File::new("/etc/opentalk/recorder.toml", FileFormat::Toml));
+    }
+
+    bail!("Failed to find a configuration file");
+}
+
 impl Settings {
-    pub(crate) fn load(file_name: &str) -> Result<Self, ConfigError> {
+    pub(crate) fn load(config_arg_path: Option<&String>) -> Result<Self> {
         Config::builder()
-            .add_source(File::new(file_name, FileFormat::Toml))
+            .add_source(discover_config_file(config_arg_path)?)
             .add_source(Environment::with_prefix("OPENTALK_REC").separator("__"))
             .build()?
             .try_deserialize()
+            .context("Failed to parse configuration file")
     }
 
     #[must_use]
