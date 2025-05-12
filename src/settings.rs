@@ -2,13 +2,15 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{fmt::Display, net::IpAddr, str::FromStr};
+use std::{fmt::Display, net::IpAddr, path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context, Result};
 use compositor::{ClockFormat, EncoderType};
 use config::{Config, Environment, File, FileFormat, FileSourceFile};
+use itertools::Itertools;
 use lapin::uri::AMQPUri;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
+use owo_colors::OwoColorize;
 use serde::{Deserialize, Deserializer};
 
 const S3_MINIMUM_CHUNK_SIZE: usize = 5 * 1024 * 1024;
@@ -21,38 +23,6 @@ pub(crate) struct Settings {
     pub(crate) monitoring: Option<MonitoringSettings>,
     pub(crate) rabbitmq: RabbitMqSettings,
     pub(crate) recorder: Option<RecorderSettings>,
-}
-
-fn discover_config_file(
-    config_arg_path: Option<&String>,
-) -> Result<File<FileSourceFile, FileFormat>> {
-    use std::fs::exists;
-
-    if let Some(path) = config_arg_path {
-        return Ok(File::new(path, FileFormat::Toml));
-    }
-
-    if exists("recorder.toml").unwrap_or_default() {
-        return Ok(File::new("recorder.toml", FileFormat::Toml));
-    }
-
-    if let Some(dirs) = directories::BaseDirs::new() {
-        let config_path = dirs.config_dir().join("recorder.toml");
-
-        if exists(&config_path).unwrap_or_default() {
-            let name = config_path
-                .to_str()
-                .context("Failed to convert config path to UTF8")?;
-
-            return Ok(File::new(name, FileFormat::Toml));
-        }
-    }
-
-    if exists("/etc/opentalk/recorder.toml").unwrap_or_default() {
-        return Ok(File::new("/etc/opentalk/recorder.toml", FileFormat::Toml));
-    }
-
-    bail!("Failed to find a configuration file");
 }
 
 impl Settings {
@@ -76,6 +46,77 @@ impl Settings {
                     HardwareAcceleration::Intel(_) => EncoderType::VAAPI,
                 },
             )
+    }
+}
+
+fn discover_config_file(
+    config_arg_path: Option<&String>,
+) -> Result<File<FileSourceFile, FileFormat>> {
+    if let Some(path) = config_arg_path {
+        return Ok(File::new(path, FileFormat::Toml));
+    }
+
+    let mut paths = vec![
+        ConfigSearchPath {
+            path: "config.toml".into(),
+            deprecated: true,
+        },
+        ConfigSearchPath {
+            path: "recorder.toml".into(),
+            deprecated: false,
+        },
+    ];
+
+    if let Some(dirs) = directories::BaseDirs::new() {
+        paths.push(ConfigSearchPath {
+            path: dirs.config_dir().join("opentalk/recorder.toml"),
+            deprecated: false,
+        });
+    }
+
+    paths.push(ConfigSearchPath {
+        path: "/etc/opentalk/recorder.toml".into(),
+        deprecated: false,
+    });
+
+    for ConfigSearchPath { path, deprecated } in &paths {
+        if !path.exists() {
+            continue;
+        }
+
+        if *deprecated {
+            let supported_paths = paths
+                .iter()
+                .filter_map(ConfigSearchPath::display_non_deprecated)
+                .join(", ");
+
+            anstream::eprintln!(
+                "{}: You're using the deprecated configuration path \"{}\", please use one of these instead: {}.",
+                "DEPRECATION WARNING".yellow().bold(),
+                path.to_string_lossy(),
+                supported_paths
+            );
+        }
+
+        return Ok(File::from(path.as_path()).format(FileFormat::Toml));
+    }
+
+    let searched_paths = paths.iter().map(|path| path.path.display()).join(", ");
+
+    bail!("Failed to find a configuration file, searched: {searched_paths}",);
+}
+
+struct ConfigSearchPath {
+    path: PathBuf,
+    deprecated: bool,
+}
+
+impl ConfigSearchPath {
+    fn display_non_deprecated(&self) -> Option<String> {
+        if self.deprecated {
+            return None;
+        }
+        Some(format!("\"{}\"", self.path.display()))
     }
 }
 
