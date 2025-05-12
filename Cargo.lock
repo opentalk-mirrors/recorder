@@ -4014,6 +4014,7 @@ dependencies = [
 name = "opentalk-recorder"
 version = "0.14.0"
 dependencies = [
+ "anstream",
  "anyhow",
  "bytes",
  "chrono",
@@ -4024,6 +4025,7 @@ dependencies = [
  "env_logger 0.11.8",
  "futures",
  "gstreamer",
+ "itertools 0.14.0",
  "jsonwebtoken",
  "lapin",
  "log",
@@ -4037,6 +4039,7 @@ dependencies = [
  "opentalk-types-signaling-recording",
  "opentalk-types-signaling-recording-service",
  "opentalk-version",
+ "owo-colors",
  "pin-project-lite",
  "reqwest 0.12.15",
  "serde",
@@ -4204,6 +4207,12 @@ checksum = "22ec719bbf3b2a81c109a4e20b1f129b5566b7dce654bc3872f6a05abf82b2c4"
 dependencies = [
  "ttf-parser",
 ]
+
+[[package]]
+name = "owo-colors"
+version = "4.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1036865bb9422d3300cf723f657c2851d0e9ab12567854b1f4eba3d77decf564"
 
 [[package]]
 name = "p12-keystore"
