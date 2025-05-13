@@ -86,3 +86,11 @@ objc = "0.2.7"
 [build-dependencies]
 anyhow = "1"
 opentalk-version = "0.2.0"
+
+[patch.crates-io]
+webrtc-sys = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
+libwebrtc = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
+livekit = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
+livekit-api = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
+livekit-runtime = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
+livekit-protocol = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
