@@ -281,7 +281,7 @@ impl RecordingSession {
                             log::debug!("Unexpected websocket message. {err}");
                         },
                         Ok(Some(msg)) => {
-                            self.handle_signaling_event(msg, chunk_limit_reached_tx.clone()).await?;
+                            Box::pin(self.handle_signaling_event(msg, chunk_limit_reached_tx.clone())).await?;
                         }
                         Ok(None) => {
                             log::trace!("Received None message");
