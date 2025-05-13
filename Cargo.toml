@@ -17,7 +17,7 @@ build = "build.rs"
 anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1"
 chrono = "0.4"
-compositor = { package = "opentalk-compositor", version = "0.14.0" }
+compositor = { package = "opentalk-compositor", version = "0.15.1" }
 config = { version = "0.15", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
@@ -73,7 +73,7 @@ types-signaling-recording-service = { package = "opentalk-types-signaling-record
 urlencoding = "2.1"
 service-probe = "0.2"
 clap = { version = "4.5.23", features = ["derive"] }
-opentalk-version = "0.1.1"
+opentalk-version = "0.2.0"
 directories = "6.0.0"
 anstream = "0.6.18"
 itertools = "0.14.0"
@@ -85,4 +85,4 @@ objc = "0.2.7"
 
 [build-dependencies]
 anyhow = "1"
-opentalk-version = "0.1.1"
+opentalk-version = "0.2.0"

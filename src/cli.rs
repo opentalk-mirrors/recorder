@@ -2,6 +2,10 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
+// currently there's an issues in which a format! call is pushed to a string
+// this causes clippy to fail in the build_info! macro.
+#![allow(clippy::format_push_string)]
+
 use clap::{ArgAction, Parser};
 
 #[derive(Parser, Debug, Clone)]
@@ -44,5 +48,15 @@ pub fn parse_args() -> Args {
 opentalk_version::build_info!();
 
 fn print_version() {
-    println!("{}", build_info::BuildInfo::new());
+    let info_args = opentalk_version::InfoArgs {
+        version: true,
+        license: true,
+    };
+
+    println!(
+        "{}",
+        build_info::BuildInfo::new()
+            .format(&info_args)
+            .unwrap_or("No Build information available.".to_string())
+    );
 }
