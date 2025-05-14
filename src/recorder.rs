@@ -523,15 +523,12 @@ impl RecordingSession {
 
                     let livekit_state = signaling::join_success_livekit(&state);
 
-                    let Some(event) = state.event_info else {
-                        log::info!("No Event info found in ControlEvent::JoinSuccess.");
-                        return Ok(());
-                    };
+                    let event_title = state.event_info.map(|info| info.title.to_string());
 
                     self.handle_join_success(
                         livekit_state.ok(),
                         streams,
-                        event.title.to_string(),
+                        event_title,
                         state.id,
                         state.participants,
                         Some(chunk_limit_sender),
@@ -581,7 +578,7 @@ impl RecordingSession {
         &mut self,
         livekit_state: Option<LiveKitState>,
         streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamInfo>,
-        event_title: String,
+        event_title: Option<String>,
         participant_id: ParticipantId,
         participants: Vec<Participant>,
         chunk_limit_sender: Option<broadcast::Sender<UploadLimitReached>>,
@@ -676,10 +673,12 @@ impl RecordingSession {
                 .context("unable to send stream update")?;
         }
 
-        self.mixer
-            .as_mut()
-            .context("mixer does not exist")?
-            .set_event_title(event_title);
+        if let Some(event_title) = event_title {
+            self.mixer
+                .as_mut()
+                .context("mixer does not exist")?
+                .set_event_title(event_title);
+        }
 
         for participant in participants {
             let participant_state = self
