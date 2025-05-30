@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2025-05-29
+
+[0.15.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.14.1...v0.15.0
+
+### 🚀 New features
+
+- (ci) Add container scan trigger ([!455](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/455), [#203](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/203))
+- (cli) Load config from commonly used locations ([!478](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/478))
+- Participants without video are now shown ([!483](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/483))
+
+### 🐛 Bug fixes
+
+- Recorder timeout for first recording attempt ([!448](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/448), [#204](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/204))
+- (ci) Fix shared env between ci jobs ([!460](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/460))
+- Recorder never recovers from rabbitmq timeout ([!471](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/471), [#210](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/210))
+- Wrong initial participant mute state ([!484](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/484))
+- Do not bail early if there's no event-info set in join-success ([!485](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/485))
+
+### 📦 Dependencies
+
+- (deps) Lock file maintenance ([!437](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/437))
+- (deps) Update rust crate clap to v4.5.32 ([!439](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/439))
+- (deps) Update rust crate reqwest to v0.12.13 ([!440](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/440))
+- (deps) Update rust crate tokio to v1.44.1 ([!443](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/443))
+- (deps) Update rust crate types-common to v0.32.1 ([!444](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/444))
+- (deps) Lock file maintenance ([!445](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/445))
+- (deps) Update rust crate reqwest to v0.12.15 ([!441](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/441))
+- (deps) Added advisory for unmaintained paste crate ([!446](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/446))
+- (deps) Update rust crate log to v0.4.27 ([!447](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/447))
+- (deps) Update rust crate sysinfo to 0.34 ([!453](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/453))
+- (deps) Update rust crate env_logger to v0.11.8 ([!456](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/456))
+- (deps) Update rust crate clap to v4.5.35 ([!451](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/451))
+- (deps) Update opentalk-controller ([!450](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/450))
+- (deps) Update rust crate lapin to v2.5.3 ([!458](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/458))
+- (deps) Update rust crate tokio to v1.44.2 ([!461](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/461))
+- (deps) Lock file maintenance ([!454](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/454))
+- (deps) Lock file maintenance ([!466](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/466))
+- (deps) Update rust crate anyhow to v1.0.98 ([!467](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/467))
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.86.0 ([!459](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/459))
+- (deps) Update rust crate clap to v4.5.37 ([!469](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/469))
+- (deps) Lock file maintenance ([!470](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/470))
+- (deps) Update rust crate chrono to v0.4.41 ([!474](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/474))
+- (deps) Update rust crate sysinfo to 0.35 ([!475](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/475))
+- (deps) Update rust crate tokio to v1.45.0 ([!476](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/476))
+- (deps) Update opentalk-controller ([!481](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/481))
+- (deps) Update rust crate sysinfo to v0.35.1 ([!480](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/480))
+- (deps) Update rust crate clap to v4.5.38 ([!479](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/479))
+
+### ⚙ Miscellaneous
+
+- Add pre-commit config ([!457](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/457))
+- Smaller clippy changes ([!468](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/468))
+- Update justfile, add update-changelog, set-version, check_yq and exclude xtask ([!486](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/486))
+
+### Ci
+
+- Restrict mr container tag lengh to 63 characters ([!433](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/433), [#202](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/202))
+- Configure renovate merge request reviewers ([!449](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/449))
+- Add "team:: media integration" label to new incidents ([!462](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/462))
+- Correct handling of trivyignore files ([!464](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/464))
+
 ## [0.14.0] - 2025-03-05
 
 [0.14.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.13.2...v0.14.0
