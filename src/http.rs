@@ -308,7 +308,7 @@ fn check_if_token_is_expired(token: &str) -> Result<bool> {
 
     let now = DateTime::<Utc>::from(SystemTime::now());
 
-    Ok(now > token.claims.exp + Duration::from_secs(60))
+    Ok(now > token.claims.exp - Duration::from_secs(60))
 }
 
 #[derive(Serialize)]
