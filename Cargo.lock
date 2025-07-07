@@ -3661,8 +3661,9 @@ dependencies = [
 
 [[package]]
 name = "libwebrtc"
-version = "0.3.10"
-source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+version = "0.3.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2c7f9911eb1ba35543fce3513797ec43746799cb82464191f70a8d471ec7dfe"
 dependencies = [
  "cxx",
  "jni",
@@ -3723,8 +3724,9 @@ checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 
 [[package]]
 name = "livekit"
-version = "0.7.9"
-source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+version = "0.7.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d70810baa0bc64957579a4953d08c6dcce20c21f9a4466e73197407bb6182182"
 dependencies = [
  "bmrng",
  "bytes",
@@ -3748,8 +3750,9 @@ dependencies = [
 
 [[package]]
 name = "livekit-api"
-version = "0.4.2"
-source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc95de3f9a3aee87733789fb7a79643871eb05e5ae037d4876e70a6143c3d9e4"
 dependencies = [
  "base64 0.21.7",
  "futures-util",
@@ -3777,8 +3780,9 @@ dependencies = [
 
 [[package]]
 name = "livekit-protocol"
-version = "0.3.9"
-source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45c90494efa508ec40228f870affec648826d23e1a9621a4430f67d187901eb4"
 dependencies = [
  "futures-util",
  "livekit-runtime",
@@ -4140,9 +4144,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "opentalk-compositor"
-version = "0.15.1"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a27179a1eb03e4ccc7af4be88fbdaa040c69e3cdc746b3959be41c1817fae30"
+checksum = "d035ad4536815bf4381f947bce8ed1664936176b3f4298fb7214379fbb3b33d1"
 dependencies = [
  "ab_glyph",
  "anyhow",
@@ -7001,8 +7005,9 @@ dependencies = [
 
 [[package]]
 name = "webrtc-sys"
-version = "0.3.7"
-source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a05aff1fc2573cacbdcf6218acbd4d7a1baf0a746a43f474bde4603402f5b29"
 dependencies = [
  "cc",
  "cxx",
@@ -7014,9 +7019,11 @@ dependencies = [
 
 [[package]]
 name = "webrtc-sys-build"
-version = "0.3.6"
-source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90ffad77f3bc269f0715269034cd951d02fa7c4c4fd48b8f7fb55931a9358057"
 dependencies = [
+ "anyhow",
  "fs2",
  "regex",
  "reqwest 0.11.27",
@@ -7695,3 +7702,28 @@ checksum = "2c9e525af0a6a658e031e95f14b7f889976b74a11ba0eca5a5fc9ac8a1c43a6a"
 dependencies = [
  "zune-core",
 ]
+
+[[patch.unused]]
+name = "libwebrtc"
+version = "0.3.10"
+source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+
+[[patch.unused]]
+name = "livekit"
+version = "0.7.9"
+source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+
+[[patch.unused]]
+name = "livekit-api"
+version = "0.4.2"
+source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+
+[[patch.unused]]
+name = "livekit-protocol"
+version = "0.3.9"
+source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+
+[[patch.unused]]
+name = "webrtc-sys"
+version = "0.3.7"
+source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
