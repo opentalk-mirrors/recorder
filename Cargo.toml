@@ -61,7 +61,7 @@ types-signaling = { package = "opentalk-types-signaling", version = "0.36", feat
   "rand",
   "serde",
 ] }
-types-signaling-livekit = { package = "opentalk-types-signaling-livekit", version = "0.37", features = [
+types-signaling-livekit = { package = "opentalk-types-signaling-livekit", version = "0.38", features = [
   "serde",
 ] }
 types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.36", features = [
