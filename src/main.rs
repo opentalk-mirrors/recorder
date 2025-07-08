@@ -322,6 +322,7 @@ async fn run_rabbitmq_session(
             }
         };
 
+        log::trace!("Creating rabbitmq queue");
         let mut consumer = match rmq::create_rmq_queue_and_consume(channel, rabbitmq_settings).await
         {
             Ok(consumer) => consumer,
