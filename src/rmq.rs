@@ -9,6 +9,7 @@ use lapin::{
     types::FieldTable,
     Consumer,
 };
+use opentalk_client::types::common::rooms::BreakoutRoomId;
 use serde::Deserialize;
 
 use crate::settings::RabbitMqSettings;
@@ -18,7 +19,7 @@ use crate::settings::RabbitMqSettings;
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct InitializeRecording {
     pub(crate) room: String,
-    pub(crate) breakout: Option<String>,
+    pub(crate) breakout: Option<BreakoutRoomId>,
 }
 
 pub(crate) async fn open_rabbitmq_connection(
