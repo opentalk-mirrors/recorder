@@ -151,6 +151,7 @@ impl HttpClient {
 
         let token = self.get_valid_access_token().await?;
 
+        log::debug!("Connecting to signaling");
         let response = self
             .client
             .post(&uri)
@@ -165,6 +166,7 @@ impl HttpClient {
         match response.status() {
             StatusCode::OK => {
                 let response = response.json::<StartResponse>().await?;
+                log::trace!("Successfully connected to signaling");
 
                 Ok(response.ticket)
             }
