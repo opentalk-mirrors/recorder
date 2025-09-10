@@ -17,13 +17,13 @@ build = "build.rs"
 anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1"
 chrono = "0.4"
-compositor = { package = "opentalk-compositor", version = "0.16.0" }
+compositor = { package = "opentalk-compositor", version = "0.16" }
 config = { version = "0.15", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
 jsonwebtoken = "9.3"
-lapin = { version = "3.0", default-features = false, features = [
+lapin = { version = "3.4", default-features = false, features = [
   "rustls-webpki-roots-certs",
 ] }
 log = "0.4"
@@ -36,9 +36,9 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
-sysinfo = "0.36"
+sysinfo = "0.37"
 thiserror = "2"
-tokio-executor-trait = "2"
+tokio-executor-trait = "3"
 tokio-reactor-trait = "2"
 tokio = { version = "1", features = [
   "rt-multi-thread",
@@ -72,25 +72,20 @@ types-signaling-recording-service = { package = "opentalk-types-signaling-record
 ] }
 urlencoding = "2.1"
 service-probe = "0.2"
-clap = { version = "4.5.23", features = ["derive"] }
-opentalk-version = "0.2.0"
-directories = "6.0.0"
-anstream = "0.6.18"
-itertools = "0.14.0"
-owo-colors = "4.2.0"
+clap = { version = "4.5", features = ["derive"] }
+opentalk-version = "0.2"
+directories = "6.0"
+anstream = "0.6"
+itertools = "0.14"
+owo-colors = "4.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
-objc = "0.2.7"
+objc = "0.2"
 
 [build-dependencies]
 anyhow = "1"
-opentalk-version = "0.2.0"
+opentalk-version = "0.2"
 
 [patch.crates-io]
-webrtc-sys = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
-libwebrtc = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
-livekit = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
-livekit-api = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
 livekit-runtime = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
-livekit-protocol = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
