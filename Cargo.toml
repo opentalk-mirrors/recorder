@@ -17,7 +17,7 @@ build = "build.rs"
 anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1"
 chrono = "0.4"
-compositor = { package = "opentalk-compositor", version = "0.16.0" }
+compositor = { package = "opentalk-compositor", version = "0.16" }
 config = { version = "0.15", default-features = false, features = ["toml"] }
 env_logger = "0.11"
 futures = "0.3"
@@ -72,20 +72,20 @@ types-signaling-recording-service = { package = "opentalk-types-signaling-record
 ] }
 urlencoding = "2.1"
 service-probe = "0.2"
-clap = { version = "4.5.23", features = ["derive"] }
-opentalk-version = "0.2.0"
-directories = "6.0.0"
-anstream = "0.6.18"
-itertools = "0.14.0"
-owo-colors = "4.2.0"
+clap = { version = "4.5", features = ["derive"] }
+opentalk-version = "0.2"
+directories = "6.0"
+anstream = "0.6"
+itertools = "0.14"
+owo-colors = "4.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
-objc = "0.2.7"
+objc = "0.2"
 
 [build-dependencies]
 anyhow = "1"
-opentalk-version = "0.2.0"
+opentalk-version = "0.2"
 
 [patch.crates-io]
 webrtc-sys = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
