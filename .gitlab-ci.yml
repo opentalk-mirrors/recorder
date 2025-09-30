@@ -252,7 +252,8 @@ build:container:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   # IMAGE_DESTINATION_ARGS will be set inside the script
   image:
-    name: gcr.io/kaniko-project/executor:debug
+    name: git.opentalk.dev:5050/opentalk/opentalk-devops/containers/kaniko:debug-1.25.2
+    pull_policy: if-not-present
     entrypoint: ['']
   script:
     # According to https://docs.docker.com/engine/reference/commandline/tag/
