@@ -6,26 +6,26 @@
 
 use std::time::{Duration, Instant, SystemTime};
 
-use anyhow::{bail, Context, Result};
-use chrono::{serde::ts_seconds::deserialize as from_ts, DateTime, Utc};
+use anyhow::{Context, Result, bail};
+use chrono::{DateTime, Utc, serde::ts_seconds::deserialize as from_ts};
 use futures::{SinkExt, StreamExt};
-use jsonwebtoken::{self, decode, DecodingKey, Validation};
+use jsonwebtoken::{self, DecodingKey, Validation, decode};
 use openidconnect::{
+    AccessToken, EmptyAdditionalClaims, EmptyExtraTokenFields, EndpointNotSet, EndpointSet,
+    IdTokenFields, OAuth2TokenResponse, RevocationErrorResponseType, StandardErrorResponse,
+    StandardTokenIntrospectionResponse, StandardTokenResponse,
     core::{
         CoreAuthDisplay, CoreAuthPrompt, CoreClient, CoreErrorResponseType, CoreGenderClaim,
         CoreJsonWebKey, CoreJweContentEncryptionAlgorithm, CoreJwsSigningAlgorithm,
         CoreProviderMetadata, CoreRevocableToken, CoreTokenType,
     },
-    AccessToken, EmptyAdditionalClaims, EmptyExtraTokenFields, EndpointNotSet, EndpointSet,
-    IdTokenFields, OAuth2TokenResponse, RevocationErrorResponseType, StandardErrorResponse,
-    StandardTokenIntrospectionResponse, StandardTokenResponse,
 };
-use reqwest::{header::HeaderValue, StatusCode};
+use reqwest::{StatusCode, header::HeaderValue};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tt::{
-    tungstenite::{client::IntoClientRequest, Message},
     WebSocketStream,
+    tungstenite::{Message, client::IntoClientRequest},
 };
 use types_common::{streaming::StreamingTargetId, time::Timestamp};
 

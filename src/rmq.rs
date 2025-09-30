@@ -4,15 +4,13 @@
 
 use anyhow::{Context as ErrorContext, Result};
 use lapin::{
+    Consumer,
     message::Delivery,
     options::{BasicAckOptions, BasicConsumeOptions, QueueDeclareOptions},
     types::FieldTable,
-    Consumer,
 };
 use opentalk_client::types::common::rooms::BreakoutRoomId;
 use serde::Deserialize;
-
-use crate::settings::RabbitMqSettings;
 
 // Commands this recorder receives via RabbitMQ
 

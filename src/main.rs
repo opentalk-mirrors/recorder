@@ -5,47 +5,56 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::{
-    pin::pin,
-    process::{exit, Command, Stdio},
-    sync::Arc,
+    net::IpAddr,
+    process::{Command, Stdio, exit},
+    sync::{Arc, Mutex},
 };
 
 use anyhow::{Context, Result};
-use futures::{future::join_all, StreamExt};
+use axum::{
+    Json, Router,
+    extract::{self, State},
+    http::StatusCode,
+    routing::post,
+};
+use clap::Parser;
+use futures::future::join_all;
 use gst::glib;
 use log::warn;
-use opentalk_client::{config::ClientConfig, OpenTalkClient};
-use service_probe::{set_service_state, start_probe, ServiceState};
+use opentalk_client::{OpenTalkClient, config::ClientConfig, types::common::rooms::BreakoutRoomId};
+use serde::Deserialize;
+use service_probe::{ServiceState, set_service_state, start_probe};
 use service_probe_client::is_ready;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
-use system_info::{
-    cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll, is_new_recording_feasible,
-};
+use system_info::{cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll};
 use tokio::{
+    net::TcpListener,
     select,
     signal::{
         ctrl_c,
-        unix::{signal, SignalKind},
+        unix::{SignalKind, signal},
     },
     sync::broadcast,
     task::JoinHandle,
-    time::{sleep, Duration},
 };
+
+use crate::cli::{Commands, print_info};
 
 mod cli;
 mod recorder;
-mod rmq;
 mod settings;
 mod system_info;
 
-use clap::Parser;
+use crate::{cli::Args, recorder::Recorder, system_info::is_new_recording_feasible};
 
-use crate::{
-    cli::{print_info, Args, Commands},
-    recorder::Recorder,
-};
-const RECONNECT_INTERVAL: Duration = Duration::from_secs(3);
+#[derive(Clone)]
+pub struct AppState {
+    pub(crate) tasks: Arc<Mutex<Vec<JoinHandle<Result<()>>>>>,
+    pub(crate) recorder_context: Arc<Recorder>,
+}
+
 const DOT_OUTPUT_PATH: &str = "./pipelines";
+const API_VERSION: &str = "/v1";
 
 fn check_plugins() -> Result<()> {
     let registry = gst::Registry::get();
@@ -114,7 +123,7 @@ fn main() {
     // Copyright 2024 Sebastian Dröge
     use std::{
         ffi::c_void,
-        sync::mpsc::{channel, Sender},
+        sync::mpsc::{Sender, channel},
         thread,
     };
 
@@ -221,6 +230,14 @@ async fn main_loop() -> Result<()> {
             }
         };
     }
+    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
+        warn!(
+            "Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output."
+        );
+        unsafe {
+            std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
+        }
+    }
 
     let _ = tokio::task::spawn_blocking(move || -> Result<()> {
             if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
@@ -251,6 +268,7 @@ async fn main_loop() -> Result<()> {
                 .build()
                 .context("failed to start tokio async runtime")?;
 
+
             runtime.spawn(async move {
                 let mut sig_term =
                     signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
@@ -272,10 +290,8 @@ async fn main_loop() -> Result<()> {
             gstreamer_main_loop.quit();
             Ok(())
         }).await?;
-
     Ok(())
 }
-
 async fn run_recorder(
     mut shutdown_rx: broadcast::Receiver<()>,
     settings: Arc<Settings>,
@@ -298,18 +314,23 @@ async fn run_recorder(
     let recorder_context = Recorder::new(settings.clone(), client, shutdown_rx.resubscribe());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
 
+    let recorder = AppState {
+        tasks: Arc::new(Mutex::new(vec![])),
+        recorder_context: Arc::new(recorder_context.clone()),
+    };
+
     if let Some(MonitoringSettings { port, addr }) = settings.monitoring {
         start_probe(addr, port, ServiceState::Up).await?;
     }
 
     select! {
-        _ = shutdown_rx.recv() => {
-            log::debug!("Received shutdown, shutdown all remaining tasks");
+        _ =  shutdown_rx.recv() => {
+            log::info!("Received shutdown, shutdown all remaining tasks");
         }
         _ = run_usage_polling(&recorder_context) => {
             log::debug!("Usage polling failed, shutdown all remaining tasks");
         }
-        () = run_rabbitmq_session(&recorder_context, &mut tasks) => {}
+        result = run_axum_server(settings.http.addr, settings.http.port, recorder.clone()) => { result?; }
     }
     tasks.retain(|task| !task.is_finished());
 
@@ -318,6 +339,23 @@ async fn run_recorder(
         join_all(tasks).await;
     }
     log::info!("All tasks are finished");
+
+    Ok(())
+}
+
+async fn run_axum_server(address: IpAddr, port: u16, recorder: AppState) -> Result<()> {
+    // TODO: Add bearer token verification
+    let app = Router::new()
+        // route should be within a opentalk-recorder-web-api crate
+        .nest(API_VERSION, Router::new().route("/init", post(init)))
+        .with_state(recorder);
+
+    let listener = TcpListener::bind((address, port)).await?;
+
+    // Server up and running, ready to process requests
+    set_service_state(ServiceState::Ready);
+
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
@@ -361,82 +399,33 @@ async fn run_usage_polling(recorder_context: &Recorder) -> Result<(), broadcast:
     shutdown_rx.recv().await
 }
 
-async fn run_rabbitmq_session(
-    recorder_context: &Recorder,
-    tasks: &mut Vec<JoinHandle<Result<()>>>,
-) {
-    loop {
-        set_service_state(ServiceState::Up);
-        log::debug!("Trying to connect to RabbitMQ");
+#[derive(Debug, Deserialize, Clone)]
+pub(crate) struct InitializeRecording {
+    room: String,
+    breakout: Option<BreakoutRoomId>,
+}
 
-        let rabbitmq_settings = &recorder_context.settings.rabbitmq;
-        let channel = match rmq::open_rabbitmq_connection(rabbitmq_settings).await {
-            Ok(channel) => channel,
-            Err(err) => {
-                log::error!(
-                    "Unable to connect to RabbitMQ (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}"
-                );
-                sleep(RECONNECT_INTERVAL).await;
-                continue;
-            }
-        };
-
-        log::trace!("Creating rabbitmq queue");
-        let mut consumer = match rmq::create_rmq_queue_and_consume(channel, rabbitmq_settings).await
-        {
-            Ok(consumer) => consumer,
-            Err(err) => {
-                log::error!(
-                    "Unable to create RabbitMQ queue and consume (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}"
-                );
-                sleep(RECONNECT_INTERVAL).await;
-                continue;
-            }
-        };
-
-        log::info!("RabbitMQ connection established successfully");
-        set_service_state(ServiceState::Ready);
-
-        while let Some(delivery) = consumer.next().await {
-            let delivery = match delivery {
-                Ok(delivery) => delivery,
-                Err(err) => {
-                    log::error!("RabbitMQ consumer returned error\n{err:?}");
-                    break;
-                }
-            };
-
-            log::trace!("Testing for feasibility");
-            if !is_new_recording_feasible() {
-                if let Err(err) = delivery
-                    .reject(lapin::options::BasicRejectOptions { requeue: true })
-                    .await
-                {
-                    log::error!("RabbitMQ failed to reject deliver\n{err:?}");
-                    break;
-                }
-                continue;
-            }
-
-            log::trace!("Handling delivery...");
-            let start_command = match rmq::handle_delivery(&delivery).await {
-                Ok(start_command) => start_command,
-                Err(err) => {
-                    log::error!("RabbitMQ handle delivery failed\n{err:?}");
-                    continue;
-                }
-            };
-
-            let task = match pin!(recorder_context.spawn_session(start_command)).await {
-                Ok(task) => task,
-                Err(err) => {
-                    log::error!("Recording session failed\n{err:?}");
-                    continue;
-                }
-            };
-
-            tasks.push(task);
-            tasks.retain(|task| !task.is_finished());
+// TODO: This should be refactored with the https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/1136
+async fn init(
+    State(ctx): State<AppState>,
+    extract::Json(recording): extract::Json<InitializeRecording>,
+) -> (StatusCode, Json<String>) {
+    if !is_new_recording_feasible() {
+        return (
+            StatusCode::NOT_ACCEPTABLE,
+            Json(String::from("no resource available")),
+        );
+    }
+    let recorder_context = ctx.recorder_context;
+    let session = recorder_context.clone().spawn_session(recording).await;
+    match session {
+        Ok(task) => {
+            ctx.tasks.lock().unwrap().push(task);
+            (StatusCode::OK, Json("started".to_string()))
+        }
+        Err(err) => {
+            log::error!("Recording session failed\n{err:?}");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(err.to_string()))
         }
     }
 }

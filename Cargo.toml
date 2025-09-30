@@ -57,7 +57,6 @@ directories = "6.0"
 anstream = "0.6"
 itertools = "0.14"
 owo-colors = "4.2"
-tokio-stream = { version = "0.1.17", features = ["sync"] }
 
 tokio-tungstenite = { version = "0.27", features = [
   "rustls",
@@ -67,6 +66,8 @@ tokio-tungstenite-20 = { version = "0.20", features = [
   "rustls",
   "rustls-tls-native-roots",
 ], package = "tokio-tungstenite" }
+tokio-stream = { version = "0.1", features = ["sync"] }
+axum = { version = "0.8", features = ["macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

@@ -4,7 +4,7 @@
 
 use core::{
     pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll, ready},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -17,32 +17,32 @@ use std::{
 use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    livekit::prelude::DisconnectReason, EncoderType, Mixer, MixerParameters, ParticipantIdentity,
-    RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink,
+    EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
+    WebMParameters, WebMSink, livekit::prelude::DisconnectReason,
 };
 use futures::Stream;
 use log::error;
 use opentalk_client::{
+    Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
     types::{
         common::{rooms::RoomId, streaming::StreamingTargetId, time::Timestamp},
         signaling::{
+            ParticipantId,
             livekit::Credentials,
             recording::{StreamErrorReason, StreamStatus},
             recording_service::state::{RecorderStreamInfo, StreamingTarget},
-            ParticipantId,
         },
     },
-    Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
-    sync::{broadcast, Mutex},
+    sync::{Mutex, broadcast},
     task::JoinHandle,
 };
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::{rmq::InitializeRecording, settings::Settings};
+use crate::{InitializeRecording, settings::Settings};
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("reached chunk limit")]
@@ -309,10 +309,6 @@ impl RecordingSession {
                         }
                     }
                 }
-                _ = shutdown_rx.recv() => {
-                    self.done = true;
-                    break;
-                }
                 disconnect_reason = mixer_run(self.mixer.as_mut()) => {
                     log::error!("Disconnected from livekit: {disconnect_reason:?}");
                     break;
@@ -320,6 +316,10 @@ impl RecordingSession {
                 chunk_limit_stream = chunk_limit_reached_rx.recv() => {
                     let id = *chunk_limit_stream?.id();
                     self.handle_stop_stream(BTreeSet::from([id])).await?;
+                }
+                _ = shutdown_rx.recv() => {
+                    self.done = true;
+                    break;
                 }
             }
         }
