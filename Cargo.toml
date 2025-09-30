@@ -47,29 +47,7 @@ tokio = { version = "1", features = [
   "fs",
   "signal",
 ] }
-tt = { package = "tokio-tungstenite", version = "0.26", features = [
-  "rustls-tls-webpki-roots",
-] }
-types-common = { package = "opentalk-types-common", version = "0.36", features = [
-  "rand",
-  "serde",
-] }
-types-control = { package = "opentalk-types-signaling-control", version = "0.38", features = [
-  "serde",
-] }
-types-signaling = { package = "opentalk-types-signaling", version = "0.38", features = [
-  "rand",
-  "serde",
-] }
-types-signaling-livekit = { package = "opentalk-types-signaling-livekit", version = "0.39", features = [
-  "serde",
-] }
-types-signaling-recording = { package = "opentalk-types-signaling-recording", version = "0.37", features = [
-  "serde",
-] }
-types-signaling-recording-service = { package = "opentalk-types-signaling-recording-service", version = "0.37", features = [
-  "serde",
-] }
+opentalk-client = { package = "opentalk-client-signaling", version = "0.1" }
 urlencoding = "2.1"
 service-probe = "0.2"
 clap = { version = "4.5", features = ["derive"] }
@@ -78,6 +56,7 @@ directories = "6.0"
 anstream = "0.6"
 itertools = "0.14"
 owo-colors = "4.2"
+tokio-stream = { version = "0.1.17", features = [ "sync" ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

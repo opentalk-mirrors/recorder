@@ -5,6 +5,7 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::{
+    pin::pin,
     process::{Command, Stdio},
     sync::Arc,
 };
@@ -12,8 +13,8 @@ use std::{
 use anyhow::{Context, Result};
 use futures::{future::join_all, StreamExt};
 use gst::glib;
-use http::HttpClient;
 use log::warn;
+use opentalk_client::{config::ClientConfig, OpenTalkClient};
 use service_probe::{set_service_state, start_probe, ServiceState};
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
 use system_info::{
@@ -31,11 +32,9 @@ use tokio::{
 };
 
 mod cli;
-mod http;
 mod recorder;
 mod rmq;
 mod settings;
-mod signaling;
 mod system_info;
 
 use crate::recorder::Recorder;
@@ -233,10 +232,22 @@ async fn run_recorder(
 ) -> Result<()> {
     let settings = Arc::new(Settings::load(config_file).context("Failed to read config")?);
 
-    let http_client = HttpClient::discover(&settings.auth)
-        .await
-        .context("OIDC discovery failed")?;
-    let recorder_context = Recorder::new(settings.clone(), http_client, shutdown_rx.resubscribe());
+    let client = OpenTalkClient::create(ClientConfig {
+        auth: opentalk_client::AuthConfig::ClientCredentials(
+            opentalk_client::config::ClientCredentialsAuthConfig {
+                issuer: settings.auth.issuer.clone(),
+                client_id: settings.auth.client_id.clone(),
+                client_secret: settings.auth.client_secret.clone(),
+            },
+        ),
+        controller: opentalk_client::ControllerConfig {
+            domain: settings.controller.domain.clone(),
+            insecure: settings.controller.insecure,
+        },
+    })
+    .await?;
+
+    let recorder_context = Recorder::new(settings.clone(), client, shutdown_rx.resubscribe());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
 
     if let Some(MonitoringSettings { port, addr }) = settings.monitoring {
@@ -345,6 +356,7 @@ async fn run_rabbitmq_session(
                 }
             };
 
+            log::trace!("Testing for feasibility");
             if !is_new_recording_feasible() {
                 if let Err(err) = delivery
                     .reject(lapin::options::BasicRejectOptions { requeue: true })
@@ -356,6 +368,7 @@ async fn run_rabbitmq_session(
                 continue;
             }
 
+            log::trace!("Handling delivery...");
             let start_command = match rmq::handle_delivery(&delivery).await {
                 Ok(start_command) => start_command,
                 Err(err) => {
@@ -364,7 +377,7 @@ async fn run_rabbitmq_session(
                 }
             };
 
-            let task = match recorder_context.spawn_session(start_command).await {
+            let task = match pin!(recorder_context.spawn_session(start_command)).await {
                 Ok(task) => task,
                 Err(err) => {
                     log::error!("Recording session failed\n{err:?}");
