@@ -346,7 +346,7 @@ async fn run_recorder(
 async fn run_axum_server(address: IpAddr, port: u16, recorder: AppState) -> Result<()> {
     // TODO: Add bearer token verification
     let app = Router::new()
-        // route should be within a opentalk-recorder-web-api crate
+        // TODO: route should be within a opentalk-recorder-web-api crate, see Roomserver
         .nest(API_VERSION, Router::new().route("/init", post(init)))
         .with_state(recorder);
 
