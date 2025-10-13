@@ -135,7 +135,7 @@ pub(crate) struct HttpSettings {
 }
 
 fn default_http_port() -> u16 {
-    11411
+    11511
 }
 
 fn default_http_address() -> IpAddr {

@@ -28,4 +28,3 @@ title: Recorder
 - [Auth](./configuration/auth.md)
 - [Controller](./configuration/controller.md)
 - [Monitoring](./configuration/monitoring.md)
-- [RabbitMQ](./configuration/rabbitmq.md)

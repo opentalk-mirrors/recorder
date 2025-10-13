@@ -14,7 +14,6 @@ Functionality that can be configured through the configuration file:
 
 - [Auth](auth.md)
 - [Controller](controller.md)
-- [RabbitMQ](rabbitmq.md)
 - [Recorder](recorder.md)
 
 ## Environment variables
@@ -67,9 +66,9 @@ domain = "localhost:11311"
 insecure = true
 
 
-[rabbitmq]
-uri = "amqp://username:password@localhost/%2F"
-queue = "recorder"
+[http]
+host = "0.0.0.0"
+port = "5555"
 
 # Development:
 # Always to stream to an extra display sink for monitoring
