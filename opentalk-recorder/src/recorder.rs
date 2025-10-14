@@ -34,6 +34,7 @@ use opentalk_client::{
         },
     },
 };
+use opentalk_recorder_web_api::v1::InitializeRecording;
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
@@ -41,8 +42,6 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_stream::wrappers::BroadcastStream;
-
-use crate::{InitializeRecording, settings::Settings};
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("reached chunk limit")]
@@ -73,6 +72,8 @@ impl FileExtension {
         &self.0
     }
 }
+
+use crate::settings::Settings;
 
 #[derive(Clone, Debug)]
 pub(crate) enum RecorderStreamKind {

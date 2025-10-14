@@ -11,18 +11,14 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use axum::{
-    Json, Router,
-    extract::{self, State},
-    http::StatusCode,
-    routing::post,
-};
+use async_trait::async_trait;
+use axum::{Json, Router, http::StatusCode};
 use clap::Parser;
 use futures::future::join_all;
 use gst::glib;
 use log::warn;
-use opentalk_client::{OpenTalkClient, config::ClientConfig, types::common::rooms::BreakoutRoomId};
-use serde::Deserialize;
+use opentalk_client::{OpenTalkClient, config::ClientConfig};
+use opentalk_recorder_web_api::v1::{self, InitializeRecording, RecorderBackend};
 use service_probe::{ServiceState, set_service_state, start_probe};
 use service_probe_client::is_ready;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
@@ -49,12 +45,36 @@ use crate::{cli::Args, recorder::Recorder, system_info::is_new_recording_feasibl
 
 #[derive(Clone)]
 pub struct AppState {
-    pub(crate) tasks: Arc<Mutex<Vec<JoinHandle<Result<()>>>>>,
     pub(crate) recorder_context: Arc<Recorder>,
+    pub(crate) tasks: Arc<Mutex<Vec<JoinHandle<Result<()>>>>>,
+}
+
+#[async_trait]
+impl RecorderBackend for AppState {
+    async fn init(&self, recording: InitializeRecording) -> (StatusCode, Json<String>) {
+        if !is_new_recording_feasible() {
+            return (
+                StatusCode::NOT_ACCEPTABLE,
+                Json(String::from("no resource available")),
+            );
+        }
+
+        let recorder_context = self.recorder_context.clone();
+        let session = Box::pin(recorder_context.clone().spawn_session(recording)).await;
+        match session {
+            Ok(task) => {
+                self.tasks.lock().unwrap().push(task);
+                (StatusCode::OK, Json("started".to_string()))
+            }
+            Err(err) => {
+                log::error!("Recording session failed\n{err:?}");
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(err.to_string()))
+            }
+        }
+    }
 }
 
 const DOT_OUTPUT_PATH: &str = "./pipelines";
-const API_VERSION: &str = "/v1";
 
 fn check_plugins() -> Result<()> {
     let registry = gst::Registry::get();
@@ -345,10 +365,7 @@ async fn run_recorder(
 
 async fn run_axum_server(address: IpAddr, port: u16, recorder: AppState) -> Result<()> {
     // TODO: Add bearer token verification
-    let app = Router::new()
-        // TODO: route should be within a opentalk-recorder-web-api crate, see Roomserver
-        .nest(API_VERSION, Router::new().route("/init", post(init)))
-        .with_state(recorder);
+    let app = Router::new().merge(v1::routes()).with_state(recorder);
 
     let listener = TcpListener::bind((address, port)).await?;
 
@@ -397,35 +414,4 @@ async fn run_usage_polling(recorder_context: &Recorder) -> Result<(), broadcast:
     });
 
     shutdown_rx.recv().await
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub(crate) struct InitializeRecording {
-    room: String,
-    breakout: Option<BreakoutRoomId>,
-}
-
-// TODO: This should be refactored with the https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/1136
-async fn init(
-    State(ctx): State<AppState>,
-    extract::Json(recording): extract::Json<InitializeRecording>,
-) -> (StatusCode, Json<String>) {
-    if !is_new_recording_feasible() {
-        return (
-            StatusCode::NOT_ACCEPTABLE,
-            Json(String::from("no resource available")),
-        );
-    }
-    let recorder_context = ctx.recorder_context;
-    let session = recorder_context.clone().spawn_session(recording).await;
-    match session {
-        Ok(task) => {
-            ctx.tasks.lock().unwrap().push(task);
-            (StatusCode::OK, Json("started".to_string()))
-        }
-        Err(err) => {
-            log::error!("Recording session failed\n{err:?}");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(err.to_string()))
-        }
-    }
 }

@@ -15,6 +15,7 @@ Functionality that can be configured through the configuration file:
 - [Auth](auth.md)
 - [Controller](controller.md)
 - [Recorder](recorder.md)
+- [HTTP](http.md)
 
 ## Environment variables
 

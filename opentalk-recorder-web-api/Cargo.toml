@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
+#
+# SPDX-License-Identifier: EUPL-1.2
+
+[package]
+authors.workspace = true
+name = "opentalk-recorder-web-api"
+license.workspace = true
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+axum = { workspace = true, features = ["macros"] }
+serde = { workspace = true, features = ["derive"] }
+opentalk-client.workspace = true
+async-trait.workspace = true

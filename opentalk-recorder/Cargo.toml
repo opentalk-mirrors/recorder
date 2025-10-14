@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: OpenTalk GmbH <mail@opentalk.eu>
+#
+# SPDX-License-Identifier: EUPL-1.2
+
+[package]
+authors.workspace = true
+name = "opentalk-recorder"
+license.workspace = true
+publish = false
+version.workspace = true
+build = "build.rs"
+default-run = "opentalk-recorder"
+edition.workspace = true
+
+[dependencies]
+opentalk-recorder-web-api.workspace = true
+anyhow = { workspace = true, features = ["backtrace"] }
+bytes.workspace = true
+chrono.workspace = true
+compositor.workspace = true
+config = { workspace = true, features = ["toml"] }
+gst.workspace = true
+jsonwebtoken.workspace = true
+log.workspace = true
+openidconnect.workspace = true
+pin-project-lite.workspace = true
+reqwest = { workspace = true, features = [
+  "json",
+  "stream",
+  "rustls-tls-native-roots",
+] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sysinfo.workspace = true
+env_logger.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = [
+  "rt-multi-thread",
+  "time",
+  "macros",
+  "fs",
+  "signal",
+] }
+futures.workspace = true
+opentalk-client.workspace = true
+urlencoding.workspace = true
+service-probe.workspace = true
+service-probe-client.workspace = true
+clap = { workspace = true, features = ["derive"] }
+opentalk-version.workspace = true
+directories.workspace = true
+anstream.workspace = true
+itertools.workspace = true
+owo-colors.workspace = true
+tokio-stream = { workspace = true, features = ["sync"] }
+axum = { workspace = true, features = ["macros"] }
+async-trait.workspace = true
+
+[build-dependencies]
+anyhow.workspace = true
+opentalk-version.workspace = true
+tokio-stream.workspace = true
+axum.workspace = true
+async-trait.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa.workspace = true
+objc.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["tokio-tungstenite"]

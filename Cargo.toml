@@ -2,23 +2,26 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-[package]
+[workspace]
+members = ["opentalk-recorder", "opentalk-recorder-web-api"]
+resolver = "2"
+
+[workspace.package]
 authors = ["OpenTalk Team <mail@opentalk.eu>"]
 edition = "2021"
 homepage = "https://opentalk.eu/"
 license = "EUPL-1.2"
-name = "opentalk-recorder"
-publish = false
 repository = "https://gitlab.opencode.de/opentalk/recorder"
 version = "0.15.0"
-build = "build.rs"
 
-[dependencies]
-anyhow = { version = "1", features = ["backtrace"] }
+[workspace.dependencies]
+opentalk-recorder-web-api = { path = "opentalk-recorder-web-api", version = "0.15.0" }
+
+anyhow = "1"
 bytes = "1"
 chrono = "0.4"
 compositor = { package = "opentalk-compositor", version = "0.16" }
-config = { version = "0.15", default-features = false, features = ["toml"] }
+config = { version = "0.15", default-features = false }
 env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
@@ -26,22 +29,12 @@ jsonwebtoken = "9.3"
 log = "0.4"
 openidconnect = "4"
 pin-project-lite = "0.2"
-reqwest = { version = "0.12", default-features = false, features = [
-  "json",
-  "stream",
-  "rustls-tls-native-roots",
-] }
+reqwest = { version = "0.12", default-features = false }
 serde_json = "1"
-serde = { version = "1", features = ["derive"] }
+serde = "1"
 sysinfo = "0.37"
 thiserror = "2"
-tokio = { version = "1", features = [
-  "rt-multi-thread",
-  "time",
-  "macros",
-  "fs",
-  "signal",
-] }
+tokio = "1"
 opentalk-client = { package = "opentalk-client-signaling", version = "0.1" }
 urlencoding = "2.1"
 service-probe = "0.3"
@@ -52,6 +45,9 @@ directories = "6.0"
 anstream = "0.6"
 itertools = "0.14"
 owo-colors = "4.2"
+async-trait = "0.1"
+cocoa = "0.26"
+objc = "0.2"
 
 tokio-tungstenite = { version = "0.27", features = [
   "rustls",
@@ -64,16 +60,5 @@ tokio-tungstenite-20 = { version = "0.20", features = [
 tokio-stream = { version = "0.1", features = ["sync"] }
 axum = { version = "0.8", features = ["macros"] }
 
-[target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.26"
-objc = "0.2"
-
-[build-dependencies]
-anyhow = "1"
-opentalk-version = "0.3"
-
 [patch.crates-io]
 livekit-runtime = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
-
-[package.metadata.cargo-machete]
-ignored = ["tokio-tungstenite"]

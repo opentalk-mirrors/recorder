@@ -2964,6 +2964,7 @@ version = "0.15.0"
 dependencies = [
  "anstream",
  "anyhow",
+ "async-trait",
  "axum",
  "bytes",
  "chrono",
@@ -2981,6 +2982,7 @@ dependencies = [
  "openidconnect",
  "opentalk-client-signaling",
  "opentalk-compositor",
+ "opentalk-recorder-web-api",
  "opentalk-version",
  "owo-colors",
  "pin-project-lite",
@@ -2993,9 +2995,17 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tokio-stream",
- "tokio-tungstenite 0.20.1",
- "tokio-tungstenite 0.27.0",
  "urlencoding",
+]
+
+[[package]]
+name = "opentalk-recorder-web-api"
+version = "0.15.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "opentalk-client-signaling",
+ "serde",
 ]
 
 [[package]]
@@ -5225,11 +5235,7 @@ checksum = "489a59b6730eda1b0171fcfda8b121f4bee2b35cba8645ca35c5f7ba3eb736c1"
 dependencies = [
  "futures-util",
  "log",
- "rustls 0.23.31",
- "rustls-native-certs 0.8.1",
- "rustls-pki-types",
  "tokio",
- "tokio-rustls 0.26.2",
  "tungstenite 0.27.0",
 ]
 
@@ -5434,8 +5440,6 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.2",
- "rustls 0.23.31",
- "rustls-pki-types",
  "sha1",
  "thiserror 2.0.17",
  "utf-8",
