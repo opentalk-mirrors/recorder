@@ -14,8 +14,8 @@ Functionality that can be configured through the configuration file:
 
 - [Auth](auth.md)
 - [Controller](controller.md)
-- [Recorder](recorder.md)
 - [HTTP](http.md)
+- [Recorder](recorder.md)
 
 ## Environment variables
 
@@ -68,7 +68,9 @@ insecure = true
 
 
 [http]
+# The host to bind the HTTP Server to (defaults to 0.0.0.0).
 host = "0.0.0.0"
+# The port to bind the HTTP Server to (defaults to 11311).
 port = "5555"
 
 # Development:
