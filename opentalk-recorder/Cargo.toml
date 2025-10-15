@@ -4,64 +4,64 @@
 
 [package]
 authors.workspace = true
-name = "opentalk-recorder"
-license.workspace = true
-publish = false
-version.workspace = true
 build = "build.rs"
 default-run = "opentalk-recorder"
 edition.workspace = true
+license.workspace = true
+name = "opentalk-recorder"
+publish = false
+version.workspace = true
 
 [dependencies]
-opentalk-recorder-web-api.workspace = true
+anstream.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
+async-trait.workspace = true
+axum = { workspace = true, features = ["macros"] }
 bytes.workspace = true
 chrono.workspace = true
+clap = { workspace = true, features = ["derive"] }
 compositor.workspace = true
 config = { workspace = true, features = ["toml"] }
+directories.workspace = true
+env_logger.workspace = true
+futures.workspace = true
 gst.workspace = true
+itertools.workspace = true
 jsonwebtoken.workspace = true
 log.workspace = true
 openidconnect.workspace = true
+opentalk-client.workspace = true
+opentalk-recorder-web-api.workspace = true
+opentalk-version.workspace = true
+owo-colors.workspace = true
 pin-project-lite.workspace = true
 reqwest = { workspace = true, features = [
   "json",
-  "stream",
   "rustls-tls-native-roots",
+  "stream",
 ] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-sysinfo.workspace = true
-env_logger.workspace = true
-thiserror.workspace = true
-tokio = { workspace = true, features = [
-  "rt-multi-thread",
-  "time",
-  "macros",
-  "fs",
-  "signal",
-] }
-futures.workspace = true
-opentalk-client.workspace = true
-urlencoding.workspace = true
 service-probe.workspace = true
 service-probe-client.workspace = true
-clap = { workspace = true, features = ["derive"] }
-opentalk-version.workspace = true
-directories.workspace = true
-anstream.workspace = true
-itertools.workspace = true
-owo-colors.workspace = true
+sysinfo.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "signal",
+  "time",
+] }
 tokio-stream = { workspace = true, features = ["sync"] }
-axum = { workspace = true, features = ["macros"] }
-async-trait.workspace = true
+urlencoding.workspace = true
 
 [build-dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
 opentalk-version.workspace = true
 tokio-stream.workspace = true
-axum.workspace = true
-async-trait.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa.workspace = true

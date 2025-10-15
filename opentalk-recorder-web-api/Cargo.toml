@@ -4,14 +4,14 @@
 
 [package]
 authors.workspace = true
-name = "opentalk-recorder-web-api"
+edition.workspace = true
 license.workspace = true
+name = "opentalk-recorder-web-api"
 publish = false
 version.workspace = true
-edition.workspace = true
 
 [dependencies]
-axum = { workspace = true, features = ["macros"] }
-serde = { workspace = true, features = ["derive"] }
-opentalk-client.workspace = true
 async-trait.workspace = true
+axum = { workspace = true, features = ["macros"] }
+opentalk-client.workspace = true
+serde = { workspace = true, features = ["derive"] }

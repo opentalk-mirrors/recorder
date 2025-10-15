@@ -9,9 +9,9 @@ port = 11411
 # Note:
 # The Recorder client must be a service account
 # with the _service account role_ "opentalk-recorder"
-issuer = "http://localhost:8080/auth/realms/MyRealm"
 client_id = "Recorder"
 client_secret = "INSERT_KEY"
+issuer = "http://localhost:8080/auth/realms/MyRealm"
 
 [controller]
 domain = "localhost:11311"
