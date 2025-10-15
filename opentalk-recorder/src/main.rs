@@ -5,6 +5,7 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::{
+    collections::HashMap,
     net::IpAddr,
     process::{Command, Stdio, exit},
     sync::{Arc, Mutex},
@@ -16,6 +17,7 @@ use axum::{Json, Router, http::StatusCode};
 use clap::Parser;
 use futures::future::join_all;
 use gst::glib;
+use itertools::Itertools;
 use log::warn;
 use opentalk_client::{OpenTalkClient, config::ClientConfig};
 use opentalk_recorder_web_api::v1::{self, InitializeRecording, RecorderBackend};
@@ -46,7 +48,7 @@ use crate::{cli::Args, recorder::Recorder, system_info::is_new_recording_feasibl
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) recorder_context: Arc<Recorder>,
-    pub(crate) tasks: Arc<Mutex<Vec<JoinHandle<Result<()>>>>>,
+    pub(crate) tasks: Arc<Mutex<HashMap<InitializeRecording, JoinHandle<Result<()>>>>>,
 }
 
 #[async_trait]
@@ -60,10 +62,18 @@ impl RecorderBackend for AppState {
         }
 
         let recorder_context = self.recorder_context.clone();
-        let session = Box::pin(recorder_context.clone().spawn_session(recording)).await;
+
+        if self.tasks.lock().unwrap().keys().contains(&recording) {
+            return (
+                StatusCode::NO_CONTENT,
+                Json(String::from("recordings already running")),
+            );
+        }
+
+        let session = Box::pin(recorder_context.clone().spawn_session(recording.clone())).await;
         match session {
             Ok(task) => {
-                self.tasks.lock().unwrap().push(task);
+                self.tasks.lock().unwrap().insert(recording, task);
                 (StatusCode::OK, Json("started".to_string()))
             }
             Err(err) => {
@@ -335,7 +345,7 @@ async fn run_recorder(
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
 
     let recorder = AppState {
-        tasks: Arc::new(Mutex::new(vec![])),
+        tasks: Arc::new(Mutex::new(HashMap::new())),
         recorder_context: Arc::new(recorder_context.clone()),
     };
 

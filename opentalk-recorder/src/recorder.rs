@@ -4,7 +4,7 @@
 
 use core::{
     pin::Pin,
-    task::{Context, Poll, ready},
+    task::{ready, Context, Poll},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -16,28 +16,28 @@ use std::{
 use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
-    WebMParameters, WebMSink, livekit::prelude::DisconnectReason,
+    livekit::prelude::DisconnectReason, EncoderType, Mixer, MixerParameters, ParticipantIdentity,
+    RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink,
 };
 use futures::Stream;
 use log::error;
 use opentalk_client::{
-    Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
     types::{
         common::{streaming::StreamingTargetId, time::Timestamp},
         signaling::{
-            ParticipantId,
             livekit::Credentials,
             recording::{StreamErrorReason, StreamStatus},
             recording_service::state::{RecorderStreamInfo, StreamingTarget},
+            ParticipantId,
         },
     },
+    Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
 use opentalk_recorder_web_api::v1::InitializeRecording;
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
-    sync::{Mutex, broadcast},
+    sync::{broadcast, Mutex},
     task::JoinHandle,
 };
 use tokio_stream::wrappers::BroadcastStream;
