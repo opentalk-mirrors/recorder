@@ -10,7 +10,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     io, mem,
-    str::FromStr,
     sync::Arc,
 };
 
@@ -25,7 +24,7 @@ use log::error;
 use opentalk_client::{
     Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
     types::{
-        common::{rooms::RoomId, streaming::StreamingTargetId, time::Timestamp},
+        common::{streaming::StreamingTargetId, time::Timestamp},
         signaling::{
             ParticipantId,
             livekit::Credentials,
@@ -255,18 +254,20 @@ impl RecordingSession {
         service_context: Arc<Recorder>,
         initial_recording_state: InitializeRecording,
     ) -> Result<RecordingSession> {
-        let room_state = Box::pin(service_context.client.connect_recorder(
-            RoomId::from_str(&initial_recording_state.room)?,
-            initial_recording_state.breakout,
-            true,
-        ))
-        .await?
-        .into();
+        let room_state = service_context
+            .client
+            .connect_recorder(
+                initial_recording_state.room,
+                initial_recording_state.breakout,
+                true,
+            )
+            .await?
+            .into();
 
         let livekit_room = if let Some(breakout) = initial_recording_state.breakout {
             format!("{}:{breakout}", initial_recording_state.room)
         } else {
-            initial_recording_state.room.clone()
+            initial_recording_state.room.to_string()
         };
 
         Ok(Self {

@@ -4,12 +4,12 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use axum::{
+    Json,
     extract::{self, State},
     http::StatusCode,
     routing::post,
-    Json,
 };
-use opentalk_client::types::common::rooms::BreakoutRoomId;
+use opentalk_client::types::common::rooms::{BreakoutRoomId, RoomId};
 use serde::Deserialize;
 
 use super::Router;
@@ -20,7 +20,7 @@ const API_VERSION: &str = "/v1";
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct InitializeRecording {
-    pub room: String,
+    pub room: RoomId,
     pub breakout: Option<BreakoutRoomId>,
 }
 
