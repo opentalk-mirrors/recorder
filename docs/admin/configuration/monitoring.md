@@ -1,6 +1,6 @@
 # Monitoring
 
-The OpenTalk Recorder provides a simple Http-Server for monitoring purpose.
+The {{ product_name }} Recorder provides a simple Http-Server for monitoring purpose.
 
 ## Configuration
 

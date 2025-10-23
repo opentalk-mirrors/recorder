@@ -11,6 +11,8 @@
 config.toml
 recorder.toml
 .DS_Store
+site
+.cache
 
 # gstreamer pipelines
 /pipelines

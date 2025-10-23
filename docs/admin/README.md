@@ -2,7 +2,7 @@
 title: Recorder
 ---
 
-# Administration guide for the OpenTalk Recorder
+# Administration guide for the {{ product_name }} Recorder
 
 ## General information about the service
 
@@ -21,9 +21,9 @@ title: Recorder
 - `GST_DEBUG_FILE: /var/recording_logs/recorder_debug.log` dedicated log file. Necessary for `GST_DEBUG > 3` in combination with a dedicated docker volume
 - `GST_DEBUG_DUMP_DOT_DIR: /var/recording_pipelines` dedicated directory to store pipeline snapshots.  Active when `GST_DEBUG > 2` -- we recommend to a dedicated docker volume.
 
-## Interaction between OpenTalk Recorder and other services
+## Interaction between {{ product_name }} Recorder and other services
 
-### Services required by OpenTalk Recorder
+### Services required by {{ product_name }} Recorder
 
 - [Auth](./configuration/auth.md)
 - [Controller](./configuration/controller.md)

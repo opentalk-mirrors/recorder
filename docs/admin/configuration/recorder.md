@@ -1,6 +1,6 @@
 # Recorder
 
-The OpenTalk Recorder is capable of streaming into different sinks. A sink can
+The {{ product_name }} Recorder is capable of streaming into different sinks. A sink can
 be a `WebM file`, `Display`, or `RTMP stream`. The `Display` can be toggled for debug purpose in the settings. The `WebM file` and `RTMP stream` will be configured from the signaling to the `Controller`.
 
 ## Configuration

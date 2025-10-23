@@ -14,5 +14,6 @@ Files:
  docs/**.md
  images/**.png
  renovate.json
+ .mdlrc
 Copyright: OpenTalk GmbH <mail@opentalk.eu>
 License: EUPL-1.2
