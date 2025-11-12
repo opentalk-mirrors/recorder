@@ -46,6 +46,7 @@ use crate::{rmq::InitializeRecording, settings::Settings};
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("reached chunk limit")]
+#[allow(dead_code)]
 pub struct ChunkUploadLimitReached;
 
 #[derive(Debug, Clone)]
@@ -130,7 +131,7 @@ impl Recorder {
     ) -> Result<JoinHandle<Result<()>>> {
         let context = Arc::new(self.clone());
         log::debug!("Start Recording session {command:?}");
-        let mut session = RecordingSession::create(context, command)
+        let mut session = Box::pin(RecordingSession::create(context, command))
             .await
             .context("recording session failed to start")?;
 
@@ -253,15 +254,13 @@ impl RecordingSession {
         service_context: Arc<Recorder>,
         initial_recording_state: InitializeRecording,
     ) -> Result<RecordingSession> {
-        let room_state = service_context
-            .client
-            .connect_recorder(
-                RoomId::from_str(&initial_recording_state.room)?,
-                initial_recording_state.breakout,
-                true,
-            )
-            .await?
-            .into();
+        let room_state = Box::pin(service_context.client.connect_recorder(
+            RoomId::from_str(&initial_recording_state.room)?,
+            initial_recording_state.breakout,
+            true,
+        ))
+        .await?
+        .into();
 
         let livekit_room = if let Some(breakout) = initial_recording_state.breakout {
             format!("{}:{breakout}", initial_recording_state.room)
@@ -360,10 +359,11 @@ impl RecordingSession {
 
             async move {
                 let timestamp = Timestamp::now();
-                let uri =
-                    format!(
+                let uri = format!(
                     "{}/services/recording/upload?room_id={room_id}&file_extension={}&timestamp={}",
-                    service_context.settings.controller
+                    service_context
+                        .settings
+                        .controller
                         .v1_api_base_url()
                         .replace("https", "wss")
                         .replace("http", "ws"),
