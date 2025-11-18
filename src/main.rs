@@ -69,7 +69,10 @@ fn check_plugins() -> Result<()> {
         .collect();
 
     if !failed_plugins.is_empty() {
-        anyhow::bail!("Failed to load GStreamer plugins [{}], try to start the application with 'GST_DEBUG=1' if the plugins are installed correctly.", failed_plugins.join(", "));
+        anyhow::bail!(
+            "Failed to load GStreamer plugins [{}], try to start the application with 'GST_DEBUG=1' if the plugins are installed correctly.",
+            failed_plugins.join(", ")
+        );
     }
 
     Ok(())
@@ -84,7 +87,9 @@ fn check_intel_gpu_top_command() -> Result<()> {
         .map(|status| status.success());
 
     if status.is_err() || status.ok() == Some(false) {
-        anyhow::bail!("The intel_gpu_top command is not installed, this is mandataory for hardware accelaration, please install it or remove hardware acceleration.");
+        anyhow::bail!(
+            "The intel_gpu_top command is not installed, this is mandataory for hardware accelaration, please install it or remove hardware acceleration."
+        );
     }
 
     Ok(())
@@ -179,7 +184,9 @@ fn main_loop() -> Result<()> {
     }
 
     if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
-        warn!("Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output.");
+        warn!(
+            "Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output."
+        );
         unsafe {
             std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
         }
@@ -338,7 +345,9 @@ async fn run_rabbitmq_session(
         {
             Ok(consumer) => consumer,
             Err(err) => {
-                log::error!("Unable to create RabbitMQ queue and consume (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}");
+                log::error!(
+                    "Unable to create RabbitMQ queue and consume (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}"
+                );
                 sleep(RECONNECT_INTERVAL).await;
                 continue;
             }

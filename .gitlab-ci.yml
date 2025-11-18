@@ -249,6 +249,7 @@ build:container:
         $CI_COMMIT_BRANCH != null
       variables:
         IMAGE_DESTINATION_ARGS: --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH
+        IMAGE_DESTINATION_SCRATCH_ARGS: --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH-scratch
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   # IMAGE_DESTINATION_ARGS will be set inside the script
   image:
@@ -275,6 +276,7 @@ build:container:
           cut -c -63
         );
         IMAGE_DESTINATION_ARGS="--destination $CI_REGISTRY_IMAGE:$IMAGE_TAG";
+        IMAGE_DESTINATION_SCRATCH_ARGS="--destination $CI_REGISTRY_IMAGE:$IMAGE_TAG-scratch";
       fi
     - mkdir -p /kaniko/.docker
     - >
@@ -288,7 +290,13 @@ build:container:
       --dockerfile $CI_PROJECT_DIR/ci/Dockerfile
       $IMAGE_DESTINATION_ARGS
       --force
-
+    - >
+      /kaniko/executor
+      --registry-mirror=mirror.gcr.io
+      --context $CI_PROJECT_DIR
+      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile-scratch
+      $IMAGE_DESTINATION_SCRATCH_ARGS
+      --force
 read-trivy-ignore-file:
   stage: package
   rules:
