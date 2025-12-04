@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 
 ---
-image: git.opentalk.dev:5050/opentalk/backend/containers/rust:1.91.0-bookworm
+image:
+  name: git.opentalk.dev:5050/opentalk/backend/containers/rust:1.91.0-bookworm
+  pull_policy: if-not-present
 
 stages:
   - lint
@@ -11,12 +13,19 @@ stages:
   - build
   - package
   - trigger
-  - release
+  - push
+  - scan
+
+.template_vars:
+  FLAVORS: [intel]
 
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
   # Enable one network per build for the test container and services
   FF_NETWORK_PER_BUILD: 'true'
+  KANIKO_IMAGE: git.opentalk.dev:5050/opentalk/opentalk-devops/containers/kaniko:debug-1.25.5
+  SKOPEO_IMAGE: quay.io/skopeo/stable:v1.20.0
+  DEFAULT_FLAVOR: intel
 
 .default_job_condition: &default_job_condition
   needs: []
@@ -86,7 +95,9 @@ lint:dependency_check_bans_licenses_sources:
 lint:yaml:
   stage: lint
   <<: *default_job_condition
-  image: alpine:3.23
+  image:
+    name: alpine:3.23
+    pull_policy: if-not-present
   before_script:
     - apk add --no-cache yamllint
   script: yamllint .
@@ -102,7 +113,9 @@ lint:unnecessary_dependencies:
 lint:markdown:
   stage: lint
   <<: *default_job_condition
-  image: registry.gitlab.com/pipeline-components/markdownlint:latest
+  image:
+    name: registry.gitlab.com/pipeline-components/markdownlint:0.14.5
+    pull_policy: if-not-present
   script:
     - mdl --style .markdown_style.rb  --warnings .
 
@@ -112,12 +125,15 @@ lint:licensing:
   image:
     name: fsfe/reuse:latest
     entrypoint: ['']
+    pull_policy: if-not-present
   script:
     - reuse lint
 
 lint:commit:
   cache: {}
-  image: node:lts-alpine
+  image:
+    name: node:lts-alpine
+    pull_policy: if-not-present
   stage: lint
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
@@ -230,6 +246,7 @@ build:docs:
   image:
     name: git.opentalk.dev:5050/opentalk/backend/containers/mkdocs-material:latest
     entrypoint: ['']
+    pull_policy: if-not-present
   needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
@@ -239,38 +256,24 @@ build:docs:
   script:
     - mkdocs build --config-file "$CI_PROJECT_DIR"/mkdocs.yml --strict
 
-build:container:
-  stage: build
-  variables:
-    IMAGE_DESTINATION_ARGS: --no-push
+package:container-mr:
+  stage: package
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      variables:
-        IMAGE_DESTINATION_ARGS: --destination $CI_REGISTRY_IMAGE:dev
-    - if: $CI_COMMIT_TAG != null
-      variables:
-        IMAGE_DESTINATION_ARGS: >
-          --destination $CI_REGISTRY_IMAGE:latest
-          --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
-    # Don't run on feature branches if there is a MR
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
-    # Don't run on release branches
-    - if: $CI_COMMIT_BRANCH =~ /^release\/v.*$/
-      when: never
-    - if: >
-        $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH &&
-        $CI_COMMIT_BRANCH != null
-      variables:
-        IMAGE_DESTINATION_ARGS: --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH
-        IMAGE_DESTINATION_SCRATCH_ARGS: --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_BRANCH-scratch
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-  # IMAGE_DESTINATION_ARGS will be set inside the script
+      when: manual
+      allow_failure: true
   image:
-    name: git.opentalk.dev:5050/opentalk/opentalk-devops/containers/kaniko:debug-1.25.2
+    name: $KANIKO_IMAGE
     pull_policy: if-not-present
     entrypoint: ['']
   script:
+    - mkdir -p /kaniko/.docker
+    - >
+      echo
+      "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n ${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD} | base64)\"}}}" >
+      /kaniko/.docker/config.json
     # According to https://docs.docker.com/engine/reference/commandline/tag/
     # the tag may contain lowercase and uppercase letters, digits, underscores,
     # periods, and hyphens, so we replace everything else by '_'. It cannot start
@@ -282,16 +285,37 @@ build:container:
     # Some platforms on which this service is deployed allow only 63 characters
     # for the container tag, so we restrict the length to that.
     - >
-      if [ $CI_PIPELINE_SOURCE == 'merge_request_event' ]; then
-        IMAGE_TAG=$(
+      IMAGE_TAG=$(
           echo -n "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" |
           tr -c '[:alnum:]_.-' '_' |
           sed 's/^[.-]/_/' |
           cut -c -63
-        );
-        IMAGE_DESTINATION_ARGS="--destination $CI_REGISTRY_IMAGE:$IMAGE_TAG";
-        IMAGE_DESTINATION_SCRATCH_ARGS="--destination $CI_REGISTRY_IMAGE:$IMAGE_TAG-scratch";
-      fi
+      )
+    - >
+      /kaniko/executor
+      --registry-mirror=mirror.gcr.io
+      --context $CI_PROJECT_DIR
+      --build-arg=GIT_SHA=$CI_COMMIT_SHA
+      --build-arg=GIT_REF=$CI_COMMIT_REF_NAME
+      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile
+      --destination $CI_REGISTRY_IMAGE:$IMAGE_TAG
+      --force
+
+package:container:
+  parallel:
+    matrix:
+      - FLAVOR: !reference [.template_vars, FLAVORS]
+  stage: package
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+.*$/
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  image:
+    name: $KANIKO_IMAGE
+    pull_policy: if-not-present
+    entrypoint: ['']
+  script:
     - mkdir -p /kaniko/.docker
     - >
       echo
@@ -301,40 +325,114 @@ build:container:
       /kaniko/executor
       --registry-mirror=mirror.gcr.io
       --context $CI_PROJECT_DIR
-      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile
-      $IMAGE_DESTINATION_ARGS
+      --build-arg=GIT_SHA=$CI_COMMIT_SHA
+      --build-arg=GIT_REF=$CI_COMMIT_REF_NAME
+      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile-$FLAVOR
+      --destination "$CI_REGISTRY_IMAGE:$FLAVOR-${CI_COMMIT_SHA:0:8}"
       --force
-    - >
-      /kaniko/executor
-      --registry-mirror=mirror.gcr.io
-      --context $CI_PROJECT_DIR
-      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile-scratch
-      $IMAGE_DESTINATION_SCRATCH_ARGS
-      --force
+
+push:read-tags:
+  stage: push
+  needs: []
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+.*$/ && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+  image:
+    name: alpine/git
+    entrypoint: ['']
+    pull_policy: if-not-present
+  artifacts:
+    reports:
+      dotenv: package.env
+  script:
+    - git fetch --tags
+    - TAGS=$(git tag --list | grep "^v[[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+.*$" | sort -V)
+    - TAGS=$(echo "$TAGS" | head -n -1 | tr "\n" " ")
+    - echo "TAGS=$TAGS" > package.env
+
+push:container-create-and-push-tags:
+  parallel:
+    matrix:
+      - FLAVOR: !reference [.template_vars, FLAVORS]
+  stage: push
+  needs:
+    - job: push:read-tags
+      optional: true
+    - job: package:container
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+.*$/
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  image:
+    name: $SKOPEO_IMAGE
+    entrypoint: ['']
+    pull_policy: if-not-present
+  script:
+    - TAGS_TO_PUSH=$(./ci/create-container-tags.sh "${CI_COMMIT_TAG:-main}" "$TAGS" "$FLAVOR" "$DEFAULT_FLAVOR")
+    - |
+      for tag in $TAGS_TO_PUSH; do
+        skopeo copy \
+        --src-creds="${CI_REGISTRY_USER}":"${CI_REGISTRY_PASSWORD}" \
+        --dest-creds="${CI_REGISTRY_USER}":"${CI_REGISTRY_PASSWORD}" \
+        "docker://${CI_REGISTRY_IMAGE}:$FLAVOR-${CI_COMMIT_SHA:0:8}" "docker://${CI_REGISTRY_IMAGE}:$tag"
+      done
+    - echo "TAGS_$FLAVOR=$TAGS_TO_PUSH" > package.env
+  artifacts:
+    reports:
+      dotenv: package.env
+
+push-and-sign-images-to-harbor:
+  parallel:
+    matrix:
+      - FLAVOR: !reference [.template_vars, FLAVORS]
+  needs:
+    - push:container-create-and-push-tags
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+.*$/
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  stage: push
+  variables:
+    PIPELINE_FULL_IMAGE_NAME: $CI_REGISTRY_IMAGE
+    PIPELINE_NAMESPACE_SUFFIX: recorder
+    PIPELINE_TAGS_ENV_NAME: TAGS_$FLAVOR
+  trigger:
+    project: opentalk/opentalk-devops/push-and-sign-images-for-the-opentalk-namespace
+    strategy: depend
+    forward:
+      pipeline_variables: true
+
 read-trivy-ignore-file:
-  stage: package
+  parallel:
+    matrix:
+      - FLAVOR: !reference [.template_vars, FLAVORS]
+  stage: scan
   rules:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
   script:
-    - echo "TRIVY_IGNORE_STR=$(
-         cat $CI_PROJECT_DIR/.trivyignore | sed -n 'H;${x;s/^\n//;s/\n/\\n/g;p}'
+    - echo "TRIVY_IGNORE_STR_$FLAVOR=$(
+         cat $CI_PROJECT_DIR/.trivyignore-$FLAVOR | sed -n 'H;${x;s/^\n//;s/\n/\\n/g;p}'
       )"  > package.env
   artifacts:
     reports:
       dotenv: package.env
 
 container-scanning:
+  parallel:
+    matrix:
+      - FLAVOR: !reference [.template_vars, FLAVORS]
   needs:
-    - build:container
+    - package:container
     - read-trivy-ignore-file
   rules:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
-  stage: package
+  stage: scan
   variables:
-    PIPELINE_FULL_IMAGE_NAME: $CI_REGISTRY_IMAGE:dev
+    PIPELINE_FULL_IMAGE_NAME: $CI_REGISTRY_IMAGE:dev-${FLAVOR}
     PIPELINE_PROJECT_WITH_NAMESPACE: $CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME
     PIPELINE_ADDITIONAL_LABELS: team::media integration
-    PIPELINE_TRIVY_IGNORE_FILE_STR_VAR: TRIVY_IGNORE_STR
+    PIPELINE_TRIVY_IGNORE_FILE_STR_VAR: TRIVY_IGNORE_STR_${FLAVOR}
   trigger:
     project: opentalk/opentalk-devops/scan-container
     strategy: depend
