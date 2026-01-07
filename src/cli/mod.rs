@@ -6,12 +6,15 @@
 // this causes clippy to fail in the build_info! macro.
 #![allow(clippy::format_push_string)]
 
-use clap::{ArgAction, Parser};
+use clap::{Parser, Subcommand};
+use opentalk_version::InfoArgs;
+use reqwest::Url;
+mod license;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug)]
 pub struct Args {
-    #[clap(short('V'), long, action=ArgAction::SetTrue, help = "Print version information")]
-    version: bool,
+    #[command(flatten)]
+    pub info: InfoArgs,
 
     /// Path of the configuration file.
     ///
@@ -25,38 +28,27 @@ pub struct Args {
     /// - `/etc/opentalk/recorder.toml`
     #[clap(short, long, verbatim_doc_comment)]
     pub config: Option<String>,
+
+    #[clap(subcommand)]
+    pub(crate) command: Option<Commands>,
 }
 
-impl Args {
-    /// Returns true if we want to startup the controller after we finished the cli part
-    pub fn should_start(&self) -> bool {
-        !self.version
-    }
-}
-
-/// Parses the CLI-Arguments into [`Args`]
-///
-/// Also runs (optional) cli commands if necessary
-pub fn parse_args() -> Args {
-    let args = Args::parse();
-    if args.version {
-        print_version();
-    }
-    args
+#[derive(Debug, Subcommand)]
+pub enum Commands {
+    /// Return the readiness state
+    Health {
+        /// The monitoring endpoint can be provided optionally
+        endpoint: Option<Url>,
+    },
 }
 
 opentalk_version::build_info!();
 
-fn print_version() {
-    let info_args = opentalk_version::InfoArgs {
-        version: true,
-        license: true,
-    };
-
+pub fn print_info(info_args: &InfoArgs) {
     println!(
         "{}",
-        build_info::BuildInfo::new()
-            .format(&info_args)
+        build_info::BuildInfo::with_license(license::LICENSE.to_owned())
+            .format(info_args)
             .unwrap_or("No Build information available.".to_string())
     );
 }
