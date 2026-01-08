@@ -6,7 +6,7 @@
 
 use std::{
     pin::pin,
-    process::{Command, Stdio},
+    process::{exit, Command, Stdio},
     sync::Arc,
 };
 
@@ -16,6 +16,7 @@ use gst::glib;
 use log::warn;
 use opentalk_client::{config::ClientConfig, OpenTalkClient};
 use service_probe::{set_service_state, start_probe, ServiceState};
+use service_probe_client::is_ready;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
 use system_info::{
     cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll, is_new_recording_feasible,
@@ -37,8 +38,12 @@ mod rmq;
 mod settings;
 mod system_info;
 
-use crate::recorder::Recorder;
+use clap::Parser;
 
+use crate::{
+    cli::{print_info, Args, Commands},
+    recorder::Recorder,
+};
 const RECONNECT_INTERVAL: Duration = Duration::from_secs(3);
 const DOT_OUTPUT_PATH: &str = "./pipelines";
 
@@ -96,8 +101,10 @@ fn check_intel_gpu_top_command() -> Result<()> {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn main() {
-    main_loop().expect("failed to run main loop");
+#[tokio::main]
+async fn main() -> Result<()> {
+    main_loop().await.expect("failed to run main loop");
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -146,7 +153,7 @@ fn main() {
             // Wait for the NSApp to launch to avoid possibly calling stop_() too early
             recv.recv().expect("failed to receive from main thread");
 
-            let res = main_loop();
+            let res = main_loop().await;
 
             let app = cocoa::appkit::NSApp();
             app.stop_(cocoa::base::nil);
@@ -175,70 +182,104 @@ fn main() {
     }
 }
 
-fn main_loop() -> Result<()> {
+async fn main_loop() -> Result<()> {
     env_logger::init();
 
-    let args = cli::parse_args();
-    if !args.should_start() {
+    let args = Args::parse();
+    if args.info.should_print() {
+        print_info(&args.info);
         return Ok(());
     }
 
-    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
-        warn!(
-            "Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output."
-        );
-        unsafe {
-            std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
-        }
+    let settings = Arc::new(settings::Settings::load(args.config.as_ref())?);
+    if let Some(Commands::Health { endpoint }) = args.command {
+        let Some(monitoring_endpoint) = endpoint.or_else(|| {
+            settings.monitoring.as_ref().map(|monitoring_settings| {
+                format!(
+                    "http://{}:{}",
+                    monitoring_settings.addr, monitoring_settings.port
+                )
+                .parse()
+                .expect("valid endpoint can be built from monitoring settings")
+            })
+        }) else {
+            log::warn!("Monitoring not configured and no url endpoint parameter given");
+            exit(1);
+        };
+        return match is_ready(&monitoring_endpoint).await {
+            Ok(true) => {
+                log::info!("READY");
+                Ok(())
+            }
+            Ok(false) => {
+                log::info!("Not Ready");
+                exit(1)
+            }
+            Err(err) => {
+                log::error!("Err: {err}");
+                exit(-1)
+            }
+        };
     }
 
-    gst::init()?;
-    check_plugins()?;
+    let _ = tokio::task::spawn_blocking(move || -> Result<()> {
+            if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
+                warn!(
+                    "Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output."
+                );
+                unsafe {
+                    std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
+                }
+            }
 
-    // Run a MainLoop on a separate thread so gstreamer bus watches work
-    let gstreamer_main_loop = glib::MainLoop::new(None, false);
-    std::thread::spawn({
-        let main_loop = gstreamer_main_loop.clone();
+            gst::init()?;
+            check_plugins()?;
 
-        move || {
-            main_loop.run();
-        }
-    });
+            // Run a MainLoop on a separate thread so gstreamer bus watches work
+            let gstreamer_main_loop = glib::MainLoop::new(None, false);
+            std::thread::spawn({
+                let main_loop = gstreamer_main_loop.clone();
 
-    let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .context("failed to start tokio async runtime")?;
+                move || {
+                    main_loop.run();
+                }
+            });
 
-    runtime.spawn(async move {
-        let mut sig_term = signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
-        select! {
-            _ = ctrl_c() => { log::info!("received Ctrl-C"); }
-            _ = sig_term.recv() => { log::info!("received SIGTERM"); }
-        }
-        shutdown_tx
-            .send(())
-            .expect("failed to send shutdown signal");
-    });
+            let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .context("failed to start tokio async runtime")?;
 
-    if let Err(e) = runtime.block_on(run_recorder(shutdown_rx, args.config.as_ref())) {
-        eprintln!("Exit on failure: {e:?}");
-        std::process::exit(-1);
-    }
+            runtime.spawn(async move {
+                let mut sig_term =
+                    signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
+                select! {
+                    _ = ctrl_c() => { log::info!("received Ctrl-C"); }
+                    _ = sig_term.recv() => { log::info!("received SIGTERM"); }
+                }
+                shutdown_tx
+                    .send(())
+                    .expect("failed to send shutdown signal");
+            });
 
-    log::debug!("Send quit to main_loop");
-    gstreamer_main_loop.quit();
+            if let Err(e) = runtime.block_on(run_recorder(shutdown_rx, settings)) {
+                eprintln!("Exit on failure: {e:?}");
+                std::process::exit(-1);
+            }
+
+            log::debug!("Send quit to main_loop");
+            gstreamer_main_loop.quit();
+            Ok(())
+        }).await?;
 
     Ok(())
 }
 
 async fn run_recorder(
     mut shutdown_rx: broadcast::Receiver<()>,
-    config_file: Option<&String>,
+    settings: Arc<Settings>,
 ) -> Result<()> {
-    let settings = Arc::new(Settings::load(config_file).context("Failed to read config")?);
-
     let client = OpenTalkClient::create(ClientConfig {
         auth: opentalk_client::AuthConfig::ClientCredentials(
             opentalk_client::config::ClientCredentialsAuthConfig {
