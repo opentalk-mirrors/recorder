@@ -9,6 +9,7 @@ use compositor::{ClockFormat, EncoderType};
 use config::{Config, Environment, File, FileFormat, FileSourceFile};
 use itertools::Itertools;
 use openidconnect::{ClientId, ClientSecret, IssuerUrl};
+use opentalk_service_auth::service::ApiKeys;
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Deserializer};
 
@@ -132,6 +133,8 @@ pub(crate) struct HttpSettings {
     pub(crate) port: u16,
     #[serde(default = "default_http_address")]
     pub(crate) addr: IpAddr,
+
+    pub(crate) api_keys: ApiKeys,
 }
 
 fn default_http_port() -> u16 {

@@ -32,6 +32,7 @@ log.workspace = true
 openidconnect.workspace = true
 opentalk-client.workspace = true
 opentalk-recorder-web-api.workspace = true
+opentalk-service-auth = { workspace = true, features = ["axum"] }
 opentalk-version.workspace = true
 owo-colors.workspace = true
 pin-project-lite.workspace = true
