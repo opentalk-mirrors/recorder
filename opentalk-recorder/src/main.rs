@@ -7,21 +7,21 @@
 use std::{
     collections::HashMap,
     net::IpAddr,
-    process::{Command, Stdio, exit},
+    process::{exit, Command, Stdio},
     sync::{Arc, Mutex},
 };
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use axum::{Json, Router, http::StatusCode};
+use axum::{http::StatusCode, Json, Router};
 use clap::Parser;
 use futures::future::join_all;
 use gst::glib;
 use itertools::Itertools;
 use log::warn;
-use opentalk_client::{OpenTalkClient, config::ClientConfig};
+use opentalk_client::{config::ClientConfig, OpenTalkClient};
 use opentalk_recorder_web_api::v1::{self, InitializeRecording, RecorderBackend};
-use service_probe::{ServiceState, set_service_state, start_probe};
+use service_probe::{set_service_state, start_probe, ServiceState};
 use service_probe_client::is_ready;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
 use system_info::{cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll};
@@ -30,13 +30,13 @@ use tokio::{
     select,
     signal::{
         ctrl_c,
-        unix::{SignalKind, signal},
+        unix::{signal, SignalKind},
     },
     sync::broadcast,
     task::JoinHandle,
 };
 
-use crate::cli::{Commands, print_info};
+use crate::cli::{print_info, Commands};
 
 mod cli;
 mod recorder;
@@ -153,7 +153,7 @@ fn main() {
     // Copyright 2024 Sebastian Dröge
     use std::{
         ffi::c_void,
-        sync::mpsc::{Sender, channel},
+        sync::mpsc::{channel, Sender},
         thread,
     };
 
