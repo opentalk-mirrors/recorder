@@ -21,6 +21,7 @@ use itertools::Itertools;
 use log::warn;
 use opentalk_client::{config::ClientConfig, OpenTalkClient};
 use opentalk_recorder_web_api::v1::{self, InitializeRecording, RecorderBackend};
+use opentalk_service_auth::service::ApiKeyAuthorization;
 use service_probe::{set_service_state, start_probe, ServiceState};
 use service_probe_client::is_ready;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
@@ -353,6 +354,12 @@ async fn run_recorder(
         start_probe(addr, port, ServiceState::Up).await?;
     }
 
+    let auth_middleware = settings
+        .http
+        .api_keys
+        .auth_middleware()
+        .context("Invalid API key configuration")?;
+
     select! {
         _ =  shutdown_rx.recv() => {
             log::info!("Received shutdown, shutdown all remaining tasks");
@@ -360,7 +367,7 @@ async fn run_recorder(
         _ = run_usage_polling(&recorder_context) => {
             log::debug!("Usage polling failed, shutdown all remaining tasks");
         }
-        result = run_axum_server(settings.http.addr, settings.http.port, recorder.clone()) => { result?; }
+        result = run_axum_server(settings.http.addr, settings.http.port, recorder.clone(), auth_middleware) => { result?; }
     }
     tasks.retain(|task| !task.is_finished());
 
@@ -373,9 +380,15 @@ async fn run_recorder(
     Ok(())
 }
 
-async fn run_axum_server(address: IpAddr, port: u16, recorder: AppState) -> Result<()> {
-    // TODO: Add bearer token verification
-    let app = Router::new().merge(v1::routes()).with_state(recorder);
+async fn run_axum_server(
+    address: IpAddr,
+    port: u16,
+    recorder: AppState,
+    auth_middleware: ApiKeyAuthorization,
+) -> Result<()> {
+    let app = Router::new()
+        .merge(v1::routes().layer(auth_middleware))
+        .with_state(recorder);
 
     let listener = TcpListener::bind((address, port)).await?;
 

@@ -23,6 +23,12 @@ host = "0.0.0.0"
 # The port to bind the HTTP Server to (defaults to 11311).
 port = "5555"
 
+# The api keys for internal service endpoints
+#
+# The recorder can have multiple api keys configured. An api key can be configured as string ("<key_id>:<key_secret>")
+# or as key/value pair ({id = "<key_id>", secret = "<key_secret>"}).
+api_keys = [{ id = "recorder", secret = "secret" }]
+
 [recorder]
 # Shows a display sink, for debug purpose
 display = true
