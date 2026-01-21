@@ -17,7 +17,7 @@ stages:
   - scan
 
 .template_vars:
-  FLAVORS: [intel]
+  FLAVORS: [intel, scratch]
 
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
