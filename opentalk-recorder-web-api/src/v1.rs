@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: EUPL-1.2
 // SPDX-FileCopyrightText: OpenTalk Team <mail@opentalk.eu>
-use std::fmt::Debug;
-
 use async_trait::async_trait;
 use axum::{
-    extract::{self, State},
+    extract::State,
     http::StatusCode,
+    response::{IntoResponse, Response},
     routing::post,
     Json,
 };
-use opentalk_client::types::common::rooms::{BreakoutRoomId, RoomId};
-use serde::Deserialize;
+use opentalk_client::types::{
+    api::v1::error::ApiError,
+    common::rooms::{BreakoutRoomId, RoomId},
+};
+use serde::{Deserialize, Serialize};
 
 use super::Router;
 
@@ -18,26 +20,36 @@ pub trait Backend: Send + Sync + Clone + Sized {}
 
 const API_VERSION: &str = "/v1";
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
-pub struct InitializeRecording {
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub struct RecordingTarget {
     pub room: RoomId,
     pub breakout: Option<BreakoutRoomId>,
 }
 
-pub enum RecorderAction {
-    Init,
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub enum RecordingAction {
+    Created,
+    AlreadyRunning,
+}
+
+impl IntoResponse for RecordingAction {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Created => StatusCode::CREATED.into_response(),
+            Self::AlreadyRunning => StatusCode::NO_CONTENT.into_response(),
+        }
+    }
 }
 
 #[async_trait]
 pub trait RecorderBackend: Clone + Send + Sync {
-    async fn init(&self, recording: InitializeRecording) -> (StatusCode, Json<String>);
+    async fn init(&self, recording: RecordingTarget) -> Result<RecordingAction, ApiError>;
 }
 
-// TODO: This should be refactored with the https://git.opentalk.dev/opentalk/backend/services/controller/-/issues/1136
 async fn init<B: RecorderBackend>(
     State(ctx): State<B>,
-    extract::Json(recording): extract::Json<InitializeRecording>,
-) -> (axum::http::StatusCode, axum::Json<std::string::String>) {
+    Json(recording): Json<RecordingTarget>,
+) -> Result<RecordingAction, ApiError> {
     ctx.init(recording).await
 }
 

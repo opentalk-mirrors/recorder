@@ -6,4 +6,5 @@
 //! the web API. The [`Backend`][v1::Backend] Trait must be implemented by a project wanting to
 //! provide the _Recorder Web API_.
 pub mod v1;
+
 pub(crate) type Router<Backend> = axum::Router<Backend>;

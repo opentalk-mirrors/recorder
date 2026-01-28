@@ -33,7 +33,7 @@ use opentalk_client::{
     },
     Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
-use opentalk_recorder_web_api::v1::InitializeRecording;
+use opentalk_recorder_web_api::v1::RecordingTarget;
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
@@ -127,11 +127,11 @@ impl Recorder {
 
     pub(crate) async fn spawn_session(
         &self,
-        command: InitializeRecording,
+        recording_target: RecordingTarget,
     ) -> Result<JoinHandle<Result<()>>> {
         let context = Arc::new(self.clone());
-        log::debug!("Start Recording session {command:?}");
-        let mut session = Box::pin(RecordingSession::create(context, command))
+        log::debug!("Start Recording session {recording_target:?}");
+        let mut session = Box::pin(RecordingSession::create(context, recording_target))
             .await
             .context("recording session failed to start")?;
 
@@ -252,20 +252,20 @@ impl RecordingSession {
 
     pub(crate) async fn create(
         service_context: Arc<Recorder>,
-        initial_recording_state: InitializeRecording,
+        recording_target: RecordingTarget,
     ) -> Result<RecordingSession> {
         let room_state = Box::pin(service_context.client.connect_recorder(
-            initial_recording_state.room,
-            initial_recording_state.breakout,
+            recording_target.room,
+            recording_target.breakout,
             true,
         ))
         .await?
         .into();
 
-        let livekit_room = if let Some(breakout) = initial_recording_state.breakout {
-            format!("{}:{breakout}", initial_recording_state.room)
+        let livekit_room = if let Some(breakout) = recording_target.breakout {
+            format!("{}:{breakout}", recording_target.room)
         } else {
-            initial_recording_state.room.to_string()
+            recording_target.room.to_string()
         };
 
         Ok(Self {
