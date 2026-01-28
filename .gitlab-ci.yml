@@ -4,7 +4,7 @@
 
 ---
 image:
-  name: git.opentalk.dev:5050/opentalk/backend/containers/rust:1.92.0-bookworm
+  name: git.opentalk.dev:5050/opentalk/backend/containers/rust:1.93.0-trixie
   pull_policy: if-not-present
 
 stages:
@@ -422,7 +422,7 @@ read-trivy-ignore-file:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
   script:
     - echo "TRIVY_IGNORE_STR_$FLAVOR=$(
-         cat $CI_PROJECT_DIR/.trivyignore-$FLAVOR | sed -n 'H;${x;s/^\n//;s/\n/\\n/g;p}'
+      cat $CI_PROJECT_DIR/.trivyignore-$FLAVOR | sed -n 'H;${x;s/^\n//;s/\n/\\n/g;p}'
       )"  > package.env
   artifacts:
     reports:
