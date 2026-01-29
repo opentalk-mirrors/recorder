@@ -234,7 +234,7 @@ test:doc:
   before_script:
     - *install_gstreamer_deps
   script:
-    - cargo doc --workspace --verbose
+    - cargo doc --workspace --verbose --no-deps
 
 trigger-docs:
   stage: trigger
