@@ -13,14 +13,14 @@ use std::{
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use axum::{http::StatusCode, Json, Router};
+use axum::Router;
 use clap::Parser;
 use futures::future::join_all;
 use gst::glib;
 use itertools::Itertools;
 use log::warn;
-use opentalk_client::{config::ClientConfig, OpenTalkClient};
-use opentalk_recorder_web_api::v1::{self, InitializeRecording, RecorderBackend};
+use opentalk_client::{config::ClientConfig, types::api::v1::error::ApiError, OpenTalkClient};
+use opentalk_recorder_web_api::v1::{self, RecorderBackend, RecordingAction, RecordingTarget};
 use opentalk_service_auth::service::ApiKeyAuthorization;
 use service_probe::{set_service_state, start_probe, ServiceState};
 use service_probe_client::is_ready;
@@ -49,37 +49,43 @@ use crate::{cli::Args, recorder::Recorder, system_info::is_new_recording_feasibl
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) recorder_context: Arc<Recorder>,
-    pub(crate) tasks: Arc<Mutex<HashMap<InitializeRecording, JoinHandle<Result<()>>>>>,
+    pub(crate) tasks: Arc<Mutex<HashMap<RecordingTarget, JoinHandle<Result<()>>>>>,
 }
 
 #[async_trait]
 impl RecorderBackend for AppState {
-    async fn init(&self, recording: InitializeRecording) -> (StatusCode, Json<String>) {
+    async fn init(&self, recording: RecordingTarget) -> Result<RecordingAction, ApiError> {
         if !is_new_recording_feasible() {
-            return (
-                StatusCode::NOT_ACCEPTABLE,
-                Json(String::from("no resource available")),
-            );
+            return Err(ApiError::service_unavailable()
+                .with_code("out_of_resources")
+                .with_message("No compute resources available"));
         }
 
         let recorder_context = self.recorder_context.clone();
 
-        if self.tasks.lock().unwrap().keys().contains(&recording) {
-            return (
-                StatusCode::NO_CONTENT,
-                Json(String::from("recordings already running")),
-            );
+        if self
+            .tasks
+            .lock()
+            .expect("Failed to acquire task lock")
+            .keys()
+            .contains(&recording)
+        {
+            return Ok(RecordingAction::AlreadyRunning);
         }
 
         let session = Box::pin(recorder_context.clone().spawn_session(recording.clone())).await;
         match session {
             Ok(task) => {
-                self.tasks.lock().unwrap().insert(recording, task);
-                (StatusCode::OK, Json("started".to_string()))
+                self.tasks
+                    .lock()
+                    .expect("Failed to acquire task lock")
+                    .insert(recording, task);
+                Ok(RecordingAction::Created)
             }
             Err(err) => {
-                log::error!("Recording session failed\n{err:?}");
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(err.to_string()))
+                log::error!("Failed to start recording session: {err:?}");
+
+                Err(ApiError::internal().with_message("Failed to start recording session"))
             }
         }
     }
