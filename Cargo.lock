@@ -2627,7 +2627,8 @@ dependencies = [
 [[package]]
 name = "livekit-runtime"
 version = "0.4.0"
-source = "git+https://github.com/kbalt/rust-sdks.git?rev=702f3ffa72a6b312b66cb658709eb64595d51b84#702f3ffa72a6b312b66cb658709eb64595d51b84"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "532e84c6cdc5fe774f2b5d9912597b5f3bea561927a48296d03e24549d21c3f6"
 dependencies = [
  "tokio",
  "tokio-stream",

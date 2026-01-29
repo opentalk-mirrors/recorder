@@ -60,6 +60,3 @@ tokio-tungstenite-20 = { version = "0.20", features = [
   "rustls-tls-native-roots",
 ], package = "tokio-tungstenite" }
 urlencoding = "2.1"
-
-[patch.crates-io]
-livekit-runtime = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
