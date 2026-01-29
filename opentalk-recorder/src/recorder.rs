@@ -136,7 +136,7 @@ impl Recorder {
             .context("recording session failed to start")?;
 
         let recording_task = tokio::spawn(async move {
-            if let Err(ref recording_err) = session.run().await {
+            if let Err(ref recording_err) = Box::pin(session.run()).await {
                 error!("recording session failed but trying upload anyway:\n{recording_err:?}",);
             }
 
@@ -254,15 +254,13 @@ impl RecordingSession {
         service_context: Arc<Recorder>,
         initial_recording_state: InitializeRecording,
     ) -> Result<RecordingSession> {
-        let room_state = service_context
-            .client
-            .connect_recorder(
-                initial_recording_state.room,
-                initial_recording_state.breakout,
-                true,
-            )
-            .await?
-            .into();
+        let room_state = Box::pin(service_context.client.connect_recorder(
+            initial_recording_state.room,
+            initial_recording_state.breakout,
+            true,
+        ))
+        .await?
+        .into();
 
         let livekit_room = if let Some(breakout) = initial_recording_state.breakout {
             format!("{}:{breakout}", initial_recording_state.room)

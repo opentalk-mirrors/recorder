@@ -36,11 +36,7 @@ opentalk-service-auth = { workspace = true, features = ["axum"] }
 opentalk-version.workspace = true
 owo-colors.workspace = true
 pin-project-lite.workspace = true
-reqwest = { workspace = true, features = [
-  "json",
-  "rustls-tls-native-roots",
-  "stream",
-] }
+reqwest = { workspace = true, features = ["json", "stream"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 service-probe.workspace = true
