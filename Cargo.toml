@@ -52,7 +52,7 @@ urlencoding = "2.1"
 service-probe = "0.4"
 service-probe-client = "0.4"
 clap = { version = "4.5", features = ["derive"] }
-opentalk-version = "0.3"
+opentalk-version = "0.4"
 directories = "6.0"
 anstream = "0.6"
 itertools = "0.14"
@@ -74,7 +74,7 @@ objc = "0.2"
 
 [build-dependencies]
 anyhow = "1"
-opentalk-version = "0.3"
+opentalk-version = "0.4"
 
 [patch.crates-io]
 livekit-runtime = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
