@@ -47,7 +47,7 @@ tokio = { version = "1", features = [
   "fs",
   "signal",
 ] }
-opentalk-client = { package = "opentalk-client-signaling", version = "0.1" }
+opentalk-client = { package = "opentalk-client-signaling", version = "0.2" }
 urlencoding = "2.1"
 service-probe = "0.4"
 service-probe-client = "0.4"
