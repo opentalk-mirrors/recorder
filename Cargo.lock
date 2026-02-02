@@ -2619,11 +2619,9 @@ checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
 dependencies = [
  "base64 0.22.1",
  "js-sys",
- "pem",
  "ring",
  "serde",
  "serde_json",
- "simple_asn1",
 ]
 
 [[package]]
@@ -2636,9 +2634,11 @@ dependencies = [
  "base64 0.22.1",
  "getrandom 0.2.16",
  "js-sys",
+ "pem",
  "serde",
  "serde_json",
  "signature",
+ "simple_asn1",
 ]
 
 [[package]]
@@ -3299,7 +3299,7 @@ dependencies = [
  "futures",
  "gstreamer 0.23.7",
  "itertools 0.14.0",
- "jsonwebtoken 9.3.1",
+ "jsonwebtoken 10.3.0",
  "lapin",
  "log",
  "objc",
