@@ -2,10 +2,6 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-// currently there's an issues in which a format! call is pushed to a string
-// this causes clippy to fail in the build_info! macro.
-#![allow(clippy::format_push_string)]
-
 use clap::{Parser, Subcommand};
 use opentalk_version::InfoArgs;
 use reqwest::Url;
