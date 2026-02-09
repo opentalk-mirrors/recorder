@@ -136,7 +136,7 @@ impl Recorder {
             .context("recording session failed to start")?;
 
         let recording_task = tokio::spawn(async move {
-            if let Err(ref recording_err) = session.run().await {
+            if let Err(ref recording_err) = Box::pin(session.run()).await {
                 error!("recording session failed but trying upload anyway:\n{recording_err:?}",);
             }
 
