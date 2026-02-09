@@ -23,9 +23,7 @@ env_logger = "0.11"
 futures = "0.3"
 gst = { package = "gstreamer", version = "0.23" }
 jsonwebtoken = "10.0"
-lapin = { version = "3.4", default-features = false, features = [
-  "rustls-webpki-roots-certs",
-] }
+lapin = "4.0"
 log = "0.4"
 openidconnect = "4"
 pin-project-lite = "0.2"
@@ -37,8 +35,6 @@ serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 sysinfo = "0.38"
 thiserror = "2"
-tokio-executor-trait = "3"
-tokio-reactor-trait = "2"
 tokio = { version = "1", features = [
   "rt-multi-thread",
   "time",
@@ -57,15 +53,10 @@ anstream = "0.6"
 itertools = "0.14"
 owo-colors = "4.2"
 tokio-stream = { version = "0.1.17", features = ["sync"] }
-
 tokio-tungstenite = { version = "0.28", features = [
   "rustls",
   "rustls-tls-native-roots",
 ] }
-tokio-tungstenite-20 = { version = "0.20", features = [
-  "rustls",
-  "rustls-tls-native-roots",
-], package = "tokio-tungstenite" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
@@ -74,9 +65,6 @@ objc = "0.2"
 [build-dependencies]
 anyhow = "1"
 opentalk-version = "0.4"
-
-[patch.crates-io]
-livekit-runtime = { git = "https://github.com/kbalt/rust-sdks.git", rev = "702f3ffa72a6b312b66cb658709eb64595d51b84" }
 
 [package.metadata.cargo-machete]
 ignored = ["tokio-tungstenite"]

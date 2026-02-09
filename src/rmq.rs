@@ -6,7 +6,7 @@ use anyhow::{Context as ErrorContext, Result};
 use lapin::{
     message::Delivery,
     options::{BasicAckOptions, BasicConsumeOptions, QueueDeclareOptions},
-    types::FieldTable,
+    types::{FieldTable, ShortString},
     Consumer,
 };
 use opentalk_client::types::common::rooms::BreakoutRoomId;
@@ -27,9 +27,7 @@ pub(crate) async fn open_rabbitmq_connection(
 ) -> Result<lapin::Channel> {
     let rmq_conn = lapin::Connection::connect_uri(
         settings.uri.clone(),
-        lapin::ConnectionProperties::default()
-            .with_executor(tokio_executor_trait::Tokio::current())
-            .with_reactor(tokio_reactor_trait::Tokio),
+        lapin::ConnectionProperties::default(),
     )
     .await?;
 
@@ -45,7 +43,7 @@ pub(crate) async fn create_rmq_queue_and_consume(
 ) -> Result<Consumer> {
     let queue = rmq_channel
         .queue_declare(
-            &settings.queue,
+            ShortString::from(settings.queue.clone()),
             QueueDeclareOptions::default(),
             FieldTable::default(),
         )
@@ -53,8 +51,8 @@ pub(crate) async fn create_rmq_queue_and_consume(
 
     rmq_channel
         .basic_consume(
-            queue.name().as_str(),
-            "",
+            queue.name().clone(),
+            ShortString::from(""),
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
