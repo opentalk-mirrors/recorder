@@ -30,7 +30,10 @@ RUN apt-get update && \
     fontconfig fonts-terminus ttf-bitstream-vera fonts-liberation fonts-noto \
     libcap2 && \
     setcap cap_perfmon=+ep $(which intel_gpu_top); \
-    fc-cache -fv
+    fc-cache -fv && \
+    # Fixes CVE-2025-68973
+    # Can be removed, once the docker image is updated.
+    apt-get -o Dpkg::Options::="--force-confnew" upgrade gpgv -y
 
 WORKDIR /recorder
 
