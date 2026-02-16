@@ -285,6 +285,9 @@ build:docs:
     - mkdocs build --config-file "$CI_PROJECT_DIR"/mkdocs.yml --strict
 
 package:container-mr:
+  parallel:
+    matrix:
+      - FLAVOR: !reference [.template_vars, FLAVORS]
   stage: package
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
@@ -325,7 +328,7 @@ package:container-mr:
       --context $CI_PROJECT_DIR
       --build-arg=GIT_SHA=$CI_COMMIT_SHA
       --build-arg=GIT_REF=$CI_COMMIT_REF_NAME
-      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile
+      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile-$FLAVOR
       --destination $CI_REGISTRY_IMAGE:$IMAGE_TAG
       --force
 
