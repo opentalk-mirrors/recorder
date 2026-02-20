@@ -8,10 +8,8 @@ use axum::{
     routing::post,
     Json,
 };
-use opentalk_client::types::{
-    api::v1::error::ApiError,
-    common::rooms::{BreakoutRoomId, RoomId},
-};
+use opentalk_client::types::api::v1::error::ApiError;
+use opentalk_types_api_internal::recording::RecordingTarget;
 use serde::{Deserialize, Serialize};
 
 use super::Router;
@@ -19,12 +17,6 @@ use super::Router;
 pub trait Backend: Send + Sync + Clone + Sized {}
 
 const API_VERSION: &str = "/v1";
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
-pub struct RecordingTarget {
-    pub room: RoomId,
-    pub breakout: Option<BreakoutRoomId>,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub enum RecordingAction {

@@ -19,9 +19,14 @@ use futures::future::join_all;
 use gst::glib;
 use itertools::Itertools;
 use log::warn;
-use opentalk_client::{config::ClientConfig, types::api::v1::error::ApiError, OpenTalkClient};
-use opentalk_recorder_web_api::v1::{self, RecorderBackend, RecordingAction, RecordingTarget};
+use opentalk_client::{
+    config::ClientConfig,
+    types::{api::v1::error::ApiError, common::rooms::RoomId},
+    OpenTalkClient,
+};
+use opentalk_recorder_web_api::v1::{self, RecorderBackend, RecordingAction};
 use opentalk_service_auth::service::ApiKeyAuthorization;
+use opentalk_types_api_internal::recording::RecordingTarget;
 use service_probe::{set_service_state, start_probe, ServiceState};
 use service_probe_client::is_ready;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
@@ -49,7 +54,13 @@ use crate::{cli::Args, recorder::Recorder, system_info::is_new_recording_feasibl
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) recorder_context: Arc<Recorder>,
-    pub(crate) tasks: Arc<Mutex<HashMap<RecordingTarget, JoinHandle<Result<()>>>>>,
+    pub(crate) tasks: Arc<Mutex<HashMap<RecordingTaskKey, JoinHandle<Result<()>>>>>,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
+struct RecordingTaskKey {
+    room_id: RoomId,
+    breakout_room: Option<u32>,
 }
 
 #[async_trait]
@@ -63,12 +74,17 @@ impl RecorderBackend for AppState {
 
         let recorder_context = self.recorder_context.clone();
 
+        let task_key = RecordingTaskKey {
+            room_id: recording.room_id,
+            breakout_room: recording.breakout_room,
+        };
+
         if self
             .tasks
             .lock()
             .expect("Failed to acquire task lock")
             .keys()
-            .contains(&recording)
+            .contains(&task_key)
         {
             return Ok(RecordingAction::AlreadyRunning);
         }
@@ -79,7 +95,7 @@ impl RecorderBackend for AppState {
                 self.tasks
                     .lock()
                     .expect("Failed to acquire task lock")
-                    .insert(recording, task);
+                    .insert(task_key, task);
                 Ok(RecordingAction::Created)
             }
             Err(err) => {

@@ -3057,6 +3057,7 @@ dependencies = [
  "opentalk-compositor",
  "opentalk-recorder-web-api",
  "opentalk-service-auth",
+ "opentalk-types-api-internal",
  "opentalk-version",
  "owo-colors",
  "pin-project-lite",
@@ -3079,6 +3080,7 @@ dependencies = [
  "async-trait",
  "axum",
  "opentalk-client-signaling",
+ "opentalk-types-api-internal",
  "serde",
 ]
 
@@ -3143,6 +3145,17 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
+]
+
+[[package]]
+name = "opentalk-types-api-internal"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e5a25d00abbf497cc32553bbb0d9b26ff4e5681b34adb7228a51d36b4ca4819"
+dependencies = [
+ "opentalk-types-common",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
