@@ -33,7 +33,7 @@ use opentalk_client::{
     },
     Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
-use opentalk_recorder_web_api::v1::RecordingTarget;
+use opentalk_types_api_internal::recording::RecordingTarget;
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
@@ -255,17 +255,18 @@ impl RecordingSession {
         recording_target: RecordingTarget,
     ) -> Result<RecordingSession> {
         let room_state = Box::pin(service_context.client.connect_recorder(
-            recording_target.room,
-            recording_target.breakout,
+            recording_target.room_id,
+            // TODO: to be replaced by transition to roomserver signaling
+            None,
             true,
         ))
         .await?
         .into();
 
-        let livekit_room = if let Some(breakout) = recording_target.breakout {
-            format!("{}:{breakout}", recording_target.room)
+        let livekit_room = if let Some(breakout) = recording_target.breakout_room {
+            format!("{}:{breakout}", recording_target.room_id)
         } else {
-            recording_target.room.to_string()
+            recording_target.room_id.to_string()
         };
 
         Ok(Self {
