@@ -293,8 +293,7 @@ impl RecordingSession {
         let (chunk_limit_reached_tx, mut chunk_limit_reached_rx) =
             broadcast::channel::<UploadLimitReached>(1);
 
-        self.configure_mixer(Some(chunk_limit_reached_tx.clone()))
-            .await?;
+        Box::pin(self.configure_mixer(Some(chunk_limit_reached_tx.clone()))).await?;
 
         while !self.done {
             tokio::select! {
@@ -637,7 +636,7 @@ impl RecordingSession {
         };
 
         self.mixer = Some(
-            Mixer::new(mixer_params)
+            Box::pin(Mixer::new(mixer_params))
                 .await
                 .context("Mixer could not be created")?,
         );
