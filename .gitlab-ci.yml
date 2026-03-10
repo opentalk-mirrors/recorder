@@ -40,7 +40,6 @@ variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
   # Enable one network per build for the test container and services
   FF_NETWORK_PER_BUILD: 'true'
-  KANIKO_IMAGE: git.opentalk.dev:5050/opentalk/opentalk-devops/containers/kaniko:debug-1.25.5
   SKOPEO_IMAGE: quay.io/skopeo/stable:v1.20.0
   DEFAULT_FLAVOR: intel
 
@@ -289,6 +288,7 @@ package:container-mr:
     matrix:
       - FLAVOR: !reference [.template_vars, FLAVORS]
   stage: package
+  needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
@@ -296,25 +296,11 @@ package:container-mr:
       when: manual
       allow_failure: true
   image:
-    name: $KANIKO_IMAGE
+    name: quay.io/buildah/stable:v1.42.0
     pull_policy: if-not-present
-    entrypoint: ['']
+  before_script:
+    - buildah login -u "$CI_REGISTRY_USER" --password $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - mkdir -p /kaniko/.docker
-    - >
-      echo
-      "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n ${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD} | base64)\"}}}" >
-      /kaniko/.docker/config.json
-    # According to https://docs.docker.com/engine/reference/commandline/tag/
-    # the tag may contain lowercase and uppercase letters, digits, underscores,
-    # periods, and hyphens, so we replace everything else by '_'. It cannot start
-    # with a period or hyphen, so we replace those if we find them at the start of a line.
-    # It must be no longer than 128 characters, so we truncate it in addition.
-    #
-    # tr -c means the same as --complement, but busybox tr doesn't have that.
-    #
-    # Some platforms on which this service is deployed allow only 63 characters
-    # for the container tag, so we restrict the length to that.
     - >
       IMAGE_TAG=$(
           echo -n "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" |
@@ -322,15 +308,8 @@ package:container-mr:
           sed 's/^[.-]/_/' |
           cut -c -63
       )
-    - >
-      /kaniko/executor
-      --registry-mirror=mirror.gcr.io
-      --context $CI_PROJECT_DIR
-      --build-arg=GIT_SHA=$CI_COMMIT_SHA
-      --build-arg=GIT_REF=$CI_COMMIT_REF_NAME
-      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile-$FLAVOR
-      --destination $CI_REGISTRY_IMAGE:$IMAGE_TAG
-      --force
+    - buildah build -f $CI_PROJECT_DIR/ci/Dockerfile-$FLAVOR -t "$CI_REGISTRY_IMAGE:$IMAGE_TAG-$FLAVOR"
+    - buildah push "$CI_REGISTRY_IMAGE:$IMAGE_TAG-$FLAVOR"
 
 package:container:
   parallel:
@@ -343,24 +322,13 @@ package:container:
       when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   image:
-    name: $KANIKO_IMAGE
+    name: quay.io/buildah/stable:v1.42.0
     pull_policy: if-not-present
-    entrypoint: ['']
+  before_script:
+    - buildah login -u "$CI_REGISTRY_USER" --password $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
-    - mkdir -p /kaniko/.docker
-    - >
-      echo
-      "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n ${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD} | base64)\"}}}" >
-      /kaniko/.docker/config.json
-    - >
-      /kaniko/executor
-      --registry-mirror=mirror.gcr.io
-      --context $CI_PROJECT_DIR
-      --build-arg=GIT_SHA=$CI_COMMIT_SHA
-      --build-arg=GIT_REF=$CI_COMMIT_REF_NAME
-      --dockerfile $CI_PROJECT_DIR/ci/Dockerfile-$FLAVOR
-      --destination "$CI_REGISTRY_IMAGE:$FLAVOR-${CI_COMMIT_SHA:0:8}"
-      --force
+    - buildah build -f $CI_PROJECT_DIR/ci/Dockerfile-$FLAVOR -t  "$CI_REGISTRY_IMAGE:$FLAVOR-${CI_COMMIT_SHA:0:8}"
+    - buildah push "$CI_REGISTRY_IMAGE:$FLAVOR-${CI_COMMIT_SHA:0:8}"
 
 push:read-tags:
   stage: push
