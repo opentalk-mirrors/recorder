@@ -3520,7 +3520,7 @@ dependencies = [
 
 [[package]]
 name = "opentalk-recorder"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "anstream 1.0.0",
  "anyhow",
