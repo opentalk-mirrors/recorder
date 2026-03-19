@@ -100,9 +100,22 @@ fn check_intel_gpu_top_command() -> Result<()> {
     Ok(())
 }
 
+/// `rustls` depend on a `CryptoProvider` being configured.
+/// If no provider was explicitly configured, a provider will be derived from
+/// the enabled features. Since there are many crates that depend on `rustls`, we
+/// don't have complete control over the enabled features.
+/// If the configuration via feature is ambiguous `rustls` will panic.
+///
+/// Here we ensure that these crates are explicitly configured.
+fn ensure_crypto_provider() {
+    rustls::crypto::CryptoProvider::install_default(rustls::crypto::aws_lc_rs::default_provider())
+        .expect("valid default crypto provider expected");
+}
+
 #[cfg(not(target_os = "macos"))]
 #[tokio::main]
 async fn main() -> Result<()> {
+    ensure_crypto_provider();
     main_loop().await.expect("failed to run main loop");
     Ok(())
 }
