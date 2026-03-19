@@ -3599,6 +3599,7 @@ dependencies = [
  "owo-colors",
  "pin-project-lite",
  "reqwest 0.13.2",
+ "rustls 0.23.37",
  "serde",
  "serde_json",
  "service-probe",
