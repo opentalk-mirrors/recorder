@@ -37,14 +37,16 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::cli::{print_info, Commands};
+use crate::{
+    cli::{print_info, Args, Commands},
+    recorder::Recorder,
+    system_info::is_new_recording_feasible,
+};
 
 mod cli;
 mod recorder;
 mod settings;
 mod system_info;
-
-use crate::{cli::Args, recorder::Recorder, system_info::is_new_recording_feasible};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -329,22 +331,14 @@ async fn main_loop() -> Result<()> {
         }).await?;
     Ok(())
 }
+
 async fn run_recorder(
     mut shutdown_rx: broadcast::Receiver<()>,
     settings: Arc<Settings>,
 ) -> Result<()> {
     let client = OpenTalkClient::create(ClientConfig {
-        auth: opentalk_client::AuthConfig::ClientCredentials(
-            opentalk_client::config::ClientCredentialsAuthConfig {
-                issuer: settings.auth.issuer.clone(),
-                client_id: settings.auth.client_id.clone(),
-                client_secret: settings.auth.client_secret.clone(),
-            },
-        ),
-        controller: opentalk_client::ControllerConfig {
-            domain: settings.controller.domain.clone(),
-            insecure: settings.controller.insecure,
-        },
+        auth: opentalk_client::AuthConfig::ApiKey(settings.controller.api_key.clone()),
+        controller: settings.controller.url.clone(),
     })
     .await?;
 

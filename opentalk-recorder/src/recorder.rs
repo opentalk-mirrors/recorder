@@ -9,52 +9,79 @@ use core::{
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    io, mem,
+    io,
+    mem::take,
     sync::Arc,
 };
 
 use anyhow::{Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
-    livekit::prelude::DisconnectReason, EncoderType, Mixer, MixerParameters, ParticipantIdentity,
-    RTMPParameters, RTMPSink, SystemSink, WebMParameters, WebMSink,
+    EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
+    WebMParameters, WebMSink,
 };
 use futures::Stream;
 use log::error;
 use opentalk_client::{
+    opentalk_roomserver_types::{breakout::breakout_id::BreakoutId, connection_id::ConnectionId},
+    opentalk_roomserver_types_recording::{RecordingStatus, StreamErrorReason, StreamStatus},
     types::{
-        common::{streaming::StreamingTargetId, time::Timestamp},
-        signaling::{
-            livekit::Credentials,
-            recording::{StreamErrorReason, StreamStatus},
-            recording_service::state::{RecorderStreamInfo, StreamingTarget},
-            ParticipantId,
-        },
+        common::{rooms::RoomId, streaming::StreamingTargetId, time::Timestamp},
+        signaling::ParticipantId,
     },
     Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
 use opentalk_types_api_internal::recording::RecordingTarget;
+use reqwest::Url;
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
-    sync::{broadcast, Mutex},
+    sync::broadcast,
     task::JoinHandle,
 };
 use tokio_stream::wrappers::BroadcastStream;
 
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("reached chunk limit")]
-#[allow(dead_code)]
-pub struct ChunkUploadLimitReached;
+use crate::settings::Settings;
 
-#[derive(Debug, Clone)]
-pub struct UploadLimitReached(StreamingTargetId);
+#[derive(Debug, Error)]
+pub(crate) enum RecordingSessionError {
+    #[error("Stream '{0}' is already running")]
+    AlreadyRunning(StreamingTargetId),
+    #[error("Stream '{0}' not found")]
+    NotFound(StreamingTargetId),
+    #[error("Stream '{0}' is not running")]
+    NotRunning(StreamingTargetId),
 
-impl UploadLimitReached {
-    pub fn id(&self) -> &StreamingTargetId {
-        &self.0
+    #[error("Recording is not running")]
+    NoRunningRecording,
+
+    #[error("Start livestream failed")]
+    FailedToStartLivestream(#[source] anyhow::Error),
+
+    #[error("Start recording failed")]
+    FailedToStartRecording(#[source] anyhow::Error),
+}
+
+impl From<RecordingSessionError> for StreamErrorReason {
+    fn from(value: RecordingSessionError) -> Self {
+        let code = match value {
+            RecordingSessionError::AlreadyRunning(_) => "already_running".to_owned(),
+            RecordingSessionError::NotFound(_) => "not_found".to_owned(),
+            RecordingSessionError::NotRunning(_) => "not_running".to_owned(),
+            RecordingSessionError::NoRunningRecording => "no_running_recording".to_owned(),
+            RecordingSessionError::FailedToStartLivestream(_) => "start_livestream".to_owned(),
+            RecordingSessionError::FailedToStartRecording(_) => "start_recording".to_owned(),
+        };
+
+        Self {
+            code,
+            message: format!("{value:?}"),
+        }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct UploadLimitReached(Option<StreamingTargetId>);
 
 // TODO: Replace with version from opentalk-types
 #[derive(Clone)]
@@ -69,29 +96,6 @@ impl FileExtension {
     #[must_use]
     pub(crate) fn str(&self) -> &str {
         &self.0
-    }
-}
-
-use crate::settings::Settings;
-
-#[derive(Clone, Debug)]
-pub(crate) enum RecorderStreamKind {
-    Recording,
-    Streaming { target: StreamingTarget },
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct RecorderStreamStatus {
-    pub(crate) state: StreamStatus,
-    pub(crate) kind: RecorderStreamKind,
-}
-
-impl RecorderStreamStatus {
-    #[must_use]
-    pub(crate) fn stream_running(&self) -> bool {
-        self.state == StreamStatus::Active
-            || self.state == StreamStatus::Paused
-            || self.state == StreamStatus::Starting
     }
 }
 
@@ -147,154 +151,121 @@ impl Recorder {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct InitialData {
-    pub streaming_targets: BTreeMap<StreamingTargetId, RecorderStreamStatus>,
-
-    pub livekit_data: Credentials,
-}
-
-impl Default for InitialData {
-    fn default() -> Self {
-        Self {
-            streaming_targets: BTreeMap::new(),
-            livekit_data: Credentials {
-                room: String::new(),
-                token: String::new(),
-                public_url: String::new(),
-                service_url: None,
-            },
-        }
-    }
+#[derive(Clone)]
+struct LivestreamConfigurationAndStatus {
+    location: Url,
+    status: StreamStatus,
 }
 
 pub(crate) struct RecordingSession {
     service_context: Arc<Recorder>,
     room_state: opentalk_client::Room,
+    room_id: RoomId,
 
-    room_id: String,
-    participant_id: Option<ParticipantId>,
+    compositor: Mixer,
 
-    mixer: Option<Mixer>,
-
-    initial_data: InitialData,
+    recording_status: RecordingStatus,
+    livestream_states: BTreeMap<StreamingTargetId, LivestreamConfigurationAndStatus>,
 
     done: bool,
-
-    join_handles: Arc<Mutex<Vec<JoinHandle<Result<()>>>>>,
-}
-
-#[derive(Debug, Error)]
-pub(crate) enum RecordingSessionError {
-    #[error("Stream '{0}' is already running")]
-    AlreadyRunning(StreamingTargetId),
-    #[error("Stream '{0}' not found")]
-    NotFound(StreamingTargetId),
-    #[error("Stream '{0}' has no location")]
-    NoLocation(StreamingTargetId),
-    #[error("Stream '{0}' is not running")]
-    NotRunning(StreamingTargetId),
-
-    #[error("Start livestream failed, reason: {0}")]
-    StartLivestream(anyhow::Error),
-
-    #[error("Start recording failed, reason: {0}")]
-    StartRecording(anyhow::Error),
-
-    #[error("Mixer does not exist")]
-    MixerError,
-}
-
-impl From<RecordingSessionError> for StreamErrorReason {
-    fn from(value: RecordingSessionError) -> Self {
-        let code = match value {
-            RecordingSessionError::AlreadyRunning(_) => "already_running".to_owned(),
-            RecordingSessionError::NotFound(_) => "not_found".to_owned(),
-            RecordingSessionError::NotRunning(_) => "not_running".to_owned(),
-            RecordingSessionError::NoLocation(_) => "no_location".to_owned(),
-
-            RecordingSessionError::StartLivestream(_) => "start_livestream".to_owned(),
-
-            RecordingSessionError::StartRecording(_) => "start_recording".to_owned(),
-            RecordingSessionError::MixerError => "internal_error".to_owned(),
-        };
-
-        Self {
-            code,
-            message: value.to_string(),
-        }
-    }
 }
 
 impl RecordingSession {
-    /// This constructor is used by the integration tests to mock data.
-    #[allow(dead_code)]
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        service_context: Arc<Recorder>,
-        room_state: Room,
-        room_id: String,
-        mixer: Option<Mixer>,
-        initial_data: InitialData,
-        done: bool,
-    ) -> Self {
-        Self {
-            service_context,
-            room_state,
-            room_id,
-            participant_id: None,
-            mixer,
-            initial_data,
-            done,
-            join_handles: Arc::default(),
-        }
-    }
-
+    /// Start a new recording session at the specified target room
     pub(crate) async fn create(
         service_context: Arc<Recorder>,
         recording_target: RecordingTarget,
     ) -> Result<RecordingSession> {
-        let room_state = Box::pin(service_context.client.connect_recorder(
+        // Connect to opentalk room as recorder
+        let mut room_state: Room = Box::pin(service_context.client.connect_recorder(
             recording_target.room_id,
-            // TODO: to be replaced by transition to roomserver signaling
-            None,
+            recording_target.breakout_room.map(BreakoutId::from),
             true,
         ))
         .await?
         .into();
 
-        let livekit_room = if let Some(breakout) = recording_target.breakout_room {
-            format!("{}:{breakout}", recording_target.room_id)
-        } else {
-            recording_target.room_id.to_string()
+        // Extract recording state from room
+        let recording_api = room_state
+            .recording_api()
+            .context("recording_api not available")?;
+
+        let recording_status = recording_api.recording_status().clone();
+
+        let stream_states = recording_api.streams().clone();
+        let livestream_states = room_state
+            .recording_service_api()
+            .context("recording_service_api not available")?
+            .streaming_targets()
+            .iter()
+            .map(|(id, target)| -> Result<_> {
+                Ok((
+                    *id,
+                    LivestreamConfigurationAndStatus {
+                        location: target.location.clone(),
+                        status: stream_states
+                            .get(id)
+                            .context("Missing stream state for streaming target")?
+                            .status
+                            .clone(),
+                    },
+                ))
+            })
+            .collect::<Result<_>>()?;
+
+        // Create Compositor
+        let livekit_credentials = room_state
+            .livekit_credentials()
+            .cloned()
+            .context("Mssing livekit credentials in  room")?;
+
+        let recorder_settings = service_context
+            .settings
+            .recorder
+            .clone()
+            .unwrap_or_default();
+
+        let compositor_params = MixerParameters {
+            target_fps: 30,
+            auto_subscribe: false,
+            clock_format: recorder_settings.clock_format,
+            livekit_url: livekit_credentials
+                .service_url
+                .as_ref()
+                .unwrap_or(&livekit_credentials.public_url)
+                .clone(),
+            livekit_token: livekit_credentials.token.clone(),
         };
 
-        Ok(Self {
+        let mut compositor = Box::pin(Mixer::new(compositor_params))
+            .await
+            .context("Failed to create compositor")?;
+
+        // Add display sink if enabled
+        if recorder_settings.display {
+            let system_sink = SystemSink::create().context("DisplaySink could not created")?;
+            compositor
+                .link_gstreamer_sink("Display", system_sink)
+                .await?;
+        }
+
+        Ok(RecordingSession {
             service_context,
             room_state,
-            room_id: livekit_room,
-            participant_id: None,
-            mixer: None,
-            initial_data: InitialData::default(),
+            room_id: recording_target.room_id,
+            compositor,
+            recording_status,
+            livestream_states,
             done: false,
-            join_handles: Arc::default(),
         })
     }
 
     pub(crate) async fn run(&mut self) -> Result<()> {
-        async fn mixer_run(mixer: Option<&mut Mixer>) -> DisconnectReason {
-            let Some(mixer) = mixer else {
-                std::future::pending().await
-            };
-
-            mixer.run().await
-        }
-
         let mut shutdown_rx = self.service_context.shutdown.resubscribe();
         let (chunk_limit_reached_tx, mut chunk_limit_reached_rx) =
             broadcast::channel::<UploadLimitReached>(1);
 
-        Box::pin(self.configure_mixer(Some(chunk_limit_reached_tx.clone()))).await?;
+        self.initialize(chunk_limit_reached_tx.clone()).await?;
 
         while !self.done {
             tokio::select! {
@@ -309,13 +280,16 @@ impl RecordingSession {
                         }
                     }
                 }
-                disconnect_reason = mixer_run(self.mixer.as_mut()) => {
+                disconnect_reason = self.compositor.run() => {
                     log::error!("Disconnected from livekit: {disconnect_reason:?}");
                     break;
                 }
-                chunk_limit_stream = chunk_limit_reached_rx.recv() => {
-                    let id = *chunk_limit_stream?.id();
-                    self.handle_stop_stream(BTreeSet::from([id])).await?;
+                chunk_limit_event = chunk_limit_reached_rx.recv() => {
+                    if let Some(streaming_target_id) = chunk_limit_event.context("Lost chunk limit receiver")?.0 {
+                        self.handle_stop_stream(BTreeSet::from([streaming_target_id])).await?;
+                    } else {
+                        self.handle_stop_recording().await?;
+                    }
                 }
                 _ = shutdown_rx.recv() => {
                     self.done = true;
@@ -327,10 +301,14 @@ impl RecordingSession {
         // The streaming targets are per session
         // therefore making sure we're in the right context isn't necessary here.
         log::debug!("Recorder is done, attempting to upload remaining streams...");
-        let cloned_stream = self.initial_data.streaming_targets.clone();
-        for (stream_target_id, _) in cloned_stream
+        if self.recording_status.is_running() {
+            self.handle_stop_recording().await?;
+        }
+
+        let livestreams = take(&mut self.livestream_states);
+        for (stream_target_id, _) in livestreams
             .iter()
-            .filter(|(_, status)| RecorderStreamStatus::stream_running(status))
+            .filter(|(_, livestream)| livestream.status.is_running())
         {
             self.stop_stream(*stream_target_id).await?;
         }
@@ -340,132 +318,129 @@ impl RecordingSession {
 
     pub(crate) async fn start_recording(
         &mut self,
-        id: StreamingTargetId,
-        encoder_type: EncoderType,
         sender: broadcast::Sender<UploadLimitReached>,
-    ) -> Result<()> {
+    ) -> Result<RecordingStatus> {
+        let websocket_base_url = self
+            .service_context
+            .settings
+            .controller
+            .url
+            .clone()
+            .to_websocket_url();
+
+        let mut upload_url = websocket_base_url
+            .join("/internal/recording/upload")
+            .context("Failed to join controller url with upload path")?;
+
+        upload_url.set_query(Some(&format!(
+            "room_id={room_id}&file_extension={file_extension}&timestamp={timestamp}",
+            room_id = self.room_id,
+            file_extension = FileExtension::webm().str(),
+            timestamp = urlencoding::encode(&Timestamp::now().to_string()),
+        )));
+
         let webm_sink = WebMSink::create(&WebMParameters {
-            encoder_type,
+            encoder_type: self.service_context.settings.encoder_type(),
             chunk_size: Some(self.service_context.settings.controller.upload_chunk_size as u64),
         })
-        .context("WebM-Sink could not created")?;
+        .context("WebM-Sink could not created")
+        .map_err(RecordingSessionError::FailedToStartRecording)?;
 
         // probably actually use a channel to signal when limit reached, would probably make much more sense
         // than to attempt to circumvent the move
-        let handle = tokio::spawn({
+        tokio::spawn({
             let service_context = self.service_context.clone();
-            let room_id = self.room_id.clone();
             let receiver = webm_sink.subscribe();
 
             async move {
-                let timestamp = Timestamp::now();
-                let uri = format!(
-                    "{}/services/recording/upload?room_id={room_id}&file_extension={}&timestamp={}",
-                    service_context
-                        .settings
-                        .controller
-                        .v1_api_base_url()
-                        .replace("https", "wss")
-                        .replace("http", "ws"),
-                    FileExtension::webm().str(),
-                    urlencoding::encode(&timestamp.to_string()),
-                );
                 let stream = BroadcastStream::from(receiver);
 
                 match service_context
                     .client
-                    .upload_render(uri, stream, || {
-                        if let Err(e) = sender.send(UploadLimitReached(id)) {
-                            log::warn!("Could not send Upload limit reached of {id} because: {e}");
+                    .upload_render(upload_url.as_str(), stream, || {
+                        if let Err(e) = sender.send(UploadLimitReached(None)) {
+                            log::warn!(
+                                "Could not send Upload limit reached of recording because: {e}"
+                            );
                         }
                     })
                     .await
                 {
                     Ok(()) => {}
-                    Err(e) => return Err(anyhow::anyhow!(format!("Error: {e}"))),
+                    Err(err) => {
+                        log::error!(
+                            "Encountered error during recording upload, {:?}",
+                            anyhow::Error::from(err)
+                        );
+                    }
                 }
-
-                Ok(())
             }
         });
 
-        self.join_handles.lock().await.push(handle);
-
-        self.mixer
-            .as_mut()
-            .context("Mixer does not exist")?
+        self.compositor
             .link_gstreamer_sink("recording", webm_sink)
             .await
             .context("unable to link recording sink to compositor")?;
 
-        Ok(())
+        Ok(RecordingStatus::Active)
     }
 
-    async fn start_stream(
+    async fn start_livestream(
         &mut self,
         id: StreamingTargetId,
-        chunk_limit_sender: Option<broadcast::Sender<UploadLimitReached>>,
     ) -> Result<StreamStatus, RecordingSessionError> {
         log::trace!("start_stream, id: {id:?}");
-        let Some(mut stream) = self.initial_data.streaming_targets.get_mut(&id).cloned() else {
+        let Some(livestream_state) = self.livestream_states.get_mut(&id) else {
             return Err(RecordingSessionError::NotFound(id));
         };
-        if stream.state == StreamStatus::Active {
+
+        if livestream_state.status == StreamStatus::Active {
             return Err(RecordingSessionError::AlreadyRunning(id));
         }
-        let new_state = match &stream.kind {
-            RecorderStreamKind::Streaming { target } => {
-                let Some(ref location) = target.location else {
-                    return Err(RecordingSessionError::NoLocation(id));
-                };
 
-                let result = self
-                    .start_livestream(
-                        location.to_string(),
-                        &format!("Livestream-{id}"),
-                        self.service_context.settings.encoder_type(),
-                    )
-                    .await;
+        let result = Self::setup_livestream_in_mixer(
+            &mut self.compositor,
+            format!("Livestream-{id}"),
+            &livestream_state.location,
+            self.service_context.settings.encoder_type(),
+        )
+        .await;
 
-                if let Err(ref e) = result {
-                    log::error!("failed to start live stream: {e}");
-                }
+        if let Err(ref e) = result {
+            log::error!("failed to start live stream: {e}");
+        }
 
-                result.map_err(RecordingSessionError::StartLivestream)
-            }
-            RecorderStreamKind::Recording => {
-                let Some(chunk_limit_sender) = chunk_limit_sender else {
-                    return Err(anyhow::anyhow!("Chunk Limit sender doesn't exist"))
-                        .map_err(RecordingSessionError::StartRecording);
-                };
-                let result = self
-                    .start_recording(
-                        id,
-                        self.service_context.settings.encoder_type(),
-                        chunk_limit_sender.clone(),
-                    )
-                    .await;
+        livestream_state.status =
+            match result.map_err(RecordingSessionError::FailedToStartLivestream) {
+                Ok(()) => StreamStatus::Active,
+                Err(error) => StreamStatus::Error {
+                    reason: error.into(),
+                },
+            };
 
-                if let Err(ref e) = result {
-                    log::error!("failed to start recording: {e}");
-                }
+        Ok(livestream_state.status.clone())
+    }
 
-                result.map_err(RecordingSessionError::StartRecording)
-            }
-        };
+    async fn setup_livestream_in_mixer(
+        compositor: &mut Mixer,
+        name: String,
+        location: &Url,
+        encoder_type: EncoderType,
+    ) -> Result<()> {
+        let rtmp_sink = RTMPSink::create(RTMPParameters {
+            location: location.to_string(),
+            audio_bitrate: None,
+            audio_rate: None,
+            video_bitrate: None,
+            video_speed_preset: None,
+            encoder_type,
+        })
+        .context("Failed to create RTMP sink from livestream configuration")?;
 
-        stream.state = match new_state {
-            Ok(()) => StreamStatus::Active,
-            Err(error) => StreamStatus::Error {
-                reason: error.into(),
-            },
-        };
-
-        self.initial_data
-            .streaming_targets
-            .insert(id, stream.clone());
-
-        Ok(stream.state.clone())
+        compositor
+            .link_gstreamer_sink(&name, rtmp_sink)
+            .await
+            .context("unable to link sink to talk")
     }
 
     async fn stop_stream(
@@ -473,66 +448,33 @@ impl RecordingSession {
         id: StreamingTargetId,
     ) -> Result<StreamStatus, RecordingSessionError> {
         log::trace!("stop_stream, id: {id:?}");
-        let Some(stream) = self.initial_data.streaming_targets.get_mut(&id) else {
+        let Some(livestream_state) = self.livestream_states.get_mut(&id) else {
             return Err(RecordingSessionError::NotFound(id));
         };
-        if stream.state != StreamStatus::Active && stream.state != StreamStatus::Paused {
+
+        if livestream_state.status.is_running() {
             return Err(RecordingSessionError::NotRunning(id));
         }
-        let new_state: Result<(), StreamErrorReason> = match stream.kind {
-            RecorderStreamKind::Recording => {
-                self.mixer
-                    .as_mut()
-                    .ok_or(RecordingSessionError::MixerError)?
-                    .release_sink(&"recording".to_owned())
-                    .await;
 
-                Ok(())
-            }
-            RecorderStreamKind::Streaming { target: _ } => {
-                self.mixer
-                    .as_mut()
-                    .ok_or(RecordingSessionError::MixerError)?
-                    .release_sink(&format!("Livestream-{id}"))
-                    .await;
+        self.compositor
+            .release_sink(&format!("Livestream-{id}"))
+            .await;
 
-                Ok(())
-            }
-        };
+        livestream_state.status = StreamStatus::Inactive;
 
-        stream.state = match new_state {
-            Ok(()) => StreamStatus::Inactive,
-            Err(error) => StreamStatus::Error { reason: error },
-        };
-
-        Ok(stream.state.clone())
+        Ok(StreamStatus::Inactive)
     }
 
-    pub async fn start_livestream(
-        &mut self,
-        location: String,
-        name: &str,
-        encoder_type: EncoderType,
-    ) -> Result<()> {
-        self.mixer
-            .as_mut()
-            .context("mixer does not exist")?
-            .link_gstreamer_sink(
-                name,
-                RTMPSink::create(RTMPParameters {
-                    location,
-                    audio_bitrate: None,
-                    audio_rate: None,
-                    video_bitrate: None,
-                    video_speed_preset: None,
-                    encoder_type,
-                })
-                .context("RTMPSink could not created")?,
-            )
-            .await
-            .context("unable to link sink to talk")?;
+    async fn stop_recording(&mut self) -> Result<RecordingStatus, RecordingSessionError> {
+        if !self.recording_status.is_running() {
+            return Err(RecordingSessionError::NoRunningRecording);
+        }
 
-        Ok(())
+        self.compositor.release_sink(&"recording".to_owned()).await;
+
+        self.recording_status = RecordingStatus::Inactive;
+
+        Ok(RecordingStatus::Inactive)
     }
 
     async fn handle_signaling_event(
@@ -543,35 +485,44 @@ impl RecordingSession {
         log::trace!("Received: {event:?} event message");
         match event {
             OpenTalkEvent::ParticipantJoined(participant) => {
-                self.handle_participant_joined(&participant)?;
+                self.handle_participant_joined(&participant);
             }
             OpenTalkEvent::ParticipantUpdated {
                 previous: _,
                 updated,
-            } => self.handle_participant_updated(&updated)?,
-            OpenTalkEvent::ParticipantLeft(left) => self.handle_participant_left(&left)?,
+            } => {
+                self.handle_participant_updated(&updated);
+            }
+            OpenTalkEvent::ParticipantLeft(left, connection) => {
+                self.handle_participant_left(&left, connection);
+            }
             OpenTalkEvent::MovedToWaitingRoom
             | OpenTalkEvent::WaitingRoomAccepted
             | OpenTalkEvent::LiveKit(_)
             | OpenTalkEvent::Recording(_)
-            | OpenTalkEvent::Chat(_)
-            | OpenTalkEvent::Disconnected(_)
-            | OpenTalkEvent::TranscriptionService(_) => {
-                log::trace!("Got event: {event:?}");
-                return Ok(());
-            }
+            | OpenTalkEvent::Disconnected(_) => {}
             OpenTalkEvent::RecordingService(open_talk_recording_service_event) => {
                 match open_talk_recording_service_event {
+                    OpenTalkRecordingServiceEvent::StartRecording => {
+                        log::debug!("Start recording");
+                        self.handle_start_recording(chunk_limit_sender).await?;
+                    }
+                    OpenTalkRecordingServiceEvent::PauseRecording => {
+                        log::debug!("Pause recording (not implemented)");
+                    }
+                    OpenTalkRecordingServiceEvent::StopRecording => {
+                        log::debug!("Stop recording");
+                        self.handle_stop_recording().await?;
+                    }
                     OpenTalkRecordingServiceEvent::StartStreams { target_ids } => {
-                        log::debug!("[Start]: {target_ids:?}");
-                        self.handle_start_stream(target_ids, chunk_limit_sender)
-                            .await?;
+                        log::debug!("Start streams: {target_ids:?}");
+                        self.handle_start_stream(target_ids).await?;
                     }
                     OpenTalkRecordingServiceEvent::PauseStreams { target_ids } => {
-                        log::debug!("[Pause]: {target_ids:?}");
+                        log::debug!("Pause streams (not implemented): {target_ids:?}");
                     }
                     OpenTalkRecordingServiceEvent::StopStreams { target_ids } => {
-                        log::debug!("[Stop]: {target_ids:?}");
+                        log::debug!("Stop streams: {target_ids:?}");
                         self.handle_stop_stream(target_ids).await?;
                     }
                 }
@@ -580,98 +531,45 @@ impl RecordingSession {
         Ok(())
     }
 
-    #[allow(clippy::too_many_lines)]
-    pub(crate) async fn configure_mixer(
+    /// Initialize the recording session
+    ///
+    /// Called once at the very beginning after connecting to the conference
+    pub(crate) async fn initialize(
         &mut self,
-        chunk_limit_sender: Option<broadcast::Sender<UploadLimitReached>>,
+        chunk_limit_sender: broadcast::Sender<UploadLimitReached>,
     ) -> Result<()> {
-        self.participant_id = Some(self.room_state.participant_id());
-        self.initial_data.streaming_targets = self
-            .room_state
-            .recording_service_api()
-            .context("no streams available")?
-            .all_streams()
+        // Test if there's anything to do & bail early if not
+        let recording_inactive = self.recording_status == RecordingStatus::Inactive;
+        let livestreams_inactive = self
+            .livestream_states
             .iter()
-            .map(|(id, target)| {
-                (
-                    *id,
-                    match target {
-                        RecorderStreamInfo::Recording(target) => RecorderStreamStatus {
-                            state: target.stream_start_options.status.clone(),
-                            kind: RecorderStreamKind::Recording,
-                        },
-                        RecorderStreamInfo::Streaming(target) => RecorderStreamStatus {
-                            state: target.stream_start_options.status.clone(),
-                            kind: RecorderStreamKind::Streaming {
-                                target: target.clone(),
-                            },
-                        },
-                    },
-                )
-            })
-            .collect();
+            .all(|(_, rec_info)| rec_info.status == StreamStatus::Inactive);
 
-        if let Some(livekit_credentials) = self.room_state.livekit_credentials() {
-            self.initial_data.livekit_data = livekit_credentials.clone();
-        }
-
-        let recorder_settings = self
-            .service_context
-            .settings
-            .recorder
-            .clone()
-            .unwrap_or_default();
-
-        let mixer_params = MixerParameters {
-            target_fps: 30,
-            auto_subscribe: false,
-            clock_format: recorder_settings.clock_format,
-            livekit_url: self
-                .initial_data
-                .livekit_data
-                .service_url
-                .as_mut()
-                .context("service url does not exist")?
-                .clone(),
-            livekit_token: self.initial_data.livekit_data.token.clone(),
-        };
-
-        self.mixer = Some(
-            Box::pin(Mixer::new(mixer_params))
-                .await
-                .context("Mixer could not be created")?,
-        );
-
-        if recorder_settings.display {
-            let system_sink = SystemSink::create().context("DisplaySink could not created")?;
-            self.mixer
-                .as_mut()
-                .context("mixer does not exist")?
-                .link_gstreamer_sink("Display", system_sink)
-                .await?;
-        }
-
-        if self
-            .initial_data
-            .streaming_targets
-            .iter()
-            .all(|(_, rec_info)| rec_info.state == StreamStatus::Inactive)
-        {
+        if recording_inactive && livestreams_inactive {
             log::debug!("No streams to start requested, recorder is done.");
             self.done = true;
             return Ok(());
         }
 
+        // Start requested livestreams & recordings
+        if self.recording_status == RecordingStatus::Requested {
+            self.handle_start_recording(chunk_limit_sender.clone())
+                .await?;
+        }
+
         let all_streams = {
-            let recording_service_api = self.room_state.recording_service_api().unwrap();
-            recording_service_api.all_streams().clone()
+            let recording_api = self
+                .room_state
+                .recording_api()
+                .context("recording_api unavailable")?;
+            recording_api.streams().clone()
         };
 
         for (id, _status) in all_streams
             .into_iter()
-            .filter(|(_id, state)| state.is_start_requested())
+            .filter(|(_id, state)| matches!(state.status, StreamStatus::Requested))
         {
-            let status = match self.start_stream(id, chunk_limit_sender.clone()).await {
+            let status = match self.start_livestream(id).await {
                 Ok(status) => status,
                 Err(reason) => StreamStatus::Error {
                     reason: reason.into(),
@@ -680,68 +578,58 @@ impl RecordingSession {
 
             self.room_state
                 .recording_service_api()
-                .unwrap()
+                .context("recording_service_api unavailable")?
                 .send_stream_update(id, status)
                 .await?;
         }
 
         if let Some(event_title) = self.room_state.event_title() {
-            self.mixer
-                .as_mut()
-                .context("mixer does not exist")?
-                .set_event_title(event_title);
+            self.compositor.set_event_title(event_title);
         }
 
         for participant in self.room_state.participants().values() {
             if participant.consents_recording {
-                self.mixer
-                    .as_mut()
-                    .context("mixer does not exist")?
-                    .add_participant(
-                        &ParticipantIdentity::from(participant.id.to_string()),
+                for connection in &participant.connections {
+                    self.compositor.add_participant(
+                        &format!("{}:{}", participant.id, connection).into(),
                         participant.display_name.to_string(),
                     );
+                }
             }
         }
 
         Ok(())
     }
 
-    fn handle_participant_joined(&mut self, participant: &Participant) -> Result<()> {
+    fn handle_participant_joined(&mut self, participant: &Participant) {
         if participant.consents_recording {
-            self.mixer
-                .as_mut()
-                .context("mixer does not exist")?
-                .add_participant(
-                    &ParticipantIdentity::from(participant.id.to_string()),
+            for connection in &participant.connections {
+                self.compositor.add_participant(
+                    &ParticipantIdentity::from(format!("{}:{}", participant.id, connection)),
                     participant.display_name.to_string(),
                 );
+            }
         }
-
-        Ok(())
     }
 
-    fn handle_participant_updated(&mut self, updated: &Participant) -> Result<()> {
+    fn handle_participant_updated(&mut self, updated: &Participant) {
         if updated.consents_recording {
-            self.mixer
-                .as_mut()
-                .context("mixer does not exist")?
-                .add_participant(
-                    &ParticipantIdentity::from(updated.id.to_string()),
+            for connection in &updated.connections {
+                self.compositor.add_participant(
+                    &ParticipantIdentity::from(format!("{}:{}", updated.id, connection)),
                     updated.display_name.to_string(),
                 );
+            }
         }
-
-        Ok(())
     }
 
-    fn handle_participant_left(&mut self, left: &ParticipantId) -> Result<()> {
+    fn handle_participant_left(&mut self, left: &ParticipantId, connection: ConnectionId) {
         let active_participants = self.room_state.active_participants();
         if active_participants.is_empty() {
             log::debug!("Last participant left the session. Stop recording.");
             self.done = true;
 
-            return Ok(());
+            return;
         }
 
         log::trace!(
@@ -750,10 +638,45 @@ impl RecordingSession {
             active_participants.keys()
         );
 
-        self.mixer
-            .as_mut()
-            .context("mixer does not exist")?
-            .remove_participant(&ParticipantIdentity::from(left.to_string()));
+        self.compositor
+            .remove_participant(&ParticipantIdentity::from(format!("{left}:{connection}")));
+    }
+
+    pub(crate) async fn handle_start_recording(
+        &mut self,
+        chunk_limit_sender: broadcast::Sender<UploadLimitReached>,
+    ) -> Result<()> {
+        let status = match self.start_recording(chunk_limit_sender.clone()).await {
+            Ok(status) => status,
+            Err(reason) => RecordingStatus::Error {
+                reason: RecordingSessionError::FailedToStartRecording(reason).into(),
+            },
+        };
+
+        self.room_state
+            .recording_service_api()
+            .context("recording_service_api unavailable")?
+            .send_recording_update(status)
+            .await?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn handle_stop_recording(&mut self) -> Result<()> {
+        let status = match self.stop_recording().await {
+            Ok(status) => status,
+            Err(reason) => RecordingStatus::Error {
+                reason: reason.into(),
+            },
+        };
+
+        self.room_state
+            .recording_service_api()
+            .context("recording_service_api unavailable")?
+            .send_recording_update(status)
+            .await?;
+
+        self.evaluate_if_done();
 
         Ok(())
     }
@@ -761,13 +684,9 @@ impl RecordingSession {
     pub(crate) async fn handle_start_stream(
         &mut self,
         target_ids: BTreeSet<StreamingTargetId>,
-        chunk_limit_sender: broadcast::Sender<UploadLimitReached>,
     ) -> Result<()> {
         for id in target_ids {
-            let status = match self
-                .start_stream(id, Some(chunk_limit_sender.clone()))
-                .await
-            {
+            let status = match self.start_livestream(id).await {
                 Ok(status) => status,
                 Err(reason) => StreamStatus::Error {
                     reason: reason.into(),
@@ -776,7 +695,7 @@ impl RecordingSession {
 
             self.room_state
                 .recording_service_api()
-                .unwrap()
+                .context("recording_service_api unavailable")?
                 .send_stream_update(id, status)
                 .await?;
         }
@@ -795,41 +714,27 @@ impl RecordingSession {
 
             self.room_state
                 .recording_service_api()
-                .unwrap()
+                .context("recording_service_api unavailable")?
                 .send_stream_update(id, status)
                 .await?;
         }
 
-        if !self
-            .initial_data
-            .streaming_targets
-            .iter()
-            .any(|(_id, status)| status.stream_running())
+        self.evaluate_if_done();
+
+        Ok(())
+    }
+
+    /// Check if there is anything left to do, quit if not
+    fn evaluate_if_done(&mut self) {
+        if !self.recording_status.is_running()
+            && !self
+                .livestream_states
+                .iter()
+                .any(|(_id, livestream_state)| livestream_state.status.is_running())
         {
             // last stream has been stopped, the media pipeline can be shut down.
             self.done = true;
         }
-
-        Ok(())
-    }
-}
-
-impl Drop for RecordingSession {
-    fn drop(&mut self) {
-        log::debug!("Drop RecordingSession");
-
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                let join_handles = mem::take(&mut self.join_handles);
-                let mut join_handles = join_handles.lock().await;
-                for join_handle in join_handles.iter_mut() {
-                    if let Err(err) = join_handle.await {
-                        log::error!("JoinHandle received an error: {err:?}");
-                    }
-                }
-            });
-        });
-        log::debug!("Drop RecordingSession is finished");
     }
 }
 

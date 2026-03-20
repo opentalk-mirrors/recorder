@@ -8,8 +8,8 @@ use anyhow::{bail, Context, Result};
 use compositor::{ClockFormat, EncoderType};
 use config::{Config, Environment, File, FileFormat, FileSourceFile};
 use itertools::Itertools;
-use openidconnect::{ClientId, ClientSecret, IssuerUrl};
-use opentalk_service_auth::service::ApiKeys;
+use opentalk_client::BaseUrl;
+use opentalk_service_auth::{service::ApiKeys, ApiKey};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Deserializer};
 
@@ -18,7 +18,6 @@ const S3_MAXIMUM_CHUNK_SIZE: usize = S3_MINIMUM_CHUNK_SIZE * 1024;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Settings {
-    pub(crate) auth: AuthSettings,
     pub(crate) controller: ControllerSettings,
     pub(crate) monitoring: Option<MonitoringSettings>,
     pub(crate) http: HttpSettings,
@@ -120,13 +119,6 @@ impl ConfigSearchPath {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct AuthSettings {
-    pub(crate) issuer: IssuerUrl,
-    pub(crate) client_id: ClientId,
-    pub(crate) client_secret: ClientSecret,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct HttpSettings {
     #[serde(default = "default_http_port")]
@@ -147,9 +139,8 @@ fn default_http_address() -> IpAddr {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ControllerSettings {
-    pub(crate) domain: String,
-    #[serde(default)]
-    pub(crate) insecure: bool,
+    pub(crate) url: BaseUrl,
+    pub(crate) api_key: ApiKey,
     #[serde(deserialize_with = "clamp_chunk_size", default = "default_chunk_size")]
     pub(crate) upload_chunk_size: usize,
 }
@@ -172,15 +163,6 @@ where
     }
 
     Ok(clamped)
-}
-
-impl ControllerSettings {
-    #[must_use]
-    pub(crate) fn v1_api_base_url(&self) -> String {
-        let scheme = if self.insecure { "http" } else { "https" };
-
-        format!("{scheme}://{}/v1", self.domain)
-    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
