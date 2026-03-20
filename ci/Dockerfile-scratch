@@ -14,10 +14,11 @@ RUN apt-get update && \
 
 WORKDIR /recorder
 
-COPY ./build.rs ./build.rs
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
-COPY src src
+
+COPY ./opentalk-recorder ./opentalk-recorder 
+COPY ./opentalk-recorder-web-api ./opentalk-recorder-web-api
 
 RUN cargo install cargo-auditable
 
