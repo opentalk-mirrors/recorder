@@ -1,6 +1,6 @@
 # HTTP Server
 
-The OpenTalk Recorder provides its functionality to clients through a build-in HTTP server.
+The OpenTalk Recorder provides its functionality to clients through a built-in HTTP server.
 
 ## Configuration
 
@@ -14,7 +14,7 @@ The section in the [configuration file](README.md) is called `http`.
 ### Example
 
 ```toml
-[monitoring]
+[http]
 port = 8080
 addr = "0.0.0.0"
 ```

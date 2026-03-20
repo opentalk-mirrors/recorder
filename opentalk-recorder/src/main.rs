@@ -141,7 +141,7 @@ fn check_intel_gpu_top_command() -> Result<()> {
 
     if status.is_err() || status.ok() == Some(false) {
         anyhow::bail!(
-            "The intel_gpu_top command is not installed, this is mandataory for hardware accelaration, please install it or remove hardware acceleration."
+            "The intel_gpu_top command is not installed, this is mandatory for hardware acceleration, please install it or remove hardware acceleration."
         );
     }
 

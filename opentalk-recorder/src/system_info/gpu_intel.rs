@@ -89,13 +89,13 @@ pub(crate) fn gpu_intel_usage_poll(max_gpu_usage: u8, device: Option<String>) ->
         if line.starts_with('[') {
             continue;
         }
-        // The data sends '},' with a trailing slash, this "hacky way" resolves
-        // the trailing slash at the end
+        // The data sends '},' with a trailing comma, this "hacky way" resolves
+        // the trailing comma at the end
         if !line.starts_with('}') {
             data.push_str(&line);
             continue;
         }
-        // Add the missing '}' without a trailing slash
+        // Add the missing '}' without a trailing comma
         data += "}";
 
         let metrics: Metrics = serde_json::from_str(&std::mem::take(&mut data))
