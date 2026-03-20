@@ -7,8 +7,8 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 name = "opentalk-recorder-web-api"
-publish = false
-version.workspace = true
+publish = true
+version = "0.1.0"
 
 [dependencies]
 async-trait.workspace = true
