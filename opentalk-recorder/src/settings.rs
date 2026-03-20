@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{fmt::Display, net::IpAddr, path::PathBuf, str::FromStr};
+use std::{net::IpAddr, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
 use compositor::{ClockFormat, EncoderType};
 use config::{Config, Environment, File, FileFormat, FileSourceFile};
 use itertools::Itertools;
-use lapin::uri::AMQPUri;
-use openidconnect::{ClientId, ClientSecret, IssuerUrl};
+use opentalk_client::BaseUrl;
+use opentalk_service_auth::{service::ApiKeys, ApiKey};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Deserializer};
 
@@ -18,10 +18,9 @@ const S3_MAXIMUM_CHUNK_SIZE: usize = S3_MINIMUM_CHUNK_SIZE * 1024;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Settings {
-    pub(crate) auth: AuthSettings,
     pub(crate) controller: ControllerSettings,
     pub(crate) monitoring: Option<MonitoringSettings>,
-    pub(crate) rabbitmq: RabbitMqSettings,
+    pub(crate) http: HttpSettings,
     pub(crate) recorder: Option<RecorderSettings>,
 }
 
@@ -120,18 +119,28 @@ impl ConfigSearchPath {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct AuthSettings {
-    pub(crate) issuer: IssuerUrl,
-    pub(crate) client_id: ClientId,
-    pub(crate) client_secret: ClientSecret,
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct HttpSettings {
+    #[serde(default = "default_http_port")]
+    pub(crate) port: u16,
+    #[serde(default = "default_http_address")]
+    pub(crate) addr: IpAddr,
+
+    pub(crate) api_keys: ApiKeys,
+}
+
+fn default_http_port() -> u16 {
+    11511
+}
+
+fn default_http_address() -> IpAddr {
+    [0, 0, 0, 0].into()
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ControllerSettings {
-    pub(crate) domain: String,
-    #[serde(default)]
-    pub(crate) insecure: bool,
+    pub(crate) url: BaseUrl,
+    pub(crate) api_key: ApiKey,
     #[serde(deserialize_with = "clamp_chunk_size", default = "default_chunk_size")]
     pub(crate) upload_chunk_size: usize,
 }
@@ -148,52 +157,28 @@ where
     let clamped = value.clamp(S3_MINIMUM_CHUNK_SIZE, S3_MAXIMUM_CHUNK_SIZE);
 
     if value != clamped {
-        log::warn!("Chunk size is {value}, expected chunk size to be inbetween {S3_MINIMUM_CHUNK_SIZE} and {S3_MAXIMUM_CHUNK_SIZE}");
+        log::warn!(
+            "Chunk size is {value}, expected chunk size to be inbetween {S3_MINIMUM_CHUNK_SIZE} and {S3_MAXIMUM_CHUNK_SIZE}"
+        );
     }
 
     Ok(clamped)
 }
 
-impl ControllerSettings {
-    #[must_use]
-    pub(crate) fn v1_api_base_url(&self) -> String {
-        let scheme = if self.insecure { "http" } else { "https" };
-
-        format!("{scheme}://{}/v1", self.domain)
-    }
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct MonitoringSettings {
-    #[serde(default = "default_http_port")]
+    #[serde(default = "default_monitoring_port")]
     pub(crate) port: u16,
-    #[serde(default = "default_http_address")]
+    #[serde(default = "default_monitoring_address")]
     pub(crate) addr: IpAddr,
 }
 
-fn default_http_port() -> u16 {
+fn default_monitoring_port() -> u16 {
     11411
 }
 
-fn default_http_address() -> IpAddr {
+fn default_monitoring_address() -> IpAddr {
     [0, 0, 0, 0].into()
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct RabbitMqSettings {
-    #[serde(deserialize_with = "from_str")]
-    pub(crate) uri: AMQPUri,
-    pub(crate) queue: String,
-}
-
-fn from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-where
-    T: FromStr,
-    T::Err: Display,
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    FromStr::from_str(&s).map_err(serde::de::Error::custom)
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

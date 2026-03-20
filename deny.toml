@@ -42,15 +42,12 @@ yanked = "deny"
 # output a note when they are encountered.
 ignore = [
   "RUSTSEC-2023-0071",
-  # This is an advisory for the 'paste' crate, which is no longer maintained
-  # Since this is a dependency for gstreamer, we can't really do anything
-  # against it, but wait for a new gstreamer release.
-  "RUSTSEC-2024-0436",
   # This is an advisory for the 'rustls-pemfile' crate, which is a transitive
   # dependency from 'rustls-native-certs' which in itself is a transitive dependency
   # of 'livekit-api'.
   # The advisory states, that the crate is no longer maintained.
   # TODO: Remove once livekit removed / updated this dependency
+  # rustls-pemfile is unmaintained
   "RUSTSEC-2025-0134",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
@@ -71,8 +68,8 @@ ignore = [
 # See https://spdx.org/licenses/ for list of possible licenses
 # [possible values: any SPDX 3.11 short identifier (+ optional exception)].
 allow = [
-  "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
+  "Apache-2.0",
   "BSD-2-Clause",
   "BSD-3-Clause",
   "CC0-1.0",
@@ -96,15 +93,12 @@ exceptions = [
   # Each entry is the crate and version constraint, and its specific allow
   # list
   #{ allow = ["Zlib"], name = "adler32", version = "*" },
+  { allow = ["EUPL-1.2"], name = "opentalk-compositor" },
+  { allow = ["EUPL-1.2"], name = "opentalk-types-api-v1" },
+  { allow = ["EUPL-1.2"], name = "opentalk-types-common" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-common-identifiers" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-common-macros" },
-  { allow = ["EUPL-1.2"], name = "opentalk-compositor" },
-  { allow = ["EUPL-1.2"], name = "opentalk-types-common" },
   { allow = ["EUPL-1.2"], name = "opentalk-types-signaling" },
-  { allow = ["EUPL-1.2"], name = "opentalk-types-signaling-control" },
-  { allow = ["EUPL-1.2"], name = "opentalk-types-signaling-livekit" },
-  { allow = ["EUPL-1.2"], name = "opentalk-types-signaling-recording" },
-  { allow = ["EUPL-1.2"], name = "opentalk-types-signaling-recording-service" },
 ]
 
 # Some crates don't have (easily) machine readable licensing information,
@@ -128,10 +122,10 @@ exceptions = [
 #]
 
 [[licenses.clarify]]
-name = "ring"
-version = "*"
 expression = "MIT AND ISC AND OpenSSL"
 license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+name = "ring"
+version = "*"
 
 [licenses.private]
 # If true, ignores workspace crates that aren't published, or are only
@@ -198,7 +192,7 @@ allow-git = []
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for
-github = ["kbalt"]
+github = []
 # 1 or more gitlab.com organizations to allow git sources for
 gitlab = []
 # 1 or more bitbucket.org organizations to allow git sources for

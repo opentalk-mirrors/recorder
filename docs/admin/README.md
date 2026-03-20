@@ -8,6 +8,8 @@ title: Recorder
 
 - [Configuration](./configuration/README.md)
 - [Hardware Acceleration](./hardware_acceleration.md)
+- [HTTP](./configuration/http.md)
+- [Monitoring](./configuration/monitoring.md)
 
 ### Environment
 
@@ -27,5 +29,3 @@ title: Recorder
 
 - [Auth](./configuration/auth.md)
 - [Controller](./configuration/controller.md)
-- [Monitoring](./configuration/monitoring.md)
-- [RabbitMQ](./configuration/rabbitmq.md)

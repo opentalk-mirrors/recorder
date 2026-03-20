@@ -5,23 +5,29 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::{
-    pin::pin,
+    collections::HashMap,
+    net::IpAddr,
     process::{exit, Command, Stdio},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use anyhow::{Context, Result};
-use futures::{future::join_all, StreamExt};
+use async_trait::async_trait;
+use axum::Router;
+use clap::Parser;
+use futures::future::join_all;
 use gst::glib;
 use log::warn;
-use opentalk_client::{config::ClientConfig, OpenTalkClient};
+use opentalk_client::{config::ClientConfig, types::api::v1::error::ApiError, OpenTalkClient};
+use opentalk_recorder_web_api::v1::{self, RecorderBackend, RecordingAction};
+use opentalk_service_auth::service::ApiKeyAuthorization;
+use opentalk_types_api_internal::recording::RecordingTarget;
 use service_probe::{set_service_state, start_probe, ServiceState};
 use service_probe_client::is_ready;
 use settings::{HardwareAcceleration, HardwareAccelerationIntel, MonitoringSettings, Settings};
-use system_info::{
-    cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll, is_new_recording_feasible,
-};
+use system_info::{cpu::cpu_usage_poll, gpu_intel::gpu_intel_usage_poll};
 use tokio::{
+    net::TcpListener,
     select,
     signal::{
         ctrl_c,
@@ -29,22 +35,64 @@ use tokio::{
     },
     sync::broadcast,
     task::JoinHandle,
-    time::{sleep, Duration},
 };
-
-mod cli;
-mod recorder;
-mod rmq;
-mod settings;
-mod system_info;
-
-use clap::Parser;
 
 use crate::{
     cli::{print_info, Args, Commands},
     recorder::Recorder,
+    system_info::is_new_recording_feasible,
 };
-const RECONNECT_INTERVAL: Duration = Duration::from_secs(3);
+
+mod cli;
+mod recorder;
+mod settings;
+mod system_info;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub(crate) recorder_context: Arc<Recorder>,
+    pub(crate) tasks: Arc<Mutex<HashMap<RecordingTarget, JoinHandle<Result<()>>>>>,
+}
+
+#[async_trait]
+impl RecorderBackend for AppState {
+    async fn init(&self, recording: RecordingTarget) -> Result<RecordingAction, ApiError> {
+        if !is_new_recording_feasible() {
+            return Err(ApiError::service_unavailable()
+                .with_code("out_of_resources")
+                .with_message("No compute resources available"));
+        }
+
+        let recorder_context = self.recorder_context.clone();
+
+        if self
+            .tasks
+            .lock()
+            .expect("Failed to acquire task lock")
+            .get(&recording)
+            .is_some_and(|handle| !handle.is_finished())
+        {
+            return Ok(RecordingAction::AlreadyRunning);
+        }
+
+        let session = Box::pin(recorder_context.clone().spawn_session(recording)).await;
+        match session {
+            Ok(task) => {
+                self.tasks
+                    .lock()
+                    .expect("Failed to acquire task lock")
+                    .insert(recording, task);
+                Ok(RecordingAction::Created)
+            }
+            Err(err) => {
+                log::error!("Failed to start recording session: {err:?}");
+
+                Err(ApiError::internal().with_message("Failed to start recording session"))
+            }
+        }
+    }
+}
+
 const DOT_OUTPUT_PATH: &str = "./pipelines";
 
 fn check_plugins() -> Result<()> {
@@ -234,6 +282,14 @@ async fn main_loop() -> Result<()> {
             }
         };
     }
+    if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
+        warn!(
+            "Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output."
+        );
+        unsafe {
+            std::env::set_var("GST_DEBUG_DUMP_DOT_DIR", DOT_OUTPUT_PATH);
+        }
+    }
 
     let _ = tokio::task::spawn_blocking(move || -> Result<()> {
             if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
@@ -264,6 +320,7 @@ async fn main_loop() -> Result<()> {
                 .build()
                 .context("failed to start tokio async runtime")?;
 
+
             runtime.spawn(async move {
                 let mut sig_term =
                     signal(SignalKind::terminate()).expect("can not setup SIGTERM handler");
@@ -285,7 +342,6 @@ async fn main_loop() -> Result<()> {
             gstreamer_main_loop.quit();
             Ok(())
         }).await?;
-
     Ok(())
 }
 
@@ -294,35 +350,37 @@ async fn run_recorder(
     settings: Arc<Settings>,
 ) -> Result<()> {
     let client = OpenTalkClient::create(ClientConfig {
-        auth: opentalk_client::AuthConfig::ClientCredentials(
-            opentalk_client::config::ClientCredentialsAuthConfig {
-                issuer: settings.auth.issuer.clone(),
-                client_id: settings.auth.client_id.clone(),
-                client_secret: settings.auth.client_secret.clone(),
-            },
-        ),
-        controller: opentalk_client::ControllerConfig {
-            domain: settings.controller.domain.clone(),
-            insecure: settings.controller.insecure,
-        },
+        auth: opentalk_client::AuthConfig::ApiKey(settings.controller.api_key.clone()),
+        controller: settings.controller.url.clone(),
     })
     .await?;
 
     let recorder_context = Recorder::new(settings.clone(), client, shutdown_rx.resubscribe());
     let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
 
+    let recorder = AppState {
+        tasks: Arc::new(Mutex::new(HashMap::new())),
+        recorder_context: Arc::new(recorder_context.clone()),
+    };
+
     if let Some(MonitoringSettings { port, addr }) = settings.monitoring {
         start_probe(addr, port, ServiceState::Up).await?;
     }
 
+    let auth_middleware = settings
+        .http
+        .api_keys
+        .auth_middleware()
+        .context("Invalid API key configuration")?;
+
     select! {
-        _ = shutdown_rx.recv() => {
-            log::debug!("Received shutdown, shutdown all remaining tasks");
+        _ =  shutdown_rx.recv() => {
+            log::info!("Received shutdown, shutdown all remaining tasks");
         }
         _ = run_usage_polling(&recorder_context) => {
             log::debug!("Usage polling failed, shutdown all remaining tasks");
         }
-        () = run_rabbitmq_session(&recorder_context, &mut tasks) => {}
+        result = run_axum_server(settings.http.addr, settings.http.port, recorder.clone(), auth_middleware) => { result?; }
     }
     tasks.retain(|task| !task.is_finished());
 
@@ -331,6 +389,26 @@ async fn run_recorder(
         join_all(tasks).await;
     }
     log::info!("All tasks are finished");
+
+    Ok(())
+}
+
+async fn run_axum_server(
+    address: IpAddr,
+    port: u16,
+    recorder: AppState,
+    auth_middleware: ApiKeyAuthorization,
+) -> Result<()> {
+    let app = Router::new()
+        .merge(v1::routes().layer(auth_middleware))
+        .with_state(recorder);
+
+    let listener = TcpListener::bind((address, port)).await?;
+
+    // Server up and running, ready to process requests
+    set_service_state(ServiceState::Ready);
+
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
@@ -372,84 +450,4 @@ async fn run_usage_polling(recorder_context: &Recorder) -> Result<(), broadcast:
     });
 
     shutdown_rx.recv().await
-}
-
-async fn run_rabbitmq_session(
-    recorder_context: &Recorder,
-    tasks: &mut Vec<JoinHandle<Result<()>>>,
-) {
-    loop {
-        set_service_state(ServiceState::Up);
-        log::debug!("Trying to connect to RabbitMQ");
-
-        let rabbitmq_settings = &recorder_context.settings.rabbitmq;
-        let channel = match rmq::open_rabbitmq_connection(rabbitmq_settings).await {
-            Ok(channel) => channel,
-            Err(err) => {
-                log::error!(
-                    "Unable to connect to RabbitMQ (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}"
-                );
-                sleep(RECONNECT_INTERVAL).await;
-                continue;
-            }
-        };
-
-        log::trace!("Creating rabbitmq queue");
-        let mut consumer = match rmq::create_rmq_queue_and_consume(channel, rabbitmq_settings).await
-        {
-            Ok(consumer) => consumer,
-            Err(err) => {
-                log::error!(
-                    "Unable to create RabbitMQ queue and consume (reconnecting in {RECONNECT_INTERVAL:?})\n{err:?}"
-                );
-                sleep(RECONNECT_INTERVAL).await;
-                continue;
-            }
-        };
-
-        log::info!("RabbitMQ connection established successfully");
-        set_service_state(ServiceState::Ready);
-
-        while let Some(delivery) = consumer.next().await {
-            let delivery = match delivery {
-                Ok(delivery) => delivery,
-                Err(err) => {
-                    log::error!("RabbitMQ consumer returned error\n{err:?}");
-                    break;
-                }
-            };
-
-            log::trace!("Testing for feasibility");
-            if !is_new_recording_feasible() {
-                if let Err(err) = delivery
-                    .reject(lapin::options::BasicRejectOptions { requeue: true })
-                    .await
-                {
-                    log::error!("RabbitMQ failed to reject deliver\n{err:?}");
-                    break;
-                }
-                continue;
-            }
-
-            log::trace!("Handling delivery...");
-            let start_command = match rmq::handle_delivery(&delivery).await {
-                Ok(start_command) => start_command,
-                Err(err) => {
-                    log::error!("RabbitMQ handle delivery failed\n{err:?}");
-                    continue;
-                }
-            };
-
-            let task = match pin!(recorder_context.spawn_session(start_command)).await {
-                Ok(task) => task,
-                Err(err) => {
-                    log::error!("Recording session failed\n{err:?}");
-                    continue;
-                }
-            };
-
-            tasks.push(task);
-            tasks.retain(|task| !task.is_finished());
-        }
-    }
 }

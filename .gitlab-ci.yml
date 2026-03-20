@@ -129,6 +129,11 @@ lint:yaml:
     - apk add --no-cache yamllint
   script: yamllint .
 
+lint:toml:
+  stage: lint
+  <<: *default_job_condition
+  script: taplo fmt --check
+
 lint:unnecessary_dependencies:
   stage: lint
   <<: *default_job_condition
@@ -238,7 +243,7 @@ test:doc:
   before_script:
     - *install_gstreamer_deps
   script:
-    - cargo doc --workspace --verbose
+    - cargo doc --workspace --verbose --no-deps
 
 trigger-docs:
   stage: trigger
@@ -393,7 +398,7 @@ read-trivy-ignore-file:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
   script:
     - echo "TRIVY_IGNORE_STR_$FLAVOR=$(
-         cat $CI_PROJECT_DIR/.trivyignore-$FLAVOR | sed -n 'H;${x;s/^\n//;s/\n/\\n/g;p}'
+      cat $CI_PROJECT_DIR/.trivyignore-$FLAVOR | sed -n 'H;${x;s/^\n//;s/\n/\\n/g;p}'
       )"  > package.env
   artifacts:
     reports:

@@ -9,17 +9,25 @@ port = 11411
 # Note:
 # The Recorder client must be a service account
 # with the _service account role_ "opentalk-recorder"
-issuer = "http://localhost:8080/auth/realms/MyRealm"
 client_id = "Recorder"
 client_secret = "INSERT_KEY"
+issuer = "http://localhost:8080/auth/realms/MyRealm"
 
 [controller]
 domain = "localhost:11311"
 insecure = true
 
-[rabbitmq]
-uri = "amqp://username:password@localhost/%2F"
-queue = "recorder"
+[http]
+# The host to bind the HTTP Server to (defaults to 0.0.0.0).
+host = "0.0.0.0"
+# The port to bind the HTTP Server to (defaults to 11311).
+port = "5555"
+
+# The api keys for internal service endpoints
+#
+# The recorder can have multiple api keys configured. An api key can be configured as string ("<key_id>:<key_secret>")
+# or as key/value pair ({id = "<key_id>", secret = "<key_secret>"}).
+api_keys = [{ id = "recorder", secret = "secret" }]
 
 [recorder]
 # Shows a display sink, for debug purpose
