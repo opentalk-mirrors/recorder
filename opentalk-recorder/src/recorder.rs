@@ -217,7 +217,7 @@ impl RecordingSession {
         let livekit_credentials = room_state
             .livekit_credentials()
             .cloned()
-            .context("Mssing livekit credentials in  room")?;
+            .context("Missing livekit credentials in room")?;
 
         let recorder_settings = service_context
             .settings
@@ -440,7 +440,7 @@ impl RecordingSession {
         compositor
             .link_gstreamer_sink(&name, rtmp_sink)
             .await
-            .context("unable to link sink to talk")
+            .context("unable to link sink to compositor")
     }
 
     async fn stop_stream(

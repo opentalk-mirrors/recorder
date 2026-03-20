@@ -158,7 +158,7 @@ where
 
     if value != clamped {
         log::warn!(
-            "Chunk size is {value}, expected chunk size to be inbetween {S3_MINIMUM_CHUNK_SIZE} and {S3_MAXIMUM_CHUNK_SIZE}"
+            "Chunk size is {value}, expected chunk size to be between {S3_MINIMUM_CHUNK_SIZE} and {S3_MAXIMUM_CHUNK_SIZE}"
         );
     }
 
