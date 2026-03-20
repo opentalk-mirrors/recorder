@@ -4,10 +4,14 @@
 
 [package]
 authors.workspace = true
+description = "OpenTalk Recorder WebAPI routes & types"
+documentation = "https://docs.rs/crate/opentalk-recorder-web-api/"
 edition.workspace = true
+homepage = "https://opentalk.eu/"
 license.workspace = true
 name = "opentalk-recorder-web-api"
 publish = true
+repository = "https://git.opentalk.dev/opentalk/backend/services/recorder"
 version = "0.1.0"
 
 [dependencies]
