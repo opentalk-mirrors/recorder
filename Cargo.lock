@@ -3216,7 +3216,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "axum",
- "opentalk-client-signaling",
+ "opentalk-types-api-common",
  "opentalk-types-api-internal",
  "serde",
 ]

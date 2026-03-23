@@ -8,7 +8,7 @@ use axum::{
     routing::post,
     Json,
 };
-use opentalk_client::types::api::v1::error::ApiError;
+use opentalk_types_api_common::error::ApiError;
 use opentalk_types_api_internal::recording::RecordingTarget;
 use serde::{Deserialize, Serialize};
 
