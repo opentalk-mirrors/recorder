@@ -37,6 +37,7 @@ log = "0.4"
 objc = "0.2"
 opentalk-client = { package = "opentalk-client-signaling", version = "0.3" }
 opentalk-service-auth = "0.2"
+opentalk-types-api-common = "0.6"
 opentalk-version = "0.4"
 owo-colors = "4.2"
 pin-project-lite = "0.2"
