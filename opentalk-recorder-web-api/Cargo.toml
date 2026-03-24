@@ -17,6 +17,6 @@ version = "0.1.1"
 [dependencies]
 async-trait.workspace = true
 axum = { workspace = true, features = ["macros"] }
-opentalk-types-api-common.workspace = true
+opentalk-types-api-common = { workspace = true, features = ["http"] }
 opentalk-types-api-internal.workspace = true
 serde = { workspace = true, features = ["derive"] }
