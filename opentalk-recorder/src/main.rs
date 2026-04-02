@@ -110,11 +110,17 @@ fn check_plugins() -> Result<()> {
         "rtp",
         "srtp",
         "udp",
-        "vaapi",
         "videotestsrc",
         "vpx",
         "webrtc",
     ];
+
+    #[cfg(target_os = "linux")]
+    let required = {
+        let mut v = required.to_vec();
+        v.push("vaapi");
+        v
+    };
 
     let failed_plugins: Vec<_> = required
         .into_iter()
@@ -170,76 +176,101 @@ async fn main() -> Result<()> {
 
 #[cfg(target_os = "macos")]
 fn main() {
-    // This code sequence is adapted from `gstreamer-rs` (https://github.com/sdroege/gstreamer-rs) under the MIT License.
-    // Original source: https://github.com/sdroege/gstreamer-rs/blob/main/examples/src/examples-common.rs#L15
-    // Copyright 2024 Sebastian Dröge
-    use std::{
-        ffi::c_void,
-        sync::mpsc::{channel, Sender},
-        thread,
-    };
+    use std::sync::mpsc::channel;
 
-    use cocoa::{
-        appkit::{NSApplication, NSWindow},
-        base::id,
-        delegate,
+    use objc2::{
+        define_class, msg_send, rc::Retained, runtime::ProtocolObject, DefinedClass,
+        MainThreadMarker, MainThreadOnly,
     };
-    use objc::{
-        class, msg_send,
-        runtime::{Object, Sel},
-        sel, sel_impl,
+    use objc2_app_kit::{
+        NSApplication, NSApplicationDelegate, NSEvent, NSEventModifierFlags, NSEventSubtype,
+        NSEventType,
     };
+    use objc2_foundation::{NSNotification, NSObject, NSObjectProtocol, NSPoint};
 
-    unsafe {
-        extern "C" fn on_finish_launching(this: &Object, _cmd: Sel, _notification: id) {
-            let send = unsafe {
-                let send_pointer = *this.get_ivar::<*const c_void>("send");
-                let boxed = Box::from_raw(send_pointer as *mut Sender<()>);
-                *boxed
-            };
-            send.send(()).expect("failed to send to main thread");
+    struct AppDelegateIvars {
+        send: std::sync::mpsc::Sender<()>,
+    }
+
+    define_class!(
+        #[unsafe(super(NSObject))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "AppDelegate"]
+        #[ivars = AppDelegateIvars]
+        struct AppDelegate;
+
+        unsafe impl NSObjectProtocol for AppDelegate {}
+
+        unsafe impl NSApplicationDelegate for AppDelegate {
+            #[unsafe(method(applicationDidFinishLaunching:))]
+            fn did_finish_launching(&self, _notification: &NSNotification) {
+                self.ivars()
+                    .send
+                    .send(())
+                    .expect("failed to send to main thread");
+            }
+        }
+    );
+
+    impl AppDelegate {
+        fn new(send: std::sync::mpsc::Sender<()>, mtm: MainThreadMarker) -> Retained<Self> {
+            let this = Self::alloc(mtm);
+            let this = this.set_ivars(AppDelegateIvars { send });
+            unsafe { msg_send![super(this), init] }
+        }
+    }
+
+    ensure_crypto_provider();
+
+    let mtm = MainThreadMarker::new().expect("must be called on the main thread");
+    let app = NSApplication::sharedApplication(mtm);
+    let (send, recv) = channel::<()>();
+
+    let delegate = AppDelegate::new(send, mtm);
+    let object = ProtocolObject::from_ref(&*delegate);
+    app.setDelegate(Some(object));
+
+    let t = std::thread::spawn(move || {
+        // Wait for the NSApp to launch to avoid possibly calling stop_() too early
+        recv.recv().expect("failed to receive from main thread");
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to build tokio runtime");
+        let res = runtime.block_on(main_loop());
+
+        // Must use MainThreadMarker::new_unchecked since we're not on the main thread,
+        // but NSApplication methods are safe to call from any thread for stop/postEvent.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        let app = NSApplication::sharedApplication(mtm);
+        app.stop(None);
+
+        // Stopping the event loop requires posting an actual event
+        let event = NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
+            NSEventType::ApplicationDefined,
+            NSPoint { x: 0.0, y: 0.0 },
+            NSEventModifierFlags::empty(),
+            0.0,
+            0,
+            None,
+            NSEventSubtype::ApplicationActivated.0,
+            0,
+            0,
+        );
+        if let Some(event) = event {
+            app.postEvent_atStart(&event, true);
         }
 
-        let app = cocoa::appkit::NSApp();
-        let (send, recv) = channel::<()>();
+        res
+    });
 
-        let delegate = delegate!("AppDelegate", {
-            app: id = app,
-            send: *const c_void = Box::into_raw(Box::new(send)) as *const c_void,
-            (applicationDidFinishLaunching:) => on_finish_launching as extern fn(&Object, Sel, id)
-        });
-        app.setDelegate_(delegate);
+    app.run();
 
-        let t = thread::spawn(move || {
-            // Wait for the NSApp to launch to avoid possibly calling stop_() too early
-            recv.recv().expect("failed to receive from main thread");
-
-            let res = main_loop().await;
-
-            let app = cocoa::appkit::NSApp();
-            app.stop_(cocoa::base::nil);
-
-            // Stopping the event loop requires an actual event
-            let event = cocoa::appkit::NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
-                cocoa::base::nil,
-                cocoa::appkit::NSEventType::NSApplicationDefined,
-                cocoa::foundation::NSPoint { x: 0.0, y: 0.0 },
-                cocoa::appkit::NSEventModifierFlags::empty(),
-                0.0,
-                0,
-                cocoa::base::nil,
-                cocoa::appkit::NSEventSubtype::NSApplicationActivatedEventType,
-                0,
-                0,
-            );
-            app.postEvent_atStart_(event, cocoa::base::YES);
-
-            res
-        });
-
-        app.run();
-
-        let _ = t.join().expect("failed to join thread");
+    let res = t.join().expect("failed to join thread");
+    if let Err(e) = res {
+        eprintln!("Exit on failure: {e:?}");
+        std::process::exit(-1);
     }
 }
 
@@ -291,7 +322,7 @@ async fn main_loop() -> Result<()> {
         }
     }
 
-    let _ = tokio::task::spawn_blocking(move || -> Result<()> {
+    tokio::task::spawn_blocking(move || -> Result<()> {
             if std::env::var("GST_DEBUG_DUMP_DOT_DIR").is_err() {
                 warn!(
                     "Using default dot path. You need to set GST_DEBUG_DUMP_DOT_DIR in environment to an absolute path to get DOT output."
@@ -341,7 +372,7 @@ async fn main_loop() -> Result<()> {
             log::debug!("Send quit to main_loop");
             gstreamer_main_loop.quit();
             Ok(())
-        }).await?;
+        }).await??;
     Ok(())
 }
 
