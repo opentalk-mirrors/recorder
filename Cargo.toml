@@ -17,7 +17,7 @@ version = "0.16.0"
 [workspace.dependencies]
 opentalk-recorder-web-api = { path = "opentalk-recorder-web-api", version = "0.1.0" }
 
-opentalk-types-api-internal = "0.1.1"
+opentalk-types-api-internal = "0.2"
 
 anstream = "1.0"
 anyhow = "1"
@@ -36,9 +36,9 @@ log = "0.4"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSEvent", "NSGraphicsContext", "NSRunningApplication"] }
 objc2-foundation = { version = "0.3", features = ["NSNotification", "NSObject", "NSThread"] }
-opentalk-client = { package = "opentalk-client-signaling", version = "0.3" }
+opentalk-client = { package = "opentalk-client-signaling", version = "0.4" }
 opentalk-service-auth = "0.2"
-opentalk-types-api-common = "0.6"
+opentalk-types-api-common = "0.7"
 opentalk-version = "0.4"
 owo-colors = "4.2"
 pin-project-lite = "0.2"
