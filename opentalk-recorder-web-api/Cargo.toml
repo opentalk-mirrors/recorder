@@ -12,7 +12,7 @@ license.workspace = true
 name = "opentalk-recorder-web-api"
 publish = true
 repository = "https://git.opentalk.dev/opentalk/backend/services/recorder"
-version = "0.1.1"
+version = "0.2.0"
 
 [dependencies]
 async-trait.workspace = true
