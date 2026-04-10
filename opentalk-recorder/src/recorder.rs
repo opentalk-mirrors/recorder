@@ -31,6 +31,7 @@ use opentalk_client::{
     },
     Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
+use opentalk_orchestrator_client::{client::OrchestratorHandle, RecorderEvent, RecorderResource};
 use opentalk_types_api_internal::recording::RecordingTarget;
 use reqwest::Url;
 use thiserror::Error;
@@ -132,17 +133,24 @@ impl Recorder {
     pub(crate) async fn spawn_session(
         &self,
         recording_target: RecordingTarget,
+        orchestrator_handle: Option<OrchestratorHandle>,
     ) -> Result<JoinHandle<Result<()>>> {
         let context = Arc::new(self.clone());
         log::debug!("Start Recording session {recording_target:?}");
-        let mut session = Box::pin(RecordingSession::create(context, recording_target))
-            .await
-            .context("recording session failed to start")?;
+        let mut session = match Box::pin(RecordingSession::create(context, recording_target)).await
+        {
+            Ok(session) => session,
+            Err(err) => {
+                notify_orchestrator_recording_stopped(orchestrator_handle, recording_target).await;
+                return Err(err.context("recording session failed to start"));
+            }
+        };
 
         let recording_task = tokio::spawn(async move {
             if let Err(ref recording_err) = Box::pin(session.run()).await {
                 error!("recording session failed but trying upload anyway:\n{recording_err:?}",);
             }
+            notify_orchestrator_recording_stopped(orchestrator_handle, recording_target).await;
 
             Ok(())
         });
@@ -155,6 +163,23 @@ impl Recorder {
 struct LivestreamConfigurationAndStatus {
     location: Url,
     status: StreamStatus,
+}
+
+async fn notify_orchestrator_recording_stopped(
+    orchestrator_handle: Option<OrchestratorHandle>,
+    recording_target: RecordingTarget,
+) {
+    if let Some(handle) = orchestrator_handle {
+        if let Err(e) = handle
+            .send_event(RecorderEvent::RemoveRecording(RecorderResource {
+                room_id: recording_target.room_id,
+                breakout_id: recording_target.breakout_room,
+            }))
+            .await
+        {
+            error!("Failed to send RemoveRoom event to orchestrator: {e}");
+        }
+    }
 }
 
 pub(crate) struct RecordingSession {

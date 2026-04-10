@@ -9,6 +9,7 @@ use compositor::{ClockFormat, EncoderType};
 use config::{Config, Environment, File, FileFormat, FileSourceFile};
 use itertools::Itertools;
 use opentalk_client::BaseUrl;
+use opentalk_orchestrator_client::OrchestratorConfig;
 use opentalk_service_auth::{service::ApiKeys, ApiKey};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Deserializer};
@@ -21,6 +22,7 @@ pub(crate) struct Settings {
     pub(crate) controller: ControllerSettings,
     pub(crate) monitoring: Option<MonitoringSettings>,
     pub(crate) http: HttpSettings,
+    pub(crate) orchestrator: Option<OrchestratorConfig>,
     pub(crate) recorder: Option<RecorderSettings>,
 }
 
