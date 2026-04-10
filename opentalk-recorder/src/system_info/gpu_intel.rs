@@ -13,6 +13,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use super::IS_FEASIBLE;
+use crate::system_info::CURRENT_LOAD;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Metrics {
@@ -101,7 +102,10 @@ pub(crate) fn gpu_intel_usage_poll(max_gpu_usage: u8, device: Option<String>) ->
         let metrics: Metrics = serde_json::from_str(&std::mem::take(&mut data))
             .with_context(|| "unable to parse Metrics from intel_gpu_top")?;
 
-        IS_FEASIBLE.store(metrics.maximum_busy() <= max_gpu_usage, Ordering::Relaxed);
+        let current_load = metrics.maximum_busy();
+
+        IS_FEASIBLE.store(current_load <= max_gpu_usage, Ordering::Relaxed);
+        CURRENT_LOAD.store(current_load, Ordering::Relaxed);
     }
 
     Ok(())

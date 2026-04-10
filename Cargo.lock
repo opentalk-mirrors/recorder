@@ -3335,7 +3335,27 @@ dependencies = [
  "async-trait",
  "futures-util",
  "log",
- "opentalk-orchestrator-shared",
+ "opentalk-orchestrator-shared 0.4.2",
+ "opentalk-service-auth",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite 0.29.0",
+ "url",
+]
+
+[[package]]
+name = "opentalk-orchestrator-client"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a90ca0b1275c91b6e1dc1ffa2d24b0a2250c74cbb53e428c4ebd9ff3855c0156"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures-util",
+ "log",
+ "opentalk-orchestrator-shared 0.5.0",
  "opentalk-service-auth",
  "serde",
  "serde_json",
@@ -3350,6 +3370,19 @@ name = "opentalk-orchestrator-shared"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0c182b813186efb1ee3f3dd9858ec4d070d72aea885e658aee6add5f8aadab9"
+dependencies = [
+ "opentalk-service-auth",
+ "opentalk-types-common",
+ "serde",
+ "thiserror 2.0.18",
+ "url",
+]
+
+[[package]]
+name = "opentalk-orchestrator-shared"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2563b52e280455d2fa150cc1d5f04da3a3a5e9db8453d359137b2836ec819abd"
 dependencies = [
  "opentalk-service-auth",
  "opentalk-types-common",
@@ -3374,15 +3407,16 @@ dependencies = [
  "futures",
  "gstreamer",
  "itertools 0.14.0",
+ "jsonwebtoken",
  "log",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
  "opentalk-client-signaling",
  "opentalk-compositor",
+ "opentalk-orchestrator-client 0.5.0",
  "opentalk-recorder-web-api",
  "opentalk-service-auth",
- "opentalk-types-api-common",
  "opentalk-types-api-internal",
  "opentalk-version",
  "owo-colors",
@@ -3464,7 +3498,7 @@ dependencies = [
  "cidr",
  "config",
  "dirs",
- "opentalk-orchestrator-client",
+ "opentalk-orchestrator-client 0.4.2",
  "opentalk-service-auth",
  "rand 0.10.0",
  "serde",

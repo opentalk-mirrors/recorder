@@ -15,13 +15,14 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use axum::Router;
 use clap::Parser;
-use futures::future::join_all;
 use gst::glib;
 use log::warn;
-use opentalk_client::{config::ClientConfig, OpenTalkClient};
+use opentalk_client::{config::ClientConfig, types::api::v1::error::ApiError, OpenTalkClient};
+use opentalk_orchestrator_client::{
+    client::OrchestratorHandle, OrchestratorClient, ServiceAddress,
+};
 use opentalk_recorder_web_api::v1::{self, RecorderBackend, RecordingAction};
 use opentalk_service_auth::service::ApiKeyAuthorization;
-use opentalk_types_api_common::error::ApiError;
 use opentalk_types_api_internal::recording::RecordingTarget;
 use service_probe::{set_service_state, start_probe, ServiceState};
 use service_probe_client::is_ready;
@@ -40,24 +41,29 @@ use tokio::{
 
 use crate::{
     cli::{print_info, Args, Commands},
+    orchestrator_metrics::OrchestratorStateProvider,
     recorder::Recorder,
     system_info::is_new_recording_feasible,
 };
 
 mod cli;
+mod orchestrator_metrics;
 mod recorder;
 mod settings;
 mod system_info;
 
+type RecorderTasks = Arc<Mutex<HashMap<RecordingTarget, JoinHandle<Result<()>>>>>;
+
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) recorder_context: Arc<Recorder>,
-    pub(crate) tasks: Arc<Mutex<HashMap<RecordingTarget, JoinHandle<Result<()>>>>>,
+    pub(crate) orchestrator_handle: Option<OrchestratorHandle>,
+    pub(crate) tasks: RecorderTasks,
 }
 
 #[async_trait]
 impl RecorderBackend for AppState {
-    async fn init(&self, recording: RecordingTarget) -> Result<RecordingAction, ApiError> {
+    async fn init(&self, recording_target: RecordingTarget) -> Result<RecordingAction, ApiError> {
         if !is_new_recording_feasible() {
             return Err(ApiError::service_unavailable()
                 .with_code("out_of_resources")
@@ -70,19 +76,25 @@ impl RecorderBackend for AppState {
             .tasks
             .lock()
             .expect("Failed to acquire task lock")
-            .get(&recording)
+            .get(&recording_target)
             .is_some_and(|handle| !handle.is_finished())
         {
             return Ok(RecordingAction::AlreadyRunning);
         }
 
-        let session = Box::pin(recorder_context.clone().spawn_session(recording)).await;
+        let session = Box::pin(
+            recorder_context
+                .clone()
+                .spawn_session(recording_target, self.orchestrator_handle.clone()),
+        )
+        .await;
+
         match session {
             Ok(task) => {
                 self.tasks
                     .lock()
                     .expect("Failed to acquire task lock")
-                    .insert(recording, task);
+                    .insert(recording_target, task);
                 Ok(RecordingAction::Created)
             }
             Err(err) => {
@@ -165,6 +177,11 @@ fn check_intel_gpu_top_command() -> Result<()> {
 fn ensure_crypto_provider() {
     rustls::crypto::CryptoProvider::install_default(rustls::crypto::aws_lc_rs::default_provider())
         .expect("valid default crypto provider expected");
+
+    jsonwebtoken::crypto::CryptoProvider::install_default(
+        &jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER,
+    )
+    .expect("valid default crypto provider expected");
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -365,6 +382,7 @@ async fn main_loop() -> Result<()> {
                     .expect("failed to send shutdown signal");
             });
 
+
             if let Err(e) = runtime.block_on(run_recorder(shutdown_rx, settings)) {
                 eprintln!("Exit on failure: {e:?}");
                 std::process::exit(-1);
@@ -388,10 +406,42 @@ async fn run_recorder(
     .await?;
 
     let recorder_context = Recorder::new(settings.clone(), client, shutdown_rx.resubscribe());
-    let mut tasks: Vec<JoinHandle<Result<()>>> = vec![];
+
+    let recorder_tasks = Arc::new(Mutex::new(HashMap::new()));
+    let mut orchestrator_handle = None;
+
+    if let Some(config) = settings.orchestrator.clone() {
+        let recorder_key_ids = settings
+            .http
+            .api_keys
+            .inner()
+            .iter()
+            .map(|api_key| api_key.id.clone());
+
+        let (client, handle) = OrchestratorClient::create(config, recorder_key_ids).await;
+        orchestrator_handle = Some(handle);
+
+        let state_provider = OrchestratorStateProvider {
+            tasks: Arc::clone(&recorder_tasks),
+        };
+
+        let port = settings.http.port;
+
+        let mut shutdown_rx_tmp = shutdown_rx.resubscribe();
+        let wait_shutdown = async move {
+            let _ = shutdown_rx_tmp.recv().await;
+        };
+
+        tokio::task::spawn(async move {
+            client
+                .run(ServiceAddress::Port(port), state_provider, wait_shutdown)
+                .await
+        });
+    }
 
     let recorder = AppState {
-        tasks: Arc::new(Mutex::new(HashMap::new())),
+        tasks: recorder_tasks,
+        orchestrator_handle,
         recorder_context: Arc::new(recorder_context.clone()),
     };
 
@@ -414,12 +464,7 @@ async fn run_recorder(
         }
         result = run_axum_server(settings.http.addr, settings.http.port, recorder.clone(), auth_middleware) => { result?; }
     }
-    tasks.retain(|task| !task.is_finished());
 
-    if !tasks.is_empty() {
-        log::info!("waiting for remaining {} tasks to finish", tasks.len());
-        join_all(tasks).await;
-    }
     log::info!("All tasks are finished");
 
     Ok(())
