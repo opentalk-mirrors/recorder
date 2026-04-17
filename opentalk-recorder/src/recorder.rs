@@ -497,8 +497,6 @@ impl RecordingSession {
 
         self.compositor.release_sink(&"recording".to_owned()).await;
 
-        self.recording_status = RecordingStatus::Inactive;
-
         Ok(RecordingStatus::Inactive)
     }
 
@@ -678,6 +676,8 @@ impl RecordingSession {
             },
         };
 
+        self.recording_status = status.clone();
+
         self.room_state
             .recording_service_api()
             .context("recording_service_api unavailable")?
@@ -694,6 +694,8 @@ impl RecordingSession {
                 reason: reason.into(),
             },
         };
+
+        self.recording_status = status.clone();
 
         self.room_state
             .recording_service_api()
