@@ -28,12 +28,31 @@ pub(crate) struct Settings {
 
 impl Settings {
     pub(crate) fn load(config_arg_path: Option<&String>) -> Result<Self> {
-        Config::builder()
+        let config = Config::builder()
             .add_source(discover_config_file(config_arg_path)?)
             .add_source(Environment::with_prefix("OPENTALK_REC").separator("__"))
-            .build()?
-            .try_deserialize()
-            .context("Failed to parse configuration file")
+            .build()
+            .context("Failed to build configuration loader")?;
+
+        let mut warn_unknown_key = Self::warn_unused_key;
+        let ignored_deserializer = serde_ignored::Deserializer::new(config, &mut warn_unknown_key);
+        let settings = serde_path_to_error::deserialize(ignored_deserializer)
+            .context("invalid configuration")?;
+
+        Ok(settings)
+    }
+
+    // the function signature is dictated by `serde_ignored::Deserializer::new`.
+    #[allow(clippy::needless_pass_by_value)]
+    fn warn_unused_key(path: serde_ignored::Path) {
+        // Be aware that this might get called before the logger is initialized. Don't use
+        // tracing/log crates.
+        use owo_colors::OwoColorize as _;
+        anstream::eprintln!(
+            "{}: Unknown configuration key {}",
+            "WARNING".yellow().bold(),
+            path.bold(),
+        );
     }
 
     #[must_use]
