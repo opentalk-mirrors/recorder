@@ -5,17 +5,11 @@
 [monitoring]
 port = 11411
 
-[auth]
-# Note:
-# The Recorder client must be a service account
-# with the _service account role_ "opentalk-recorder"
-client_id = "Recorder"
-client_secret = "INSERT_KEY"
-issuer = "http://localhost:8080/auth/realms/MyRealm"
-
 [controller]
-domain = "localhost:11311"
-insecure = true
+# The URL of the controller
+url = "http://localhost:11311"
+# The API to access the controller
+api_key = { "id" = "controller", "secret" = "secret" }
 
 # Optional orchestrator configuration
 #[orchestrator]
