@@ -25,12 +25,12 @@ async-trait = "0.1"
 axum = "0.8"
 bytes = "1"
 clap = "4.5"
-compositor = { package = "opentalk-compositor", version = "0.17" }
+compositor = { package = "opentalk-compositor", version = "0.18" }
 config = { version = "0.15", default-features = false }
 directories = "6.0"
 env_logger = "0.11"
 futures = "0.3"
-gst = { package = "gstreamer", version = "0.24" }
+gst = { package = "gstreamer", version = "0.25" }
 itertools = "0.14"
 jsonwebtoken = { version = "10", default-features = false }
 log = "0.4"
@@ -38,11 +38,11 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSEvent", "NSGraphicsContext", "NSRunningApplication"] }
 objc2-foundation = { version = "0.3", features = ["NSNotification", "NSObject", "NSThread"] }
 openidconnect = "4"
-opentalk-client = { package = "opentalk-client-signaling", version = "0.4" }
-opentalk-orchestrator-client = "0.5"
+opentalk-client = { package = "opentalk-client-signaling", version = "0.7.0" }
+opentalk-orchestrator-client = "0.7"
 opentalk-service-auth = "0.2"
-opentalk-types-api-common = "0.7"
-opentalk-types-common = "0.43"
+opentalk-types-api-common = "0.7.2"
+opentalk-types-common = "0.44"
 opentalk-version = "0.4"
 owo-colors = "4.2"
 pin-project-lite = "0.2"

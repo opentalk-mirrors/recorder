@@ -29,7 +29,7 @@ use opentalk_client::{
         common::{rooms::RoomId, streaming::StreamingTargetId, time::Timestamp},
         signaling::ParticipantId,
     },
-    Event, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
+    OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
 use opentalk_orchestrator_client::{client::OrchestratorHandle, RecorderEvent, RecorderResource};
 use opentalk_types_api_internal::recording::RecordingTarget;
@@ -205,7 +205,6 @@ impl RecordingSession {
         let mut room_state: Room = Box::pin(service_context.client.connect_recorder(
             recording_target.room_id,
             recording_target.breakout_room.map(BreakoutId::from),
-            true,
         ))
         .await?
         .into();
@@ -299,10 +298,7 @@ impl RecordingSession {
                         Err(err) => {
                             log::debug!("Unexpected websocket message. {err}");
                         },
-                        Ok(event) => match event {
-                            Event::OpenTalk(open_talk_event) => Box::pin(self.handle_signaling_event(open_talk_event, chunk_limit_reached_tx.clone())).await?,
-                            Event::LiveKit(_) => {},
-                        }
+                        Ok(event) => Box::pin(self.handle_signaling_event(event, chunk_limit_reached_tx.clone())).await?,
                     }
                 }
                 disconnect_reason = self.compositor.run() => {
@@ -518,6 +514,9 @@ impl RecordingSession {
             }
             OpenTalkEvent::ParticipantLeft(left, connection) => {
                 self.handle_participant_left(&left, connection);
+            }
+            OpenTalkEvent::Breakout(breakout_event) => {
+                log::debug!("Received breakout event: {breakout_event:?} (not implemented)");
             }
             OpenTalkEvent::MovedToWaitingRoom
             | OpenTalkEvent::WaitingRoomAccepted
