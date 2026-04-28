@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context as ErrorContext, Result};
+use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
 use compositor::{
     EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
@@ -23,7 +23,11 @@ use compositor::{
 use futures::Stream;
 use log::error;
 use opentalk_client::{
-    opentalk_roomserver_types::{breakout::breakout_id::BreakoutId, connection_id::ConnectionId},
+    opentalk_roomserver_types::{
+        breakout::{breakout_id::BreakoutId, event::BreakoutEvent},
+        connection_id::ConnectionId,
+        room_kind::RoomKind,
+    },
     opentalk_roomserver_types_recording::{RecordingStatus, StreamErrorReason, StreamStatus},
     types::{
         common::{rooms::RoomId, streaming::StreamingTargetId, time::Timestamp},
@@ -208,6 +212,10 @@ impl RecordingSession {
         ))
         .await?
         .into();
+
+        if let Some(breakout_target) = recording_target.breakout_room {
+            move_to_breakout_room(&mut room_state, BreakoutId::from(breakout_target)).await?;
+        }
 
         // Extract recording state from room
         let recording_api = room_state
@@ -516,7 +524,7 @@ impl RecordingSession {
                 self.handle_participant_left(&left, connection);
             }
             OpenTalkEvent::Breakout(breakout_event) => {
-                log::debug!("Received breakout event: {breakout_event:?} (not implemented)");
+                self.handle_breakout_event(breakout_event)?;
             }
             OpenTalkEvent::MovedToWaitingRoom
             | OpenTalkEvent::WaitingRoomAccepted
@@ -664,6 +672,50 @@ impl RecordingSession {
             .remove_participant(&ParticipantIdentity::from(format!("{left}:{connection}")));
     }
 
+    fn handle_breakout_event(&mut self, breakout_event: BreakoutEvent) -> Result<()> {
+        match breakout_event {
+            BreakoutEvent::ParticipantSwitchedRoom {
+                participant_id,
+                old_room,
+                new_room,
+                module_data: _,
+            } => {
+                let current_room = self.room_state.breakout_api().current_room();
+
+                let participant = self
+                    .room_state
+                    .participants()
+                    .get(&participant_id)
+                    .context("Failed to get participant state")?
+                    .clone();
+
+                if old_room == current_room {
+                    // remove participant from recording
+                    for connection in participant.connections {
+                        self.handle_participant_left(&participant.id, connection);
+                    }
+                } else if new_room == current_room {
+                    // add participant to recording if consenting
+                    self.handle_participant_joined(&participant);
+                }
+            }
+            BreakoutEvent::Closed => {
+                log::info!("Breakout room was closed, stopping recording");
+                self.done = true;
+            }
+            BreakoutEvent::Error(breakout_error) => {
+                log::error!("Received unexpected error from breakout module: {breakout_error:?}");
+            }
+
+            BreakoutEvent::Started { .. }
+            | BreakoutEvent::SwitchedRoom { .. }
+            | BreakoutEvent::CloseNotice { .. }
+            | BreakoutEvent::Closing { .. } => (),
+        }
+
+        Ok(())
+    }
+
     pub(crate) async fn handle_start_recording(
         &mut self,
         chunk_limit_sender: broadcast::Sender<UploadLimitReached>,
@@ -760,6 +812,54 @@ impl RecordingSession {
         {
             // last stream has been stopped, the media pipeline can be shut down.
             self.done = true;
+        }
+    }
+}
+
+async fn move_to_breakout_room(room_state: &mut Room, breakout_target: BreakoutId) -> Result<()> {
+    log::info!("Moving to breakout room {breakout_target}");
+    let Some(breakout_config) = room_state.breakout_api().breakout_config() else {
+        return Err(anyhow::anyhow!(
+            "Received breakout target {breakout_target} but there are no breakout rooms configured"
+        ));
+    };
+
+    if !breakout_config
+        .rooms
+        .iter()
+        .any(|room| room.id == breakout_target)
+    {
+        return Err(anyhow::anyhow!("Got breakout target {breakout_target} but it was not found in the room's breakout configuration"));
+    }
+
+    room_state
+        .breakout_api()
+        .switch_room(RoomKind::Breakout(breakout_target))
+        .await?;
+
+    log::info!("Entering breakout room, waiting for breakout switch event...");
+    loop {
+        match room_state.recv().await? {
+            OpenTalkEvent::MovedToWaitingRoom => {
+                bail!("Recorder was moved to the waiting room, cannot start recording")
+            }
+            OpenTalkEvent::Breakout(breakout_event) => match breakout_event {
+                BreakoutEvent::SwitchedRoom { .. } => {
+                    log::info!("Received breakout switched room event, recording can be started");
+                    return Ok(());
+                }
+                BreakoutEvent::Closing { .. } | BreakoutEvent::Closed => {
+                    bail!("Targeted breakout room was closed, cannot start recording")
+                }
+                BreakoutEvent::Error(breakout_error) => {
+                    bail!("Error in breakout module: {breakout_error:?}")
+                }
+                _ => (),
+            },
+            OpenTalkEvent::Disconnected(disconnect_reason) => {
+                bail!("Disconnected from room with reason: {disconnect_reason:?}")
+            }
+            event => log::trace!("Received event while waiting for breakout switch: {event:?}"),
         }
     }
 }
