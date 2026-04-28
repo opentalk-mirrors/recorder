@@ -650,6 +650,14 @@ impl RecordingSession {
                     updated.display_name.to_string(),
                 );
             }
+        } else {
+            for connection in &updated.connections {
+                self.compositor
+                    .remove_participant(&ParticipantIdentity::from(format!(
+                        "{}:{}",
+                        updated.id, connection
+                    )));
+            }
         }
     }
 
