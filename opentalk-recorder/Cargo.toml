@@ -58,6 +58,9 @@ tokio = { workspace = true, features = [
 tokio-stream = { workspace = true, features = ["sync"] }
 urlencoding.workspace = true
 
+# Required for roomserver-client
+tokio-tungstenite.workspace = true
+
 [build-dependencies]
 anyhow.workspace = true
 async-trait.workspace = true

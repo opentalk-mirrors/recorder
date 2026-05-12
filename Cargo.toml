@@ -46,7 +46,7 @@ opentalk-types-common = "0.44"
 opentalk-version = "0.4"
 owo-colors = "4.2"
 pin-project-lite = "0.2"
-reqwest = { version = "0.13", default-features = false }
+reqwest = "0.13"
 rustls = { version = "0.23", default-features = false, features = [
   "aws-lc-rs",
 ] }
