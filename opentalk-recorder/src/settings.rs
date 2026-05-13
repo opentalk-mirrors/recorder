@@ -123,7 +123,7 @@ fn discover_config_file(
 
     let searched_paths = paths.iter().map(|path| path.path.display()).join(", ");
 
-    bail!("Failed to find a configuration file, searched: {searched_paths}",);
+    bail!("Failed to find a configuration file, searched: {searched_paths}");
 }
 
 struct ConfigSearchPath {

@@ -3523,7 +3523,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "futures",
- "http 1.4.0",
+ "http",
  "icu_locid",
  "opentalk-types-api-internal",
  "opentalk-types-common",
@@ -3532,7 +3532,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tokio-tungstenite 0.29.0",
+ "tokio-tungstenite",
  "tokio-util",
  "url",
  "utoipa",
@@ -4891,18 +4891,6 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "rustls"
-version = "0.21.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f56a14d1f48b391359b22f731fd4bd7e43c97f3c50eee276f3aa09c94784d3e"
-dependencies = [
- "log",
- "ring",
- "rustls-webpki 0.101.7",
- "sct",
 ]
 
 [[package]]

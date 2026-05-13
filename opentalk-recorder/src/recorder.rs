@@ -152,7 +152,7 @@ impl Recorder {
 
         let recording_task = tokio::spawn(async move {
             if let Err(ref recording_err) = Box::pin(session.run()).await {
-                error!("recording session failed but trying upload anyway:\n{recording_err:?}",);
+                error!("recording session failed but trying upload anyway:\n{recording_err:?}");
             }
             notify_orchestrator_recording_stopped(orchestrator_handle, recording_target).await;
 
@@ -530,6 +530,8 @@ impl RecordingSession {
             | OpenTalkEvent::WaitingRoomAccepted
             | OpenTalkEvent::LiveKit(_)
             | OpenTalkEvent::Recording(_)
+            | OpenTalkEvent::Transcription(_)
+            | OpenTalkEvent::TranscriptionService(_)
             | OpenTalkEvent::Disconnected(_) => {}
             OpenTalkEvent::RecordingService(open_talk_recording_service_event) => {
                 match open_talk_recording_service_event {
