@@ -39,7 +39,7 @@ objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "
 objc2-foundation = { version = "0.3", features = ["NSNotification", "NSObject", "NSThread"] }
 openidconnect = "4"
 opentalk-client = { package = "opentalk-client-signaling", version = "0.8.0" }
-opentalk-orchestrator-client = "0.7"
+opentalk-orchestrator-client = "0.8"
 opentalk-service-auth = "0.2"
 opentalk-types-api-common = "0.7.2"
 opentalk-types-common = "0.44"
