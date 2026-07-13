@@ -12,7 +12,7 @@ edition = "2021"
 homepage = "https://opentalk.eu/"
 license = "EUPL-1.2"
 repository = "https://gitlab.opencode.de/opentalk/recorder"
-version = "0.16.0"
+version = "0.17.0"
 
 [workspace.dependencies]
 opentalk-recorder-web-api = { path = "opentalk-recorder-web-api", version = "0.2.0" }
