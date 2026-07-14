@@ -15,9 +15,11 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use axum::Router;
 use clap::Parser;
-use gst::glib;
+use gstreamer::glib;
 use log::warn;
-use opentalk_client::{config::ClientConfig, types::api::v1::error::ApiError, OpenTalkClient};
+use opentalk_client_signaling::{
+    config::ClientConfig, types::api::v1::error::ApiError, AuthConfig, OpenTalkClient,
+};
 use opentalk_orchestrator_client::{
     client::OrchestratorHandle, OrchestratorClient, ServiceAddress,
 };
@@ -109,7 +111,7 @@ impl RecorderBackend for AppState {
 const DOT_OUTPUT_PATH: &str = "./pipelines";
 
 fn check_plugins() -> Result<()> {
-    let registry = gst::Registry::get();
+    let registry = gstreamer::Registry::get();
 
     let required = [
         "audiomixer",
@@ -350,7 +352,7 @@ async fn main_loop() -> Result<()> {
                 }
             }
 
-            gst::init()?;
+            gstreamer::init()?;
             check_plugins()?;
 
             // Run a MainLoop on a separate thread so gstreamer bus watches work
@@ -400,7 +402,7 @@ async fn run_recorder(
     settings: Arc<Settings>,
 ) -> Result<()> {
     let client = OpenTalkClient::create(ClientConfig {
-        auth: opentalk_client::AuthConfig::ApiKey(settings.controller.api_key.clone()),
+        auth: AuthConfig::ApiKey(settings.controller.api_key.clone()),
         controller: settings.controller.url.clone(),
     })
     .await?;
