@@ -5,10 +5,10 @@
 use std::{net::IpAddr, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
-use compositor::{ClockFormat, EncoderType};
 use config::{Config, Environment, File, FileFormat, FileSourceFile};
 use itertools::Itertools;
-use opentalk_client::BaseUrl;
+use opentalk_client_signaling::BaseUrl;
+use opentalk_compositor::{ClockFormat, EncoderType};
 use opentalk_orchestrator_client::OrchestratorConfig;
 use opentalk_service_auth::{service::ApiKeys, ApiKey};
 use owo_colors::OwoColorize;

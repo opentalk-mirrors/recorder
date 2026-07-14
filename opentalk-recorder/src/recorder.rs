@@ -16,13 +16,9 @@ use std::{
 
 use anyhow::{bail, Context as ErrorContext, Result};
 use bytes::Bytes;
-use compositor::{
-    EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
-    WebMParameters, WebMSink,
-};
 use futures::Stream;
 use log::error;
-use opentalk_client::{
+use opentalk_client_signaling::{
     opentalk_roomserver_types::{
         breakout::{breakout_id::BreakoutId, event::BreakoutEvent},
         connection_id::ConnectionId,
@@ -34,6 +30,10 @@ use opentalk_client::{
         signaling::ParticipantId,
     },
     OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
+};
+use opentalk_compositor::{
+    EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
+    WebMParameters, WebMSink,
 };
 use opentalk_orchestrator_client::{client::OrchestratorHandle, RecorderEvent, RecorderResource};
 use opentalk_types_api_internal::recording::RecordingTarget;
@@ -188,7 +188,7 @@ async fn notify_orchestrator_recording_stopped(
 
 pub(crate) struct RecordingSession {
     service_context: Arc<Recorder>,
-    room_state: opentalk_client::Room,
+    room_state: opentalk_client_signaling::Room,
     room_id: RoomId,
 
     compositor: Mixer,
