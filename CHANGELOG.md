@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-07-13
+
+[0.17.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.16.0...v0.17.0
+
+### 🚀 New features
+
+- Migrate from rabbitmq to rest ([!559](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/559))
+- Migrate to roomserver signaling ([!648](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/648))
+- Add opentalk server auth ([!630](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/630))
+- Add orchestrator client ([!641](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/641))
+- Replace /v1/init body with roomserver compatible internal api type ([!674](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/674))
+- Warn about unknown configuration fields ([!745](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/745))
+- Add support for breakout rooms ([!751](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/751), [#250](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/250))
+
+<!-- these bugs where introduced after v0.16 was released and don't need to be mentioned
+
+- Add missing recording state updates ([!738](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/738))
+- Respect participant consent when revoked ([!751](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/751))
+- Enable tls support for tungstenite ([!758](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/758)) -->
+
+### 📚 Documentation
+
+- Fix the example configuration ([!746](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/746))
+
+### 📦 Dependencies
+
+- (deps) Update rust crate opentalk-types-common to v0.43.1 ([!730](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/730))
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.94.1 ([!726](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/726))
+- (deps) Update rust crate rustls to v0.23.38 ([!728](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/728))
+- (deps) Update pre-commit hook embarkstudios/cargo-deny to v0.19.1 ([!727](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/727))
+- (deps) Lock file maintenance ([!729](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/729))
+- (deps) Update rust crate axum to v0.8.9 ([!732](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/732))
+- (deps) Update pre-commit hook embarkstudios/cargo-deny to v0.19.4 ([!733](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/733))
+- (deps) Update rust crate tokio to v1.52.1 ([!735](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/735))
+- (deps) Update opentalk-controller ([!736](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/736))
+- (deps) Update rust crate clap to v4.6.1 ([!737](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/737))
+- (deps) Update rust crate opentalk-service-auth to v0.2.3 ([!748](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/748))
+- (deps) Update quay.io/buildah/stable docker tag to v1.43.1 ([!739](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/739))
+- (deps) Update rust crate reqwest to v0.13.3 ([!749](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/749))
+- (deps) Update rust crate rustls to v0.23.39 ([!744](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/744))
+- (deps) Update rust crate jsonwebtoken to v10.4.0 ([!757](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/757))
+- (deps) Update pre-commit hook embarkstudios/cargo-deny to v0.19.6 ([!756](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/756))
+- (deps) Update rust crate tokio to v1.52.3 ([!754](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/754))
+- (deps) Update pre-commit hook alessandrojcm/commitlint-pre-commit-hook to v9.25.0 ([!753](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/753))
+- (deps) Update rust crate rustls to v0.23.40 ([!752](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/752))
+- (deps) Lock file maintenance ([!740](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/740))
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.95.0 ([!741](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/741))
+- (deps) Update rust crate sysinfo to 0.39 ([!755](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/755))
+- (deps) Lock file maintenance ([!762](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/762))
+- (deps) Update rust crate itertools to 0.15 ([!775](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/775))
+- (deps) Lock file maintenance ([!782](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/782))
+- (deps) Update rust crate opentalk-orchestrator-client to 0.8 ([!763](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/763))
+- (deps) Update rust crate opentalk-client to v0.8.1 ([!784](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/784))
+- (deps) Update crate crossbeam-epoch to v0.9.20 ([!784](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/784))
+- (deps) Document RUSTSEC-2026-019 ([!784](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/784))
+
+### ⚙ Miscellaneous
+
+- Update all dependencies ([!751](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/751))
+- (lint) Add new match arm for transcription events ([!759](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/759))
+
+### Ci
+
+- (pre-commit) Switch from taplo to olpat (taplo is unmaintained) ([!787](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/787))
+
 ## [0.16.0] - 2026-03-10
 
 [0.16.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.15.0...v0.16.0
