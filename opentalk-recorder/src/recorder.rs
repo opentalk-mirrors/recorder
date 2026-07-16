@@ -25,10 +25,12 @@ use opentalk_client_signaling::{
     },
     opentalk_roomserver_types_recording::{RecordingStatus, StreamErrorReason, StreamStatus},
     opentalk_types::{
-        common::{rooms::RoomId, streaming::StreamingTargetId, time::Timestamp},
+        common::{
+            rooms::RoomId, streaming::StreamingTargetId, time::Timestamp, users::DisplayName,
+        },
         signaling::ParticipantId,
     },
-    OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
+    JoinedLobby, OpenTalkClient, OpenTalkEvent, OpenTalkRecordingServiceEvent, Participant, Room,
 };
 use opentalk_compositor::{
     EncoderType, Mixer, MixerParameters, ParticipantIdentity, RTMPParameters, RTMPSink, SystemSink,
@@ -46,6 +48,8 @@ use tokio::{
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::settings::Settings;
+
+const DISPLAY_NAME: &str = "recorder";
 
 #[derive(Debug, Error)]
 pub(crate) enum RecordingSessionError {
@@ -205,12 +209,24 @@ impl RecordingSession {
         recording_target: RecordingTarget,
     ) -> Result<RecordingSession> {
         // Connect to opentalk room as recorder
-        let mut room_state: Room = Box::pin(service_context.client.connect_recorder(
+        let JoinedLobby {
+            room: mut room_state,
+            can_enter,
+            display_name,
+        } = Box::pin(service_context.client.connect_recorder(
             recording_target.room_id,
             recording_target.breakout_room.map(BreakoutId::from),
         ))
-        .await?
-        .into();
+        .await?;
+
+        if !can_enter {
+            bail!("not allowed to enter the room");
+        }
+
+        let display_name = display_name
+            .is_none()
+            .then(|| DisplayName::from_str_lossy(DISPLAY_NAME));
+        room_state.enter_room(display_name).await?;
 
         if let Some(breakout_target) = recording_target.breakout_room {
             move_to_breakout_room(&mut room_state, BreakoutId::from(breakout_target)).await?;
@@ -527,7 +543,9 @@ impl RecordingSession {
             OpenTalkEvent::Breakout(breakout_event) => {
                 self.handle_breakout_event(breakout_event)?;
             }
-            OpenTalkEvent::MovedToWaitingRoom
+            OpenTalkEvent::EntryPermissionChanged { can_enter: _ }
+            | OpenTalkEvent::DisplayNameAssigned(_)
+            | OpenTalkEvent::MovedToWaitingRoom
             | OpenTalkEvent::WaitingRoomAccepted
             | OpenTalkEvent::LiveKit(_)
             | OpenTalkEvent::Recording(_)
