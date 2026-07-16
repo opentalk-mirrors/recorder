@@ -18,7 +18,7 @@ use clap::Parser;
 use gstreamer::glib;
 use log::warn;
 use opentalk_client_signaling::{
-    config::ClientConfig, types::api::v1::error::ApiError, AuthConfig, OpenTalkClient,
+    config::ClientConfig, opentalk_types::api::v1::error::ApiError, AuthConfig, OpenTalkClient,
 };
 use opentalk_orchestrator_client::{
     client::OrchestratorHandle, OrchestratorClient, ServiceAddress,
