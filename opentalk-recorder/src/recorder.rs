@@ -482,7 +482,7 @@ impl RecordingSession {
             return Err(RecordingSessionError::NotFound(id));
         };
 
-        if livestream_state.status.is_running() {
+        if !livestream_state.status.is_running() {
             return Err(RecordingSessionError::NotRunning(id));
         }
 
