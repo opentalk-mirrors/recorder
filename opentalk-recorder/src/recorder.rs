@@ -10,7 +10,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     io,
-    mem::take,
     sync::Arc,
 };
 
@@ -334,12 +333,14 @@ impl RecordingSession {
             self.handle_stop_recording().await?;
         }
 
-        let livestreams = take(&mut self.livestream_states);
-        for (stream_target_id, _) in livestreams
+        let running_stream_ids = self
+            .livestream_states
             .iter()
             .filter(|(_, livestream)| livestream.status.is_running())
-        {
-            self.stop_stream(*stream_target_id).await?;
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        for stream_target_id in running_stream_ids {
+            self.stop_stream(stream_target_id).await?;
         }
 
         Ok(())
@@ -481,7 +482,7 @@ impl RecordingSession {
             return Err(RecordingSessionError::NotFound(id));
         };
 
-        if livestream_state.status.is_running() {
+        if !livestream_state.status.is_running() {
             return Err(RecordingSessionError::NotRunning(id));
         }
 
