@@ -16,7 +16,7 @@ WORKDIR /recorder
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 
-COPY ./opentalk-recorder ./opentalk-recorder 
+COPY ./opentalk-recorder ./opentalk-recorder
 COPY ./opentalk-recorder-web-api ./opentalk-recorder-web-api
 
 RUN cargo build --release

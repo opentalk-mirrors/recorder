@@ -24,7 +24,7 @@ use opentalk_client_signaling::{
         room_kind::RoomKind,
     },
     opentalk_roomserver_types_recording::{RecordingStatus, StreamErrorReason, StreamStatus},
-    types::{
+    opentalk_types::{
         common::{rooms::RoomId, streaming::StreamingTargetId, time::Timestamp},
         signaling::ParticipantId,
     },

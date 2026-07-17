@@ -17,7 +17,7 @@ WORKDIR /recorder
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
 
-COPY ./opentalk-recorder ./opentalk-recorder 
+COPY ./opentalk-recorder ./opentalk-recorder
 COPY ./opentalk-recorder-web-api ./opentalk-recorder-web-api
 
 RUN cargo install cargo-auditable
