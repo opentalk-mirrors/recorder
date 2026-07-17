@@ -17,11 +17,11 @@
       "groupSlug": "gstreamer-rs"
     },
     {
-      "matchPackagePatterns": [
-        "opentalk-types*"
+      "matchPackageNames": [
+        "opentalk-*"
       ],
-      "groupName": "opentalk-controller",
-      "groupSlug": "opentalk-controller"
+      "groupName": "opentalk",
+      "groupSlug": "opentalk"
     }
   ]
 }
