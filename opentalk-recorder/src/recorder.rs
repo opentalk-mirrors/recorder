@@ -366,6 +366,11 @@ impl RecordingSession {
         &mut self,
         sender: broadcast::Sender<UploadLimitReached>,
     ) -> Result<RecordingStatus> {
+        if self.recording_status.is_running() {
+            log::debug!("Received start recording while already recording, ignoring");
+            return Ok(self.recording_status.clone());
+        }
+
         let websocket_base_url = self
             .service_context
             .settings
@@ -392,11 +397,17 @@ impl RecordingSession {
         .context("WebM-Sink could not created")
         .map_err(RecordingSessionError::FailedToStartRecording)?;
 
+        let receiver = webm_sink.subscribe();
+
+        self.compositor
+            .link_gstreamer_sink("recording", webm_sink)
+            .await
+            .context("unable to link recording sink to compositor")?;
+
         // probably actually use a channel to signal when limit reached, would probably make much more sense
         // than to attempt to circumvent the move
         tokio::spawn({
             let service_context = self.service_context.clone();
-            let receiver = webm_sink.subscribe();
 
             async move {
                 let stream = BroadcastStream::from(receiver);
@@ -422,11 +433,6 @@ impl RecordingSession {
                 }
             }
         });
-
-        self.compositor
-            .link_gstreamer_sink("recording", webm_sink)
-            .await
-            .context("unable to link recording sink to compositor")?;
 
         Ok(RecordingStatus::Active)
     }
