@@ -32,9 +32,9 @@ opentalk-client-signaling.workspace = true
 opentalk-orchestrator-client = { workspace = true, features = [
   "recording-service",
 ] }
-opentalk-recorder-web-api.workspace = true
+opentalk-recorder-web-api = "0.2"
 opentalk-service-auth = { workspace = true, features = ["axum"] }
-opentalk-types-api-internal.workspace = true
+opentalk-types-api-internal = "0.4"
 opentalk-version.workspace = true
 owo-colors.workspace = true
 pin-project-lite.workspace = true
