@@ -3428,7 +3428,7 @@ dependencies = [
  "opentalk-client-signaling",
  "opentalk-compositor",
  "opentalk-orchestrator-client",
- "opentalk-recorder-web-api 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "opentalk-recorder-web-api 0.3.1",
  "opentalk-service-auth",
  "opentalk-types-api-internal 0.5.0",
  "opentalk-version",
@@ -3453,17 +3453,6 @@ dependencies = [
 [[package]]
 name = "opentalk-recorder-web-api"
 version = "0.3.1"
-dependencies = [
- "async-trait",
- "axum",
- "opentalk-types-api-common 0.12.0",
- "opentalk-types-api-internal 0.6.0",
- "serde",
-]
-
-[[package]]
-name = "opentalk-recorder-web-api"
-version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c0bf280e639fdf0f6318ca704145a6c429a9929d845c0869067c244115973c8"
 dependencies = [
@@ -3471,6 +3460,17 @@ dependencies = [
  "axum",
  "opentalk-types-api-common 0.11.0",
  "opentalk-types-api-internal 0.5.0",
+ "serde",
+]
+
+[[package]]
+name = "opentalk-recorder-web-api"
+version = "0.4.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "opentalk-types-api-common 0.12.0",
+ "opentalk-types-api-internal 0.6.0",
  "serde",
 ]
 
