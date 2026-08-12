@@ -20,7 +20,7 @@ spec:
       default: ''
 ---
 image:
-  name: git.opentalk.dev:5050/opentalk/backend/containers/rust:1.97.0-trixie
+  name: git.opentalk.dev:5050/opentalk/backend/containers/rust:1.97.1-trixie
   pull_policy: if-not-present
 
 stages:
@@ -126,7 +126,7 @@ lint:yaml:
   stage: lint
   <<: *default_job_condition
   image:
-    name: alpine:3.23
+    name: alpine:3.24
     pull_policy: if-not-present
   before_script:
     - apk add --no-cache yamllint
