@@ -15,9 +15,9 @@ repository = "https://gitlab.opencode.de/opentalk/recorder"
 version = "0.17.0"
 
 [workspace.dependencies]
-opentalk-recorder-web-api = { path = "opentalk-recorder-web-api", version = "0.2.0" }
+opentalk-recorder-web-api = { path = "opentalk-recorder-web-api", version = "0.3.1" }
 
-opentalk-types-api-internal = "0.4"
+opentalk-types-api-internal = "0.5"
 
 anstream = "1.0"
 anyhow = "1"
@@ -41,7 +41,7 @@ opentalk-client-signaling = "0.12.0"
 opentalk-compositor = "0.18"
 opentalk-orchestrator-client = "0.12.0"
 opentalk-service-auth = "0.3"
-opentalk-types-api-common = "0.10.0"
+opentalk-types-api-common = "0.11.0"
 opentalk-types-common = "0.47"
 opentalk-version = "0.4"
 owo-colors = "4.2"
