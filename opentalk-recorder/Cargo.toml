@@ -29,12 +29,12 @@ gstreamer.workspace = true
 itertools.workspace = true
 log.workspace = true
 opentalk-client-signaling.workspace = true
-opentalk-orchestrator-client = { workspace = true, features = [
+opentalk-orchestrator-client = { version = "0.13", features = [
   "recording-service",
 ] }
-opentalk-recorder-web-api = "0.2"
-opentalk-service-auth = { workspace = true, features = ["axum"] }
-opentalk-types-api-internal = "0.4"
+opentalk-recorder-web-api = "0.3"
+opentalk-service-auth = { version = "0.4", features = ["axum"] }
+opentalk-types-api-internal = "0.5"
 opentalk-version.workspace = true
 owo-colors.workspace = true
 pin-project-lite.workspace = true
