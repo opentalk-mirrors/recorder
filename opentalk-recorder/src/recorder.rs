@@ -42,8 +42,7 @@ use reqwest::Url;
 use thiserror::Error;
 use tokio::{
     io::{AsyncRead, ReadBuf},
-    sync::broadcast,
-    task::JoinHandle,
+    sync::{broadcast, watch},
 };
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -141,28 +140,28 @@ impl Recorder {
         &self,
         recording_target: RecordingTarget,
         orchestrator_handle: Option<OrchestratorHandle>,
-    ) -> Result<JoinHandle<Result<()>>> {
+    ) -> Result<RecordingSessionHandle> {
         let context = Arc::new(self.clone());
         log::debug!("Start Recording session {recording_target:?}");
-        let mut session = match Box::pin(RecordingSession::create(context, recording_target)).await
-        {
-            Ok(session) => session,
-            Err(err) => {
-                notify_orchestrator_recording_stopped(orchestrator_handle, recording_target).await;
-                return Err(err.context("recording session failed to start"));
-            }
-        };
+        let (mut session, handle) =
+            match Box::pin(RecordingSession::create(context, recording_target)).await {
+                Ok(session) => session,
+                Err(err) => {
+                    notify_orchestrator_recording_stopped(orchestrator_handle, recording_target)
+                        .await;
+                    return Err(err.context("recording session failed to start"));
+                }
+            };
 
-        let recording_task = tokio::spawn(async move {
+        tokio::spawn(async move {
             if let Err(ref recording_err) = Box::pin(session.run()).await {
                 error!("recording session failed but trying upload anyway:\n{recording_err:?}");
             }
-            notify_orchestrator_recording_stopped(orchestrator_handle, recording_target).await;
 
-            Ok(())
+            notify_orchestrator_recording_stopped(orchestrator_handle, recording_target).await;
         });
 
-        Ok(recording_task)
+        Ok(handle)
     }
 }
 
@@ -189,8 +188,34 @@ async fn notify_orchestrator_recording_stopped(
     }
 }
 
+#[derive(Debug)]
+pub enum SessionState {
+    Run,
+    Exit,
+}
+
+/// The handle for a [`RecordingSession`]
+#[derive(Debug, Clone)]
+pub(crate) struct RecordingSessionHandle {
+    state_sender: watch::Sender<SessionState>,
+}
+
+impl RecordingSessionHandle {
+    /// Signal the transcription session to exit
+    pub(crate) fn exit_task(&self) {
+        // can only fail if the receiver is dropped -> 'successful' exit
+        let _ = self.state_sender.send(SessionState::Exit);
+    }
+
+    /// Check if the associated session is finished
+    pub(crate) fn is_finished(&self) -> bool {
+        self.state_sender.is_closed()
+    }
+}
+
 pub(crate) struct RecordingSession {
     service_context: Arc<Recorder>,
+    state_receiver: watch::Receiver<SessionState>,
     room_state: opentalk_client_signaling::Room,
     room_id: RoomId,
 
@@ -207,7 +232,7 @@ impl RecordingSession {
     pub(crate) async fn create(
         service_context: Arc<Recorder>,
         recording_target: RecordingTarget,
-    ) -> Result<RecordingSession> {
+    ) -> Result<(RecordingSession, RecordingSessionHandle)> {
         // Connect to opentalk room as recorder
         let JoinedLobby {
             room: mut room_state,
@@ -296,15 +321,21 @@ impl RecordingSession {
                 .await?;
         }
 
-        Ok(RecordingSession {
-            service_context,
-            room_state,
-            room_id: recording_target.room_id,
-            compositor,
-            recording_status,
-            livestream_states,
-            done: false,
-        })
+        let (state_sender, state_receiver) = watch::channel(SessionState::Run);
+
+        Ok((
+            RecordingSession {
+                service_context,
+                state_receiver,
+                room_state,
+                room_id: recording_target.room_id,
+                compositor,
+                recording_status,
+                livestream_states,
+                done: false,
+            },
+            RecordingSessionHandle { state_sender },
+        ))
     }
 
     pub(crate) async fn run(&mut self) -> Result<()> {
@@ -313,6 +344,7 @@ impl RecordingSession {
             broadcast::channel::<UploadLimitReached>(1);
 
         self.initialize(chunk_limit_reached_tx.clone()).await?;
+        let mut state_receiver = self.state_receiver.clone();
 
         while !self.done {
             tokio::select! {
@@ -333,6 +365,11 @@ impl RecordingSession {
                         self.handle_stop_stream(BTreeSet::from([streaming_target_id])).await?;
                     } else {
                         self.handle_stop_recording().await?;
+                    }
+                }
+                res = state_receiver.changed() => {
+                    if matches!(*state_receiver.borrow_and_update(), SessionState::Exit) || res.is_err() {
+                        break;
                     }
                 }
                 _ = shutdown_rx.recv() => {

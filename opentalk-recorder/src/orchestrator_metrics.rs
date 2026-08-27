@@ -2,23 +2,20 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{
-    collections::HashMap,
-    sync::{atomic::Ordering, Arc, Mutex},
-};
+use std::sync::atomic::Ordering;
 
-use anyhow::{Context, Result};
 use opentalk_orchestrator_client::{
     client::StateProvider, Metrics, RecorderResource, RegisterRecorder, RegisterType,
     ServiceResource,
 };
-use opentalk_types_api_internal::recording::RecordingTarget;
-use tokio::task::JoinHandle;
 
-use crate::system_info::{CURRENT_LOAD, IS_FEASIBLE};
+use crate::{
+    system_info::{CURRENT_LOAD, IS_FEASIBLE},
+    RecorderTasks,
+};
 
 pub struct OrchestratorStateProvider {
-    pub tasks: Arc<Mutex<HashMap<RecordingTarget, JoinHandle<Result<()>>>>>,
+    pub tasks: RecorderTasks,
 }
 
 #[async_trait::async_trait]
@@ -67,7 +64,7 @@ impl StateProvider for OrchestratorStateProvider {
             };
 
             if colliding_resources.contains(&resource) {
-                handle.abort();
+                handle.exit_task();
                 false
             } else {
                 true
