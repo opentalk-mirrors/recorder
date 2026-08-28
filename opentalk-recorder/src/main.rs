@@ -38,13 +38,12 @@ use tokio::{
         unix::{signal, SignalKind},
     },
     sync::broadcast,
-    task::JoinHandle,
 };
 
 use crate::{
     cli::{print_info, Args, Commands},
     orchestrator_metrics::OrchestratorStateProvider,
-    recorder::Recorder,
+    recorder::{Recorder, RecordingSessionHandle},
     system_info::is_new_recording_feasible,
 };
 
@@ -54,7 +53,7 @@ mod recorder;
 mod settings;
 mod system_info;
 
-type RecorderTasks = Arc<Mutex<HashMap<RecordingTarget, JoinHandle<Result<()>>>>>;
+type RecorderTasks = Arc<Mutex<HashMap<RecordingTarget, RecordingSessionHandle>>>;
 
 #[derive(Clone)]
 pub struct AppState {
