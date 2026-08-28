@@ -15,7 +15,7 @@ repository = "https://gitlab.opencode.de/opentalk/recorder"
 version = "0.17.0"
 
 [workspace.dependencies]
-opentalk-recorder-web-api = { path = "opentalk-recorder-web-api", version = "0.4.0" }
+opentalk-recorder-web-api = { path = "opentalk-recorder-web-api", version = "0.5.0" }
 
 opentalk-types-api-internal = "0.7.0"
 
@@ -37,9 +37,9 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSEvent", "NSGraphicsContext", "NSRunningApplication"] }
 objc2-foundation = { version = "0.3", features = ["NSNotification", "NSObject", "NSThread"] }
 openidconnect = "4"
-opentalk-client-signaling = "0.14.0"
+opentalk-client-signaling = "0.15.0"
 opentalk-compositor = "0.18"
-opentalk-orchestrator-client = "0.14.0"
+opentalk-orchestrator-client = "0.15.0"
 opentalk-service-auth = "0.6.0"
 opentalk-types-api-common = "0.13.0"
 opentalk-types-common = "0.50.0"
