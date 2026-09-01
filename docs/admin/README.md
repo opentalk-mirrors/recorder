@@ -7,6 +7,7 @@ title: Recorder
 ## General information about the service
 
 - [Configuration](./configuration/README.md)
+- [Migration Guide](./migration.md)
 - [Hardware Acceleration](./hardware_acceleration.md)
 - [HTTP](./configuration/http.md)
 - [Monitoring](./configuration/monitoring.md)
