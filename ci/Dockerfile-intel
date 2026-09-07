@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: EUPL-1.2
 
-FROM git.opentalk.dev:5050/opentalk/backend/containers/gstreamer:1.24-intel AS builder
+FROM git.opentalk.dev:5050/opentalk/backend/containers/gstreamer:1.26-intel AS builder
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates rustup build-essential pkg-config libglib2.0-dev \
@@ -21,12 +21,12 @@ COPY ./opentalk-recorder-web-api ./opentalk-recorder-web-api
 
 RUN cargo build --release
 
-FROM git.opentalk.dev:5050/opentalk/backend/containers/gstreamer:1.24-intel
+FROM git.opentalk.dev:5050/opentalk/backend/containers/gstreamer:1.26-intel
 
 RUN apt-get update && apt-get full-upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends libssl3 \
     intel-media-va-driver \
-    libopenh264-7 ca-certificates \
+    libopenh264-8 ca-certificates \
     tzdata \
     fonts-terminus ttf-bitstream-vera fonts-liberation fonts-noto \
     libcap2-bin && \
