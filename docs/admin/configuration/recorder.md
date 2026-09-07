@@ -7,12 +7,12 @@ be a `WebM file`, `Display`, or `RTMP stream`. The `Display` can be toggled for 
 
 The section in the [configuration file](README.md) is called `recorder`.
 
-| Field                     | Type                   | Required | Default value | Description                                                      |
-| ------------------------- | ---------------------- | -------- | ------------- | ---------------------------------------------------------------- |
-| `clock_format`            | `string`               | no       | "%x %X %Z"    | The time format for the clock, see `man strftime` for details    |
-| `display`                 | `bool`                 | no       | false         | Shows the current recording in an extra window (debug purpose).  |
-| `hardware_acceleration`   | `HardwareAcceleration` | no       | `<empty>`     | Enabled Hardware Acceleration, which enables GPU Encoding        |
-| `max_load`                | `int`                  | no       | 80            | The usage value per core (in %) until when new jobs are accepted |
+| Field                   | Type                   | Required | Default value | Description                                                      |
+| ----------------------- | ---------------------- | -------- | ------------- | ---------------------------------------------------------------- |
+| `clock_format`          | `string`               | no       | "%x %X %Z"    | The time format for the clock, see `man strftime` for details    |
+| `display`               | `bool`                 | no       | false         | Shows the current recording in an extra window (debug purpose).  |
+| `hardware_acceleration` | `HardwareAcceleration` | no       | `<empty>`     | Enabled Hardware Acceleration, which enables GPU Encoding        |
+| `max_load`              | `int`                  | no       | 80            | The usage value per core (in %) until when new jobs are accepted |
 
 ### Hardware Acceleration Configuration
 
