@@ -19,10 +19,10 @@ api_key = { "id" = "controller", "secret" = "secret" }
 #url = "http://127.0.0.1:11222"
 
 [http]
-# The host to bind the HTTP Server to (defaults to 0.0.0.0).
-host = "0.0.0.0"
-# The port to bind the HTTP Server to (defaults to 11311).
-port = "5555"
+# The address to bind the HTTP Server to (defaults to 0.0.0.0).
+addr = "0.0.0.0"
+# The port to bind the HTTP Server to (defaults to 11511).
+port = 11511
 
 # The api keys for internal service endpoints
 #

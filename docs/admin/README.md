@@ -10,6 +10,7 @@ title: Recorder
 - [Hardware Acceleration](./hardware_acceleration.md)
 - [HTTP](./configuration/http.md)
 - [Monitoring](./configuration/monitoring.md)
+- [Recorder](./configuration/recorder.md)
 
 ### Environment
 
@@ -27,5 +28,8 @@ title: Recorder
 
 ### Services required by {{ product_name }} Recorder
 
-- [Auth](./configuration/auth.md)
 - [Controller](./configuration/controller.md)
+
+### Optional services
+
+- [Orchestrator](./configuration/orchestrator.md)
