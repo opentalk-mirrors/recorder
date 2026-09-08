@@ -588,13 +588,19 @@ impl RecordingSession {
             }
             OpenTalkEvent::EntryPermissionChanged { can_enter: _ }
             | OpenTalkEvent::DisplayNameAssigned(_)
-            | OpenTalkEvent::MovedToWaitingRoom
             | OpenTalkEvent::WaitingRoomAccepted
             | OpenTalkEvent::LiveKit(_)
             | OpenTalkEvent::Recording(_)
             | OpenTalkEvent::Transcription(_)
-            | OpenTalkEvent::TranscriptionService(_)
-            | OpenTalkEvent::Disconnected(_) => {}
+            | OpenTalkEvent::TranscriptionService(_) => (),
+            OpenTalkEvent::MovedToWaitingRoom => {
+                log::error!("Recorder was moved to waiting room, stopping recording");
+                self.done = true;
+            }
+            OpenTalkEvent::Disconnected(reason) => {
+                log::info!("Disconnected from roomserver signaling: {reason:?}");
+                self.done = true;
+            }
             OpenTalkEvent::RecordingService(open_talk_recording_service_event) => {
                 match open_talk_recording_service_event {
                     OpenTalkRecordingServiceEvent::StartRecording => {
