@@ -351,9 +351,12 @@ impl RecordingSession {
                 msg = self.room_state.recv() => {
                     match msg {
                         Err(err) => {
-                            log::debug!("Unexpected websocket message. {err}");
+                            log::debug!("Unexpected websocket message. {err:?}");
                         },
-                        Ok(event) => Box::pin(self.handle_signaling_event(event, chunk_limit_reached_tx.clone())).await?,
+                        Ok(event) => if let Err(err) = Box::pin(self.handle_signaling_event(event, chunk_limit_reached_tx.clone())).await {
+                            log::error!("Failed to handle signaling event: {err:?}");
+                            break;
+                        },
                     }
                 }
                 disconnect_reason = self.compositor.run() => {
@@ -362,9 +365,13 @@ impl RecordingSession {
                 }
                 chunk_limit_event = chunk_limit_reached_rx.recv() => {
                     if let Some(streaming_target_id) = chunk_limit_event.context("Lost chunk limit receiver")?.0 {
-                        self.handle_stop_stream(BTreeSet::from([streaming_target_id])).await?;
-                    } else {
-                        self.handle_stop_recording().await?;
+                        if let Err(e) = self.handle_stop_stream(BTreeSet::from([streaming_target_id])).await {
+                            log::error!("Error while stopping stream {e}");
+                            break;
+                        }
+                    } else if let Err(e) = self.handle_stop_recording().await {
+                        log::error!("Error while stopping recording: {e}");
+                        break;
                     }
                 }
                 res = state_receiver.changed() => {
@@ -373,7 +380,6 @@ impl RecordingSession {
                     }
                 }
                 _ = shutdown_rx.recv() => {
-                    self.done = true;
                     break;
                 }
             }
@@ -383,7 +389,9 @@ impl RecordingSession {
         // therefore making sure we're in the right context isn't necessary here.
         log::debug!("Recorder is done, attempting to upload remaining streams...");
         if self.recording_status.is_running() {
-            self.handle_stop_recording().await?;
+            if let Err(err) = self.handle_stop_recording().await {
+                log::error!("Failed to stop recording: {err:?}");
+            };
         }
 
         let running_stream_ids = self
@@ -393,8 +401,12 @@ impl RecordingSession {
             .map(|(id, _)| *id)
             .collect::<Vec<_>>();
         for stream_target_id in running_stream_ids {
-            self.stop_stream(stream_target_id).await?;
+            if let Err(err) = self.stop_stream(stream_target_id).await {
+                log::error!("Failed to stop stream {stream_target_id}: {err:?}");
+            }
         }
+
+        self.compositor.close().await;
 
         Ok(())
     }
