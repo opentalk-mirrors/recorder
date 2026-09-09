@@ -19,3 +19,7 @@ exclude_rule 'MD041'
 
 # Disable line length limit because markdown tables can't have linebreaks in them
 exclude_rule 'MD013'
+
+# This rule is triggered when a different code block style is used than the configured one.
+# Disabled since it also triggers on MkDocs Admonitions
+exclude_rule 'MD046'
