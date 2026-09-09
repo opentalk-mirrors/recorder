@@ -3,6 +3,10 @@
 This guide describes breaking changes to the configuration file and how to
 update an existing settings file between releases.
 
+## `v0.17` -> `v0.18`
+
+There are no breaking changes between `v0.17` and `v0.18`. No migration is necessary.
+
 ## `v0.16` → `v0.17`
 
 Release `0.17` replaces RabbitMQ-based job delivery with a REST/HTTP model and
