@@ -42,6 +42,8 @@ variables:
   FF_NETWORK_PER_BUILD: 'true'
   SKOPEO_IMAGE: quay.io/skopeo/stable:v1.20.0
   DEFAULT_FLAVOR: intel
+  # The `livekit` client crate pulls in `webrtc-sys`, whose build script refuses to compile with GCC or clang < 20
+  CXX: clang++-21
 
 .default_job_condition: &default_job_condition
   needs: []
