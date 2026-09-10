@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.3] - 2026-09-09
+
+[0.17.3]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.17.2...v0.17.3
+
+### 🐛 Bug fixes
+
+- update and explicity close compositor ([!857](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/857))
+- (ci) update rust image to 1.98.0 and add CXX variable ([!857](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/857)
+
+## [0.17.2] - 2026-09-08
+
+[0.17.2]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.17.1...v0.17.2
+
+### 🐛 Bug fixes
+
+- (signaling) Exit on roomserver signaling disconnect ([!851](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/851))
+- (signaling) Stop recorder on MovedToWaitingRoom ([!851](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/851))
+
+## [0.17.1] - 2026-07-17
+
+[0.17.1]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.17.0...v0.17.1
+
+### 🐛 Bug fixes
+
+- (recorder) Properly stop streams when shutting down recording session ([#260](https://git.opentalk.dev/opentalk/backend/services/recorder/-/work_items/260))
+- (recorder) Invert test if stream is running in stop_stream ([#260](https://git.opentalk.dev/opentalk/backend/services/recorder/-/work_items/260))
+
 ## [0.17.0] - 2026-07-13
 
 [0.17.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.16.0...v0.17.0
@@ -69,6 +96,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Ci
 
 - (pre-commit) Switch from taplo to olpat (taplo is unmaintained) ([!787](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/787))
+
+## [0.16.2] - 2026-04-14
+
+[0.16.2]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.16.1...v0.16.2
+
+### 🐛 Bug fixes
+
+- Enable websocket tls features ([!731](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/731))
+
+### 📦 Dependencies
+
+- (deps) Update aws-lc & rustls-webpki ([!734](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/734))
+
+## [0.16.1] - 2026-03-10
+
+[0.16.1]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.16.0...v0.16.1
+
+### 🚀 New features
+
+- (ci) Switch to buildah ([!669](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/669))
 
 ## [0.16.0] - 2026-03-10
 
@@ -211,6 +258,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - (container) Upgrade gpgv in intel container ([!660](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/660))
 - (ci) Use matrix builds for container build ([!660](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/660))
 
+## [0.15.2] - 2025-12-23
+
+[0.15.2]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.15.1-1...v0.15.2
+
+### Ci
+
+- Fix read-tags job conditions ([!617](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/617))
+- Include commit evidence job ([!616](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/616), [#237](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/237))
+- Push images to new registry ([!603](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/603), [#236](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/236))
+
+### 📚 Documentation
+
+- (docs) Prepare documentation for mkdocs-material ([!604](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/604), [#224](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/224))
+
+### 📦 Dependencies
+
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust docker tag to v1.92.0 ([!611](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/611))
+- (deps) Update alpine docker tag to v3.23 ([!608](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/608))
+
+## [0.15.1] - 2025-06-23
+
+[0.15.1]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.15.0...v0.15.1
+
+### 🐛 Bug fixes
+
+- Check token expiry ([#213](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/213))
+
 ## [0.15.0] - 2025-05-29
 
 [0.15.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.14.1...v0.15.0
@@ -271,6 +345,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configure renovate merge request reviewers ([!449](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/449))
 - Add "team:: media integration" label to new incidents ([!462](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/462))
 - Correct handling of trivyignore files ([!464](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/464))
+
+## [0.14.2] - 2025-06-23
+
+[0.14.2]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.14.1...v0.14.2
+
+### 🐛 Bug fixes
+
+- Check token expiry ([#213](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/213))
+
+## [0.14.1] - 2025-03-27
+
+[0.14.1]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.14.0...v0.14.1
+
+### 🐛 Bug fixes
+
+- Recorder timeout for first recording attempt ([!448](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/448), [#204](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/204))
+
+### 📚 Documentation
+
+- Added advisory for unmaintained paste crate ([!446](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/446))
+
+### 📦 Dependencies
+
+- (deps) Update rust crate ring to v0.17.14 ([!452](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/452))
 
 ## [0.14.0] - 2025-03-05
 
@@ -357,6 +455,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Verify that commits are signed ([!370](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/370))
 - Allow ssh signed commits ([!372](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/372))
+
+## [0.13.2] - 2025-02-03
+
+[0.13.2]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.13.1...v0.13.2
+
+### 📦 Dependencies
+
+- (deps) Update rust crate service-probe to v0.2.1 ([!402](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/402))
+
+## [0.13.1] - 2025-01-10
+
+[0.13.1]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.13.0...v0.13.1
+
+### 📦 Dependencies
+
+- (deps) Update rust crate compositor to v0.12.1 ([!374](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/374))
 
 ## [0.13.0] - 2024-12-12
 
