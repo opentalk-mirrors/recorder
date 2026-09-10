@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-09-10
+
+[0.18.0]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.17.0...v0.18.0
+
+### 🚀 New features
+
+- Implement lobby join flow ([!796](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/796), [#257](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/257))
+- (orchestrator) Implement the resource collision callback ([!843](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/843))
+
+### 🐛 Bug fixes
+
+- (recorder) Properly stop streams when shutting down recording session ([!795](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/795))
+- (recorder) Invert test if stream is running in stop_stream ([!795](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/795))
+- Recorder creates empty files when receiving two start commands in a row ([!819](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/819), [#262](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/262))
+- (ci) Fix package installation in container build and do not fail silently ([!846](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/846))
+- (signaling) Exit on roomserver signaling disconnect ([!850](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/850))
+- (signaling) Stop recorder on MovedToWaitingRoom ([!850](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/850))
+- Update documentation ([!849](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/849))
+- Update and explicity close compositor ([!856](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/856))
+- Keep tasks lock while spawning session ([!860](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/860))
+- (signaling) Exit recording session on websocket signaling error ([!863](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/863))
+- (docker) Add clang and CXX variable to dockerfile ([!865](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/865))
+
+### 📚 Documentation
+
+- Migration guide v0.16 -> v0.17 ([!845](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/845), [#267](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/267))
+- Migration guide v0.17 -> v0.18 ([!854](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/854), [#268](https://git.opentalk.dev/opentalk/backend/services/recorder/-/issues/268))
+
+### 🔨 Refactor
+
+- Use dedicated session handle for recording sessions ([!843](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/843))
+
+### 📦 Dependencies
+
+- (deps) Lock file maintenance ([!789](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/789), [!820](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/820), [!824](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/824), [!831](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/831), [!833](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/833), [!837](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/837))
+- (deps) Lock file maintenance and opentalk-compositor v0.19.0 ([!844](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/844))
+- (deps) Update alpine docker tag to v3.24 ([!833](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/833))
+- (deps) Update git.opentalk.dev:5050/opentalk/backend/containers/rust ([!770](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/770), [!833](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/833), [!838](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/838))
+- (deps) Update gstreamer base image to 1.26 (based on ubuntu 26.04) ([!847](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/847))
+- (deps) Update opentalk ([!803](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/803), [!821](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/821), [!827](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/827), [!828](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/828), [!834](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/834), [!842](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/842), [!843](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/843))
+- (deps) Update opentalk-controller ([!794](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/794))
+- (deps) Update opentalk-signaling to 0.16 ([!870](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/870))
+- (deps) Update pre-commit hook alessandrojcm/commitlint-pre-commit-hook to v9.26.0 ([!833](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/833))
+- (deps) Update pre-commit hook embarkstudios/cargo-deny to v0.20.2 ([!833](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/833))
+- (deps) Update pre-commit hook markdownlint/markdownlint to v0.18.1 ([!833](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/833))
+- (deps) Update registry.gitlab.com/pipeline-components/markdownlint docker tag to v0.14.15 ([!766](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/766))
+- (deps) Update rust crate spin ([!794](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/794))
+- (deps) Update rust crate tokio-tungstenite to 0.30 ([!833](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/833))
+
+### ✨ Style
+
+- Cleanup whitespaces ([!794](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/794))
+
+### ⚙ Miscellaneous
+
+- Remove package renames ([!792](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/792))
+- Ignore unmaintained warning ([!794](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/794))
+- (just) Add `use-branch-tags` for changelog building ([!870](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/870))
+
+### Ci
+
+- (renovate) Update opentalk group ([!794](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/794))
+- (security) Update all packages in the container on build ([!846](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/846))
+- Allow admonitions in markdown ([!845](https://git.opentalk.dev/opentalk/backend/services/recorder/-/merge_requests/845))
+
 ## [0.17.3] - 2026-09-09
 
 [0.17.3]: https://git.opentalk.dev/opentalk/backend/services/recorder/-/compare/v0.17.2...v0.17.3
