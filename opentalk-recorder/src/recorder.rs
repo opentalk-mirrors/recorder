@@ -351,7 +351,8 @@ impl RecordingSession {
                 msg = self.room_state.recv() => {
                     match msg {
                         Err(err) => {
-                            log::debug!("Unexpected websocket message. {err:?}");
+                            log::debug!("Failed to receive next websocket message: {err:?}");
+                            break;
                         },
                         Ok(event) => if let Err(err) = Box::pin(self.handle_signaling_event(event, chunk_limit_reached_tx.clone())).await {
                             log::error!("Failed to handle signaling event: {err:?}");
