@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     net::IpAddr,
     process::{exit, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use anyhow::{Context, Result};
@@ -37,7 +37,7 @@ use tokio::{
         ctrl_c,
         unix::{signal, SignalKind},
     },
-    sync::broadcast,
+    sync::{broadcast, Mutex},
 };
 
 use crate::{
@@ -73,29 +73,22 @@ impl RecorderBackend for AppState {
 
         let recorder_context = self.recorder_context.clone();
 
-        if self
-            .tasks
-            .lock()
-            .expect("Failed to acquire task lock")
+        let mut tasks = self.tasks.lock().await;
+
+        if tasks
             .get(&recording_target)
             .is_some_and(|handle| !handle.is_finished())
         {
             return Ok(RecordingAction::AlreadyRunning);
         }
 
-        let session = Box::pin(
-            recorder_context
-                .clone()
-                .spawn_session(recording_target, self.orchestrator_handle.clone()),
-        )
-        .await;
+        let session = recorder_context
+            .spawn_session(recording_target, self.orchestrator_handle.clone())
+            .await;
 
         match session {
             Ok(task) => {
-                self.tasks
-                    .lock()
-                    .expect("Failed to acquire task lock")
-                    .insert(recording_target, task);
+                tasks.insert(recording_target, task);
                 Ok(RecordingAction::Created)
             }
             Err(err) => {

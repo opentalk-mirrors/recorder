@@ -21,7 +21,7 @@ pub struct OrchestratorStateProvider {
 #[async_trait::async_trait]
 impl StateProvider for OrchestratorStateProvider {
     async fn register_type(&mut self) -> RegisterType {
-        let tasks = self.tasks.lock().expect("failed to acquire task lock");
+        let tasks = self.tasks.lock().await;
 
         let rooms = tasks
             .iter()
@@ -55,7 +55,7 @@ impl StateProvider for OrchestratorStateProvider {
 
         log::warn!("Orchestrator reported resource collision for rooms: {colliding_resources:?}");
 
-        let mut tasks = self.tasks.lock().expect("failed to acquire task lock");
+        let mut tasks = self.tasks.lock().await;
 
         tasks.retain(|target, handle| {
             let resource = RecorderResource {
