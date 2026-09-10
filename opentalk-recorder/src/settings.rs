@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: EUPL-1.2
 
-use std::{net::IpAddr, path::PathBuf};
+use std::{
+    net::IpAddr,
+    path::PathBuf,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use anyhow::{bail, Context, Result};
 use config::{Config, Environment, File, FileFormat, FileSourceFile};
@@ -17,6 +21,8 @@ use serde::{Deserialize, Deserializer};
 const S3_MINIMUM_CHUNK_SIZE: usize = 5 * 1024 * 1024;
 const S3_MAXIMUM_CHUNK_SIZE: usize = S3_MINIMUM_CHUNK_SIZE * 1024;
 
+static FOUND_UNKNOWN_KEY_WITH_UNDERSCORE_PREFIX: AtomicBool = AtomicBool::new(false);
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct Settings {
     pub(crate) controller: ControllerSettings,
@@ -30,7 +36,23 @@ impl Settings {
     pub(crate) fn load(config_arg_path: Option<&String>) -> Result<Self> {
         let config = Config::builder()
             .add_source(discover_config_file(config_arg_path)?)
-            .add_source(Environment::with_prefix("OPENTALK_REC").separator("__"))
+            .add_source(
+                // deprecated double underscore. keeping it for backwards compatibility
+                Environment::with_prefix("OPENTALK_REC")
+                    .separator("__")
+                    .try_parsing(true)
+                    .list_separator(",")
+                    .with_list_parse_key("http.api_keys"),
+            )
+            .add_source(
+                // correct way to set environment variables
+                Environment::with_prefix("OPENTALK_REC")
+                    .prefix_separator("_")
+                    .separator("__")
+                    .try_parsing(true)
+                    .list_separator(",")
+                    .with_list_parse_key("http.api_keys"),
+            )
             .build()
             .context("Failed to build configuration loader")?;
 
@@ -38,6 +60,31 @@ impl Settings {
         let ignored_deserializer = serde_ignored::Deserializer::new(config, &mut warn_unknown_key);
         let settings = serde_path_to_error::deserialize(ignored_deserializer)
             .context("invalid configuration")?;
+
+        // Migration warning for the correct environment config
+        if FOUND_UNKNOWN_KEY_WITH_UNDERSCORE_PREFIX.load(Ordering::Relaxed) {
+            anstream::eprintln!(
+                r"{}:
+    Found deprecated environment variable configuration, this may result in some misleading config warnings above.
+    To fix this, replace the double underscore in:
+        {}{}{}
+        {}{}
+    with a single underscore:
+        {}{}{}
+        {}{}",
+                "FIXME".yellow().bold(),
+                "OPENTALK_REC".yellow().bold(),
+                "__".red().bold(),
+                "EXAMPLE__CONFIG_KEY".yellow().bold(),
+                " ".repeat("OPENTALK_REC".len()),
+                "^^".red().bold(),
+                "OPENTALK_REC".yellow().bold(),
+                "_".green().bold(),
+                "EXAMPLE__CONFIG_KEY".yellow().bold(),
+                " ".repeat("OPENTALK_REC".len()),
+                "^".green().bold(),
+            );
+        }
 
         Ok(settings)
     }
@@ -48,6 +95,15 @@ impl Settings {
         // Be aware that this might get called before the logger is initialized. Don't use
         // tracing/log crates.
         use owo_colors::OwoColorize as _;
+
+        // When an unused key starts with an underscore, it is a strong indicator that the deprecated double underscore
+        // prefix has been used for the configuration with environment variables.
+        if !FOUND_UNKNOWN_KEY_WITH_UNDERSCORE_PREFIX.load(Ordering::Relaxed)
+            && path.to_string().starts_with('_')
+        {
+            FOUND_UNKNOWN_KEY_WITH_UNDERSCORE_PREFIX.store(true, Ordering::Relaxed);
+        }
+
         anstream::eprintln!(
             "{}: Unknown configuration key {}",
             "WARNING".yellow().bold(),
