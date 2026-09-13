@@ -151,10 +151,10 @@ lint:markdown:
   stage: lint
   <<: *default_job_condition
   image:
-    name: registry.gitlab.com/pipeline-components/markdownlint:0.14.15
+    name: registry.heinlein.group/opentalk-tools/common-lint:v0.1.1
     pull_policy: if-not-present
   script:
-    - mdl --style .markdown_style.rb  --warnings .
+    - npx markdownlint-cli2 --warnings "*/.md"
 
 lint:licensing:
   stage: lint
